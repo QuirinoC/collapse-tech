@@ -20,3 +20,10 @@ create table if not exists winners (
   session_id uuid not null,
   claimed_at timestamptz not null default now()
 );
+
+create or replace view telemetry_totals as
+select
+  coalesce(sum(attempts_total), 0) as attempts_total,
+  coalesce(sum(attempts_auto), 0) as attempts_auto,
+  coalesce(sum(attempts_manual), 0) as attempts_manual
+from telemetry_aggregates;

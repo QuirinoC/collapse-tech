@@ -16,7 +16,7 @@ A minimal, Yeezy-inspired web experiment where anyone can guess a 256-bit key an
 2. Create `.env.local` using `.env.example`.
 
 3. Create the Supabase tables.
-   - Open the Supabase SQL editor and run `supabase/schema.sql`.
+   - Open the Supabase SQL editor and run `supabase/schema.sql` (includes a `telemetry_totals` view used by the global counter).
 
 4. Run locally.
    ```bash
@@ -26,7 +26,9 @@ A minimal, Yeezy-inspired web experiment where anyone can guess a 256-bit key an
 ## Environment Variables
 - `SECRET_KEY_HEX`: 64 hex characters (256-bit secret).
 - `SUPABASE_URL`: Supabase project URL.
-- `SUPABASE_SERVICE_ROLE_KEY`: Service role key for server-side inserts.
+- One of:
+  - `SUPABASE_SERVICE_ROLE_KEY` (server-only, works with RLS on)
+  - `SUPABASE_KEY` (publishable/anon key, requires RLS to allow inserts)
 
 Generate a secret:
 ```bash

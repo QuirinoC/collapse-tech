@@ -2,7 +2,7 @@
 
 ## Supabase
 1. Create a new Supabase project.
-2. Open the SQL editor and run `supabase/schema.sql`.
+2. Open the SQL editor and run `supabase/schema.sql` (includes the global totals view).
 3. Copy the project URL and the service role key for server-side inserts.
 
 ## Vercel
@@ -10,7 +10,7 @@
 2. Set environment variables:
    - `SECRET_KEY_HEX`
    - `SUPABASE_URL`
-   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_KEY`
 3. Deploy with the default Next.js settings.
 
 ## Local Secret Rotation

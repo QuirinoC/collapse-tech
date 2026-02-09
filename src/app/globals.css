@@ -87,7 +87,7 @@ input {
 
 .input-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 16px;
 }
 
@@ -162,6 +162,26 @@ input {
   font-weight: 600;
 }
 
+.recent {
+  display: grid;
+  gap: 10px;
+}
+
+.recent-list {
+  display: grid;
+  gap: 8px;
+}
+
+.recent-item {
+  font-family: var(--font-plex-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.7);
+  word-break: break-all;
+}
+
 .toggle-row {
   display: flex;
   align-items: center;
@@ -181,10 +201,15 @@ input {
   position: relative;
   cursor: pointer;
   transition: background 0.2s ease;
+  padding: 0;
+  border: 1px solid var(--border);
+  appearance: none;
+  -webkit-appearance: none;
+  line-height: 0;
+  overflow: hidden;
 }
 
-.toggle::after {
-  content: "";
+.toggle-knob {
   position: absolute;
   top: 3px;
   left: 3px;
@@ -200,7 +225,7 @@ input {
   background: #1f1f1f;
 }
 
-.toggle.active::after {
+.toggle.active .toggle-knob {
   transform: translateX(24px);
 }
 
@@ -266,6 +291,10 @@ input {
 
   .input-row {
     grid-template-columns: 1fr;
+  }
+
+  .input-row .button {
+    width: 100%;
   }
 }
 

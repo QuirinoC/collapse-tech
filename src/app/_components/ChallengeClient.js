@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { isHexString, normalizeHex } from "@/lib/shared/hex";
+import { bytesToHex, isHexString, normalizeHex } from "@/lib/shared/hex";
 import { sha256Hex } from "@/lib/shared/hash";
 
 const BATCH_MS = 10_000;
 const BATCH_ATTEMPTS = 25_000;
-const AUTO_WORKER_BATCH = 5_000;
+const AUTO_WORKER_BATCH = 1_200;
+const AUTO_WORKER_JITTER = 700;
 
 export default function ChallengeClient({ commitmentHash, challengeId }) {
   const commitment = commitmentHash.toLowerCase();
@@ -17,6 +18,8 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
   const [challengeEnded, setChallengeEnded] = useState(false);
   const [autoEnabled, setAutoEnabled] = useState(false);
   const [totals, setTotals] = useState({ total: 0, manual: 0, auto: 0 });
+  const [globalTotals, setGlobalTotals] = useState(null);
+  const [recentGuesses, setRecentGuesses] = useState([]);
 
   const clientIdRef = useRef(null);
   const autoEnabledRef = useRef(false);
@@ -31,6 +34,11 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
   const workerRef = useRef(null);
 
   const sessionId = useMemo(() => generateUuid(), []);
+  const initialGuess = useMemo(() => generateRandomHex(), []);
+
+  useEffect(() => {
+    setGuessInput((current) => current || initialGuess);
+  }, [initialGuess]);
 
   useEffect(() => {
     const storageKey = "ac_client_id";
@@ -49,6 +57,39 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
       }
     }
     clientIdRef.current = stored;
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const fetchStats = async () => {
+      try {
+        const response = await fetch("/api/stats");
+        if (!response.ok) return;
+        const data = await response.json();
+        if (active && data && data.totals) {
+          setGlobalTotals(data.totals);
+        }
+      } catch (err) {
+        // ignore failures
+      }
+    };
+
+    fetchStats();
+    const interval = setInterval(fetchStats, 15000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const pushRecentGuess = useCallback((guessHex) => {
+    if (!guessHex) return;
+    const normalized = normalizeHex(guessHex);
+    if (!isHexString(normalized, 64)) return;
+    setRecentGuesses((prev) => {
+      const next = [normalized, ...prev.filter((item) => item !== normalized)];
+      return next.slice(0, 5);
+    });
   }, []);
 
   useEffect(() => {
@@ -213,12 +254,16 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
     workerRef.current = worker;
 
     worker.onmessage = (event) => {
-      const { type, attempts, guessHex } = event.data || {};
+      const { type, attempts, guessHex, sampleGuess } = event.data || {};
       if (type === "progress" && attempts) {
         recordAttempts({ auto: attempts, manual: 0 });
+        if (sampleGuess) {
+          pushRecentGuess(sampleGuess);
+        }
       }
       if (type === "win" && guessHex) {
         recordAttempts({ auto: attempts || 0, manual: 0 });
+        pushRecentGuess(guessHex);
         setAutoEnabled(false);
         handleClaim(guessHex);
       }
@@ -228,6 +273,7 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
       type: "start",
       commitmentHex: commitment,
       batchSize: AUTO_WORKER_BATCH,
+      jitter: AUTO_WORKER_JITTER,
     });
 
     return () => {
@@ -235,9 +281,9 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
       worker.terminate();
       workerRef.current = null;
     };
-  }, [autoEnabled, commitment, handleClaim, recordAttempts]);
+  }, [autoEnabled, commitment, handleClaim, recordAttempts, pushRecentGuess]);
 
-  async function handleManualAttempt() {
+  async function attemptGuess(rawGuess) {
     setError("");
     setStatus("");
     if (challengeEnded) {
@@ -245,12 +291,13 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
       return;
     }
 
-    const normalized = normalizeHex(guessInput);
+    const normalized = normalizeHex(rawGuess);
     if (!isHexString(normalized, 64)) {
       setError("Enter exactly 64 hex characters.");
       return;
     }
 
+    pushRecentGuess(normalized);
     recordAttempts({ manual: 1, auto: 0 });
 
     let hashed;
@@ -267,6 +314,16 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
     }
 
     await handleClaim(normalized);
+  }
+
+  async function handleManualAttempt() {
+    await attemptGuess(guessInput);
+  }
+
+  async function handleRandomAttempt() {
+    const randomHex = generateRandomHex();
+    setGuessInput(randomHex);
+    await attemptGuess(randomHex);
   }
 
   return (
@@ -293,7 +350,7 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
             className="input-field"
             value={guessInput}
             onChange={(event) => setGuessInput(event.target.value)}
-            placeholder="Enter 64 hex characters"
+            placeholder="Random 64-hex (edit or replace)"
             spellCheck={false}
           />
           <button
@@ -302,6 +359,13 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
             disabled={challengeEnded}
           >
             Check Guess
+          </button>
+          <button
+            className="button secondary"
+            onClick={handleRandomAttempt}
+            disabled={challengeEnded}
+          >
+            Random Guess
           </button>
         </div>
 
@@ -324,21 +388,44 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
               }
             }}
             disabled={challengeEnded}
-          />
+          >
+            <span className="toggle-knob" />
+          </button>
         </div>
 
         <div className="stats">
           <div className="stat-card">
-            <span>Total attempts</span>
-            <strong>{totals.total.toLocaleString()}</strong>
+            <span>Global attempts</span>
+            <strong>
+              {globalTotals ? globalTotals.total.toLocaleString() : "—"}
+            </strong>
+          </div>
+          <div className="stat-card">
+            <span>Auto attempts</span>
+            <strong>{totals.auto.toLocaleString()}</strong>
           </div>
           <div className="stat-card">
             <span>Manual attempts</span>
             <strong>{totals.manual.toLocaleString()}</strong>
           </div>
           <div className="stat-card">
-            <span>Auto attempts</span>
-            <strong>{totals.auto.toLocaleString()}</strong>
+            <span>Total attempts</span>
+            <strong>{totals.total.toLocaleString()}</strong>
+          </div>
+        </div>
+
+        <div className="recent">
+          <div className="status">Last 5 tried keys</div>
+          <div className="recent-list">
+            {recentGuesses.length ? (
+              recentGuesses.map((guess, index) => (
+                <div className="recent-item" key={`${guess}-${index}`}>
+                  {guess}
+                </div>
+              ))
+            ) : (
+              <div className="status">No guesses yet.</div>
+            )}
           </div>
         </div>
 
@@ -361,6 +448,10 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
       <section className="panel reveal">
         <div className="kicker">Rules & Eligibility</div>
         <div className="rules">
+          <p>
+            Disclaimer: this site is a fictional demo and not a real prize
+            offering.
+          </p>
           <p>
             No purchase required. One verified winner receives the $100 prize and
             the challenge ends.
@@ -399,4 +490,17 @@ function generateUuid() {
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
   return `fallback-${Math.random().toString(16).slice(2)}`;
+}
+
+function generateRandomHex() {
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    return bytesToHex(bytes);
+  }
+  let hex = "";
+  for (let i = 0; i < 64; i += 1) {
+    hex += Math.floor(Math.random() * 16).toString(16);
+  }
+  return hex;
 }

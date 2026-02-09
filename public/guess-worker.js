@@ -1,12 +1,19 @@
 let running = false;
 let commitmentHex = "";
-let batchSize = 5000;
+let batchSize = 1200;
+let jitter = 700;
+let nextReportAt = 1200;
 
 self.onmessage = (event) => {
   const { type } = event.data || {};
   if (type === "start") {
     commitmentHex = event.data.commitmentHex;
     batchSize = event.data.batchSize || batchSize;
+    jitter =
+      typeof event.data.jitter === "number"
+        ? Math.max(0, event.data.jitter)
+        : jitter;
+    nextReportAt = batchSize + Math.floor(Math.random() * jitter);
     if (!running) {
       running = true;
       loop();
@@ -36,9 +43,15 @@ async function loop() {
       return;
     }
 
-    if (attemptsSinceReport >= batchSize) {
-      self.postMessage({ type: "progress", attempts: attemptsSinceReport });
+    if (attemptsSinceReport >= nextReportAt) {
+      const sampleGuess = bytesToHex(guessBytes);
+      self.postMessage({
+        type: "progress",
+        attempts: attemptsSinceReport,
+        sampleGuess,
+      });
       attemptsSinceReport = 0;
+      nextReportAt = batchSize + Math.floor(Math.random() * jitter);
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
   }
