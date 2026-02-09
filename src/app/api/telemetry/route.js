@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/server/supabase";
+import { getPool } from "@/lib/server/db";
 
 function parseTimestamp(value) {
   if (typeof value === "string" || typeof value === "number") {
@@ -49,19 +49,25 @@ export async function POST(request) {
     return NextResponse.json({ error: "Invalid attempt fields" }, { status: 400 });
   }
 
-  const supabase = createServerSupabase();
-  const { error } = await supabase.from("telemetry_aggregates").insert({
-    client_id: clientId,
-    session_id: sessionId,
-    started_at: startedAt,
-    ended_at: endedAt,
-    attempts_total: attemptsTotal,
-    attempts_auto: attemptsAuto,
-    attempts_manual: attemptsManual,
-    auto_enabled: autoEnabled,
-  });
-
-  if (error) {
+  const pool = getPool();
+  try {
+    await pool.query(
+      `insert into telemetry_aggregates
+        (client_id, session_id, started_at, ended_at, attempts_total, attempts_auto, attempts_manual, auto_enabled)
+       values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        clientId,
+        sessionId,
+        startedAt,
+        endedAt,
+        attemptsTotal,
+        attemptsAuto,
+        attemptsManual,
+        autoEnabled,
+      ]
+    );
+  } catch (error) {
+    console.error("Telemetry insert failed", error);
     return NextResponse.json({ error: "Database insert failed" }, { status: 500 });
   }
 

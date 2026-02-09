@@ -37,6 +37,7 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
   const initialGuess = useMemo(() => generateRandomHex(), []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setGuessInput((current) => current || initialGuess);
   }, [initialGuess]);
 
@@ -334,7 +335,8 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
         <p>
           A 256-bit secret is locked behind a public SHA-256 commitment. Your
           browser checks guesses locally, so no per-guess server calls. The first
-          verified claim ends the challenge.
+          verified claim ends the challenge. It’s like the lottery, but you can
+          try 100,000 times per second.
         </p>
       </section>
 

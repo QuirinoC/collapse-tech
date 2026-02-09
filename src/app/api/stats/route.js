@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/server/supabase";
+import { getPool } from "@/lib/server/db";
 
 export const revalidate = 0;
 
@@ -10,21 +10,26 @@ function toNumber(value) {
 }
 
 export async function GET() {
-  const supabase = createServerSupabase();
-  const { data, error } = await supabase
-    .from("telemetry_totals")
-    .select("attempts_total, attempts_auto, attempts_manual")
-    .single();
+  const pool = getPool();
+  try {
+    const result = await pool.query(
+      `select
+        coalesce(sum(attempts_total), 0) as attempts_total,
+        coalesce(sum(attempts_auto), 0) as attempts_auto,
+        coalesce(sum(attempts_manual), 0) as attempts_manual
+       from telemetry_aggregates`
+    );
 
-  if (error) {
+    const row = result.rows[0] || {};
+    const totals = {
+      total: toNumber(row.attempts_total),
+      auto: toNumber(row.attempts_auto),
+      manual: toNumber(row.attempts_manual),
+    };
+
+    return NextResponse.json({ totals }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    console.error("Stats query failed", error);
     return NextResponse.json({ error: "Stats unavailable" }, { status: 500 });
   }
-
-  const totals = {
-    total: toNumber(data?.attempts_total),
-    auto: toNumber(data?.attempts_auto),
-    manual: toNumber(data?.attempts_manual),
-  };
-
-  return NextResponse.json({ totals }, { headers: { "Cache-Control": "no-store" } });
 }

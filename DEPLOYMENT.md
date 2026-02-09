@@ -2,8 +2,10 @@
 
 ## Supabase
 1. Create a new Supabase project.
-2. Open the SQL editor and run `supabase/schema.sql` (includes the global totals view).
-3. Copy the project URL and the service role key for server-side inserts.
+2. Open the SQL editor and run `supabase/schema.sql`.
+3. Copy the Postgres connection string for `DATABASE_URL`.
+
+If you enable RLS, note that the default `postgres` role bypasses RLS. Use a restricted DB user if you want RLS enforced.
 
 ## Vercel
 1. Import the Git repo into Vercel.
