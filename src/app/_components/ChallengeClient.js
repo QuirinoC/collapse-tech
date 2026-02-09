@@ -373,7 +373,7 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
 
         <div className="status">{error || status || "Awaiting your guess."}</div>
 
-        <div className="toggle-row">
+        <div className={`toggle-row ${autoEnabled ? "active" : ""}`}>
           <div>
             <strong>Infinite mode</strong>
             <div className="status">

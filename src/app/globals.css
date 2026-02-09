@@ -193,6 +193,12 @@ input {
   background: rgba(255, 255, 255, 0.7);
 }
 
+.toggle-row.active {
+  border-color: #1f1f1f;
+  box-shadow: 0 0 0 1px rgba(17, 17, 15, 0.12), 0 0 32px rgba(215, 208, 196, 0.75),
+    0 18px 30px rgba(17, 17, 15, 0.12);
+}
+
 .toggle {
   width: 54px;
   height: 30px;

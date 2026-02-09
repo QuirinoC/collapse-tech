@@ -1,7 +1,5 @@
-import crypto from "node:crypto";
 import { NextResponse } from "next/server";
-import { evaluateClaim } from "@/lib/server/claim";
-import { getPool } from "@/lib/server/db";
+import { tryClaim } from "@/lib/server/store";
 
 export async function POST(request) {
   let payload;
@@ -19,31 +17,11 @@ export async function POST(request) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  const pool = getPool();
-  const client = await pool.connect();
-
   try {
-    await client.query("begin");
-    const existing = await client.query("select id from winners limit 1");
-    const alreadyWon = existing.rows.length > 0;
-    const status = evaluateClaim({ guessHex, alreadyWon });
-    if (status === "already_won" || status === "nope") {
-      await client.query("commit");
-      return NextResponse.json({ status });
-    }
-
-    const claimToken = crypto.randomBytes(16).toString("hex");
-    await client.query(
-      "insert into winners (claim_token, client_id, session_id) values ($1, $2, $3)",
-      [claimToken, clientId, sessionId]
-    );
-    await client.query("commit");
-    return NextResponse.json({ status: "won", claimToken });
+    const result = await tryClaim({ guessHex, clientId, sessionId });
+    return NextResponse.json(result);
   } catch (error) {
-    await client.query("rollback");
     console.error("Claim transaction failed", error);
     return NextResponse.json({ error: "Database insert failed" }, { status: 500 });
-  } finally {
-    client.release();
   }
 }

@@ -25,9 +25,11 @@ A minimal, Yeezy-inspired web experiment where anyone can guess a 256-bit key an
 
 ## Environment Variables
 - `SECRET_KEY_HEX`: 64 hex characters (256-bit secret).
-- `DATABASE_URL`: Supabase Postgres connection string.
+- `DATABASE_URL`: Supabase Postgres connection string (preferred if reachable).
+- `SUPABASE_URL`: Supabase project URL (used for REST fallback).
+- `SUPABASE_SERVICE_ROLE_KEY`: Supabase service role key (used for REST fallback).
 
-Note: This app connects directly to Postgres using the `postgres` user in the connection string. If you enable RLS, the `postgres` role bypasses it. If you want RLS enforced, create a restricted DB user and use that connection string instead.
+Note: The app prefers direct Postgres via `DATABASE_URL`. If the DB hostname is unreachable (common on Vercel with invalid pooler host), it falls back to Supabase REST using `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`. If you enable RLS, direct Postgres with the `postgres` role bypasses it. For RLS enforcement, use a restricted DB user or rely on Supabase REST with policies.
 
 Generate a secret:
 ```bash
