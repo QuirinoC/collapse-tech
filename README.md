@@ -1,36 +1,40 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Asymmetric Challenge
 
-## Getting Started
+A minimal, Yeezy-inspired web experiment where anyone can guess a 256-bit key and win $100. The browser verifies guesses locally by hashing and comparing to a public commitment, so there are no per-guess server calls. The server only verifies a claim on a match.
 
-First, run the development server:
+## Stack
+- Next.js (App Router)
+- Supabase Postgres (telemetry + winner state)
+- Vercel hosting (Hobby plan)
 
+## Setup
+1. Install dependencies.
+   ```bash
+   npm install
+   ```
+
+2. Create `.env.local` using `.env.example`.
+
+3. Create the Supabase tables.
+   - Open the Supabase SQL editor and run `supabase/schema.sql`.
+
+4. Run locally.
+   ```bash
+   npm run dev
+   ```
+
+## Environment Variables
+- `SECRET_KEY_HEX`: 64 hex characters (256-bit secret).
+- `SUPABASE_URL`: Supabase project URL.
+- `SUPABASE_SERVICE_ROLE_KEY`: Service role key for server-side inserts.
+
+Generate a secret:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+openssl rand -hex 32
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Telemetry
+The client batches attempt counts and sends aggregates every 10 seconds or 25,000 attempts, whichever comes first. A final batch is sent on tab close when possible.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Claim Flow
+If the client finds a matching hash, it calls `/api/claim`. The server verifies the guess against the secret and stores the first winner. Subsequent claims return `already_won`.
