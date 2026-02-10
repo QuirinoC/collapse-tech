@@ -334,9 +334,9 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
         <h1>Guess the 256-bit key. Win $100.</h1>
         <p>
           A 256-bit secret is locked behind a public SHA-256 commitment. Your
-          browser checks guesses locally, so no per-guess server calls. The first
-          verified claim ends the challenge. It’s like the lottery, but you can
-          try 100,000 times per second.
+          device checks guesses on its own, so there’s no lag for each try. The
+          first verified claim ends the challenge. It’s like the lottery, but
+          you can try 100,000 times per second.
         </p>
       </section>
 
@@ -377,7 +377,7 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
           <div>
             <strong>Infinite mode</strong>
             <div className="status">
-              Auto-guess in a worker. Runs until stopped or solved.
+              Let it try nonstop. Stop it anytime.
             </div>
           </div>
           <button
