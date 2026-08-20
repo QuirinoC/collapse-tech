@@ -1,0 +1,42 @@
+name: Validate applications
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  challenge:
+    name: Challenge
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/asymmetric-challenge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/asymmetric-challenge/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: SECRET_KEY_HEX=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef npm run build
+
+  studio:
+    name: Studio
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/collapse-technologies
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/collapse-technologies/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
