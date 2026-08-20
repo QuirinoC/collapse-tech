@@ -1,0 +1,379 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "PixelBoard!";
+}
+
+<div id="menu"
+    style="z-index: 10; position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);">
+    <p>Pick a color & Drag Left-Click to Draw! Right-Click to Pan.</p>
+    <input type="color" id="colorPicker" value="#000000" style="margin-top: 10px;">
+    <span id="coords">Pointer coords: (0, 0)</span>
+    <span id="viewCoords">View Center: (0, 0)</span>
+    <span id="viewTileCoords">Tile Coords: (0, 0)</span>
+</div>
+
+<div id="canvasContainer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;">
+    <canvas id="board" style="width: 100%; height: 100%;"></canvas>
+</div>
+
+@section Scripts {
+    <script src=" https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/5.0.11/signalr.min.js"></script>
+    <script>
+        const PIXEL_SIZE = 10;
+        const TILE_SIZE = 128;
+        const canvas = document.getElementById('board');
+        const ctx = canvas.getContext('2d');
+        const coordsDisplay = document.getElementById('coords');
+
+        let viewCoords_x = 0;
+        let viewCoords_y = 0;
+        const viewCoordsDisplay = document.getElementById('viewCoords');
+
+        let viewTileCoords_x = 0;
+        let viewTileCoords_y = 0;
+        const viewTileCoordsDisplay = document.getElementById('viewTileCoords');
+
+        let tileSet = new Set();
+
+        var neighborLock = false;
+
+        // Set initial canvas dimensions
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Track mouse state
+        let isMouseDown = false;
+        let isRightMouseDown = false;
+        let lastX = -1, lastY = -1;
+        let offsetX = 0, offsetY = 0;
+        let startX, startY;
+
+        // Store tiles
+        const tiles = new Map();
+
+        // Draw gridlines
+        function drawGrid() {
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.lineWidth = 0.5; // Thinner borders
+
+            const startXGrid = Math.floor((-offsetX) / PIXEL_SIZE);
+            const endXGrid = Math.floor((-offsetX + canvas.width) / PIXEL_SIZE);
+            const startYGrid = Math.floor((-offsetY) / PIXEL_SIZE);
+            const endYGrid = Math.floor((-offsetY + canvas.height) / PIXEL_SIZE);
+
+            ctx.beginPath();
+            for (let x = startXGrid; x <= endXGrid; x++) {
+                ctx.moveTo(x * PIXEL_SIZE + offsetX, 0);
+                ctx.lineTo(x * PIXEL_SIZE + offsetX, canvas.height);
+            }
+            for (let y = startYGrid; y <= endYGrid; y++) {
+                ctx.moveTo(0, y * PIXEL_SIZE + offsetY);
+                ctx.lineTo(canvas.width, y * PIXEL_SIZE + offsetY);
+            }
+            ctx.stroke();
+        }
+
+        // Load or create a tile
+        function getTile(col, row) {
+            const key = `${col},${row}`;
+
+            console.log("Requested tile", key);
+
+            if (!tiles.has(key)) {
+                const tileMatrix = connection.invoke("RequestTile", row, col).then((tileData) => {
+                    console.log("Received tile data.");
+                    const tileCanvas = document.createElement('canvas');
+
+                    // Add border to canvas
+                    tileCanvas.style.border = "1px solid #000";
+
+                    tileCanvas.width = TILE_SIZE * PIXEL_SIZE;
+                    tileCanvas.height = TILE_SIZE * PIXEL_SIZE;
+                    const tileCtx = tileCanvas.getContext('2d');
+                    tileCtx.fillStyle = '#FFFFFF';
+                    tileCtx.fillRect(0, 0, tileCanvas.width, tileCanvas.height);
+
+                    for (let x = 0; x < tileData.length; x++) {
+                        for (let y = 0; y < tileData[x].length; y++) {
+                            const color = tileData[y][x];
+                            if (color && color !== "#FFFFFF") {
+                                tileCtx.fillStyle = color;
+                                tileCtx.fillRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+                            }
+                        }
+                    }
+
+                    tiles.set(key, { canvas: tileCanvas, ctx: tileCtx });
+                    drawTiles();
+                });
+
+                //console.log("tileMatrix", tileMatrix);
+
+                // Create an off-screen canvas for the tile
+                const tileCanvas = document.createElement('canvas');
+                tileCanvas.width = TILE_SIZE * PIXEL_SIZE;
+                tileCanvas.height = TILE_SIZE * PIXEL_SIZE;
+                const tileCtx = tileCanvas.getContext('2d');
+                // Initialize tile (e.g., fill with default color)
+                tileCtx.fillStyle = '#FFFFFF';
+                tileCtx.fillRect(0, 0, tileCanvas.width, tileCanvas.height);
+                tiles.set(key, { canvas: tileCanvas, ctx: tileCtx });
+            }
+            return tiles.get(key);
+        }
+
+        // Draw visible tiles
+        function drawTiles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const startCol = Math.floor((-offsetX) / (TILE_SIZE * PIXEL_SIZE));
+            const endCol = Math.floor((-offsetX + canvas.width) / (TILE_SIZE * PIXEL_SIZE));
+            const startRow = Math.floor((-offsetY) / (TILE_SIZE * PIXEL_SIZE));
+            const endRow = Math.floor((-offsetY + canvas.height) / (TILE_SIZE * PIXEL_SIZE));
+
+            for (let col = startCol; col <= endCol; col++) {
+                for (let row = startRow; row <= endRow; row++) {
+                    const tile = getTile(col, row);
+                    const xPos = col * TILE_SIZE * PIXEL_SIZE + offsetX;
+                    const yPos = row * TILE_SIZE * PIXEL_SIZE + offsetY;
+                    ctx.drawImage(tile.canvas, xPos, yPos);
+                }
+            }
+
+            drawGrid();
+        }
+
+        // Create a connection to the SignalR hub with automatic reconnect
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/boardHub")
+            .withAutomaticReconnect()
+            .build();
+
+        // Start the connection
+        async function start() {
+            try {
+                await connection.start();
+                console.log("SignalR Connected.");
+
+                // Initial draw of the tiles
+                drawTiles();
+            } catch (err) {
+                console.error("Connection failed: ", err);
+                setTimeout(start, 5000);
+            }
+        }
+
+        connection.onreconnecting((error) => {
+            console.warn(`Connection lost due to error "${error}". Reconnecting.`);
+        });
+
+        connection.onreconnected((connectionId) => {
+            console.log(`Connection reestablished.`);
+        });
+
+        connection.onclose(async () => {
+            console.error("Connection closed. Reconnecting...");
+            await start();
+        });
+
+        // Function to draw a pixel with fade-in effect
+        function drawPixelWithFade(x, y, color) {
+            const col = Math.floor(y / TILE_SIZE);
+            const row = Math.floor(x / TILE_SIZE);
+            const tileX = mod(y, TILE_SIZE);
+            const tileY = mod(x, TILE_SIZE);
+            const tile = getTile(col, row);
+
+            let opacity = 0;
+            const fadeInInterval = setInterval(() => {
+                opacity += 0.07;
+                if (opacity >= 1) {
+                    opacity = 1;
+                    clearInterval(fadeInInterval);
+                }
+                tile.ctx.fillStyle = hexToRGBA(color, opacity);
+                tile.ctx.fillRect(tileX * PIXEL_SIZE, tileY * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+                drawTiles();
+            }, 16); // Approximately 60 frames per second
+        }
+
+        // Add this function at the top of your script
+        function mod(n, m) {
+            return ((n % m) + m) % m;
+        }
+
+        function drawPixelInstant(x, y, color) {
+            const col = Math.floor(y / TILE_SIZE);
+            const row = Math.floor(x / TILE_SIZE);
+            const tileX = mod(y, TILE_SIZE);
+            const tileY = mod(x, TILE_SIZE);
+            const tile = getTile(col, row);
+
+            tile.ctx.fillStyle = color;
+            tile.ctx.fillRect(tileX * PIXEL_SIZE, tileY * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+            drawTiles();
+        }
+
+        // Helper function to convert hex color to rgba
+        function hexToRGBA(hex, alpha) {
+            const r = parseInt(hex.substr(1, 2), 16);
+            const g = parseInt(hex.substr(3, 2), 16);
+            const b = parseInt(hex.substr(5, 2), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        // Handle receiving a pixel update
+        connection.on("UpdateBoard", (x, y, color) => {
+            drawPixelWithFade(x, y, color);
+        });
+
+        connection.on("UpdateTile", (x, y, tileData) => {
+            console.log("Received tile data.");
+            const tile = getTile(tileData.col, tileData.row);
+            const tileX = tileData.x * PIXEL_SIZE;
+            const tileY = tileData.y * PIXEL_SIZE;
+            tile.ctx.fillStyle = tileData.color;
+            tile.ctx.fillRect(tileX, tileY, PIXEL_SIZE, PIXEL_SIZE);
+            drawTiles();
+        });
+
+        // Handle receiving the full board state and initialize the board
+        connection.on("SyncBoard", (boardData) => {
+            console.log("Received board sync data.");
+            // Draw the board
+            for (let x = 0; x < boardData.length; x++) {
+                for (let y = 0; y < boardData[x].length; y++) {
+                    const color = boardData[x][y];
+                    if (color && color !== "#FFFFFF") {
+                        drawPixelInstant(x, y, color);
+                    }
+                }
+            }
+        });
+
+        // Mouse event handlers
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button === 2) { // Right-click
+                isRightMouseDown = true;
+                startX = e.clientX - offsetX;
+                startY = e.clientY - offsetY;
+            } else if (e.button === 0) { // Left-click
+                isMouseDown = true;
+                handleMouseEvent(e);
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isRightMouseDown) {
+                offsetX = e.clientX - startX;
+                offsetY = e.clientY - startY;
+                drawTiles();
+
+                // Update viewCoords
+                updateViewCoords();
+
+                // Fetch required tiles
+                var tile_x = Math.floor(offsetX / TILE_SIZE);
+                var tile_y = Math.floor(offsetY / TILE_SIZE);
+
+                //requestNeighborTiles(e, tile_x, tile_y);
+
+            } else if (isMouseDown) {
+                handleMouseEvent(e);
+            }
+            updateCoordsDisplay(e);
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (e.button === 2) {
+                isRightMouseDown = false;
+                updateViewCoords();
+            } else if (e.button === 0) {
+                isMouseDown = false;
+                lastX = -1;
+                lastY = -1;
+            }
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            isMouseDown = false;
+            isRightMouseDown = false;
+            lastX = -1;
+            lastY = -1;
+            coordsDisplay.textContent = 'Coords: (0, 0)';
+            updateViewCoords();
+        });
+
+        function handleMouseEvent(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.floor((e.clientY - rect.top - offsetY) / PIXEL_SIZE);
+            const y = Math.floor((e.clientX - rect.left - offsetX) / PIXEL_SIZE);
+
+            if (x === lastX && y === lastY) return;
+            lastX = x;
+            lastY = y;
+
+            const color = document.getElementById("colorPicker").value;
+
+            // Update the tile data
+            const col = Math.floor(y / TILE_SIZE);
+            const row = Math.floor(x / TILE_SIZE);
+            const tileX = mod(y, TILE_SIZE);
+            const tileY = mod(x, TILE_SIZE);
+            const tile = getTile(col, row);
+
+            tile.ctx.fillStyle = color;
+            tile.ctx.fillRect(tileX * PIXEL_SIZE, tileY * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+
+            drawTiles();
+
+            // Send the pixel to the server
+            connection.invoke("SendPixel", x, y, color)
+                .catch(err => {
+                    console.error(err.toString());
+                });
+        }
+
+        function updateCoordsDisplay(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.floor((e.clientY - rect.top - offsetY) / PIXEL_SIZE);
+            const y = Math.floor((e.clientX - rect.left - offsetX) / PIXEL_SIZE);
+            coordsDisplay.textContent = `Coords: (${x}, ${y})`;
+        }
+
+        function updateViewCoords() {
+            var viewCoords_x = Math.floor((canvas.width / 2 - offsetX) / PIXEL_SIZE);
+            var viewCoords_y = Math.floor((canvas.height / 2 - offsetY) / PIXEL_SIZE);
+            viewCoordsDisplay.textContent = `View Center: (${viewCoords_x}, ${viewCoords_y})`;
+
+            var viewTileCoords_x = Math.floor(viewCoords_x / TILE_SIZE);
+            var viewTileCoords_y = Math.floor(viewCoords_y / TILE_SIZE);
+            viewTileCoordsDisplay.textContent = `Tile Coords: (${viewTileCoords_x}, ${viewTileCoords_y})`;
+        }
+
+        // Prevent context menu on right-click
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
+        // Start the SignalR connection
+        start();
+
+        // Resize handler
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            drawTiles();
+        });
+    </script>
+    <style>
+        canvas#board {
+            border: 1px solid #000;
+            margin: 20px auto;
+            display: block;
+            image-rendering: pixelated;
+            cursor: crosshair;
+        }
+    </style>
+}

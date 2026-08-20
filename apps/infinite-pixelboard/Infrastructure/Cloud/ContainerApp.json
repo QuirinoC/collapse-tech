@@ -1,0 +1,164 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "projectName": {
+            "type": "string",
+            "defaultValue": "pixelboard",
+            "maxLength": 11
+        }
+    },
+    "variables": {
+        "location": "centralus",
+        "acrName": "autocontentacr",
+        "storageAccountName": "[format('{0}store', parameters('projectName'))]",
+        "keyVaultName": "[format('{0}kv', parameters('projectName'))]",
+        "logAnalyticsName": "[format('{0}logs', parameters('projectName'))]",
+        "containerAppEnvName": "[format('autocontentenv', parameters('projectName'))]",
+        "managedIdentityName": "[format('{0}id', parameters('projectName'))]",
+        "containerAppName": "[format('{0}app', parameters('projectName'))]",
+        "redisCacheName": "[format('{0}cache', parameters('projectName'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+            "apiVersion": "2023-01-31",
+            "name": "[variables('managedIdentityName')]",
+            "location": "[variables('location')]"
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults",
+            "apiVersion": "2023-02-01",
+            "name": "[variables('keyVaultName')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]"
+            ],
+            "properties": {
+                "sku": {
+                    "family": "A",
+                    "name": "standard"
+                },
+                "tenantId": "[subscription().tenantId]",
+                "accessPolicies": [
+                    {
+                        "tenantId": "[subscription().tenantId]",
+                        "objectId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName')), '2023-01-31').principalId]",
+                        "permissions": {
+                            "secrets": [
+                                "get",
+                                "list"
+                            ]
+                        }
+                    }
+                ],
+                "enableRbacAuthorization": false,
+                "enableSoftDelete": true,
+                "softDeleteRetentionInDays": 7
+            }
+        },
+        {
+            "type": "Microsoft.Cache/Redis",
+            "apiVersion": "2023-08-01",
+            "name": "[variables('redisCacheName')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "sku": {
+                    "name": "Basic",
+                    "family": "C",
+                    "capacity": 0
+                },
+                "enableNonSslPort": false,
+                "minimumTlsVersion": "1.2"
+            }
+        },
+        {
+            "type": "Microsoft.App/containerApps",
+            "apiVersion": "2023-05-01",
+            "name": "[variables('containerAppName')]",
+            "location": "[variables('location')]",
+            "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                    "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]": {}
+                }
+            },
+            "properties": {
+                "managedEnvironmentId": "[resourceId('autocontent', 'Microsoft.App/managedEnvironments', variables('containerAppEnvName'))]",
+                "configuration": {
+                    "ingress": {
+                        "external": true,
+                        "targetPort": 8080
+                    },
+                    "registries": [
+                        {
+                            "server": "[format('{0}.azurecr.io', variables('acrName'))]",
+                            "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]"
+                        }
+                    ],
+                    "secrets": [
+                        {
+                            "name": "redisconnectionstring",
+                            "keyVaultUrl": "[concat('https://', variables('keyVaultName'), '.vault.azure.net/secrets/', 'redisconnectionstring')]",
+                            "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]"
+                        }
+                    ]
+                },
+                "template": {
+                    "containers": [
+                        {
+                            "name": "app",
+                            "image": "[format('{0}.azurecr.io/pixelboard:latest', variables('acrName'))]",
+                            "resources": {
+                                "cpu": "1",
+                                "memory": "2Gi"
+                            },
+                            "env": [
+                                {
+                                    "name": "redisconnectionstring",
+                                    "secretRef": "redisconnectionstring"
+                                }
+                            ]
+                        }
+                    ],
+                    "scale": {
+                        "minReplicas": 0,
+                        "maxReplicas": 1
+                    }
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]",
+                "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
+                "[resourceId('Microsoft.Cache/Redis', variables('redisCacheName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Authorization/roleAssignments",
+            "apiVersion": "2022-04-01",
+            "name": "[guid(resourceId('Microsoft.Cache/Redis', variables('redisCacheName')), variables('managedIdentityName'), 'Redis Cache Contributor')]",
+            "properties": {
+                "roleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'e0f68234-74aa-48ed-b826-c38b57376e17')]",
+                "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName')), '2023-01-31').principalId]",
+                "principalType": "ServicePrincipal"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Cache/Redis', variables('redisCacheName'))]",
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Authorization/roleAssignments",
+            "apiVersion": "2022-04-01",
+            "name": "[guid(resourceGroup().id, 'acr-pull', variables('managedIdentityName'))]",
+            "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+                "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))).principalId]",
+                "scope": "/subscriptions/1173a707-87ca-4aa8-a0ea-b1fc0a1a1609/resourcegroups/pixelboard"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('managedIdentityName'))]"
+            ]
+        }
+    ]
+}
