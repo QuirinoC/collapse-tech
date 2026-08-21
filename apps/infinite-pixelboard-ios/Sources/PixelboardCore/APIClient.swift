@@ -61,6 +61,10 @@ public struct PixelboardAPIClient: Sendable {
         )
     }
 
+    public func deleteAccount() async throws {
+        try await requestWithoutResponse("account", method: "DELETE", authorized: true)
+    }
+
     public func place(_ command: PlacementRequest) async throws -> PlacementResult {
         try await request("placements", method: "POST", body: command, authorized: true)
     }

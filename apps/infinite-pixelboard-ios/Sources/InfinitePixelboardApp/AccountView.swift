@@ -62,7 +62,7 @@ struct AccountView: View {
                             confirmingDeletion = true
                         }
                     } footer: {
-                        Text("Deletion removes the Firebase identity. Server data deletion requires server support.")
+                        Text("Deletion removes server-held account data before deleting the Firebase identity.")
                     }
                 }
 

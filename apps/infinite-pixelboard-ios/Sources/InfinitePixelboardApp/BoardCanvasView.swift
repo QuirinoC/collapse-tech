@@ -38,6 +38,18 @@ struct BoardCanvasView: View {
                     break
                 }
             }
+            .accessibilityAction(named: "Move up") {
+                moveSelection(rowDelta: -1, columnDelta: 0)
+            }
+            .accessibilityAction(named: "Move down") {
+                moveSelection(rowDelta: 1, columnDelta: 0)
+            }
+            .accessibilityAction(named: "Move left") {
+                moveSelection(rowDelta: 0, columnDelta: -1)
+            }
+            .accessibilityAction(named: "Move right") {
+                moveSelection(rowDelta: 0, columnDelta: 1)
+            }
             .task(id: visibleLoadKey(size: geometry.size)) {
                 model.resize(to: geometry.size)
                 await model.loadVisible(size: geometry.size)
@@ -92,6 +104,13 @@ struct BoardCanvasView: View {
     private func visibleLoadKey(size: CGSize) -> String {
         let range = model.viewport.visibleTiles(width: size.width, height: size.height)
         return "\(model.boardGeneration):\(range.firstRow):\(range.lastRow):\(range.firstColumn):\(range.lastColumn)"
+    }
+
+    private func moveSelection(rowDelta: Int, columnDelta: Int) {
+        model.selectedPosition = BoardPosition(
+            row: model.selectedPosition.row + rowDelta,
+            column: model.selectedPosition.column + columnDelta
+        )
     }
 
     private func draw(context: inout GraphicsContext, size: CGSize) {

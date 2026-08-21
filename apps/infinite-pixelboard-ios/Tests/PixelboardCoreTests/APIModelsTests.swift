@@ -23,4 +23,22 @@ final class APIModelsTests: XCTestCase {
         XCTAssertEqual(object["row"] as? Int, -8)
         XCTAssertEqual(object["column"] as? Int, 13)
     }
+
+    func testStoreKitAccountTokenDecodesCompactServerGUID() throws {
+        let data = Data(#"{"appAccountToken":"00112233445566778899aabbccddeeff"}"#.utf8)
+
+        let response = try JSONDecoder().decode(StoreKitAccountTokenResponse.self, from: data)
+
+        XCTAssertEqual(response.appAccountToken.uuidString, "00112233-4455-6677-8899-AABBCCDDEEFF")
+    }
+
+    func testRedisStreamCursorUsesNumericComponentOrdering() throws {
+        let earlier = try XCTUnwrap(RedisStreamCursor("999-100"))
+        let later = try XCTUnwrap(RedisStreamCursor("1000-2"))
+        let sameMillisecondLaterSequence = try XCTUnwrap(RedisStreamCursor("1000-10"))
+
+        XCTAssertLessThan(earlier, later)
+        XCTAssertLessThan(later, sameMillisecondLaterSequence)
+        XCTAssertNil(RedisStreamCursor("invalid"))
+    }
 }

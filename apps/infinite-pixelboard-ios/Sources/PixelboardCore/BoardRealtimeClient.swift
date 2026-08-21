@@ -22,9 +22,11 @@ public actor BoardRealtimeClient {
     private var reconnectTask: Task<Void, Never>?
     private var stopped = true
     private var attempt = 0
+    private var lastCursor: RedisStreamCursor?
 
     public var onPixel: (@Sendable (AcceptedPixelEvent) async -> Void)?
     public var onStateChange: (@Sendable (ConnectionState) async -> Void)?
+    public var onRecoveryRequired: (@Sendable () async -> Void)?
 
     public init(baseURL: URL, session: URLSession = .shared) {
         self.baseURL = baseURL
@@ -33,16 +35,19 @@ public actor BoardRealtimeClient {
 
     public func setHandlers(
         onPixel: (@Sendable (AcceptedPixelEvent) async -> Void)?,
-        onStateChange: (@Sendable (ConnectionState) async -> Void)?
+        onStateChange: (@Sendable (ConnectionState) async -> Void)?,
+        onRecoveryRequired: (@Sendable () async -> Void)?
     ) {
         self.onPixel = onPixel
         self.onStateChange = onStateChange
+        self.onRecoveryRequired = onRecoveryRequired
     }
 
     public func start() {
         guard stopped else { return }
         stopped = false
         attempt = 0
+        lastCursor = nil
         Task { await negotiateAndConnect() }
     }
 
@@ -60,7 +65,7 @@ public actor BoardRealtimeClient {
         notify(attempt == 0 ? .connecting : .reconnecting(attempt: attempt))
         do {
             var request = URLRequest(
-                url: baseURL.appending(path: "boardHub/negotiate")
+                url: baseURL.appending(path: "api/v1/realtime/negotiate")
                     .appending(queryItems: [URLQueryItem(name: "negotiateVersion", value: "1")])
             )
             request.httpMethod = "POST"
@@ -74,7 +79,7 @@ public actor BoardRealtimeClient {
                 throw URLError(.cannotParseResponse)
             }
             var components = URLComponents(
-                url: baseURL.appending(path: "boardHub"),
+                url: baseURL.appending(path: "api/v1/realtime"),
                 resolvingAgainstBaseURL: false
             )!
             components.scheme = components.scheme == "https" ? "wss" : "ws"
@@ -102,13 +107,13 @@ public actor BoardRealtimeClient {
         }
     }
 
-    private func handle(_ result: Result<URLSessionWebSocketTask.Message, Error>) {
+    private func handle(_ result: Result<URLSessionWebSocketTask.Message, Error>) async {
         guard !stopped else { return }
         switch result {
         case let .success(message):
             if case let .string(text) = message {
                 for frame in text.split(separator: "\u{001e}") {
-                    decodeSignalRFrame(Data(frame.utf8))
+                    await decodeSignalRFrame(Data(frame.utf8))
                 }
             }
             receive()
@@ -117,39 +122,45 @@ public actor BoardRealtimeClient {
         }
     }
 
-    private func decodeSignalRFrame(_ data: Data) {
+    private func decodeSignalRFrame(_ data: Data) async {
         struct Invocation: Decodable {
             let type: Int
             let target: String?
             let arguments: [JSONValue]?
         }
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        guard let invocation = try? decoder.decode(Invocation.self, from: data),
+        guard let invocation = try? JSONDecoder().decode(Invocation.self, from: data),
               invocation.type == 1 else { return }
 
         let decoded: (row: Int, column: Int, color: String, placedAt: Date, placementId: String)?
-        if invocation.target == "PixelAccepted",
-           case let .object(argument)? = invocation.arguments?.first,
-           case let .object(pixel) = argument["pixel"] ?? .object(argument),
+        if invocation.target == "AcceptedPixelV1",
+           case let .object(envelope)? = invocation.arguments?.first,
+           case let .number(protocolVersion)? = envelope["protocolVersion"],
+           protocolVersion == 1,
+           case let .string(type)? = envelope["type"],
+           type == "pixel.accepted",
+           case let .string(cursorValue)? = envelope["cursor"],
+           case let .object(eventData)? = envelope["data"],
+           case let .string(placementId)? = eventData["placementId"],
+           case let .object(pixel)? = eventData["pixel"],
            case let .number(row)? = pixel["row"],
            case let .number(column)? = pixel["column"],
            case let .string(color)? = pixel["color"] {
-            let placedAt: Date
-            if case let .string(value)? = pixel["placedAt"],
-               let decodedDate = ISO8601DateFormatter().date(from: value) {
-                placedAt = decodedDate
-            } else {
-                placedAt = Date()
-            }
-            let placementId: String
-            if case let .string(value)? = argument["placementId"] {
-                placementId = value
-            } else {
-                placementId = ""
-            }
-            decoded = (Int(row), Int(column), color, placedAt, placementId)
+           guard let cursor = RedisStreamCursor(cursorValue) else {
+               await notifyRecovery()
+               return
+           }
+           if let lastCursor, cursor <= lastCursor {
+               await notifyRecovery()
+               return
+           }
+           guard case let .string(placedAtValue)? = pixel["placedAt"],
+                 let placedAt = Self.decodeDate(placedAtValue) else {
+               await notifyRecovery()
+               return
+           }
+           lastCursor = cursor
+           decoded = (Int(row), Int(column), color, placedAt, placementId)
         } else if invocation.target == "UpdateBoard",
                   let arguments = invocation.arguments,
                   arguments.count >= 3,
@@ -171,7 +182,17 @@ public actor BoardRealtimeClient {
                 placedAt: decoded.placedAt
             )
         )
-        Task { await onPixel?(event) }
+        await onPixel?(event)
+    }
+
+    private static func decodeDate(_ value: String) -> Date? {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+    }
+
+    private func notifyRecovery() async {
+        await onRecoveryRequired?()
     }
 
     private func scheduleReconnect() {
@@ -194,6 +215,29 @@ public actor BoardRealtimeClient {
 
     private func notify(_ state: ConnectionState) {
         Task { await onStateChange?(state) }
+    }
+}
+
+struct RedisStreamCursor: Comparable {
+    let milliseconds: UInt64
+    let sequence: UInt64
+
+    init?(_ value: String) {
+        let components = value.split(separator: "-", omittingEmptySubsequences: false)
+        guard components.count == 2,
+              let milliseconds = UInt64(components[0]),
+              let sequence = UInt64(components[1]) else {
+            return nil
+        }
+        self.milliseconds = milliseconds
+        self.sequence = sequence
+    }
+
+    static func < (lhs: RedisStreamCursor, rhs: RedisStreamCursor) -> Bool {
+        if lhs.milliseconds != rhs.milliseconds {
+            return lhs.milliseconds < rhs.milliseconds
+        }
+        return lhs.sequence < rhs.sequence
     }
 }
 

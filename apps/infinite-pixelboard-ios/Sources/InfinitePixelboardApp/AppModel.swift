@@ -70,6 +70,9 @@ final class AppModel: ObservableObject {
             },
             onStateChange: { [weak self] state in
                 await self?.setConnection(state)
+            },
+            onRecoveryRequired: { [weak self] in
+                await self?.refreshVisibleTiles()
             }
         )
         await realtime.start()
@@ -167,9 +170,11 @@ final class AppModel: ObservableObject {
 
     func deleteAccount() async {
         do {
+            try await authentication.prepareForAccountDeletion()
+            try await api.deleteAccount()
             try await authentication.deleteAccount()
             account = nil
-            statusMessage = "Firebase account deleted"
+            statusMessage = "Account deleted"
         } catch {
             statusMessage = error.localizedDescription
         }
@@ -246,22 +251,24 @@ final class AppModel: ObservableObject {
         tiles = await cache?.snapshot() ?? tiles
     }
 
-    private func setConnection(_ state: BoardRealtimeClient.ConnectionState) {
+    private func setConnection(_ state: BoardRealtimeClient.ConnectionState) async {
         switch state {
         case .disconnected: connection = .offline
         case .connecting: connection = .connecting
         case .connected:
             connection = .online
-            guard canvasSize != .zero, let cache else { return }
-            let addresses = viewport.visibleTiles(
-                width: canvasSize.width,
-                height: canvasSize.height
-            ).addresses
-            Task {
-                await cache.refresh(addresses)
-                tiles = await cache.snapshot()
-            }
+            await refreshVisibleTiles()
         case .reconnecting: connection = .reconnecting
         }
+    }
+
+    private func refreshVisibleTiles() async {
+        guard canvasSize != .zero, let cache else { return }
+        let addresses = viewport.visibleTiles(
+            width: canvasSize.width,
+            height: canvasSize.height
+        ).addresses
+        await cache.refresh(addresses)
+        tiles = await cache.snapshot()
     }
 }

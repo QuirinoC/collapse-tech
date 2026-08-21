@@ -6,13 +6,14 @@ Native SwiftUI client for the versioned Infinite Pixelboard API. The Xcode app i
 
 1. Run `xcodegen generate` in this directory.
 2. Open `InfinitePixelboard.xcodeproj`.
-3. Set `PIXELBOARD_BASE_URL` in the scheme environment to the HTTPS server URL.
-4. Add Firebase Auth through Swift Package Manager and a locally managed `GoogleService-Info.plist`. Do not commit credentials.
-5. Add Sign in with Apple and Google provider SDKs, then exchange each native provider credential for a Firebase credential in `FirebaseAuthAdapter.signIn(with:)`. The checked-in adapter is an explicit, non-anonymous configuration boundary and fails closed until this is wired.
-6. Set the StoreKit product IDs in `AppConfiguration` to match App Store Connect and the server. `Resources/InfinitePixelboard.storekit` supplies local monthly and annual subscriptions.
+3. The archive defaults to `https://pixelboard.collapsetechnologies.com` through the `PIXELBOARD_BASE_URL` build setting and generated `PixelboardBaseURL` Info.plist key. Override the build setting in an uncommitted `.xcconfig`, or set the `PIXELBOARD_BASE_URL` scheme environment variable for local development.
+4. Download `GoogleService-Info.plist` from the Firebase project and add it to the app target locally. It is ignored and must never be committed. Enable Apple and Google providers in Firebase Authentication.
+5. Enable Sign in with Apple for the bundle identifier and provisioning profile. The entitlement is checked in. Override `GOOGLE_REVERSED_CLIENT_ID` with `REVERSED_CLIENT_ID` from the Firebase plist in an uncommitted `.xcconfig` or build setting; the generated Info.plist registers it as the Google OAuth callback scheme.
+6. The Xcode project resolves Firebase Auth/Core and Google Sign-In with Swift Package Manager. Native Google and Apple flows exchange provider credentials with Firebase; Apple uses a cryptographically secure SHA-256 nonce.
+7. Set the StoreKit product IDs in `AppConfiguration` to match App Store Connect and the server. `Resources/InfinitePixelboard.storekit` supplies local monthly and annual subscriptions.
 
 The checked-in app intentionally contains no production Firebase plist, AdMob application/unit ID, or server secret. Ads remain disabled until an app-specific AdMob adapter is added and `adsEnabled` is explicitly set. That adapter must configure Google's request maximum content rating to `G`; the reserved banner is also suppressed for Pro accounts.
 
-Account deletion has a native entry point and deletes the current Firebase identity when Firebase Auth is linked. Complete deletion of server-held account data requires a corresponding authenticated server endpoint; the current v1 server contract does not expose one.
+Account deletion calls authenticated `DELETE /api/v1/account` first and deletes the Firebase identity only after the server confirms deletion. A server failure leaves Firebase authentication intact so the user can retry.
 
-The realtime client performs the ASP.NET Core SignalR negotiate/handshake flow and accepts both the intended `PixelAccepted` envelope and the legacy `UpdateBoard` invocation. On every reconnect it force-refreshes visible HTTP tiles, so dropped or unavailable live events converge to server state. The current server does not wire `IBoardEventPublisher` to `BoardHub`; live updates therefore depend on the reconnect recovery until that server integration is added.
+The realtime client negotiates SignalR at `/api/v1/realtime`, consumes version 1 `AcceptedPixelV1` envelopes, and retains `UpdateBoard` only as a legacy fallback. It force-refreshes visible HTTP tiles on connect, reconnect, and duplicate or reordered Redis stream cursors so live state converges to the server snapshot.

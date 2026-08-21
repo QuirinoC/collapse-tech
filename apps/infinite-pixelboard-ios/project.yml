@@ -13,6 +13,12 @@ settings:
 packages:
   PixelboardCore:
     path: .
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk.git
+    from: 11.0.0
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS.git
+    from: 8.0.0
 targets:
   InfinitePixelboard:
     type: application
@@ -24,19 +30,35 @@ targets:
     dependencies:
       - package: PixelboardCore
         product: PixelboardCore
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseCore
+      - package: GoogleSignIn
+        product: GoogleSignIn
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.collapse.infinitepixelboard
         PRODUCT_NAME: Infinite Pixelboard
-        INFOPLIST_KEY_CFBundleDisplayName: Infinite Pixelboard
-        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.entertainment
-        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        GENERATE_INFOPLIST_FILE: YES
+        PIXELBOARD_BASE_URL: https://pixelboard.collapsetechnologies.com
+        GOOGLE_REVERSED_CLIENT_ID: com.googleusercontent.apps.CONFIGURE_ME
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 1.0
         ENABLE_USER_SCRIPT_SANDBOXING: YES
         SWIFT_STRICT_CONCURRENCY: targeted
+        CODE_SIGN_ENTITLEMENTS: InfinitePixelboard.entitlements
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Infinite Pixelboard
+        LSApplicationCategoryType: public.app-category.entertainment
+        UIApplicationSupportsIndirectInputEvents: true
+        UILaunchScreen: {}
+        PixelboardBaseURL: "$(PIXELBOARD_BASE_URL)"
+        CFBundleURLTypes:
+          - CFBundleTypeRole: Editor
+            CFBundleURLSchemes:
+              - "$(GOOGLE_REVERSED_CLIENT_ID)"
     scheme:
       testTargets:
         - PixelboardCoreTests

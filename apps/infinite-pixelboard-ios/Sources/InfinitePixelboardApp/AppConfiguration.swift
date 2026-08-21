@@ -6,7 +6,11 @@ enum AppConfiguration {
            let url = URL(string: value) {
             return url
         }
-        return URL(string: "https://pixelboard.example.invalid")!
+        if let value = Bundle.main.object(forInfoDictionaryKey: "PixelboardBaseURL") as? String,
+           let url = URL(string: value) {
+            return url
+        }
+        return URL(string: "https://pixelboard.collapsetechnologies.com")!
     }()
 
     static let monthlyProductID = "com.collapse.infinitepixelboard.pro.monthly"

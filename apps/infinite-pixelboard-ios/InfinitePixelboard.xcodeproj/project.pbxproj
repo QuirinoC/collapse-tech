@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		0AA57E1EC3F8695C947CB354 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22651EDE0934EF192A615A10 /* AppModel.swift */; };
 		1149DC267F58FD53E2667EE3 /* AdBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3099949C37EEA15601D5A443 /* AdBanner.swift */; };
+		11DC07118C5D003778B12A08 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = CE7205D2650372A6F23F63BD /* FirebaseAuth */; };
+		1430FA6B60A110671ABACBAC /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 0D07065E4A492959FE38274E /* FirebaseCore */; };
 		1CD605DDBD9F1010876B5DB3 /* PixelboardCore in Frameworks */ = {isa = PBXBuildFile; productRef = EE27B760C8D6D8D40F72908E /* PixelboardCore */; };
 		34C9CAFB806FB41AB21D8829 /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75915BECB7377347E52E0816 /* AppConfiguration.swift */; };
 		4D607B2259CE1B249FD956C2 /* ReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 091F90D40D4BBC34464A6EC6 /* ReportView.swift */; };
@@ -18,6 +20,7 @@
 		8612FFB793833B9BDE6C95F9 /* InfinitePixelboardApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26A5EAA50A0866EBAB12941F /* InfinitePixelboardApp.swift */; };
 		8A32CE0AE4C5D8718BD193D7 /* InfinitePixelboard.storekit in Resources */ = {isa = PBXBuildFile; fileRef = FCEDCF597B60B782D572E37A /* InfinitePixelboard.storekit */; };
 		8A686428919FFE9E9A4351BE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B24BCDEBEADB8E88850C33 /* ContentView.swift */; };
+		9538A9021F8A9FECCDB5F8DB /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 94C181AD6B5332C017ABF51A /* GoogleSignIn */; };
 		96F8FBFFDDA294B7C69F6A45 /* TileCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65F2C7887D76C8ECBBE0DF5D /* TileCacheTests.swift */; };
 		B71A06A41DCBDE31307BDB8F /* APIModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D501B653E62F8FBAE71FBDBF /* APIModelsTests.swift */; };
 		D0F8352BDF800CA129242403 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2D4BA2B005A8A60974F33F1 /* AccountView.swift */; };
@@ -61,6 +64,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				1CD605DDBD9F1010876B5DB3 /* PixelboardCore in Frameworks */,
+				11DC07118C5D003778B12A08 /* FirebaseAuth in Frameworks */,
+				1430FA6B60A110671ABACBAC /* FirebaseCore in Frameworks */,
+				9538A9021F8A9FECCDB5F8DB /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -165,6 +171,9 @@
 			name = InfinitePixelboard;
 			packageProductDependencies = (
 				EE27B760C8D6D8D40F72908E /* PixelboardCore */,
+				CE7205D2650372A6F23F63BD /* FirebaseAuth */,
+				0D07065E4A492959FE38274E /* FirebaseCore */,
+				94C181AD6B5332C017ABF51A /* GoogleSignIn */,
 			);
 			productName = InfinitePixelboard;
 			productReference = A51D78F9D6764E3C82BD2252 /* InfinitePixelboard.app */;
@@ -216,6 +225,8 @@
 			mainGroup = A567C9D500EBB5696C3F1619;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				E3823BC6C8EC5A13AB1C1416 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				A381C1E70DE5303D2425FBA9 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 				7E31E3F1A36866A00EA6A686 /* XCLocalSwiftPackageReference "." */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -276,19 +287,18 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = InfinitePixelboard.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Infinite Pixelboard";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.CONFIGURE_ME;
+				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				PIXELBOARD_BASE_URL = "https://pixelboard.collapsetechnologies.com";
 				PRODUCT_BUNDLE_IDENTIFIER = com.collapse.infinitepixelboard;
 				PRODUCT_NAME = "Infinite Pixelboard";
 				SDKROOT = iphoneos;
@@ -301,19 +311,18 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = InfinitePixelboard.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Infinite Pixelboard";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.CONFIGURE_ME;
+				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				PIXELBOARD_BASE_URL = "https://pixelboard.collapsetechnologies.com";
 				PRODUCT_BUNDLE_IDENTIFIER = com.collapse.infinitepixelboard;
 				PRODUCT_NAME = "Infinite Pixelboard";
 				SDKROOT = iphoneos;
@@ -518,10 +527,44 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		A381C1E70DE5303D2425FBA9 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
+		E3823BC6C8EC5A13AB1C1416 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 11.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		0D07065E4A492959FE38274E /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E3823BC6C8EC5A13AB1C1416 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		94C181AD6B5332C017ABF51A /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A381C1E70DE5303D2425FBA9 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
 		CCD07644DDEBEF0EE4E40866 /* PixelboardCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = PixelboardCore;
+		};
+		CE7205D2650372A6F23F63BD /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E3823BC6C8EC5A13AB1C1416 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
 		};
 		EE27B760C8D6D8D40F72908E /* PixelboardCore */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -209,6 +209,40 @@ public struct StoreKitAccountTokenResponse: Codable, Equatable, Sendable {
     public init(appAccountToken: UUID) {
         self.appAccountToken = appAccountToken
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let value = try container.decode(String.self, forKey: .appAccountToken)
+        let canonical: String
+        if value.count == 32 {
+            canonical = [
+                String(value.prefix(8)),
+                String(value.dropFirst(8).prefix(4)),
+                String(value.dropFirst(12).prefix(4)),
+                String(value.dropFirst(16).prefix(4)),
+                String(value.dropFirst(20))
+            ].joined(separator: "-")
+        } else {
+            canonical = value
+        }
+        guard let token = UUID(uuidString: canonical) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .appAccountToken,
+                in: container,
+                debugDescription: "App Account Token is not a valid UUID."
+            )
+        }
+        appAccountToken = token
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(appAccountToken.uuidString, forKey: .appAccountToken)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case appAccountToken
+    }
 }
 
 public struct VerifyStoreKitTransactionRequest: Codable, Equatable, Sendable {
