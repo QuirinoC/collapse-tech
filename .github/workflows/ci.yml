@@ -43,6 +43,27 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+  coach:
+    name: CoachGG
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/coach-gg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+          cache: true
+          cache-dependency-path: apps/coach-gg/src/CoachGG.csproj
+      - run: dotnet restore src/CoachGG.csproj
+      - run: dotnet format src/CoachGG.csproj --verify-no-changes --no-restore
+      - run: dotnet build src/CoachGG.csproj --configuration Release --no-restore
+      - name: Build production container
+        run: docker build --tag coach-gg-ci:${{ github.sha }} .
+      - name: Verify production container is non-root
+        run: test -n "$(docker image inspect coach-gg-ci:${{ github.sha }} --format '{{.Config.User}}')"
+
   pixelboard:
     name: Infinite Pixelboard
     runs-on: ubuntu-latest
