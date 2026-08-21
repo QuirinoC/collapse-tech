@@ -6,19 +6,23 @@
   ],
   "scripts": {
     "dev:challenge": "npm --prefix apps/asymmetric-challenge run dev",
+    "dev:dress": "npm --prefix apps/dress-like-me run dev",
     "dev:studio": "npm --prefix apps/collapse-technologies run dev",
     "dev:pixelboard": "dotnet watch --project apps/infinite-pixelboard/PixelBoard.csproj run",
     "restore:pixelboard": "dotnet restore apps/infinite-pixelboard/PixelBoard.sln",
-    "build": "npm run build:challenge && npm run build:studio && npm run build:pixelboard",
+    "build": "npm run build:challenge && npm run build:dress && npm run build:studio && npm run build:pixelboard",
     "build:challenge": "npm --prefix apps/asymmetric-challenge run build",
+    "build:dress": "npm --prefix apps/dress-like-me run build",
     "build:studio": "npm --prefix apps/collapse-technologies run build",
     "build:pixelboard": "dotnet build apps/infinite-pixelboard/PixelBoard.sln --no-restore",
-    "lint": "npm run lint:challenge && npm run lint:studio && npm run lint:pixelboard",
+    "lint": "npm run lint:challenge && npm run lint:dress && npm run lint:studio && npm run lint:pixelboard",
     "lint:challenge": "npm --prefix apps/asymmetric-challenge run lint",
+    "lint:dress": "npm --prefix apps/dress-like-me run lint",
     "lint:studio": "npm --prefix apps/collapse-technologies run lint",
     "lint:pixelboard": "dotnet format apps/infinite-pixelboard/PixelBoard.sln --verify-no-changes --no-restore",
-    "test": "npm run test:challenge && npm run test:pixelboard",
+    "test": "npm run test:challenge && npm run test:dress && npm run test:pixelboard",
     "test:challenge": "npm --prefix apps/asymmetric-challenge run test",
+    "test:dress": "npm --prefix apps/dress-like-me run test",
     "test:pixelboard": "dotnet test apps/infinite-pixelboard/PixelBoard.sln --no-restore"
   }
 }
