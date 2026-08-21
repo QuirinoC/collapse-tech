@@ -13,8 +13,8 @@ enum AppConfiguration {
         return URL(string: "https://pixelboard.collapsetechnologies.com")!
     }()
 
-    static let monthlyProductID = "com.collapse.infinitepixelboard.pro.monthly"
-    static let annualProductID = "com.collapse.infinitepixelboard.pro.annual"
+    static let monthlyProductID = "com.collapsetechnologies.pixelboard.pro.monthly"
+    static let annualProductID = "com.collapsetechnologies.pixelboard.pro.annual"
 
     // Ads require an explicit code change plus an app-local AdMob unit ID.
     static let adsEnabled = false
