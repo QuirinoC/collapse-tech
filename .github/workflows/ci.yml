@@ -18,8 +18,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: apps/asymmetric-challenge/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
+        working-directory: .
       - run: npm run lint
       - run: npm test
       - run: SECRET_KEY_HEX=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef npm run build
@@ -36,8 +37,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: apps/collapse-technologies/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
+        working-directory: .
       - run: npm run lint
       - run: npm run build
 
