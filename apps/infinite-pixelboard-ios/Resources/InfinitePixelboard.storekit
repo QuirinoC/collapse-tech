@@ -38,7 +38,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.collapse.infinitepixelboard.pro.monthly",
+          "productID" : "com.collapsetechnologies.pixelboard.pro.monthly",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Pro Monthly",
           "subscriptionGroupID" : "2147483647",
@@ -59,7 +59,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.collapse.infinitepixelboard.pro.annual",
+          "productID" : "com.collapsetechnologies.pixelboard.pro.annual",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Pro Annual",
           "subscriptionGroupID" : "2147483647",
