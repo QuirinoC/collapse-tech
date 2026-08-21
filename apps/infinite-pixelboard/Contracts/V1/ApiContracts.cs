@@ -9,6 +9,7 @@ public static class ApiErrorCodes
 {
     public const string AuthenticationRequired = "authentication_required";
     public const string AccountBanned = "account_banned";
+    public const string AccountDeleted = "account_deleted";
     public const string BoardReadOnly = "board_read_only";
     public const string CommunityStandardsRequired = "community_standards_required";
     public const string CooldownActive = "cooldown_active";

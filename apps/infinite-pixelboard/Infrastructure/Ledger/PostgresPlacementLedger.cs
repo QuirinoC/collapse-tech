@@ -1,4 +1,6 @@
 using Npgsql;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace PixelBoard.Infrastructure.Ledger;
 
@@ -26,7 +28,11 @@ public sealed class PostgresPlacementLedger(NpgsqlDataSource dataSource) : IPlac
                 stream_sequence)
             VALUES (
                 @placement_id,
-                @firebase_uid,
+                COALESCE((
+                    SELECT anonymized_id
+                    FROM pixelboard.deleted_accounts
+                    WHERE account_hash = @account_hash
+                ), @firebase_uid),
                 @board_row,
                 @board_column,
                 @color,
@@ -85,6 +91,9 @@ public sealed class PostgresPlacementLedger(NpgsqlDataSource dataSource) : IPlac
         await using var command = dataSource.CreateCommand(IngestSql);
         command.Parameters.AddWithValue("placement_id", placement.PlacementId.Value);
         command.Parameters.AddWithValue("firebase_uid", placement.FirebaseUid);
+        command.Parameters.AddWithValue(
+            "account_hash",
+            SHA256.HashData(Encoding.UTF8.GetBytes(placement.FirebaseUid)));
         command.Parameters.AddWithValue("board_row", placement.Row);
         command.Parameters.AddWithValue("board_column", placement.Column);
         command.Parameters.AddWithValue("color", placement.Color);

@@ -119,6 +119,17 @@ public interface IAccountPolicyService
         CancellationToken cancellationToken = default);
 }
 
+public interface IAccountDeletionService
+{
+    ValueTask<bool> IsDeletedAsync(
+        AccountId accountId,
+        CancellationToken cancellationToken = default);
+
+    ValueTask DeleteAsync(
+        AccountId accountId,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IPlacementValidator
 {
     PlacementValidation Validate(PlacementCommand command);

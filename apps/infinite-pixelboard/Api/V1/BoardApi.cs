@@ -17,6 +17,7 @@ public static class BoardApi
         api.MapGet("/board", GetMetadata);
         api.MapGet("/tiles/{tileRow:int}/{tileColumn:int}", GetTileAsync);
         api.MapGet("/account", GetAccountAsync).RequireAuthorization();
+        api.MapDelete("/account", DeleteAccountAsync).RequireAuthorization();
         api.MapPost(
                 "/account/community-standards",
                 AcceptCommunityStandardsAsync)
@@ -115,6 +116,27 @@ public static class BoardApi
             account.Id,
             CurrentCommunityStandardsVersion,
             cancellationToken);
+        return Results.NoContent();
+    }
+
+    public static async Task<IResult> DeleteAccountAsync(
+        IAccountIdentityAccessor identityAccessor,
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        var account = await identityAccessor.GetCurrentAsync(cancellationToken);
+        if (account is null)
+        {
+            return AuthenticationRequired();
+        }
+
+        var deletionService = services.GetService<IAccountDeletionService>();
+        if (deletionService is null)
+        {
+            return ServiceUnavailable("Account deletion is not configured.");
+        }
+
+        await deletionService.DeleteAsync(account.Id, cancellationToken);
         return Results.NoContent();
     }
 

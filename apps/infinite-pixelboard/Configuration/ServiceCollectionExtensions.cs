@@ -161,6 +161,7 @@ public static class ServiceCollectionExtensions
             provider => provider.GetRequiredService<PostgresAccountStateService>());
         services.AddSingleton<IEntitlementService>(
             provider => provider.GetRequiredService<PostgresAccountStateService>());
+        services.AddSingleton<IAccountDeletionService, PostgresAccountDeletionService>();
         services.AddHostedService<PlacementOutboxWorker>();
         services
             .AddHealthChecks()

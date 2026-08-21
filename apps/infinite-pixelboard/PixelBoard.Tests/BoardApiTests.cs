@@ -1,4 +1,5 @@
 using PixelBoard.Api.V1;
+using PixelBoard.Application;
 using PixelBoard.Contracts.V1;
 using PixelBoard.Domain;
 using PixelBoard.Infrastructure.Board;
@@ -46,6 +47,24 @@ public sealed class BoardApiTests
         Assert.Equal(new TileAddress(-1, 4), boardStore.RequestedTile);
     }
 
+    [Fact]
+    public async Task DeleteAccountDeletesAuthenticatedServerData()
+    {
+        var accountId = new AccountId("firebase-delete-user");
+        var deletion = new RecordingAccountDeletionService();
+        using var services = new ServiceCollection()
+            .AddSingleton<IAccountDeletionService>(deletion)
+            .BuildServiceProvider();
+
+        var result = await BoardApi.DeleteAccountAsync(
+            new FixedIdentityAccessor(new AuthenticatedAccount(accountId, false, true)),
+            services,
+            CancellationToken.None);
+
+        Assert.Equal(accountId, deletion.DeletedAccount);
+        Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.NoContent>(result);
+    }
+
     private sealed class RecordingBoardStore(string[][] pixels) : IBoardStore
     {
         public TileAddress? RequestedTile { get; private set; }
@@ -75,5 +94,31 @@ public sealed class BoardApiTests
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    private sealed class FixedIdentityAccessor(AuthenticatedAccount account)
+        : IAccountIdentityAccessor
+    {
+        public ValueTask<AuthenticatedAccount?> GetCurrentAsync(
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult<AuthenticatedAccount?>(account);
+    }
+
+    private sealed class RecordingAccountDeletionService : IAccountDeletionService
+    {
+        public AccountId? DeletedAccount { get; private set; }
+
+        public ValueTask<bool> IsDeletedAsync(
+            AccountId accountId,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(DeletedAccount == accountId);
+
+        public ValueTask DeleteAsync(
+            AccountId accountId,
+            CancellationToken cancellationToken = default)
+        {
+            DeletedAccount = accountId;
+            return ValueTask.CompletedTask;
+        }
     }
 }

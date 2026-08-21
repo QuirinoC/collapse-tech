@@ -52,6 +52,8 @@ The deployed board uses a legacy coordinate convention that must remain stable w
 
 Versioned transport shapes and machine-readable errors for the shared web/iOS API live in `Contracts/V1`. Anonymous board metadata and tile snapshots are available at `/api/v1/board` and `/api/v1/tiles/{tileRow}/{tileColumn}`. Authenticated clients can read account state, accept the current community standards, submit idempotent placements, and report a current position or bounded region through `/api/v1/account`, `/api/v1/account/community-standards`, `/api/v1/placements`, and `/api/v1/reports`.
 
+`DELETE /api/v1/account` removes account, entitlement, and StoreKit binding records before the client deletes the Firebase identity. Placements and moderation evidence that must remain operationally consistent are retained under a random, unlinkable `deleted:` identifier; embedded Firebase UIDs are replaced and evidence hashes are regenerated. A one-way account tombstone prevents still-valid Firebase tokens or delayed Redis outbox events from recreating identifiable records. Clients must not delete the Firebase identity when this server request fails.
+
 Placement is unavailable unless Firebase and PostgreSQL are enabled. Accepted writes atomically update the board, attribution outbox, idempotency record, and account cooldown in Redis. Free accounts receive a ten-second cooldown; active Pro entitlements receive a one-second cooldown. The existing SignalR endpoint remains active for compatibility until real-time v1 events and migrated clients are ready.
 
 ## Firebase authentication

@@ -36,6 +36,11 @@ public static class StoreKitApi
             return ServiceUnavailable();
         }
 
+        if (await IsDeletedAsync(account.Id, services, cancellationToken))
+        {
+            return AccountDeleted();
+        }
+
         var token = await store.GetOrCreateAccountTokenAsync(account.Id, cancellationToken);
         return Results.Ok(new StoreKitAccountTokenResponse(token));
     }
@@ -58,6 +63,11 @@ public static class StoreKitApi
         if (verifier is null || store is null || entitlements is null)
         {
             return ServiceUnavailable();
+        }
+
+        if (await IsDeletedAsync(account.Id, services, cancellationToken))
+        {
+            return AccountDeleted();
         }
 
         var verification = verifier.Verify(request.SignedTransactionInfo);
@@ -130,6 +140,23 @@ public static class StoreKitApi
                 ApiErrorCodes.AuthenticationRequired,
                 "Authenticate before managing a subscription."),
             statusCode: StatusCodes.Status401Unauthorized);
+
+    private static async ValueTask<bool> IsDeletedAsync(
+        AccountId accountId,
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        var deletion = services.GetService<IAccountDeletionService>();
+        return deletion is not null
+            && await deletion.IsDeletedAsync(accountId, cancellationToken);
+    }
+
+    private static IResult AccountDeleted() =>
+        Results.Json(
+            new ApiError(
+                ApiErrorCodes.AccountDeleted,
+                "This account has been deleted."),
+            statusCode: StatusCodes.Status410Gone);
 
     private static IResult ServiceUnavailable() =>
         Results.Json(
