@@ -2,10 +2,15 @@
 
 import { useEffect, useRef } from "react";
 
-const COLUMNS = 17;
-const ROWS = 12;
-const CYCLE_MS = 12800;
+const CYCLE_MS = 14800;
 const TAU = Math.PI * 2;
+const PLANETS = [
+  { radius: 0.105, speed: 1.42, size: 2.2, tilt: -0.18, phase: 0.4 },
+  { radius: 0.175, speed: 1.03, size: 3.2, tilt: 0.13, phase: 2.8, moon: true },
+  { radius: 0.255, speed: 0.78, size: 4.5, tilt: -0.08, phase: 4.5 },
+  { radius: 0.345, speed: 0.59, size: 3.6, tilt: 0.2, phase: 1.7, moon: true },
+  { radius: 0.43, speed: 0.44, size: 6.4, tilt: -0.12, phase: 5.35, ring: true },
+];
 
 function noise(index) {
   const value = Math.sin(index * 91.173 + 17.37) * 43758.5453;
@@ -21,11 +26,6 @@ function smoothstep(value) {
   return amount * amount * (3 - 2 * amount);
 }
 
-function easeIn(value) {
-  const amount = clamp(value);
-  return amount * amount * amount;
-}
-
 function easeOut(value) {
   return 1 - Math.pow(1 - clamp(value), 3);
 }
@@ -34,9 +34,11 @@ function phaseAmount(progress, start, end) {
   return smoothstep((progress - start) / (end - start));
 }
 
-function drawLine(context, from, to) {
-  context.moveTo(from.x, from.y);
-  context.lineTo(to.x, to.y);
+function collapseAmount(progress) {
+  if (progress < 0.34) return 0;
+  if (progress < 0.66) return smoothstep((progress - 0.34) / 0.32);
+  if (progress < 0.76) return 1;
+  return 1 - smoothstep((progress - 0.76) / 0.23);
 }
 
 export default function CollapseSignal() {
@@ -62,291 +64,246 @@ export default function CollapseSignal() {
       context.setTransform(scale, 0, 0, scale, 0, 0);
     }
 
-    function drawBackdrop(progress, centerX, centerY, impact) {
-      const pulse = 0.5 + Math.sin(progress * TAU * 3) * 0.5;
-
-      context.save();
-      context.strokeStyle = "rgba(17, 17, 15, 0.075)";
-      context.lineWidth = 0.7;
-      for (let ring = 1; ring <= 4; ring += 1) {
-        context.beginPath();
-        context.arc(centerX, centerY, ring * Math.min(width, height) * 0.105, 0, TAU);
-        context.stroke();
-      }
-
-      context.setLineDash([2, 8]);
-      context.beginPath();
-      context.moveTo(centerX, height * 0.08);
-      context.lineTo(centerX, height * 0.9);
-      context.moveTo(width * 0.08, centerY);
-      context.lineTo(width * 0.92, centerY);
-      context.stroke();
-      context.setLineDash([]);
-
-      if (impact > 0) {
-        for (let ring = 0; ring < 3; ring += 1) {
-          const age = clamp(impact - ring * 0.16);
-          const radius = width * (0.05 + easeOut(age) * (0.38 + ring * 0.05));
-          context.strokeStyle = `rgba(17, 17, 15, ${0.28 * (1 - age)})`;
-          context.lineWidth = 0.8 + (1 - age) * 1.2;
-          context.beginPath();
-          context.ellipse(centerX, centerY, radius, radius * 0.28, 0, 0, TAU);
-          context.stroke();
-        }
-      }
-
-      context.fillStyle = `rgba(17, 17, 15, ${0.025 + pulse * 0.02})`;
-      context.beginPath();
-      context.arc(centerX, centerY, Math.min(width, height) * 0.018, 0, TAU);
-      context.fill();
-      context.restore();
-    }
-
-    function buildPoints(progress, timestamp, cycleSeed) {
+    function orbitPoint(planet, time, collapse, trailOffset = 0) {
       const centerX = width * 0.5;
-      const top = height * 0.105;
-      const structureHeight = height * 0.61;
-      const structureWidth = width * 0.57;
-      const impactY = height * 0.73;
-      const stress = phaseAmount(progress, 0.17, 0.29) * (1 - phaseAmount(progress, 0.34, 0.46));
-      const rebuild = phaseAmount(progress, 0.79, 0.98);
-      const points = [];
+      const centerY = height * 0.49;
+      const scale = Math.min(width, height);
+      const decay = Math.pow(1 - collapse, 1.65);
+      const minimumRadius = scale * (0.012 + planet.radius * 0.018);
+      const orbitRadius = minimumRadius + scale * planet.radius * decay;
+      const acceleration = collapse * collapse * (7.5 + planet.radius * 13);
+      const angle = planet.phase + time * planet.speed + acceleration - trailOffset;
+      const precession = planet.tilt + Math.sin(time * 0.22 + planet.phase) * 0.025;
+      const ellipseY = 0.38 + planet.radius * 0.2;
+      const localX = Math.cos(angle) * orbitRadius;
+      const localY = Math.sin(angle) * orbitRadius * ellipseY;
+      const cosTilt = Math.cos(precession);
+      const sinTilt = Math.sin(precession);
 
-      for (let row = 0; row < ROWS; row += 1) {
-        const yRatio = row / (ROWS - 1);
-        const taper = 0.7 + yRatio * 0.3;
-        for (let column = 0; column < COLUMNS; column += 1) {
-          const index = row * COLUMNS + column;
-          const xRatio = column / (COLUMNS - 1);
-          const normalizedX = xRatio * 2 - 1;
-          const baseX = centerX + normalizedX * structureWidth * 0.5 * taper;
-          const baseY = top + yRatio * structureHeight;
-          const wave = Math.sin(yRatio * 9 + timestamp * 0.006) * stress;
-          const side = Math.sign(normalizedX) || 1;
-          const buckledX = baseX + wave * width * 0.025 * (0.25 + yRatio);
-          const buckledY = baseY + Math.abs(wave) * height * 0.01;
-          const failureOrder = 0.285 + (1 - yRatio) * 0.16
-            + noise(index + 20 + cycleSeed) * 0.035;
-          const collapse = easeIn((progress - failureOrder) / 0.2);
-          const angle = noise(index + 80 + cycleSeed) * TAU + normalizedX * 0.8;
-          const pileRadius = width * (0.02 + noise(index + 120 + cycleSeed) * 0.21);
-          const pileX = centerX + Math.cos(angle) * pileRadius;
-          const pileY = impactY - noise(index + 180 + cycleSeed) * height * 0.045;
-          const vortex = Math.sin(collapse * Math.PI) * width * 0.14;
-          const aftershock = Math.sin(timestamp * 0.018 + index)
-            * (1 - phaseAmount(progress, 0.52, 0.73))
-            * phaseAmount(progress, 0.45, 0.52);
-          const fallingX = buckledX + (pileX - buckledX) * collapse
-            + side * vortex * noise(index + 220 + cycleSeed)
-            + aftershock * width * 0.006;
-          const fallingY = buckledY + (pileY - buckledY) * collapse
-            - Math.sin(collapse * Math.PI) * height * 0.08
-            + Math.abs(aftershock) * height * 0.004;
-          const reconstructArc = Math.sin(rebuild * Math.PI) * width * 0.11;
-          const reconstructedX = fallingX + (baseX - fallingX) * rebuild
-            + Math.sin(angle + rebuild * TAU) * reconstructArc;
-          const reconstructedY = fallingY + (baseY - fallingY) * rebuild
-            - Math.cos(angle + rebuild * TAU) * reconstructArc * 0.45;
-
-          points.push({
-            x: reconstructedX,
-            y: reconstructedY,
-            baseX,
-            baseY,
-            collapse: collapse * (1 - rebuild),
-            rotation: collapse * (noise(index + 300 + cycleSeed) - 0.5) * 8 + rebuild * TAU,
-            size: 1.1 + noise(index + 360) * 2.2,
-            row,
-            column,
-          });
-        }
-      }
-
-      return { points, centerX, impactY, stress, rebuild };
+      return {
+        x: centerX + localX * cosTilt - localY * sinTilt,
+        y: centerY + localX * sinTilt + localY * cosTilt,
+        angle,
+        radius: orbitRadius,
+      };
     }
 
-    function drawStructure(points, stress) {
+    function drawField(time, collapse) {
+      const centerX = width * 0.5;
+      const centerY = height * 0.49;
+      const scale = Math.min(width, height);
+      const stars = width < 440 ? 38 : 62;
+
       context.save();
-      context.strokeStyle = `rgba(17, 17, 15, ${0.17 + stress * 0.16})`;
-      context.lineWidth = 0.72;
+      for (let index = 0; index < stars; index += 1) {
+        const angle = noise(index) * TAU;
+        const distance = scale * (0.12 + noise(index + 100) * 0.55);
+        const parallax = 1 - collapse * (0.08 + noise(index + 200) * 0.2);
+        const x = centerX + Math.cos(angle) * distance * parallax;
+        const y = centerY + Math.sin(angle) * distance * 0.72 * parallax;
+        const pulse = 0.45 + Math.sin(time * (0.7 + noise(index + 300)) + index) * 0.3;
 
-      for (let row = 0; row < ROWS; row += 1) {
+        context.fillStyle = `rgba(17, 17, 15, ${0.09 + pulse * 0.13})`;
         context.beginPath();
-        for (let column = 0; column < COLUMNS - 1; column += 1) {
-          const current = points[row * COLUMNS + column];
-          const next = points[row * COLUMNS + column + 1];
-          if (Math.max(current.collapse, next.collapse) < 0.72) {
-            drawLine(context, current, next);
-          }
-        }
-        context.stroke();
-      }
-
-      for (let column = 0; column < COLUMNS; column += 1) {
-        context.beginPath();
-        for (let row = 0; row < ROWS - 1; row += 1) {
-          const current = points[row * COLUMNS + column];
-          const next = points[(row + 1) * COLUMNS + column];
-          if (Math.max(current.collapse, next.collapse) < 0.68) {
-            drawLine(context, current, next);
-          }
-        }
-        context.stroke();
-      }
-
-      context.strokeStyle = `rgba(17, 17, 15, ${0.1 + stress * 0.15})`;
-      for (let row = 0; row < ROWS - 1; row += 2) {
-        context.beginPath();
-        for (let column = 0; column < COLUMNS - 1; column += 2) {
-          const current = points[row * COLUMNS + column];
-          const diagonal = points[(row + 1) * COLUMNS + column + 1];
-          if (Math.max(current.collapse, diagonal.collapse) < 0.55) {
-            drawLine(context, current, diagonal);
-          }
-        }
-        context.stroke();
+        context.arc(x, y, 0.35 + noise(index + 400) * 0.7, 0, TAU);
+        context.fill();
       }
       context.restore();
     }
 
-    function drawFractures(progress, points, stress, cycleSeed) {
-      if (stress <= 0.05 && progress < 0.27) return;
+    function drawOrbits(time, collapse) {
+      const centerX = width * 0.5;
+      const centerY = height * 0.49;
+      const scale = Math.min(width, height);
+      const visibility = 1 - smoothstep(collapse * 1.3);
 
-      const fracture = phaseAmount(progress, 0.2, 0.32) * (1 - phaseAmount(progress, 0.5, 0.58));
       context.save();
-      context.strokeStyle = `rgba(17, 17, 15, ${fracture * 0.85})`;
-      context.lineWidth = 1.1;
-      context.shadowColor = "rgba(17, 17, 15, 0.3)";
-      context.shadowBlur = fracture * 5;
-
-      [4, 8, 12].forEach((startColumn, fractureIndex) => {
+      context.strokeStyle = `rgba(17, 17, 15, ${0.13 * visibility})`;
+      context.lineWidth = 0.7;
+      PLANETS.forEach((planet) => {
+        const radius = scale * planet.radius;
         context.beginPath();
-        for (let row = 2; row < ROWS - 1; row += 1) {
-          const column = Math.max(
-            1,
-            Math.min(
-              COLUMNS - 2,
-              startColumn + Math.round((noise(row + fractureIndex * 31 + cycleSeed) - 0.5) * 3),
-            ),
-          );
-          const point = points[row * COLUMNS + column];
-          if (row === 2) context.moveTo(point.x, point.y);
-          else context.lineTo(point.x, point.y);
-        }
+        context.ellipse(
+          centerX,
+          centerY,
+          radius,
+          radius * (0.38 + planet.radius * 0.2),
+          planet.tilt + Math.sin(time * 0.22 + planet.phase) * 0.025,
+          0,
+          TAU,
+        );
         context.stroke();
       });
       context.restore();
     }
 
-    function drawDebris(progress, centerX, impactY, cycleSeed) {
-      const burst = phaseAmount(progress, 0.43, 0.51) * (1 - phaseAmount(progress, 0.7, 0.79));
-      if (burst <= 0) return;
+    function drawTrails(time, collapse) {
+      const trailLength = 6 + Math.round(collapse * 15);
 
       context.save();
-      for (let index = 0; index < 54; index += 1) {
-        const angle = noise(index + 900 + cycleSeed) * Math.PI + Math.PI;
-        const distance = easeOut(burst) * width
-          * (0.08 + noise(index + 940 + cycleSeed) * 0.43);
-        const gravity = burst * burst * height * 0.24;
-        const x = centerX + Math.cos(angle) * distance;
-        const y = impactY + Math.sin(angle) * distance * 0.48 + gravity;
-        const alpha = (1 - smoothstep((burst - 0.62) / 0.38)) * (0.18 + noise(index) * 0.54);
-        const size = 0.7 + noise(index + 980 + cycleSeed) * 2.8;
+      context.lineCap = "round";
+      PLANETS.forEach((planet) => {
+        for (let index = trailLength; index > 0; index -= 1) {
+          const position = orbitPoint(planet, time, collapse, index * (0.018 + collapse * 0.035));
+          const opacity = (1 - index / trailLength) * (0.04 + collapse * 0.19);
+          const size = planet.size * (0.3 + (1 - index / trailLength) * 0.35);
+
+          context.fillStyle = `rgba(17, 17, 15, ${opacity})`;
+          context.beginPath();
+          context.arc(position.x, position.y, size, 0, TAU);
+          context.fill();
+        }
+      });
+      context.restore();
+    }
+
+    function drawPlanet(planet, index, time, collapse) {
+      const position = orbitPoint(planet, time, collapse);
+      const tidal = phaseAmount(collapse, 0.58, 0.96);
+      const stretch = 1 + tidal * (1.5 + index * 0.18);
+      const alpha = 1 - phaseAmount(collapse, 0.91, 1);
+
+      context.save();
+      context.translate(position.x, position.y);
+      context.rotate(position.angle + Math.PI / 2);
+      context.scale(stretch, 1 / Math.sqrt(stretch));
+      context.fillStyle = `rgba(17, 17, 15, ${alpha})`;
+      context.beginPath();
+      context.arc(0, 0, planet.size, 0, TAU);
+      context.fill();
+
+      if (planet.ring) {
+        context.strokeStyle = `rgba(17, 17, 15, ${alpha * 0.5})`;
+        context.lineWidth = 0.75;
+        context.beginPath();
+        context.ellipse(0, 0, planet.size * 1.85, planet.size * 0.55, 0, 0, TAU);
+        context.stroke();
+      }
+      context.restore();
+
+      if (planet.moon && collapse < 0.8) {
+        const moonAngle = time * (2.8 + index * 0.2) + index;
+        const moonRadius = planet.size * 2.7 * (1 - collapse * 0.7);
+        context.fillStyle = `rgba(17, 17, 15, ${0.65 * alpha})`;
+        context.beginPath();
+        context.arc(
+          position.x + Math.cos(moonAngle) * moonRadius,
+          position.y + Math.sin(moonAngle) * moonRadius * 0.55,
+          1.05,
+          0,
+          TAU,
+        );
+        context.fill();
+      }
+    }
+
+    function drawAccretion(progress, time, collapse, seed) {
+      const centerX = width * 0.5;
+      const centerY = height * 0.49;
+      const scale = Math.min(width, height);
+      const disk = phaseAmount(progress, 0.49, 0.67)
+        * (1 - phaseAmount(progress, 0.78, 0.92));
+
+      if (disk <= 0) return;
+
+      context.save();
+      context.globalCompositeOperation = "multiply";
+      for (let index = 0; index < 84; index += 1) {
+        const depth = noise(index + 500 + seed);
+        const angle = noise(index + 600 + seed) * TAU + time * (1.8 + depth * 4.2);
+        const radius = scale * (0.025 + depth * 0.2) * (0.5 + collapse * 0.5);
+        const x = centerX + Math.cos(angle) * radius;
+        const y = centerY + Math.sin(angle) * radius * 0.19;
+        const size = 0.45 + noise(index + 700 + seed) * 1.6;
+        const alpha = disk * (0.08 + (1 - depth) * 0.42);
 
         context.fillStyle = `rgba(17, 17, 15, ${alpha})`;
-        context.save();
-        context.translate(x, y);
-        context.rotate(angle + burst * 8);
-        context.fillRect(-size, -size * 0.35, size * 2, size * 0.7);
-        context.restore();
+        context.beginPath();
+        context.ellipse(x, y, size * (1 + collapse), size, angle, 0, TAU);
+        context.fill();
       }
       context.restore();
     }
 
-    function drawNodes(points) {
-      context.fillStyle = "#11110f";
-      points.forEach((point) => {
-        context.save();
-        context.translate(point.x, point.y);
-        context.rotate(point.rotation);
-        const size = point.size + point.collapse * 2.2;
-        context.fillRect(-size / 2, -size / 2, size, size);
-        context.restore();
-      });
-    }
+    function drawSingularity(progress, time, collapse) {
+      const centerX = width * 0.5;
+      const centerY = height * 0.49;
+      const scale = Math.min(width, height);
+      const compression = phaseAmount(progress, 0.42, 0.66);
+      const release = phaseAmount(progress, 0.77, 0.95);
+      const eventHorizon = compression * (1 - release);
+      const starRadius = scale * (0.028 * (1 - compression) + 0.008);
+      const horizonRadius = scale * (0.012 + eventHorizon * 0.04);
+      const lens = clamp(1 - Math.abs(progress - 0.67) / 0.12);
 
-    function drawCore(progress, centerX, impactY) {
-      const compression = phaseAmount(progress, 0.35, 0.5) * (1 - phaseAmount(progress, 0.77, 0.9));
-      const flare = clamp(1 - Math.abs(progress - 0.49) / 0.065);
-      const radius = Math.min(width, height) * (0.008 + compression * 0.065 + flare * 0.035);
-      const glow = context.createRadialGradient(centerX, impactY, 0, centerX, impactY, radius * 4.8);
-      glow.addColorStop(0, `rgba(17, 17, 15, ${0.35 * compression})`);
-      glow.addColorStop(0.35, `rgba(17, 17, 15, ${0.13 * compression})`);
-      glow.addColorStop(1, "rgba(17, 17, 15, 0)");
-      context.fillStyle = glow;
+      context.save();
+      if (collapse < 0.8) {
+        const corona = context.createRadialGradient(
+          centerX,
+          centerY,
+          starRadius * 0.2,
+          centerX,
+          centerY,
+          starRadius * 4,
+        );
+        corona.addColorStop(0, `rgba(17, 17, 15, ${0.22 * (1 - collapse)})`);
+        corona.addColorStop(1, "rgba(17, 17, 15, 0)");
+        context.fillStyle = corona;
+        context.beginPath();
+        context.arc(centerX, centerY, starRadius * 4, 0, TAU);
+        context.fill();
+      }
+
+      context.fillStyle = "#11110f";
       context.beginPath();
-      context.arc(centerX, impactY, radius * 4.8, 0, TAU);
+      context.arc(centerX, centerY, Math.max(starRadius, horizonRadius), 0, TAU);
       context.fill();
 
-      context.fillStyle = "#11110f";
-      context.beginPath();
-      context.arc(centerX, impactY, radius, 0, TAU);
-      context.fill();
+      if (eventHorizon > 0.05) {
+        context.strokeStyle = `rgba(17, 17, 15, ${0.24 + lens * 0.48})`;
+        context.lineWidth = 0.7 + lens * 1.5;
+        context.beginPath();
+        context.ellipse(
+          centerX,
+          centerY,
+          horizonRadius * (1.65 + lens * 1.4),
+          horizonRadius * (0.7 + lens * 0.22),
+          Math.sin(time * 0.17) * 0.08,
+          0,
+          TAU,
+        );
+        context.stroke();
+      }
 
-      if (flare > 0) {
-        context.strokeStyle = `rgba(17, 17, 15, ${flare * 0.55})`;
-        context.lineWidth = 0.7;
-        for (let ray = 0; ray < 16; ray += 1) {
-          const angle = noise(ray + 700) * TAU;
-          const inner = radius * 1.4;
-          const outer = radius * (2.5 + noise(ray + 730) * 5);
+      if (lens > 0) {
+        for (let ring = 0; ring < 3; ring += 1) {
+          const radius = horizonRadius * (2.5 + ring * 1.6 + easeOut(lens) * 2.4);
+          context.strokeStyle = `rgba(17, 17, 15, ${lens * (0.2 - ring * 0.045)})`;
+          context.lineWidth = 0.8;
           context.beginPath();
-          context.moveTo(centerX + Math.cos(angle) * inner, impactY + Math.sin(angle) * inner);
-          context.lineTo(centerX + Math.cos(angle) * outer, impactY + Math.sin(angle) * outer);
+          context.arc(centerX, centerY, radius, -0.9 + ring * 0.3, 1.6 + ring * 0.35);
+          context.stroke();
+          context.beginPath();
+          context.arc(centerX, centerY, radius, 2.2 + ring * 0.3, 4.7 + ring * 0.35);
           context.stroke();
         }
       }
-    }
-
-    function drawTelemetry(progress, stress, rebuild) {
-      let phase = "NOMINAL";
-      if (progress >= 0.17 && progress < 0.29) phase = "LOAD CRITICAL";
-      else if (progress >= 0.29 && progress < 0.5) phase = "CASCADE FAILURE";
-      else if (progress >= 0.5 && progress < 0.79) phase = "TOTAL COLLAPSE";
-      else if (progress >= 0.79) phase = "RECONSTRUCTION";
-
-      context.save();
-      context.font = "9px monospace";
-      context.fillStyle = "rgba(17, 17, 15, 0.55)";
-      context.textAlign = "left";
-      context.fillText(phase, width * 0.055, height * 0.91);
-      context.textAlign = "right";
-      const load = Math.round(18 + stress * 81 + (1 - rebuild) * phaseAmount(progress, 0.29, 0.5) * 67);
-      context.fillText(`LOAD ${Math.min(load, 99).toString().padStart(2, "0")}%`, width * 0.945, height * 0.91);
       context.restore();
     }
 
     function draw(timestamp, staticProgress) {
       const progress = staticProgress ?? (timestamp % CYCLE_MS) / CYCLE_MS;
-      const cycleSeed = staticProgress === undefined ? Math.floor(timestamp / CYCLE_MS) * 1009 : 0;
-      const { points, centerX, impactY, stress, rebuild } = buildPoints(
-        progress,
-        timestamp,
-        cycleSeed,
-      );
-      const impact = phaseAmount(progress, 0.47, 0.54)
-        * (1 - phaseAmount(progress, 0.68, 0.76));
+      const time = timestamp / 1000;
+      const collapse = collapseAmount(progress);
+      const seed = staticProgress === undefined ? Math.floor(timestamp / CYCLE_MS) * 997 : 0;
 
       context.clearRect(0, 0, width, height);
-      context.lineCap = "round";
-      context.lineJoin = "round";
-      drawBackdrop(progress, centerX, impactY, impact);
-      drawStructure(points, stress);
-      drawFractures(progress, points, stress, cycleSeed);
-      drawDebris(progress, centerX, impactY, cycleSeed);
-      drawNodes(points);
-      drawCore(progress, centerX, impactY);
-      drawTelemetry(progress, stress, rebuild);
+      drawField(time, collapse);
+      drawOrbits(time, collapse);
+      drawTrails(time, collapse);
+      PLANETS.forEach((planet, index) => drawPlanet(planet, index, time, collapse));
+      drawAccretion(progress, time, collapse, seed);
+      drawSingularity(progress, time, collapse);
     }
 
     function animate(timestamp) {
@@ -356,12 +313,12 @@ export default function CollapseSignal() {
 
     function handleMotion(event) {
       reducedMotion = event.matches;
-      if (reducedMotion) draw(0, 0.43);
+      if (reducedMotion) draw(0, 0.18);
     }
 
     const resizeObserver = new ResizeObserver(() => {
       resize();
-      if (reducedMotion) draw(0, 0.43);
+      if (reducedMotion) draw(0, 0.18);
     });
     const visibilityObserver = new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting;
@@ -371,7 +328,7 @@ export default function CollapseSignal() {
     visibilityObserver.observe(canvas);
     media.addEventListener("change", handleMotion);
     resize();
-    if (reducedMotion) draw(0, 0.43);
+    if (reducedMotion) draw(0, 0.18);
     frame = window.requestAnimationFrame(animate);
 
     return () => {
@@ -385,8 +342,6 @@ export default function CollapseSignal() {
   return (
     <div className="signal-field" aria-hidden="true">
       <canvas className="collapse-canvas" ref={canvasRef} />
-      <div className="collapse-index">CT / COLLAPSE ENGINE</div>
-      <p>Structural event<br />No two failures identical</p>
     </div>
   );
 }
