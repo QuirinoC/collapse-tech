@@ -3,6 +3,7 @@ using PixelBoard.Contracts.V1;
 using PixelBoard.Domain;
 using PixelBoard.Infrastructure.Board;
 using PixelBoard.Infrastructure.Ledger;
+using PixelBoard.Infrastructure.Realtime;
 
 namespace PixelBoard.Api.V1;
 
@@ -158,10 +159,12 @@ public static class BoardApi
         var entitlementService = services.GetService<IEntitlementService>();
         var placementStore = services.GetService<IAtomicPlacementStore>();
         var safetyService = services.GetService<IPlatformSafetyService>();
+        var realtimePublisher = services.GetService<IRealtimeEventPublisher>();
         if (policyService is null
             || entitlementService is null
             || placementStore is null
-            || safetyService is null)
+            || safetyService is null
+            || realtimePublisher is null)
         {
             return ServiceUnavailable();
         }
@@ -258,6 +261,14 @@ public static class BoardApi
                         ApiErrorCodes.CooldownActive,
                         "Wait for the placement cooldown to finish.")),
                 statusCode: StatusCodes.Status429TooManyRequests);
+        }
+
+        if (!result.IsDuplicate)
+        {
+            await realtimePublisher.PublishAcceptedAsync(
+                new AcceptedPixelEventData(
+                    result.PlacementId!.Value,
+                    result.Pixel!));
         }
 
         return Results.Ok(

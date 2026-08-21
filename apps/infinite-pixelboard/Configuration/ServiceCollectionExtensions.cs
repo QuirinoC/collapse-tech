@@ -8,6 +8,7 @@ using PixelBoard.Infrastructure.Board;
 using PixelBoard.Infrastructure.Ledger;
 using PixelBoard.Infrastructure.Moderation;
 using PixelBoard.Infrastructure.Postgres;
+using PixelBoard.Infrastructure.Realtime;
 using PixelBoard.Infrastructure.StoreKit;
 using StackExchange.Redis;
 
@@ -145,6 +146,8 @@ public static class ServiceCollectionExtensions
             return NpgsqlDataSource.Create(postgresOptions.ConnectionString);
         });
         services.AddSingleton<IAtomicPlacementStore, RedisAtomicPlacementStore>();
+        services.AddSingleton<IRealtimeEventPublisher, RedisRealtimeEventPublisher>();
+        services.AddHostedService<RedisRealtimeEventSubscriber>();
         services.AddSingleton<IPlacementLedger, PostgresPlacementLedger>();
         services.AddSingleton<IReportRateLimiter, RedisReportRateLimiter>();
         services.AddSingleton<IReportEvidenceCollector, ReportEvidenceCollector>();

@@ -54,7 +54,15 @@ Versioned transport shapes and machine-readable errors for the shared web/iOS AP
 
 `DELETE /api/v1/account` removes account, entitlement, and StoreKit binding records before the client deletes the Firebase identity. Placements and moderation evidence that must remain operationally consistent are retained under a random, unlinkable `deleted:` identifier; embedded Firebase UIDs are replaced and evidence hashes are regenerated. A one-way account tombstone prevents still-valid Firebase tokens or delayed Redis outbox events from recreating identifiable records. Clients must not delete the Firebase identity when this server request fails.
 
-Placement is unavailable unless Firebase and PostgreSQL are enabled. Accepted writes atomically update the board, attribution outbox, idempotency record, and account cooldown in Redis. Free accounts receive a ten-second cooldown; active Pro entitlements receive a one-second cooldown. The existing SignalR endpoint remains active for compatibility until real-time v1 events and migrated clients are ready.
+Placement is unavailable unless Firebase and PostgreSQL are enabled. Accepted writes atomically update the board, attribution outbox, idempotency record, and account cooldown in Redis. Free accounts receive a ten-second cooldown; active Pro entitlements receive a one-second cooldown.
+
+### Real-time v1 protocol
+
+Platform-neutral SignalR clients connect to `/api/v1/realtime` and handle the `AcceptedPixelV1` client method. Its sole argument is a JSON envelope with `protocolVersion: 1`, `type: "pixel.accepted"`, and `data` containing only the public placement ID and pixel state (`row`, `column`, `color`, and `placedAt`). The coordinates preserve the legacy row/Y and column/X convention described above.
+
+Only newly accepted atomic Redis writes are published; rejected placements and idempotent replays produce no event. Redis pub/sub fans events out across ASP.NET replicas, and each replica also sends the public row/column/color update to its connected legacy hub clients during migration. Publication failures are logged and metered as `pixelboard.realtime.publication_failed` but do not turn a persisted accepted placement into an HTTP failure. Pub/sub is intentionally not a replay log: after disconnecting, clients reconnect with normal SignalR retry behavior and reconcile missed state from `/api/v1/tiles/{tileRow}/{tileColumn}`. The durable private placement outbox remains exclusively for PostgreSQL attribution recovery and is never exposed to clients.
+
+The legacy `/boardHub` coordinate and message contract remains active during migration. New web and iOS clients must use `/api/v1/realtime`; the legacy hub can be retired only after all clients place through `/api/v1/placements`, consume `AcceptedPixelV1`, and use v1 tile snapshots for reconnect reconciliation.
 
 ## Firebase authentication
 

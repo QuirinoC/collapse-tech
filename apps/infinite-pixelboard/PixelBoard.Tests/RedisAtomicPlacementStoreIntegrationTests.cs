@@ -7,12 +7,52 @@ using PixelBoard.Configuration;
 using PixelBoard.Contracts.V1;
 using PixelBoard.Domain;
 using PixelBoard.Infrastructure.Ledger;
+using PixelBoard.Infrastructure.Realtime;
 using StackExchange.Redis;
 
 namespace PixelBoard.Tests;
 
 public sealed class RedisAtomicPlacementStoreIntegrationTests
 {
+    [RedisFact]
+    [Trait("Category", "Integration")]
+    public async Task RealtimePublisherUsesVersionedPublicRedisEnvelope()
+    {
+        var connectionString = Environment.GetEnvironmentVariable("PIXELBOARD_TEST_REDIS")!;
+
+        await using var redis = await ConnectionMultiplexer.ConnectAsync(connectionString);
+        var instanceName = $"PixelBoardTest_{Guid.NewGuid():N}_";
+        var channel = RedisChannel.Literal(
+            $"{instanceName}{RedisRealtimeEventPublisher.ChannelSuffix}");
+        var received = new TaskCompletionSource<string>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        await redis.GetSubscriber().SubscribeAsync(
+            channel,
+            (_, value) => received.TrySetResult(value.ToString()));
+        var publisher = new RedisRealtimeEventPublisher(
+            redis,
+            Options.Create(new RedisOptions
+            {
+                ConnectionString = connectionString,
+                InstanceName = instanceName
+            }),
+            NullLogger<RedisRealtimeEventPublisher>.Instance);
+        var placementId = PlacementId.From(
+            Guid.Parse("4e70b8e5-83d3-4f6d-9de2-1538ab3d99d2"));
+
+        var result = await publisher.PublishAcceptedAsync(
+            new AcceptedPixelEventData(
+                placementId,
+                new PixelState(9, 12, "#112233", DateTimeOffset.UnixEpoch)));
+        var payload = await received.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await redis.GetSubscriber().UnsubscribeAsync(channel);
+
+        Assert.Equal(RealtimePublicationResult.Published, result);
+        Assert.Equal(
+            """{"protocolVersion":1,"type":"pixel.accepted","data":{"placementId":"4e70b8e583d34f6d9de21538ab3d99d2","pixel":{"row":9,"column":12,"color":"#112233","placedAt":"1970-01-01T00:00:00+00:00"}}}""",
+            payload);
+    }
+
     [RedisFact]
     [Trait("Category", "Integration")]
     public async Task PlacementUpdatesBoardOwnershipAndOutboxAtomically()

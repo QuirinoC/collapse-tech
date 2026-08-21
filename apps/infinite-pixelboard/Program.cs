@@ -5,6 +5,7 @@ using PixelBoard.Api;
 using PixelBoard.Api.V1;
 using PixelBoard.Configuration;
 using PixelBoard.Infrastructure.Identity;
+using PixelBoard.Infrastructure.Realtime;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -54,6 +55,7 @@ app.MapRazorPages()
    .WithStaticAssets();
 
 app.MapHub<BoardHub>("/boardHub");
+app.MapHub<RealtimeBoardHub>("/api/v1/realtime");
 app.MapBoardApiV1();
 app.MapModerationApiV1();
 app.MapStoreKitApiV1();

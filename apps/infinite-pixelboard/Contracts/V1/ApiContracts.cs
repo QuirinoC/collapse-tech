@@ -5,6 +5,13 @@ public static class ApiVersions
     public const int V1 = 1;
 }
 
+public static class RealtimeProtocol
+{
+    public const int V1 = 1;
+    public const string AcceptedPixelType = "pixel.accepted";
+    public const string AcceptedPixelClientMethod = "AcceptedPixelV1";
+}
+
 public static class ApiErrorCodes
 {
     public const string AuthenticationRequired = "authentication_required";
@@ -145,6 +152,15 @@ public sealed record AcceptedPixelEvent(
     string Type,
     PlacementId PlacementId,
     PixelState Pixel);
+
+public sealed record AcceptedPixelEventData(
+    PlacementId PlacementId,
+    PixelState Pixel);
+
+public sealed record RealtimeEventEnvelope(
+    int ProtocolVersion,
+    string Type,
+    AcceptedPixelEventData Data);
 
 public sealed record StoreKitAccountTokenResponse(AppAccountToken AppAccountToken);
 

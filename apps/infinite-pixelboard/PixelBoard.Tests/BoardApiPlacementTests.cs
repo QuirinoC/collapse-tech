@@ -5,6 +5,7 @@ using PixelBoard.Api.V1;
 using PixelBoard.Application;
 using PixelBoard.Contracts.V1;
 using PixelBoard.Infrastructure.Ledger;
+using PixelBoard.Infrastructure.Realtime;
 
 namespace PixelBoard.Tests;
 
@@ -19,10 +20,12 @@ public sealed class BoardApiPlacementTests
     {
         var accountId = new AccountId("firebase-test-user");
         var placementStore = new RecordingPlacementStore();
+        var publisher = new RecordingRealtimePublisher();
         await using var services = CreateServices(
             new StubPolicyService(new AccountPolicyState(false, true)),
             new StubEntitlementService(tier),
-            placementStore);
+            placementStore,
+            publisher);
 
         var result = await BoardApi.PlaceAsync(
             ValidRequest(),
@@ -37,6 +40,7 @@ public sealed class BoardApiPlacementTests
         Assert.Equal(PlacementOutcome.Accepted, response.Body.Outcome);
         Assert.Equal(expectedCooldownSeconds, response.Body.Cooldown.CooldownSeconds);
         Assert.Equal(TimeSpan.FromSeconds(expectedCooldownSeconds), placementStore.Cooldown);
+        Assert.NotNull(publisher.Published);
     }
 
     [Theory]
@@ -51,7 +55,8 @@ public sealed class BoardApiPlacementTests
         await using var services = CreateServices(
             new StubPolicyService(new AccountPolicyState(isBanned, standardsAccepted)),
             new StubEntitlementService(AccountTier.Free),
-            placementStore);
+            placementStore,
+            new RecordingRealtimePublisher());
 
         var result = await BoardApi.PlaceAsync(
             ValidRequest(),
@@ -86,7 +91,8 @@ public sealed class BoardApiPlacementTests
         await using var services = CreateServices(
             new StubPolicyService(new AccountPolicyState(false, true)),
             new StubEntitlementService(AccountTier.Free),
-            placementStore);
+            placementStore,
+            new RecordingRealtimePublisher());
 
         var result = await BoardApi.PlaceAsync(
             ValidRequest(),
@@ -109,6 +115,7 @@ public sealed class BoardApiPlacementTests
             new StubPolicyService(new AccountPolicyState(false, true)),
             new StubEntitlementService(AccountTier.Free),
             placementStore,
+            new RecordingRealtimePublisher(),
             placementsFrozen: true);
 
         var result = await BoardApi.PlaceAsync(
@@ -125,6 +132,95 @@ public sealed class BoardApiPlacementTests
         Assert.Equal(0, placementStore.CallCount);
     }
 
+    [Fact]
+    public async Task PublicationFailureDoesNotChangeAcceptedHttpResult()
+    {
+        using var requestCancellation = new CancellationTokenSource();
+        var publisher = new RecordingRealtimePublisher
+        {
+            Result = RealtimePublicationResult.Failed
+        };
+        var placementStore = new RecordingPlacementStore
+        {
+            ResultFactory = placement =>
+            {
+                requestCancellation.Cancel();
+                return new AtomicPlacementResult(
+                    true,
+                    "1-0",
+                    placement.PlacementId,
+                    false,
+                    false,
+                    null,
+                    "#FFFFFF",
+                    new PixelState(
+                        placement.Row,
+                        placement.Column,
+                        placement.Color,
+                        placement.PlacedAt),
+                    TimeSpan.FromSeconds(10));
+            }
+        };
+        await using var services = CreateServices(
+            new StubPolicyService(new AccountPolicyState(false, true)),
+            new StubEntitlementService(AccountTier.Free),
+            placementStore,
+            publisher);
+
+        var result = await BoardApi.PlaceAsync(
+            ValidRequest(),
+            new StubIdentityAccessor(new AccountId("firebase-test-user")),
+            new PlacementValidator(),
+            TimeProvider.System,
+            services,
+            requestCancellation.Token);
+        var response = await ExecuteAsync<PlacementResult>(result, services);
+
+        Assert.Equal(StatusCodes.Status200OK, response.StatusCode);
+        Assert.Equal(PlacementOutcome.Accepted, response.Body.Outcome);
+        Assert.Equal(1, publisher.CallCount);
+    }
+
+    [Fact]
+    public async Task IdempotentAcceptedReplayIsNotPublishedAgain()
+    {
+        var placementStore = new RecordingPlacementStore
+        {
+            ResultFactory = placement => new AtomicPlacementResult(
+                true,
+                "1-0",
+                placement.PlacementId,
+                true,
+                false,
+                null,
+                "#FFFFFF",
+                new PixelState(
+                    placement.Row,
+                    placement.Column,
+                    placement.Color,
+                    placement.PlacedAt),
+                TimeSpan.FromSeconds(10))
+        };
+        var publisher = new RecordingRealtimePublisher();
+        await using var services = CreateServices(
+            new StubPolicyService(new AccountPolicyState(false, true)),
+            new StubEntitlementService(AccountTier.Free),
+            placementStore,
+            publisher);
+
+        var result = await BoardApi.PlaceAsync(
+            ValidRequest(),
+            new StubIdentityAccessor(new AccountId("firebase-test-user")),
+            new PlacementValidator(),
+            TimeProvider.System,
+            services,
+            CancellationToken.None);
+        var response = await ExecuteAsync<PlacementResult>(result, services);
+
+        Assert.Equal(StatusCodes.Status200OK, response.StatusCode);
+        Assert.Equal(0, publisher.CallCount);
+    }
+
     private static PlacementRequest ValidRequest() =>
         new(10, 20, "#abcdef", "request-1", new ClientContext("web", "1.0"));
 
@@ -132,6 +228,7 @@ public sealed class BoardApiPlacementTests
         IAccountPolicyService policy,
         IEntitlementService entitlement,
         IAtomicPlacementStore placementStore,
+        IRealtimeEventPublisher publisher,
         bool placementsFrozen = false) =>
         new ServiceCollection()
             .AddLogging()
@@ -140,6 +237,7 @@ public sealed class BoardApiPlacementTests
             .AddSingleton(entitlement)
             .AddSingleton(placementStore)
             .AddSingleton<IPlatformSafetyService>(new StubSafetyService(placementsFrozen))
+            .AddSingleton(publisher)
             .BuildServiceProvider();
 
     private static async Task<(int StatusCode, T Body)> ExecuteAsync<T>(
@@ -228,6 +326,24 @@ public sealed class BoardApiPlacementTests
                         placement.Color,
                         placement.PlacedAt),
                     cooldown));
+        }
+    }
+
+    private sealed class RecordingRealtimePublisher : IRealtimeEventPublisher
+    {
+        public int CallCount { get; private set; }
+
+        public AcceptedPixelEventData? Published { get; private set; }
+
+        public RealtimePublicationResult Result { get; init; } =
+            RealtimePublicationResult.Published;
+
+        public ValueTask<RealtimePublicationResult> PublishAcceptedAsync(
+            AcceptedPixelEventData acceptedPixel)
+        {
+            CallCount++;
+            Published = acceptedPixel;
+            return ValueTask.FromResult(Result);
         }
     }
 }
