@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import CollapseSignal from "./collapse-signal";
 
 const projects = [
   {
@@ -8,23 +9,23 @@ const projects = [
     description: "A 256-bit key, a public commitment, and no easy way out.",
     category: "Experiment",
     status: "Live",
-    href: "https://asymmetric-challenge.vercel.app",
+    href: "https://challenge.collapsetechnologies.com",
     mark: "01",
   },
   {
-    name: "Project Zero",
-    description: "A new social game built for the parts of the internet worth keeping.",
-    category: "Game",
-    status: "In progress",
-    href: "#contact",
+    name: "Infinite Pixelboard",
+    description: "An endless shared canvas. One pixel at a time.",
+    category: "Platform",
+    status: "Live beta",
+    href: "https://pixelboard.collapsetechnologies.com",
     mark: "02",
   },
   {
-    name: "Black Box",
-    description: "A long-term software platform currently being taught new tricks.",
-    category: "Platform",
-    status: "In progress",
-    href: "#contact",
+    name: "CoachGG",
+    description: "Smash Ultimate data rebuilt into player scouting and matchup signal.",
+    category: "Software",
+    status: "In deployment",
+    href: null,
     mark: "03",
   },
 ];
@@ -92,12 +93,7 @@ export default function Home() {
             <a className="text-link" href="#about">About Collapse <span>↘</span></a>
           </div>
         </div>
-        <div className="signal-field" aria-hidden="true">
-          <div className="signal-orbit orbit-one" />
-          <div className="signal-orbit orbit-two" />
-          <div className="signal-core">CT</div>
-          <p>Signal<br />detected</p>
-        </div>
+        <CollapseSignal />
       </section>
 
       <section className="section" id="work">
@@ -128,25 +124,33 @@ export default function Home() {
           <h2 id="projects-heading">In motion.</h2>
         </div>
         <div className="project-list">
-          {projects.map((project) => (
-            <a className="project-card reveal" href={project.href} key={project.name}>
-              <div className="project-visual">
-                <span>{project.mark}</span>
-                <div className={`project-shape shape-${project.mark}`} />
-              </div>
-              <div className="project-info">
-                <div>
-                  <h3>{project.name}</h3>
-                  <p>{project.description}</p>
+          {projects.map((project) => {
+            const ProjectCard = project.href ? "a" : "article";
+            return (
+              <ProjectCard
+                className="project-card reveal"
+                href={project.href || undefined}
+                data-unlinked={!project.href || undefined}
+                key={project.name}
+              >
+                <div className="project-visual">
+                  <span>{project.mark}</span>
+                  <div className={`project-shape shape-${project.mark}`} />
                 </div>
-                <div className="project-meta">
-                  <span>{project.category}</span>
-                  <span>{project.status}</span>
-                  <i aria-hidden="true">↗</i>
+                <div className="project-info">
+                  <div>
+                    <h3>{project.name}</h3>
+                    <p>{project.description}</p>
+                  </div>
+                  <div className="project-meta">
+                    <span>{project.category}</span>
+                    <span>{project.status}</span>
+                    {project.href && <i aria-hidden="true">↗</i>}
+                  </div>
                 </div>
-              </div>
-            </a>
-          ))}
+              </ProjectCard>
+            );
+          })}
         </div>
       </section>
 

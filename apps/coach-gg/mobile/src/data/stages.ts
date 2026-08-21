@@ -1,0 +1,16 @@
+export const STAGE_IMAGES: Record<string, string> = {
+  "Battlefield": "https://ssb.wiki.gallery/images/8/86/SSBU-Battlefield.png",
+  "Small Battlefield": "https://ssb.wiki.gallery/images/7/7e/SSBU-Small-Battlefield.jpg",
+  "Final Destination": "https://ssb.wiki.gallery/images/e/e5/SSBU-Final_Destination.png",
+  "Pokémon Stadium 2": "https://ssb.wiki.gallery/images/7/73/SSBU-Pok%C3%A9mon_Stadium_2.png",
+  "Pokemon Stadium 2": "https://ssb.wiki.gallery/images/7/73/SSBU-Pok%C3%A9mon_Stadium_2.png",
+  "Smashville": "https://ssb.wiki.gallery/images/0/02/SSBU-Smashville.png",
+  "Town and City": "https://ssb.wiki.gallery/images/2/26/SSBU-Town_and_City.png",
+  "Kalos Pokémon League": "https://ssb.wiki.gallery/images/b/bf/SSBU-Kalos_Pok%C3%A9mon_League.png",
+  "Kalos Pokemon League": "https://ssb.wiki.gallery/images/b/bf/SSBU-Kalos_Pok%C3%A9mon_League.png",
+  "Hollow Bastion": "https://ssb.wiki.gallery/images/7/7e/SSBU-Hollow_Bastion.jpg",
+  "Northern Cave": "https://ssb.wiki.gallery/images/e/ee/SSBU_Northern_Cave.png",
+  "Lylat Cruise": "https://ssb.wiki.gallery/images/4/4c/SSBU-Lylat_Cruise.png",
+  "Yoshi's Story": "https://ssb.wiki.gallery/images/3/37/SSBU-Yoshi%27s_Story.png",
+  "Yoshi's Island": "https://ssb.wiki.gallery/images/f/f0/SSBU-Yoshi%27s_Island.png",
+};
