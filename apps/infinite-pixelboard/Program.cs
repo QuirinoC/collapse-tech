@@ -13,6 +13,7 @@ builder.Services.AddProductOptions(builder.Configuration, builder.Environment);
 builder.Services.AddFirebaseAuthentication();
 builder.Services.AddBoardStorage();
 builder.Services.AddModerationLedger(builder.Configuration);
+builder.Services.AddStoreKitEntitlements(builder.Configuration);
 
 Console.WriteLine($"Environment: {builder.Environment.EnvironmentName}");
 
@@ -39,6 +40,7 @@ app.MapRazorPages()
 
 app.MapHub<BoardHub>("/boardHub");
 app.MapBoardApiV1();
+app.MapStoreKitApiV1();
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
     Predicate = _ => false

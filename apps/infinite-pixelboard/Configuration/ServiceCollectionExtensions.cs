@@ -1,10 +1,13 @@
 using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using PixelBoard.Application;
 using PixelBoard.Infrastructure.Board;
 using PixelBoard.Infrastructure.Ledger;
 using PixelBoard.Infrastructure.Postgres;
+using PixelBoard.Infrastructure.StoreKit;
 using StackExchange.Redis;
 
 namespace PixelBoard.Configuration;
@@ -59,8 +62,11 @@ public static class ServiceCollectionExtensions
                 options => !options.Enabled
                     || (!string.IsNullOrWhiteSpace(options.BundleId)
                         && !string.IsNullOrWhiteSpace(options.MonthlyProductId)
-                        && !string.IsNullOrWhiteSpace(options.AnnualProductId)),
-                "StoreKit bundle and product identifiers are required when StoreKit is enabled.")
+                        && !string.IsNullOrWhiteSpace(options.AnnualProductId)
+                        && options.TrustedRootCertificates.Length > 0
+                        && options.TrustedRootCertificates.All(IsCertificate)
+                        && options.AllowedEnvironments.Length > 0),
+                "StoreKit bundle, product, environment, and trusted root certificate settings are required when StoreKit is enabled.")
             .ValidateOnStart();
 
         services
@@ -142,5 +148,42 @@ public static class ServiceCollectionExtensions
             .AddCheck<PostgresHealthCheck>("postgres-ledger", tags: ["ready"]);
 
         return services;
+    }
+
+    public static IServiceCollection AddStoreKitEntitlements(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        if (!configuration.GetValue<bool>($"{StoreKitOptions.SectionName}:Enabled"))
+        {
+            return services;
+        }
+
+        if (!configuration.GetValue<bool>($"{PostgresOptions.SectionName}:Enabled"))
+        {
+            throw new InvalidOperationException(
+                "PostgreSQL must be enabled when StoreKit is enabled.");
+        }
+
+        services.AddSingleton<IStoreKitTransactionVerifier, StoreKitTransactionVerifier>();
+        services.AddSingleton<PostgresStoreKitEntitlementStore>();
+        services.AddSingleton<IStoreKitEntitlementStore>(
+            provider => provider.GetRequiredService<PostgresStoreKitEntitlementStore>());
+        return services;
+    }
+
+    private static bool IsCertificate(string encodedCertificate)
+    {
+        try
+        {
+            using var certificate = X509CertificateLoader.LoadCertificate(
+                Convert.FromBase64String(encodedCertificate));
+            return certificate.RawData.Length > 0;
+        }
+        catch (Exception exception)
+            when (exception is FormatException or CryptographicException)
+        {
+            return false;
+        }
     }
 }

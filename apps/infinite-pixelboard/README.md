@@ -45,6 +45,14 @@ Set `Firebase__Enabled=true` and `Firebase__ProjectId=<project-id>` to enable be
 
 Firebase configuration is intentionally disabled by default. Protected placement endpoints must not be enabled until Google and Apple providers, authorized domains, and the production project ID are configured.
 
+## Pixelboard Pro and StoreKit
+
+StoreKit support is disabled by default and requires PostgreSQL. Authenticated iOS clients first request `/api/v1/storekit/account-token` and pass that opaque server-bound UUID to StoreKit as the purchase's App Account Token. They submit StoreKit's signed transaction JWS to `/api/v1/storekit/transactions` after purchase or restore. App Store Server Notifications V2 posts `{ "signedPayload": "..." }` to the unauthenticated `/api/v1/storekit/notifications` webhook so renewals, expirations, refunds, and revocations are applied while the app is closed.
+
+Both client submissions and server notifications validate the ES256 signature and complete X.509 chain against explicitly configured Apple trust anchors, then enforce the bundle ID, product ID, environment, App Account Token, and signed timestamp. Subscription ownership is permanent, transaction ingestion is idempotent, and older events cannot overwrite newer entitlement state.
+
+Configure `StoreKit__Enabled=true`, `StoreKit__BundleId`, `StoreKit__MonthlyProductId`, `StoreKit__AnnualProductId`, one or more base64 DER Apple root certificates under `StoreKit__TrustedRootCertificates__0`, and allowed App Store environments under `StoreKit__AllowedEnvironments__0`. Production should allow only `Production`; add `Sandbox` only in non-production/TestFlight environments.
+
 ## Deployment
 
 The application requires a persistent ASP.NET Core process for SignalR and Redis-backed shared state, so it is not compatible with Vercel's serverless runtime and intentionally has no `vercel.json`.
@@ -59,6 +67,11 @@ Build from this directory with the included Dockerfile. The production container
 | `Firebase__ProjectId` | Firebase project ID used as token issuer and audience |
 | `Postgres__Enabled` | Enables the durable placement ledger and outbox worker |
 | `Postgres__ConnectionString` | PostgreSQL runtime connection string |
+| `StoreKit__Enabled` | Enables signed StoreKit transaction and notification processing |
+| `StoreKit__BundleId` | Exact iOS application bundle identifier |
+| `StoreKit__MonthlyProductId` / `StoreKit__AnnualProductId` | Accepted Pro subscription product identifiers |
+| `StoreKit__TrustedRootCertificates__0` | Base64 DER Apple root certificate trust anchor |
+| `StoreKit__AllowedEnvironments__0` | Accepted App Store environment (`Production` in production) |
 
 `Infrastructure/Cloud/ContainerApp.json` retains the source repository's Azure Container Apps deployment template.
 

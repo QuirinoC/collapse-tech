@@ -20,6 +20,8 @@ public static class ApiErrorCodes
     public const string InvalidReportRegion = "invalid_report_region";
     public const string ReportRateLimited = "report_rate_limited";
     public const string ServiceUnavailable = "service_unavailable";
+    public const string InvalidStoreKitTransaction = "invalid_storekit_transaction";
+    public const string StoreKitAccountMismatch = "storekit_account_mismatch";
     public const string TileUnavailable = "tile_unavailable";
 }
 
@@ -138,3 +140,13 @@ public sealed record AcceptedPixelEvent(
     string Type,
     PlacementId PlacementId,
     PixelState Pixel);
+
+public sealed record StoreKitAccountTokenResponse(AppAccountToken AppAccountToken);
+
+public sealed record VerifyStoreKitTransactionRequest(string SignedTransactionInfo);
+
+public sealed record StoreKitNotificationRequest(string SignedPayload);
+
+public sealed record StoreKitEntitlementResponse(
+    AccountTier Tier,
+    DateTimeOffset? ExpiresAt);

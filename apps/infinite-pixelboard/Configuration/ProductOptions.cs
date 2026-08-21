@@ -56,6 +56,10 @@ public sealed class StoreKitOptions
     public string MonthlyProductId { get; set; } = string.Empty;
 
     public string AnnualProductId { get; set; } = string.Empty;
+
+    public string[] TrustedRootCertificates { get; set; } = [];
+
+    public string[] AllowedEnvironments { get; set; } = ["Production"];
 }
 
 public sealed class AdvertisingOptions
