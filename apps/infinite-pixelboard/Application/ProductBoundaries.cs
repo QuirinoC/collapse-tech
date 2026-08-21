@@ -62,6 +62,37 @@ public sealed record AdvertisingDecision(
     bool ShowAd,
     string Placement);
 
+public sealed record PlatformSafetyState(
+    bool PlacementsFrozen,
+    bool AdsDisabled);
+
+public sealed record ModerationReport(
+    ReportId ReportId,
+    ReportStatus Status,
+    ReportRegion Region,
+    ReportReason Reason,
+    string? Note,
+    string SnapshotJson,
+    byte[] EvidenceHash,
+    DateTimeOffset SubmittedAt);
+
+public sealed record ModerationActionCommand(
+    ModerationActionId ActionId,
+    string IdempotencyKey,
+    AccountId ActorAccountId,
+    string ActionType,
+    string Reason,
+    ReportId? ReportId,
+    AccountId? TargetAccountId,
+    IReadOnlyList<PlacementId> PlacementIds,
+    DateTimeOffset? ExpiresAt,
+    DateTimeOffset CreatedAt);
+
+public sealed record ModerationActionResult(
+    ModerationActionId ActionId,
+    string Status,
+    bool IsReplay);
+
 public interface IAccountIdentityAccessor
 {
     ValueTask<AuthenticatedAccount?> GetCurrentAsync(
@@ -148,5 +179,39 @@ public interface IAdvertisingPolicy
     ValueTask<AdvertisingDecision> DecideAsync(
         AccountId? accountId,
         AccountTier tier,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IPlatformSafetyService
+{
+    ValueTask<PlatformSafetyState> GetStateAsync(
+        CancellationToken cancellationToken = default);
+}
+
+public interface IBoardVisibilityFilter
+{
+    ValueTask ApplyAsync(
+        TileAddress tile,
+        string[][] pixels,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IModerationService : IPlatformSafetyService, IBoardVisibilityFilter
+{
+    ValueTask<IReadOnlyList<ModerationReport>> ListReportsAsync(
+        int limit,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<ModerationReport?> GetReportAsync(
+        ReportId reportId,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<ModerationActionResult> ExecuteAsync(
+        ModerationActionCommand command,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<ModerationActionResult> SetSafetyStateAsync(
+        ModerationActionCommand command,
+        PlatformSafetyState state,
         CancellationToken cancellationToken = default);
 }

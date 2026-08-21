@@ -10,6 +10,8 @@ namespace PixelBoard.Infrastructure.Identity;
 
 public static class FirebaseAuthenticationExtensions
 {
+    public const string ModeratorPolicy = "PixelboardModerator";
+
     public static IServiceCollection AddFirebaseAuthentication(
         this IServiceCollection services)
     {
@@ -67,7 +69,14 @@ public static class FirebaseAuthenticationExtensions
                 };
             });
 
-        services.AddAuthorization();
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy(
+                ModeratorPolicy,
+                policy => policy
+                    .RequireAuthenticatedUser()
+                    .RequireClaim("moderator", "true"));
+        });
         return services;
     }
 }

@@ -149,6 +149,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IReportRateLimiter, RedisReportRateLimiter>();
         services.AddSingleton<IReportEvidenceCollector, ReportEvidenceCollector>();
         services.AddSingleton<IReportStore, PostgresReportStore>();
+        services.AddSingleton<PostgresModerationService>();
+        services.AddSingleton<IModerationService>(
+            provider => provider.GetRequiredService<PostgresModerationService>());
+        services.AddSingleton<IPlatformSafetyService>(
+            provider => provider.GetRequiredService<PostgresModerationService>());
+        services.AddSingleton<IBoardVisibilityFilter>(
+            provider => provider.GetRequiredService<PostgresModerationService>());
         services.AddSingleton<PostgresAccountStateService>();
         services.AddSingleton<IAccountPolicyService>(
             provider => provider.GetRequiredService<PostgresAccountStateService>());

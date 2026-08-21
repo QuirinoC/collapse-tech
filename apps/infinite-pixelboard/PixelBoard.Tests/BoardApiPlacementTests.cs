@@ -101,19 +101,45 @@ public sealed class BoardApiPlacementTests
         Assert.Equal(ApiErrorCodes.InvalidIdempotencyKey, response.Body.Error?.Code);
     }
 
+    [Fact]
+    public async Task FrozenBoardRejectsPlacementBeforeCallingStore()
+    {
+        var placementStore = new RecordingPlacementStore();
+        await using var services = CreateServices(
+            new StubPolicyService(new AccountPolicyState(false, true)),
+            new StubEntitlementService(AccountTier.Free),
+            placementStore,
+            placementsFrozen: true);
+
+        var result = await BoardApi.PlaceAsync(
+            ValidRequest(),
+            new StubIdentityAccessor(new AccountId("firebase-test-user")),
+            new PlacementValidator(),
+            TimeProvider.System,
+            services,
+            CancellationToken.None);
+        var response = await ExecuteAsync<ApiError>(result, services);
+
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, response.StatusCode);
+        Assert.Equal(ApiErrorCodes.BoardReadOnly, response.Body.Code);
+        Assert.Equal(0, placementStore.CallCount);
+    }
+
     private static PlacementRequest ValidRequest() =>
         new(10, 20, "#abcdef", "request-1", new ClientContext("web", "1.0"));
 
     private static ServiceProvider CreateServices(
         IAccountPolicyService policy,
         IEntitlementService entitlement,
-        IAtomicPlacementStore placementStore) =>
+        IAtomicPlacementStore placementStore,
+        bool placementsFrozen = false) =>
         new ServiceCollection()
             .AddLogging()
             .AddOptions()
             .AddSingleton(policy)
             .AddSingleton(entitlement)
             .AddSingleton(placementStore)
+            .AddSingleton<IPlatformSafetyService>(new StubSafetyService(placementsFrozen))
             .BuildServiceProvider();
 
     private static async Task<(int StatusCode, T Body)> ExecuteAsync<T>(
@@ -162,6 +188,13 @@ public sealed class BoardApiPlacementTests
             AccountId accountId,
             CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(new EntitlementState(tier, null));
+    }
+
+    private sealed class StubSafetyService(bool placementsFrozen) : IPlatformSafetyService
+    {
+        public ValueTask<PlatformSafetyState> GetStateAsync(
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(new PlatformSafetyState(placementsFrozen, false));
     }
 
     private sealed class RecordingPlacementStore : IAtomicPlacementStore

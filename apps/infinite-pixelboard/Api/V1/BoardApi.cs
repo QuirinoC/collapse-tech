@@ -43,11 +43,19 @@ public static class BoardApi
         int tileColumn,
         IBoardStore boardStore,
         TimeProvider timeProvider,
+        IServiceProvider services,
         CancellationToken cancellationToken)
     {
+        var tile = new TileAddress(tileRow, tileColumn);
         var pixels = await boardStore.GetTileAsync(
-            new TileAddress(tileRow, tileColumn),
+            tile,
             cancellationToken);
+        var visibilityFilter = services.GetService<IBoardVisibilityFilter>();
+        if (visibilityFilter is not null)
+        {
+            await visibilityFilter.ApplyAsync(tile, pixels, cancellationToken);
+        }
+
         return new TileSnapshotResponse(
             ApiVersions.V1,
             tileRow,
@@ -127,9 +135,23 @@ public static class BoardApi
         var policyService = services.GetService<IAccountPolicyService>();
         var entitlementService = services.GetService<IEntitlementService>();
         var placementStore = services.GetService<IAtomicPlacementStore>();
-        if (policyService is null || entitlementService is null || placementStore is null)
+        var safetyService = services.GetService<IPlatformSafetyService>();
+        if (policyService is null
+            || entitlementService is null
+            || placementStore is null
+            || safetyService is null)
         {
             return ServiceUnavailable();
+        }
+
+        var safety = await safetyService.GetStateAsync(cancellationToken);
+        if (safety.PlacementsFrozen)
+        {
+            return Results.Json(
+                new ApiError(
+                    ApiErrorCodes.BoardReadOnly,
+                    "Pixel placement is temporarily paused."),
+                statusCode: StatusCodes.Status503ServiceUnavailable);
         }
 
         var policy = await policyService.GetAsync(

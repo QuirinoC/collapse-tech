@@ -23,3 +23,17 @@ public sealed class PostgresFactAttribute : FactAttribute
         }
     }
 }
+
+public sealed class PostgresRedisFactAttribute : FactAttribute
+{
+    public PostgresRedisFactAttribute()
+    {
+        if (string.IsNullOrWhiteSpace(
+                Environment.GetEnvironmentVariable("PIXELBOARD_TEST_POSTGRES"))
+            || string.IsNullOrWhiteSpace(
+                Environment.GetEnvironmentVariable("PIXELBOARD_TEST_REDIS")))
+        {
+            Skip = "PIXELBOARD_TEST_POSTGRES and PIXELBOARD_TEST_REDIS are required.";
+        }
+    }
+}

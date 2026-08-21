@@ -2,6 +2,7 @@ using PixelBoard.Api.V1;
 using PixelBoard.Contracts.V1;
 using PixelBoard.Domain;
 using PixelBoard.Infrastructure.Board;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace PixelBoard.Tests;
 
@@ -27,12 +28,14 @@ public sealed class BoardApiTests
         var pixels = BoardTileSerializer.CreateDefault();
         pixels[127][0] = "#123456";
         var boardStore = new RecordingBoardStore(pixels);
+        using var services = new ServiceCollection().BuildServiceProvider();
 
         var response = await BoardApi.GetTileAsync(
             -1,
             4,
             boardStore,
             new FixedTimeProvider(capturedAt),
+            services,
             CancellationToken.None);
 
         Assert.Equal(ApiVersions.V1, response.ApiVersion);

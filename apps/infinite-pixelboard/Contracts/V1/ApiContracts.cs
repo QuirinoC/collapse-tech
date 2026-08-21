@@ -23,6 +23,8 @@ public static class ApiErrorCodes
     public const string ReportRateLimited = "report_rate_limited";
     public const string ServiceUnavailable = "service_unavailable";
     public const string InvalidStoreKitTransaction = "invalid_storekit_transaction";
+    public const string InvalidModerationAction = "invalid_moderation_action";
+    public const string ModerationConflict = "moderation_conflict";
     public const string StoreKitAccountMismatch = "storekit_account_mismatch";
     public const string TileUnavailable = "tile_unavailable";
 }

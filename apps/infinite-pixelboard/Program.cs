@@ -41,6 +41,7 @@ app.MapRazorPages()
 
 app.MapHub<BoardHub>("/boardHub");
 app.MapBoardApiV1();
+app.MapModerationApiV1();
 app.MapStoreKitApiV1();
 app.MapAdvertisingMetadata();
 app.MapHealthChecks("/health/live", new HealthCheckOptions
