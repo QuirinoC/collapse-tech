@@ -141,6 +141,11 @@ public sealed class ModerationApiTests
             CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(new PlatformSafetyState(false, true));
 
+        public ValueTask<bool> IsVisibleAsync(
+            BoardPosition position,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(true);
+
         public ValueTask ApplyAsync(
             TileAddress tile,
             string[][] pixels,
