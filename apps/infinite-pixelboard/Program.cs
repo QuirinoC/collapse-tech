@@ -1,40 +1,20 @@
-using Microsoft.Azure.SignalR;
-using StackExchange.Redis;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using PixelBoard.Api.V1;
+using PixelBoard.Configuration;
+using PixelBoard.Infrastructure.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorPages();
 builder.Services.AddSignalR();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddProductOptions(builder.Configuration, builder.Environment);
+builder.Services.AddFirebaseAuthentication();
+builder.Services.AddBoardStorage();
+builder.Services.AddModerationLedger(builder.Configuration);
 
 Console.WriteLine($"Environment: {builder.Environment.EnvironmentName}");
-
-if (builder.Environment.IsProduction())
-{
-    // Get redisconnectionstring from Env
-    var redisConnString = Environment.GetEnvironmentVariable("redisconnectionstring")
-        ?? builder.Configuration["redisconnectionstring"];
-
-    if (string.IsNullOrEmpty(redisConnString))
-    {
-        throw new RedisException("Redis connection string not found in environment variables or configuration");
-    }
-
-    builder.Services.AddStackExchangeRedisCache(options =>
-    {
-        options.Configuration = redisConnString;
-        options.InstanceName = "PixelBoard_";
-    });
-}
-else
-{
-    builder.Services.AddStackExchangeRedisCache(options =>
-    {
-        options.Configuration = "localhost:6379"; // Replace with your Redis connection string
-        options.InstanceName = "PixelBoard_";
-    });
-}
-
 
 var app = builder.Build();
 
@@ -50,6 +30,7 @@ app.UseHttpsRedirection();
 
 app.UseRouting();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapStaticAssets();
@@ -57,5 +38,14 @@ app.MapRazorPages()
    .WithStaticAssets();
 
 app.MapHub<BoardHub>("/boardHub");
+app.MapBoardApiV1();
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false
+});
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("ready")
+});
 
 app.Run();

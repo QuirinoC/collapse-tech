@@ -1,4 +1,4 @@
-public class PixelBoardConstants
+public static class PixelBoardConstants
 {
     public const string BoardCacheKey = "MainBoard";
     public const int TileRows = 128;
