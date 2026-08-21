@@ -58,16 +58,6 @@ export class PixelRenderer {
     return range;
   }
 
-  function drawReportRegion(context, viewport, region, cell, cellSize) {
-    const point = boardToScreen(viewport, region.top, region.left, cellSize);
-    context.fillStyle = "rgba(211, 82, 60, .12)";
-    context.strokeStyle = "#d3523c";
-    context.lineWidth = 2;
-    context.setLineDash([6, 4]);
-    context.fillRect(point.x, point.y, region.width * cell, region.height * cell);
-    context.strokeRect(point.x, point.y, region.width * cell, region.height * cell);
-    context.setLineDash([]);
-  }
 }
 
 function drawTile(context, pixels, x, y, cell, defaultColor) {
@@ -136,4 +126,15 @@ function drawHighlight(context, viewport, pixel, cell, cellSize) {
     Math.max(1, Math.ceil(cell) - 2),
     Math.max(1, Math.ceil(cell) - 2),
   );
+}
+
+function drawReportRegion(context, viewport, region, cell, cellSize) {
+  const point = boardToScreen(viewport, region.top, region.left, cellSize);
+  context.fillStyle = "rgba(211, 82, 60, .12)";
+  context.strokeStyle = "#d3523c";
+  context.lineWidth = 2;
+  context.setLineDash([6, 4]);
+  context.fillRect(point.x, point.y, region.width * cell, region.height * cell);
+  context.strokeRect(point.x, point.y, region.width * cell, region.height * cell);
+  context.setLineDash([]);
 }
