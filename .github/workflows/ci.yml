@@ -58,3 +58,9 @@ jobs:
       - run: dotnet format PixelBoard.sln --verify-no-changes --no-restore
       - run: dotnet test PixelBoard.sln --no-restore
       - run: dotnet build PixelBoard.sln --no-restore
+      - name: Validate production ARM template JSON
+        run: jq empty Infrastructure/Cloud/ContainerApp.json
+      - name: Build production container
+        run: docker build --tag pixelboard-ci:${{ github.sha }} .
+      - name: Verify production container is non-root
+        run: test -n "$(docker image inspect pixelboard-ci:${{ github.sha }} --format '{{.Config.User}}')"

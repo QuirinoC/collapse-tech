@@ -1,0 +1,125 @@
+name: Deploy Infinite Pixelboard
+
+on:
+  workflow_dispatch:
+    inputs:
+      advertising_web_enabled:
+        description: Enable web advertising after moderation approval
+        required: true
+        default: false
+        type: boolean
+      advertising_mobile_enabled:
+        description: Enable mobile advertising after moderation approval
+        required: true
+        default: false
+        type: boolean
+      moderation_operations_enabled:
+        description: Assert staffed moderation and emergency shutdown are operational
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: pixelboard-production
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate image and template
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate ARM JSON
+        run: jq empty apps/infinite-pixelboard/Infrastructure/Cloud/ContainerApp.json
+      - name: Build production image
+        run: docker build --tag pixelboard:${{ github.sha }} apps/infinite-pixelboard
+      - name: Verify production image is non-root
+        run: test -n "$(docker image inspect pixelboard:${{ github.sha }} --format '{{.Config.User}}')"
+
+  deploy:
+    name: Deploy production
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Build and push path-scoped image
+        id: image
+        env:
+          ACR_NAME: ${{ vars.AZURE_ACR_NAME }}
+        run: |
+          set -euo pipefail
+          az acr build \
+            --registry "$ACR_NAME" \
+            --image "pixelboard:${GITHUB_SHA}" \
+            apps/infinite-pixelboard
+          digest=$(az acr repository show \
+            --name "$ACR_NAME" \
+            --image "pixelboard:${GITHUB_SHA}" \
+            --query digest \
+            --output tsv)
+          test -n "$digest"
+          echo "reference=${ACR_NAME}.azurecr.io/pixelboard@${digest}" >> "$GITHUB_OUTPUT"
+      - name: Validate and deploy infrastructure
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          LOCATION: ${{ vars.AZURE_LOCATION }}
+          ACR_RESOURCE_ID: ${{ vars.AZURE_ACR_RESOURCE_ID }}
+          ACR_LOGIN_SERVER: ${{ vars.AZURE_ACR_NAME }}.azurecr.io
+          DEPLOYMENT_PRINCIPAL_OBJECT_ID: ${{ vars.AZURE_PRINCIPAL_OBJECT_ID }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          STOREKIT_BUNDLE_ID: ${{ vars.STOREKIT_BUNDLE_ID }}
+          STOREKIT_MONTHLY_PRODUCT_ID: ${{ vars.STOREKIT_MONTHLY_PRODUCT_ID }}
+          STOREKIT_ANNUAL_PRODUCT_ID: ${{ vars.STOREKIT_ANNUAL_PRODUCT_ID }}
+          POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          POSTGRES_RUNTIME_CONNECTION_STRING: ${{ secrets.POSTGRES_RUNTIME_CONNECTION_STRING }}
+          ABUSE_SIGNAL_HMAC_KEY: ${{ secrets.ABUSE_SIGNAL_HMAC_KEY }}
+          STOREKIT_TRUSTED_ROOT_CERTIFICATE: ${{ secrets.STOREKIT_TRUSTED_ROOT_CERTIFICATE }}
+          IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
+          ADVERTISING_WEB_ENABLED: ${{ inputs.advertising_web_enabled }}
+          ADVERTISING_MOBILE_ENABLED: ${{ inputs.advertising_mobile_enabled }}
+          MODERATION_OPERATIONS_ENABLED: ${{ inputs.moderation_operations_enabled }}
+        run: |
+          set -euo pipefail
+          case "$IMAGE_REFERENCE" in
+            *@sha256:*) ;;
+            *) echo "Deployment requires an immutable image digest." >&2; exit 1 ;;
+          esac
+          if { [ "$ADVERTISING_WEB_ENABLED" = "true" ] || [ "$ADVERTISING_MOBILE_ENABLED" = "true" ]; } \
+            && [ "$MODERATION_OPERATIONS_ENABLED" != "true" ]; then
+            echo "Advertising requires operational moderation." >&2
+            exit 1
+          fi
+          common=(
+            --resource-group "$RESOURCE_GROUP"
+            --template-file apps/infinite-pixelboard/Infrastructure/Cloud/ContainerApp.json
+            --parameters
+              location="$LOCATION"
+              containerImage="$IMAGE_REFERENCE"
+              deploymentPrincipalObjectId="$DEPLOYMENT_PRINCIPAL_OBJECT_ID"
+              acrResourceId="$ACR_RESOURCE_ID"
+              acrLoginServer="$ACR_LOGIN_SERVER"
+              firebaseProjectId="$FIREBASE_PROJECT_ID"
+              postgresAdministratorPassword="$POSTGRES_ADMIN_PASSWORD"
+              postgresRuntimeConnectionString="$POSTGRES_RUNTIME_CONNECTION_STRING"
+              abuseSignalHmacKey="$ABUSE_SIGNAL_HMAC_KEY"
+              storeKitTrustedRootCertificate="$STOREKIT_TRUSTED_ROOT_CERTIFICATE"
+              storeKitBundleId="$STOREKIT_BUNDLE_ID"
+              storeKitMonthlyProductId="$STOREKIT_MONTHLY_PRODUCT_ID"
+              storeKitAnnualProductId="$STOREKIT_ANNUAL_PRODUCT_ID"
+              advertisingWebEnabled="$ADVERTISING_WEB_ENABLED"
+              advertisingMobileEnabled="$ADVERTISING_MOBILE_ENABLED"
+              advertisingModerationOperationsEnabled="$MODERATION_OPERATIONS_ENABLED"
+          )
+          az deployment group validate "${common[@]}" --name "pixelboard-${GITHUB_RUN_ID}"
+          az deployment group create "${common[@]}" --name "pixelboard-${GITHUB_RUN_ID}"
