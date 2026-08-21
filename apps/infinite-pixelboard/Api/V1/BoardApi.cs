@@ -22,6 +22,7 @@ public static class BoardApi
                 AcceptCommunityStandardsAsync)
             .RequireAuthorization();
         api.MapPost("/placements", PlaceAsync).RequireAuthorization();
+        api.MapPost("/reports", ReportAsync).RequireAuthorization();
 
         return endpoints;
     }
@@ -226,6 +227,92 @@ public static class BoardApi
                 null));
     }
 
+    public static async Task<IResult> ReportAsync(
+        CreateReportRequest? request,
+        IAccountIdentityAccessor identityAccessor,
+        IReportValidator validator,
+        TimeProvider timeProvider,
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        var account = await identityAccessor.GetCurrentAsync(cancellationToken);
+        if (account is null)
+        {
+            return AuthenticationRequired();
+        }
+
+        var policyService = services.GetService<IAccountPolicyService>();
+        var rateLimiter = services.GetService<IReportRateLimiter>();
+        var evidenceCollector = services.GetService<IReportEvidenceCollector>();
+        var reportStore = services.GetService<IReportStore>();
+        if (policyService is null
+            || rateLimiter is null
+            || evidenceCollector is null
+            || reportStore is null)
+        {
+            return ServiceUnavailable("Reporting is not configured.");
+        }
+
+        var policy = await policyService.GetAsync(
+            account.Id,
+            CurrentCommunityStandardsVersion,
+            cancellationToken);
+        if (policy.IsBanned)
+        {
+            return Results.Json(
+                new ApiError(
+                    ApiErrorCodes.AccountBanned,
+                    "This account cannot submit reports."),
+                statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        var submittedAt = timeProvider.GetUtcNow();
+        var validation = validator.Validate(
+            request,
+            account.Id,
+            ReportId.New(),
+            submittedAt);
+        if (!validation.IsValid)
+        {
+            return Results.BadRequest(validation.Error);
+        }
+
+        var command = validation.Command!;
+        var admission = await rateLimiter.TryAcquireAsync(command, cancellationToken);
+        if (admission == ReportAdmissionOutcome.Duplicate)
+        {
+            return Results.Json(
+                new ApiError(
+                    ApiErrorCodes.DuplicateRequest,
+                    "An equivalent report was submitted recently."),
+                statusCode: StatusCodes.Status409Conflict);
+        }
+
+        if (admission == ReportAdmissionOutcome.RateLimited)
+        {
+            return Results.Json(
+                new ApiError(
+                    ApiErrorCodes.ReportRateLimited,
+                    "Too many reports were submitted recently."),
+                statusCode: StatusCodes.Status429TooManyRequests);
+        }
+
+        try
+        {
+            var evidence = await evidenceCollector.CollectAsync(command, cancellationToken);
+            await reportStore.SaveAsync(command, evidence, cancellationToken);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            await rateLimiter.ReleaseAsync(command, CancellationToken.None);
+            throw;
+        }
+
+        return Results.Json(
+            new ReportResponse(command.ReportId, ReportStatus.Received, submittedAt),
+            statusCode: StatusCodes.Status201Created);
+    }
+
     private static int CooldownSeconds(AccountTier tier) =>
         tier == AccountTier.Pro ? 1 : 10;
 
@@ -234,10 +321,10 @@ public static class BoardApi
             new ApiError(ApiErrorCodes.AuthenticationRequired, "Authentication is required."),
             statusCode: StatusCodes.Status401Unauthorized);
 
-    private static IResult ServiceUnavailable() =>
+    private static IResult ServiceUnavailable(string? message = null) =>
         Results.Json(
             new ApiError(
                 ApiErrorCodes.ServiceUnavailable,
-                "Authenticated placement is not configured."),
+                message ?? "Authenticated placement is not configured."),
             statusCode: StatusCodes.Status503ServiceUnavailable);
 }

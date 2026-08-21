@@ -17,6 +17,8 @@ public static class ApiErrorCodes
     public const string InvalidClientContext = "invalid_client_context";
     public const string InvalidCoordinates = "invalid_coordinates";
     public const string InvalidIdempotencyKey = "invalid_idempotency_key";
+    public const string InvalidReportNote = "invalid_report_note";
+    public const string InvalidReportReason = "invalid_report_reason";
     public const string InvalidReportRegion = "invalid_report_region";
     public const string ReportRateLimited = "report_rate_limited";
     public const string ServiceUnavailable = "service_unavailable";
@@ -122,10 +124,10 @@ public sealed record ReportRegion(
     int Height);
 
 public sealed record CreateReportRequest(
-    ReportRegion Region,
-    ReportReason Reason,
+    ReportRegion? Region,
+    ReportReason? Reason,
     string? Note,
-    ClientContext Client);
+    ClientContext? Client);
 
 public sealed record ReportResponse(
     ReportId ReportId,

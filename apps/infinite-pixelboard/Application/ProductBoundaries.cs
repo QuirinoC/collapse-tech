@@ -29,6 +29,31 @@ public sealed record PlacementValidation(
     bool IsValid,
     ApiError? Error);
 
+public sealed record ReportCommand(
+    ReportId ReportId,
+    AccountId ReporterAccountId,
+    ReportRegion Region,
+    ReportReason Reason,
+    string? Note,
+    ClientContext Client,
+    DateTimeOffset SubmittedAt);
+
+public sealed record ReportValidation(
+    bool IsValid,
+    ReportCommand? Command,
+    ApiError? Error);
+
+public enum ReportAdmissionOutcome
+{
+    Allowed,
+    Duplicate,
+    RateLimited
+}
+
+public sealed record ReportEvidence(
+    string SnapshotJson,
+    byte[] EvidenceHash);
+
 public sealed record RateLimitDecision(
     bool IsAllowed,
     CooldownState Cooldown);
@@ -66,6 +91,41 @@ public interface IAccountPolicyService
 public interface IPlacementValidator
 {
     PlacementValidation Validate(PlacementCommand command);
+}
+
+public interface IReportValidator
+{
+    ReportValidation Validate(
+        CreateReportRequest? request,
+        AccountId reporterAccountId,
+        ReportId reportId,
+        DateTimeOffset submittedAt);
+}
+
+public interface IReportRateLimiter
+{
+    ValueTask<ReportAdmissionOutcome> TryAcquireAsync(
+        ReportCommand command,
+        CancellationToken cancellationToken = default);
+
+    ValueTask ReleaseAsync(
+        ReportCommand command,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IReportEvidenceCollector
+{
+    ValueTask<ReportEvidence> CollectAsync(
+        ReportCommand command,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IReportStore
+{
+    ValueTask SaveAsync(
+        ReportCommand command,
+        ReportEvidence evidence,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IPlacementRateLimiter

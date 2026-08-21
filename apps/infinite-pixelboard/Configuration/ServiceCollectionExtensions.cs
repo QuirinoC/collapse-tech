@@ -6,6 +6,7 @@ using System.Security.Cryptography.X509Certificates;
 using PixelBoard.Application;
 using PixelBoard.Infrastructure.Board;
 using PixelBoard.Infrastructure.Ledger;
+using PixelBoard.Infrastructure.Moderation;
 using PixelBoard.Infrastructure.Postgres;
 using PixelBoard.Infrastructure.StoreKit;
 using StackExchange.Redis;
@@ -97,6 +98,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddBoardStorage(this IServiceCollection services)
     {
         services.AddSingleton<IPlacementValidator, PlacementValidator>();
+        services.AddSingleton<IReportValidator, ReportValidator>();
         services.AddStackExchangeRedisCache(_ => { });
         services
             .AddOptions<RedisCacheOptions>()
@@ -137,6 +139,9 @@ public static class ServiceCollectionExtensions
         });
         services.AddSingleton<IAtomicPlacementStore, RedisAtomicPlacementStore>();
         services.AddSingleton<IPlacementLedger, PostgresPlacementLedger>();
+        services.AddSingleton<IReportRateLimiter, RedisReportRateLimiter>();
+        services.AddSingleton<IReportEvidenceCollector, ReportEvidenceCollector>();
+        services.AddSingleton<IReportStore, PostgresReportStore>();
         services.AddSingleton<PostgresAccountStateService>();
         services.AddSingleton<IAccountPolicyService>(
             provider => provider.GetRequiredService<PostgresAccountStateService>());

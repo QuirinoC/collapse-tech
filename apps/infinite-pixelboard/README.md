@@ -35,7 +35,7 @@ The deployed board uses a legacy coordinate convention that must remain stable w
 
 `Domain/BoardGeometry.cs` and `Domain/BoardTileSerializer.cs` are the source of truth for this format. Compatibility tests intentionally use row/column names instead of silently normalizing the old `x`/`y` terminology.
 
-Versioned transport shapes and machine-readable errors for the shared web/iOS API live in `Contracts/V1`. Anonymous board metadata and tile snapshots are available at `/api/v1/board` and `/api/v1/tiles/{tileRow}/{tileColumn}`. Authenticated clients can read account state, accept the current community standards, and submit idempotent placements through `/api/v1/account`, `/api/v1/account/community-standards`, and `/api/v1/placements`.
+Versioned transport shapes and machine-readable errors for the shared web/iOS API live in `Contracts/V1`. Anonymous board metadata and tile snapshots are available at `/api/v1/board` and `/api/v1/tiles/{tileRow}/{tileColumn}`. Authenticated clients can read account state, accept the current community standards, submit idempotent placements, and report a current position or bounded region through `/api/v1/account`, `/api/v1/account/community-standards`, `/api/v1/placements`, and `/api/v1/reports`.
 
 Placement is unavailable unless Firebase and PostgreSQL are enabled. Accepted writes atomically update the board, attribution outbox, idempotency record, and account cooldown in Redis. Free accounts receive a ten-second cooldown; active Pro entitlements receive a one-second cooldown. The existing SignalR endpoint remains active for compatibility until real-time v1 events and migrated clients are ready.
 
@@ -80,3 +80,11 @@ Build from this directory with the included Dockerfile. The production container
 PostgreSQL-backed attribution is feature-gated with `Postgres:Enabled` and remains off until the database is provisioned and every ordered script in `Infrastructure/Postgres/Migrations` has been applied by a dedicated migration identity. The runtime role must not own the schema.
 
 Accepted authenticated placements will use an atomic Redis operation that updates the compatible board tile, updates current-pixel ownership, and appends a durable outbox event. `PlacementOutboxWorker` idempotently copies that stream into PostgreSQL, acknowledges and removes an entry only after the database write succeeds, and reclaims abandoned pending entries after a configurable idle period. The worker emits ingested, failed, and reclaimed counters through `System.Diagnostics.Metrics`.
+
+### Reporting safety foundation
+
+`POST /api/v1/reports` accepts authenticated reports for a single current pixel or a region of at most 64 by 64 pixels (4,096 pixels total). Coordinates retain the legacy row/column convention. The server validates the reason, optional 500-character note, and client metadata; rechecks the durable account-ban policy; and applies per-account Redis duplicate suppression and a five-reports-per-ten-minutes limit before writing PostgreSQL.
+
+Evidence is server-authored. The service captures current Redis board colors and up to 500 attributed PostgreSQL placements in the region from the preceding 24 hours, hashes the serialized evidence, and stores it with the report. Clients cannot submit screenshots or attribution. Firebase UIDs in evidence remain private in PostgreSQL and are never returned by the public report response, which contains only an opaque report ID, status, and submission time.
+
+This is an intake foundation, not a complete moderation system. Redis board state and the asynchronous PostgreSQL placement ledger can briefly differ, evidence is bounded to recent ledger history, duplicate controls are account-scoped rather than a substitute for abuse investigation, and no content is hidden automatically. The next reviewable slice should add a separately authorized moderator console with least-privilege report queues, evidence rendering, audit logging, appeals/retention policy, and explicit non-destructive triage transitions before any destructive action is introduced.
