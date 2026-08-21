@@ -147,6 +147,7 @@ public static class ServiceCollectionExtensions
         });
         services.AddSingleton<IAtomicPlacementStore, RedisAtomicPlacementStore>();
         services.AddSingleton<IRealtimeEventPublisher, RedisRealtimeEventPublisher>();
+        services.AddSingleton<RealtimeEventDeliveryPolicy>();
         services.AddHostedService<RedisRealtimeEventSubscriber>();
         services.AddSingleton<IPlacementLedger, PostgresPlacementLedger>();
         services.AddSingleton<IReportRateLimiter, RedisReportRateLimiter>();

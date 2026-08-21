@@ -41,6 +41,29 @@ public sealed class PostgresModerationService(
         return new PlatformSafetyState(reader.GetBoolean(0), reader.GetBoolean(1));
     }
 
+    public async ValueTask<bool> IsVisibleAsync(
+        BoardPosition position,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql =
+            """
+            SELECT NOT EXISTS (
+                SELECT 1
+                FROM pixelboard.hidden_regions
+                WHERE restored_at IS NULL
+                  AND region_top <= $1
+                  AND region_top + region_height > $1
+                  AND region_left <= $2
+                  AND region_left + region_width > $2
+            );
+            """;
+        await using var command = dataSource.CreateCommand(sql);
+        command.Parameters.AddWithValue(position.Row);
+        command.Parameters.AddWithValue(position.Column);
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken)
+            ?? throw new InvalidOperationException("Board visibility state is unavailable."));
+    }
+
     public async ValueTask ApplyAsync(
         TileAddress tile,
         string[][] pixels,

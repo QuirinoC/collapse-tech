@@ -98,11 +98,13 @@ test("reconnects after closure and runs catch-up after each handshake", async ()
 test("discards duplicate and out-of-order Redis stream cursors", async () => {
   const socket = new FakeSocket();
   const accepted = [];
+  let reconciliations = 0;
   const client = new PixelboardRealtimeClient({
     fetchImpl: async () => response({ connectionToken: "token" }),
     webSocketFactory: () => socket,
     location: { href: "https://pixelboard.test/board" },
     onAcceptedPixel: (event) => accepted.push(event.cursor),
+    onConnected: () => { reconciliations += 1; },
   });
   client.start();
   await nextTurn();
@@ -114,6 +116,59 @@ test("discards duplicate and out-of-order Redis stream cursors", async () => {
   }
 
   assert.deepEqual(accepted, ["100-1", "101-0"]);
+  assert.equal(reconciliations, 2);
+  client.stop();
+});
+
+test("sends SignalR keepalive pings after the handshake", async () => {
+  const socket = new FakeSocket();
+  const timers = [];
+  const client = new PixelboardRealtimeClient({
+    fetchImpl: async () => response({ connectionToken: "token" }),
+    webSocketFactory: () => socket,
+    location: { href: "https://pixelboard.test/board" },
+    setTimer: (callback, delay) => {
+      const timer = { callback, delay, cleared: false };
+      timers.push(timer);
+      return timer;
+    },
+    clearTimer: (timer) => { timer.cleared = true; },
+  });
+  client.start();
+  await nextTurn();
+  socket.emit("open");
+  socket.emit("message", { data: "{}\u001e" });
+
+  const ping = timers.find((timer) => timer.delay === 10_000 && !timer.cleared);
+  assert.ok(ping);
+  ping.callback();
+
+  assert.equal(socket.sent.at(-1), "{\"type\":6}\u001e");
+  client.stop();
+});
+
+test("closes a connection that never completes the SignalR handshake", async () => {
+  const socket = new FakeSocket();
+  const timers = [];
+  const client = new PixelboardRealtimeClient({
+    fetchImpl: async () => response({ connectionToken: "token" }),
+    webSocketFactory: () => socket,
+    location: { href: "https://pixelboard.test/board" },
+    setTimer: (callback, delay) => {
+      timers.push({ callback, delay });
+      return timers.length;
+    },
+    clearTimer: () => {},
+  });
+  client.start();
+  await nextTurn();
+
+  const handshakeTimeout = timers.find((timer) => timer.delay === 10_000);
+  assert.ok(handshakeTimeout);
+  handshakeTimeout.callback();
+
+  assert.equal(socket.closed, true);
+  assert.ok(timers.some((timer) => timer.delay === 0));
   client.stop();
 });
 
@@ -153,6 +208,7 @@ class FakeSocket {
   constructor() {
     this.listeners = new Map();
     this.sent = [];
+    this.closed = false;
   }
 
   addEventListener(name, callback) {
@@ -168,6 +224,7 @@ class FakeSocket {
   }
 
   close() {
+    this.closed = true;
     this.emit("close");
   }
 }

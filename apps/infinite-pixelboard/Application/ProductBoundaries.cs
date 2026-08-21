@@ -201,6 +201,10 @@ public interface IPlatformSafetyService
 
 public interface IBoardVisibilityFilter
 {
+    ValueTask<bool> IsVisibleAsync(
+        BoardPosition position,
+        CancellationToken cancellationToken = default);
+
     ValueTask ApplyAsync(
         TileAddress tile,
         string[][] pixels,

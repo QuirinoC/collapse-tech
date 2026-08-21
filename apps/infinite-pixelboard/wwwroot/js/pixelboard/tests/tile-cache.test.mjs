@@ -66,6 +66,26 @@ test("refresh replaces mutations that predate the authoritative request", async 
   assert.equal(cache.get(0, 0)[0][0], "#ABCDEF");
 });
 
+test("refresh follows a pending load with an authoritative request", async () => {
+  const resolvers = [];
+  const cache = new TileCache({
+    tileRows: 2,
+    tileColumns: 2,
+    loadTile: () => new Promise((resolve) => resolvers.push(resolve)),
+  });
+  const range = { firstRow: 0, lastRow: 0, firstColumn: 0, lastColumn: 0 };
+  const initial = cache.ensureVisible(range);
+  const refresh = cache.refreshVisible(range);
+
+  resolvers[0]({ pixels: tile("#111111") });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(resolvers.length, 2);
+  resolvers[1]({ pixels: tile("#222222") });
+  await Promise.all([initial, refresh]);
+
+  assert.equal(cache.get(0, 0)[0][0], "#222222");
+});
+
 test("malformed server tiles are rejected instead of corrupting the cache", async () => {
   const cache = new TileCache({
     tileRows: 2,

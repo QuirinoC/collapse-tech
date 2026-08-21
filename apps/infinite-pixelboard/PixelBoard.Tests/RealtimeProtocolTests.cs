@@ -1,4 +1,7 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using PixelBoard.Application;
 using PixelBoard.Contracts.V1;
+using PixelBoard.Domain;
 using PixelBoard.Infrastructure.Realtime;
 
 namespace PixelBoard.Tests;
@@ -56,5 +59,45 @@ public sealed class RealtimeProtocolTests
         {
             Assert.DoesNotContain(privateName, json, StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    [Fact]
+    public async Task QuarantinedPixelIsNotEligibleForClientDelivery()
+    {
+        var visibility = new StubVisibilityFilter(false);
+        var policy = new RealtimeEventDeliveryPolicy(
+            visibility,
+            NullLogger<RealtimeEventDeliveryPolicy>.Instance);
+        var envelope = new RealtimeEventEnvelope(
+            RealtimeProtocol.V1,
+            RealtimeProtocol.AcceptedPixelType,
+            "1730000000000-0",
+            new AcceptedPixelEventData(
+                PlacementId.New(),
+                new PixelState(9, 12, "#112233", DateTimeOffset.UnixEpoch)));
+
+        var canDeliver = await policy.CanDeliverAsync(envelope);
+
+        Assert.False(canDeliver);
+        Assert.Equal(new BoardPosition(9, 12), visibility.Position);
+    }
+
+    private sealed class StubVisibilityFilter(bool isVisible) : IBoardVisibilityFilter
+    {
+        public BoardPosition? Position { get; private set; }
+
+        public ValueTask<bool> IsVisibleAsync(
+            BoardPosition position,
+            CancellationToken cancellationToken = default)
+        {
+            Position = position;
+            return ValueTask.FromResult(isVisible);
+        }
+
+        public ValueTask ApplyAsync(
+            TileAddress tile,
+            string[][] pixels,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.CompletedTask;
     }
 }

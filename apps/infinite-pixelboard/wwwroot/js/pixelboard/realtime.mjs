@@ -93,10 +93,15 @@ export class PixelboardRealtimeClient {
               continue;
             }
 
-            if (isAcceptedPixelInvocation(message)
-              && isNewerCursor(message.arguments[0].cursor, this.lastCursor)) {
-              this.lastCursor = message.arguments[0].cursor;
-              this.onAcceptedPixel(message.arguments[0]);
+            if (isAcceptedPixelInvocation(message)) {
+              const envelope = message.arguments[0];
+              const cursorOrder = compareCursors(envelope.cursor, this.lastCursor);
+              if (cursorOrder > 0) {
+                this.lastCursor = envelope.cursor;
+                this.onAcceptedPixel(envelope);
+              } else if (cursorOrder < 0) {
+                this.onConnected();
+              }
             }
           }
         } catch {
@@ -190,9 +195,14 @@ function isAcceptedPixelInvocation(message) {
 }
 
 export function isNewerCursor(candidate, current) {
-  if (current === null) return true;
+  return compareCursors(candidate, current) > 0;
+}
+
+function compareCursors(candidate, current) {
+  if (current === null) return 1;
   const [candidateTime, candidateSequence] = candidate.split("-").map(BigInt);
   const [currentTime, currentSequence] = current.split("-").map(BigInt);
-  return candidateTime > currentTime
-    || (candidateTime === currentTime && candidateSequence > currentSequence);
+  if (candidateTime !== currentTime) return candidateTime > currentTime ? 1 : -1;
+  if (candidateSequence === currentSequence) return 0;
+  return candidateSequence > currentSequence ? 1 : -1;
 }

@@ -187,6 +187,8 @@ public sealed class PostgresModerationServiceIntegrationTests
         await fixture.Service.ApplyAsync(new TileAddress(-1, -1), tile);
 
         Assert.Equal(PixelBoardConstants.DefaultColor, tile[127][127]);
+        Assert.False(await fixture.Service.IsVisibleAsync(new BoardPosition(-1, -1)));
+        Assert.True(await fixture.Service.IsVisibleAsync(new BoardPosition(-2, -1)));
     }
 
     private static ModerationActionCommand Command(
