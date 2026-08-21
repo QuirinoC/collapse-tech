@@ -52,9 +52,9 @@ Create Vercel projects for the Next.js applications. In each project, set **Root
 | Application | Root Directory | Deployment target | Production domain |
 | --- | --- | --- |
 | Collapse Technologies | `apps/collapse-technologies` | Vercel | `collapsetechnologies.com` |
-| Asymmetric Challenge | `apps/asymmetric-challenge` | Vercel | Configure separately |
-| CoachGG | `apps/coach-gg` | Railway container | `coach.collapsetechnologies.com` |
-| Infinite Pixelboard | `apps/infinite-pixelboard` | Container image built from its `Dockerfile` | Configure separately |
+| Asymmetric Challenge | `apps/asymmetric-challenge` | Vercel | `challenge.collapsetechnologies.com` |
+| CoachGG | `apps/coach-gg` | Railway container | `coach.collapsetechnologies.com` (planned) |
+| Infinite Pixelboard | `apps/infinite-pixelboard` | Container image built from its `Dockerfile` | `pixelboard.collapsetechnologies.com` |
 
 Vercel automatically detects Next.js from the selected root directory. The challenge's existing Supabase environment variables belong only to the Asymmetric Challenge project; they must not be added to the studio project.
 
