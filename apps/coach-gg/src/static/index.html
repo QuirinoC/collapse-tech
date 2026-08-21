@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CoachGG — SSBU Player Analysis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+  <!-- Animated background mesh -->
+  <div class="bg-gradient-mesh"></div>
+
+  <!-- Header / Hero -->
+  <header class="hero" id="heroSection">
+    <div class="hero-content">
+      <div class="brand">
+        <h1 class="logo">CoachGG</h1>
+        <p class="tagline">Super Smash Bros Ultimate &middot; Player Analysis</p>
+      </div>
+
+      <div class="search-container">
+        <div class="search-form-wrap">
+        <form id="searchForm" class="search-form" autocomplete="off">
+          <div class="search-input-wrap">
+            <span class="search-icon">&#9876;</span>
+            <input
+              type="text"
+              id="slugInput"
+              placeholder="Search by gamerTag or paste slug…"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <div class="search-spinner hidden" id="searchSpinner"></div>
+          </div>
+          <button type="submit" class="btn-analyze" id="analyzeBtn">
+            <span class="btn-text">Analyze</span>
+            <span class="btn-arrow">&rarr;</span>
+          </button>
+        </form>
+        <!-- Autocomplete dropdown -->
+        <ul class="search-dropdown hidden" id="searchDropdown"></ul>
+        </div>
+        <p class="search-hint">Search by gamerTag or find your slug at start.gg/user/<strong>your-slug</strong></p>
+      </div>
+    </div>
+  </header>
+
+  <!-- Progress Section -->
+  <section class="progress-section hidden" id="progressSection">
+    <div class="container">
+      <div class="progress-header">
+        <div class="live-indicator">
+          <span class="pulse-dot"></span>
+          <span>Live Analysis</span>
+        </div>
+        <span id="progressText" class="progress-text">Initializing...</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+      </div>
+      <div class="progress-stats" id="progressStats"></div>
+    </div>
+  </section>
+
+  <!-- Results Section -->
+  <main class="results-section hidden" id="resultsSection">
+    <div class="container">
+
+      <!-- Summary bar -->
+      <div class="summary-bar" id="summaryBar"></div>
+
+      <!-- Tab navigation + sort control -->
+      <div class="tabs-bar">
+        <div class="tabs" id="tabNav">
+          <button class="tab active" data-tab="stages">
+            <span class="tab-icon">&#127958;</span>
+            Stages
+          </button>
+          <button class="tab" data-tab="characters">
+            <span class="tab-icon">&#127918;</span>
+            Characters
+          </button>
+          <button class="tab" data-tab="matchups">
+            <span class="tab-icon">&#9878;</span>
+            Stage Counterpick
+          </button>
+          <button class="tab" data-tab="vschars">
+            <span class="tab-icon">⚔️</span>
+            Character Counterpick
+          </button>
+        </div>
+        <div class="sort-toggle" id="sortToggle">
+          <span class="sort-label">Sort by</span>
+          <button class="sort-btn active" data-sort="winrate">% Win Rate</button>
+          <button class="sort-btn" data-sort="wins"># Wins</button>
+        </div>
+      </div>
+
+      <!-- Stage cards -->
+      <div class="tab-content active" id="tab-stages">
+        <div class="stage-grid" id="stageGrid"></div>
+      </div>
+
+      <!-- Character cards -->
+      <div class="tab-content" id="tab-characters">
+        <div class="char-grid" id="charGrid"></div>
+      </div>
+
+      <!-- Stage Counterpick -->
+      <div class="tab-content" id="tab-matchups">
+        <div class="matchup-list" id="matchupList"></div>
+      </div>
+
+      <!-- Character Counterpick -->
+      <div class="tab-content" id="tab-vschars">
+        <p class="vschar-subtitle">Your characters — expand each to see your win rate against every opponent character</p>
+        <div class="matchup-list" id="vsCharList"></div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Error Toast -->
+  <div class="error-toast hidden" id="errorToast">
+    <span class="error-icon">&#9888;</span>
+    <span id="errorText">An error occurred.</span>
+    <button class="error-retry" onclick="retry()">Retry</button>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
