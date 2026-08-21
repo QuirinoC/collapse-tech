@@ -6,6 +6,7 @@ import { attachPointerControls } from "./pointer-controls.mjs";
 import { PlacementReconciler } from "./reconciliation.mjs";
 import { PixelRenderer } from "./renderer.mjs";
 import { boundedReportRegion } from "./reporting.mjs";
+import { PixelboardRealtimeClient } from "./realtime.mjs";
 import { TileCache } from "./tile-cache.mjs";
 import {
   createViewport,
@@ -45,6 +46,7 @@ async function start(app) {
   let retryTimer = 0;
   let placementPending = false;
   let reportRegion = null;
+  let realtime;
 
   const connection = new ConnectionState({
     onChange(state) {
@@ -83,6 +85,29 @@ async function start(app) {
       tileRows: metadata.tileRows,
       tileColumns: metadata.tileColumns,
       defaultColor: metadata.defaultColor,
+    });
+    realtime = new PixelboardRealtimeClient({
+      onState: (state) => connection.realtime(state),
+      onAcceptedPixel: (event) => {
+        const pixel = event.data.pixel;
+        if (cache.applyPixelIfLoaded(pixel.row, pixel.column, pixel.color)) {
+          scheduleDraw();
+        }
+      },
+      onConnected: async () => {
+        if (!visibleRange) return;
+        try {
+          await cache.refreshVisible(visibleRange);
+          scheduleDraw();
+        } catch (error) {
+          console.warn("Visible tiles could not be reconciled after reconnect.", error);
+        }
+      },
+    });
+    realtime.start();
+    window.addEventListener("pagehide", () => realtime.stop());
+    window.addEventListener("pageshow", (event) => {
+      if (event.persisted) realtime.start();
     });
     reconciler = new PlacementReconciler({
       cache,
@@ -138,6 +163,7 @@ async function start(app) {
     await refreshAccount();
     scheduleDraw();
   } catch (error) {
+    realtime?.stop();
     elements.placementStatus.textContent = "Board service unavailable";
     console.error("Pixelboard failed to initialize.", error);
   }

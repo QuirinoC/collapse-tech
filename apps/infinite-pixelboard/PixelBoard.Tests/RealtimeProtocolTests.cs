@@ -15,6 +15,7 @@ public sealed class RealtimeProtocolTests
         var envelope = new RealtimeEventEnvelope(
             RealtimeProtocol.V1,
             RealtimeProtocol.AcceptedPixelType,
+            "1730000000000-0",
             new AcceptedPixelEventData(
                 PlacementId.From(Guid.Parse("4e70b8e5-83d3-4f6d-9de2-1538ab3d99d2")),
                 new PixelState(9, 12, "#112233", DateTimeOffset.UnixEpoch)));
@@ -22,7 +23,7 @@ public sealed class RealtimeProtocolTests
         var json = RealtimeEventSerializer.Serialize(envelope);
 
         Assert.Equal(
-            """{"protocolVersion":1,"type":"pixel.accepted","data":{"placementId":"4e70b8e583d34f6d9de21538ab3d99d2","pixel":{"row":9,"column":12,"color":"#112233","placedAt":"1970-01-01T00:00:00+00:00"}}}""",
+            """{"protocolVersion":1,"type":"pixel.accepted","cursor":"1730000000000-0","data":{"placementId":"4e70b8e583d34f6d9de21538ab3d99d2","pixel":{"row":9,"column":12,"color":"#112233","placedAt":"1970-01-01T00:00:00+00:00"}}}""",
             json);
         Assert.Equal(envelope, RealtimeEventSerializer.Deserialize(json));
     }
@@ -34,6 +35,7 @@ public sealed class RealtimeProtocolTests
             new RealtimeEventEnvelope(
                 RealtimeProtocol.V1,
                 RealtimeProtocol.AcceptedPixelType,
+                "1730000000000-0",
                 new AcceptedPixelEventData(
                     PlacementId.New(),
                     new PixelState(1, 2, "#ABCDEF", DateTimeOffset.UtcNow))));

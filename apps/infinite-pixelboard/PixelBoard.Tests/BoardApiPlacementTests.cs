@@ -339,6 +339,7 @@ public sealed class BoardApiPlacementTests
             RealtimePublicationResult.Published;
 
         public ValueTask<RealtimePublicationResult> PublishAcceptedAsync(
+            string cursor,
             AcceptedPixelEventData acceptedPixel)
         {
             CallCount++;

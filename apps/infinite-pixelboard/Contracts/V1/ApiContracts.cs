@@ -160,6 +160,7 @@ public sealed record AcceptedPixelEventData(
 public sealed record RealtimeEventEnvelope(
     int ProtocolVersion,
     string Type,
+    string Cursor,
     AcceptedPixelEventData Data);
 
 public sealed record StoreKitAccountTokenResponse(AppAccountToken AppAccountToken);

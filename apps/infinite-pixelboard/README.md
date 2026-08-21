@@ -58,11 +58,13 @@ Placement is unavailable unless Firebase and PostgreSQL are enabled. Accepted wr
 
 ### Real-time v1 protocol
 
-Platform-neutral SignalR clients connect to `/api/v1/realtime` and handle the `AcceptedPixelV1` client method. Its sole argument is a JSON envelope with `protocolVersion: 1`, `type: "pixel.accepted"`, and `data` containing only the public placement ID and pixel state (`row`, `column`, `color`, and `placedAt`). The coordinates preserve the legacy row/Y and column/X convention described above.
+Platform-neutral SignalR clients connect to `/api/v1/realtime` and handle the `AcceptedPixelV1` client method. Its sole argument is a JSON envelope with `protocolVersion: 1`, `type: "pixel.accepted"`, the ordering `cursor` from the atomic Redis stream append, and `data` containing only the public placement ID and pixel state (`row`, `column`, `color`, and `placedAt`). Cursors use Redis stream ID ordering (`milliseconds-sequence`) and let clients discard duplicate or stale delivery. The coordinates preserve the legacy row/Y and column/X convention described above.
 
 Only newly accepted atomic Redis writes are published; rejected placements and idempotent replays produce no event. Redis pub/sub fans events out across ASP.NET replicas, and each replica also sends the public row/column/color update to its connected legacy hub clients during migration. Publication failures are logged and metered as `pixelboard.realtime.publication_failed` but do not turn a persisted accepted placement into an HTTP failure. Pub/sub is intentionally not a replay log: after disconnecting, clients reconnect with normal SignalR retry behavior and reconcile missed state from `/api/v1/tiles/{tileRow}/{tileColumn}`. The durable private placement outbox remains exclusively for PostgreSQL attribution recovery and is never exposed to clients.
 
 The legacy `/boardHub` coordinate and message contract remains active during migration. New web and iOS clients must use `/api/v1/realtime`; the legacy hub can be retired only after all clients place through `/api/v1/placements`, consume `AcceptedPixelV1`, and use v1 tile snapshots for reconnect reconciliation.
+
+The modular web client negotiates the SignalR JSON protocol directly over WebSocket, applies accepted events only to tiles already backed by a snapshot, and automatically reconnects with bounded backoff. Every successful initial connection or reconnect refreshes visible tile snapshots, which is the v1 catch-up boundary for events missed while offline.
 
 ## Firebase authentication
 

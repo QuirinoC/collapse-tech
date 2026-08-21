@@ -72,6 +72,13 @@ export class TileCache {
     return { previous, version };
   }
 
+  applyPixelIfLoaded(row, column, color) {
+    const location = locatePixel(row, column, this.tileRows, this.tileColumns);
+    if (!this.tiles.has(tileKey(location.tileRow, location.tileColumn))) return false;
+    this.applyPixel(row, column, color);
+    return true;
+  }
+
   restorePixel(row, column, color, expectedVersion) {
     const location = locatePixel(row, column, this.tileRows, this.tileColumns);
     const entry = this.tiles.get(tileKey(location.tileRow, location.tileColumn));
@@ -88,7 +95,12 @@ export class TileCache {
       this.get(tileRow, tileColumn);
       return Promise.resolve();
     }
-    if (this.pending.has(key)) return this.pending.get(key);
+    if (this.pending.has(key)) {
+      const pending = this.pending.get(key);
+      return force
+        ? pending.then(() => this.#load(tileRow, tileColumn, true, signal))
+        : pending;
+    }
 
     const versionAtStart = this.version;
     const request = this.loadTile(tileRow, tileColumn, signal)

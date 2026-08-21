@@ -4,6 +4,7 @@ export class ConnectionState {
     this.online = online;
     this.pending = 0;
     this.failed = false;
+    this.realtimeStatus = "connecting";
     this.handleOnline = () => {
       this.failed = false;
       this.#emit();
@@ -28,13 +29,24 @@ export class ConnectionState {
     this.#emit();
   }
 
+  realtime(state) {
+    this.realtimeStatus = state;
+    this.#emit();
+  }
+
   dispose() {
     globalThis.removeEventListener?.("online", this.handleOnline);
     globalThis.removeEventListener?.("offline", this.handleOffline);
   }
 
   #emit() {
-    const state = !this.online() ? "offline" : this.failed ? "degraded" : this.pending ? "connecting" : "online";
+    const state = !this.online()
+      ? "offline"
+      : this.failed || this.realtimeStatus === "degraded"
+        ? "degraded"
+        : this.pending || this.realtimeStatus === "connecting"
+          ? "connecting"
+          : this.realtimeStatus;
     this.onChange(state);
   }
 }

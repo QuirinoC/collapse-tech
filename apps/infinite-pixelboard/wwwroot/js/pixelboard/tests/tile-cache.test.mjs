@@ -77,3 +77,24 @@ test("malformed server tiles are rejected instead of corrupting the cache", asyn
 
   assert.equal(cache.get(0, 0), null);
 });
+
+test("real-time pixels only mutate tiles already loaded from snapshots", async () => {
+  const cache = new TileCache({
+    tileRows: 2,
+    tileColumns: 2,
+    loadTile: async () => ({ pixels: tile("#111111") }),
+  });
+
+  assert.equal(cache.applyPixelIfLoaded(0, 0, "#ABCDEF"), false);
+  assert.equal(cache.get(0, 0), null);
+
+  await cache.ensureVisible({
+    firstRow: 0,
+    lastRow: 0,
+    firstColumn: 0,
+    lastColumn: 0,
+  });
+
+  assert.equal(cache.applyPixelIfLoaded(0, 0, "#ABCDEF"), true);
+  assert.equal(cache.get(0, 0)[0][0], "#ABCDEF");
+});

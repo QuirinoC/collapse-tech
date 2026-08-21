@@ -17,6 +17,7 @@ public enum RealtimePublicationResult
 public interface IRealtimeEventPublisher
 {
     ValueTask<RealtimePublicationResult> PublishAcceptedAsync(
+        string cursor,
         AcceptedPixelEventData acceptedPixel);
 }
 
@@ -36,11 +37,13 @@ public sealed class RedisRealtimeEventPublisher(
         RedisChannel.Literal($"{options.Value.InstanceName}{ChannelSuffix}");
 
     public async ValueTask<RealtimePublicationResult> PublishAcceptedAsync(
+        string cursor,
         AcceptedPixelEventData acceptedPixel)
     {
         var envelope = new RealtimeEventEnvelope(
             RealtimeProtocol.V1,
             RealtimeProtocol.AcceptedPixelType,
+            cursor,
             acceptedPixel);
 
         try
@@ -141,6 +144,7 @@ public sealed class RedisRealtimeEventSubscriber(
                 if (envelope is null
                     || envelope.ProtocolVersion != RealtimeProtocol.V1
                     || envelope.Type != RealtimeProtocol.AcceptedPixelType
+                    || string.IsNullOrWhiteSpace(envelope.Cursor)
                     || envelope.Data is null
                     || envelope.Data.Pixel is null)
                 {

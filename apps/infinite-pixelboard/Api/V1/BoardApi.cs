@@ -266,6 +266,7 @@ public static class BoardApi
         if (!result.IsDuplicate)
         {
             await realtimePublisher.PublishAcceptedAsync(
+                result.StreamEntryId,
                 new AcceptedPixelEventData(
                     result.PlacementId!.Value,
                     result.Pixel!));
