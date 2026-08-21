@@ -1,0 +1,93 @@
+@page "/moderation"
+@{
+    Layout = null;
+}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Pixelboard moderation</title>
+    <link rel="stylesheet" href="~/css/moderation.css" asp-append-version="true" />
+</head>
+<body>
+    <header class="console-header">
+        <div>
+            <p class="eyebrow">Collapse Technologies / Private operations</p>
+            <h1>Pixelboard moderation</h1>
+        </div>
+        <button id="refresh" type="button">Refresh queue</button>
+    </header>
+
+    <main>
+        <p id="status" class="status" role="status">Connecting to moderator services...</p>
+
+        <section class="safety-panel" aria-labelledby="safety-heading">
+            <div>
+                <p class="eyebrow">Emergency controls</p>
+                <h2 id="safety-heading">Platform safety state</h2>
+            </div>
+            <label><input id="placements-frozen" type="checkbox" /> Freeze placements</label>
+            <label><input id="ads-disabled" type="checkbox" /> Disable advertising</label>
+            <label>
+                Reason
+                <input id="safety-reason" type="text" maxlength="500"
+                       value="Moderator safety control update" />
+            </label>
+            <button id="save-safety" type="button">Apply safety state</button>
+        </section>
+
+        <div class="console-grid">
+            <section class="queue" aria-labelledby="queue-heading">
+                <div class="section-heading">
+                    <p class="eyebrow">Incoming</p>
+                    <h2 id="queue-heading">Report queue</h2>
+                </div>
+                <ol id="report-list"></ol>
+            </section>
+
+            <section class="review" aria-labelledby="review-heading">
+                <div class="section-heading">
+                    <p class="eyebrow">Evidence</p>
+                    <h2 id="review-heading">Report review</h2>
+                </div>
+                <div id="empty-review" class="empty">Select a report to review server evidence.</div>
+                <div id="report-review" hidden>
+                    <dl id="report-metadata"></dl>
+                    <canvas id="evidence-canvas" width="640" height="640"
+                            aria-label="Server-captured reported region"></canvas>
+                    <details>
+                        <summary>Raw private evidence</summary>
+                        <pre id="raw-evidence"></pre>
+                    </details>
+                    <div class="actions">
+                        <label>
+                            Required reason
+                            <textarea id="action-reason" maxlength="500"></textarea>
+                        </label>
+                        <label>
+                            Target account UID
+                            <input id="target-account" type="text" />
+                        </label>
+                        <label>
+                            Suspension expiry
+                            <input id="suspension-expiry" type="datetime-local" />
+                        </label>
+                        <div class="action-buttons">
+                            <button type="button" data-action="dismiss">Dismiss</button>
+                            <button type="button" data-action="quarantine">Quarantine region</button>
+                            <button type="button" data-action="rollback">Roll back implicated pixels</button>
+                            <button type="button" data-action="warn">Warn account</button>
+                            <button type="button" data-action="suspend">Suspend account</button>
+                            <button type="button" data-action="ban" class="danger">Ban account</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script type="module" src="~/js/moderation.mjs" asp-append-version="true"></script>
+</body>
+</html>

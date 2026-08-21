@@ -1,43 +1,53 @@
-# Asymmetric Challenge
+# Collapse Technologies
 
-A minimal, Yeezy-inspired web experiment where anyone can guess a 256-bit key and win $100. The browser verifies guesses locally by hashing and comparing to a public commitment, so there are no per-guess server calls. The server only verifies a claim on a match.
+The workspace behind [collapsetechnologies.com](https://collapsetechnologies.com): an independent technology studio making software, games, and long-term platforms.
 
-## Stack
-- Next.js (App Router)
-- Supabase Postgres (telemetry + winner state)
-- Vercel hosting (Hobby plan)
+## Applications
 
-## Setup
-1. Install dependencies.
-   ```bash
-   npm install
-   ```
+| Application | Directory | Purpose |
+| --- | --- | --- |
+| Collapse Technologies | `apps/collapse-technologies` | Studio landing site |
+| Asymmetric Challenge | `apps/asymmetric-challenge` | 256-bit key challenge experiment |
+| Infinite Pixelboard | `apps/infinite-pixelboard` | Collaborative, infinite canvas built with ASP.NET Core SignalR |
 
-2. Create `.env.local` using `.env.example`.
+## Local development
 
-3. Create the Supabase tables.
-   - Open the Supabase SQL editor and run `supabase/schema.sql`.
+Each application owns its dependencies and can run independently:
 
-4. Run locally.
-   ```bash
-   npm run dev
-   ```
-
-## Environment Variables
-- `SECRET_KEY_HEX`: 64 hex characters (256-bit secret).
-- `DATABASE_URL`: Supabase Postgres connection string (preferred if reachable).
-- `SUPABASE_URL`: Supabase project URL (used for REST fallback).
-- `SUPABASE_SERVICE_ROLE_KEY`: Supabase service role key (used for REST fallback).
-
-Note: The app prefers direct Postgres via `DATABASE_URL`. If the DB hostname is unreachable (common on Vercel with invalid pooler host), it falls back to Supabase REST using `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`. If you enable RLS, direct Postgres with the `postgres` role bypasses it. For RLS enforcement, use a restricted DB user or rely on Supabase REST with policies.
-
-Generate a secret:
 ```bash
-openssl rand -hex 32
+npm --prefix apps/collapse-technologies install
+npm run dev:studio
 ```
 
-## Telemetry
-The client batches attempt counts and sends aggregates every 10 seconds or 25,000 attempts, whichever comes first. A final batch is sent on tab close when possible.
+```bash
+npm --prefix apps/asymmetric-challenge install
+npm run dev:challenge
+```
 
-## Claim Flow
-If the client finds a matching hash, it calls `/api/claim`. The server verifies the guess against the secret and stores the first winner. Subsequent claims return `already_won`.
+```bash
+docker run --rm -p 6379:6379 redis:7-alpine
+npm run restore:pixelboard
+npm run dev:pixelboard
+```
+
+Root scripts run the relevant command in each app:
+
+```bash
+npm run build
+npm run lint
+npm test
+```
+
+## Deployments
+
+Create Vercel projects for the Next.js applications. In each project, set **Root Directory** before deploying:
+
+| Application | Root Directory | Deployment target | Production domain |
+| --- | --- | --- |
+| Collapse Technologies | `apps/collapse-technologies` | Vercel | `collapsetechnologies.com` |
+| Asymmetric Challenge | `apps/asymmetric-challenge` | Vercel | Configure separately |
+| Infinite Pixelboard | `apps/infinite-pixelboard` | Container image built from its `Dockerfile` | Configure separately |
+
+Vercel automatically detects Next.js from the selected root directory. The challenge's existing Supabase environment variables belong only to the Asymmetric Challenge project; they must not be added to the studio project.
+
+Infinite Pixelboard requires a persistent ASP.NET Core process for SignalR and a Redis instance. It is not compatible with Vercel's serverless runtime, so it intentionally has no `vercel.json`. Its production container must set `ASPNETCORE_ENVIRONMENT=Production` and `redisconnectionstring`.

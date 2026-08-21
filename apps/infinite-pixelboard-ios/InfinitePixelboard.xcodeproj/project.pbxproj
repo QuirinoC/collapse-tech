@@ -1,0 +1,576 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0AA57E1EC3F8695C947CB354 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22651EDE0934EF192A615A10 /* AppModel.swift */; };
+		1149DC267F58FD53E2667EE3 /* AdBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3099949C37EEA15601D5A443 /* AdBanner.swift */; };
+		11DC07118C5D003778B12A08 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = CE7205D2650372A6F23F63BD /* FirebaseAuth */; };
+		1430FA6B60A110671ABACBAC /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 0D07065E4A492959FE38274E /* FirebaseCore */; };
+		1CD605DDBD9F1010876B5DB3 /* PixelboardCore in Frameworks */ = {isa = PBXBuildFile; productRef = EE27B760C8D6D8D40F72908E /* PixelboardCore */; };
+		34C9CAFB806FB41AB21D8829 /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75915BECB7377347E52E0816 /* AppConfiguration.swift */; };
+		4D607B2259CE1B249FD956C2 /* ReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 091F90D40D4BBC34464A6EC6 /* ReportView.swift */; };
+		5CF67E80619391698C58A14E /* FirebaseAuthAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F79590CCCDA0AEF9A5F38550 /* FirebaseAuthAdapter.swift */; };
+		66013A20F8B301283D30E2A1 /* BoardCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59046AEE5FC0F3B424EF09B /* BoardCanvasView.swift */; };
+		740A92401492E0CDF3C1725E /* BoardGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0C02803C95D1D2AF41B25E5 /* BoardGeometryTests.swift */; };
+		8612FFB793833B9BDE6C95F9 /* InfinitePixelboardApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26A5EAA50A0866EBAB12941F /* InfinitePixelboardApp.swift */; };
+		8A32CE0AE4C5D8718BD193D7 /* InfinitePixelboard.storekit in Resources */ = {isa = PBXBuildFile; fileRef = FCEDCF597B60B782D572E37A /* InfinitePixelboard.storekit */; };
+		8A686428919FFE9E9A4351BE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B24BCDEBEADB8E88850C33 /* ContentView.swift */; };
+		9538A9021F8A9FECCDB5F8DB /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 94C181AD6B5332C017ABF51A /* GoogleSignIn */; };
+		96F8FBFFDDA294B7C69F6A45 /* TileCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65F2C7887D76C8ECBBE0DF5D /* TileCacheTests.swift */; };
+		B71A06A41DCBDE31307BDB8F /* APIModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D501B653E62F8FBAE71FBDBF /* APIModelsTests.swift */; };
+		D0F8352BDF800CA129242403 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2D4BA2B005A8A60974F33F1 /* AccountView.swift */; };
+		EF5ADA10BD95B05400D797C1 /* PixelboardCore in Frameworks */ = {isa = PBXBuildFile; productRef = CCD07644DDEBEF0EE4E40866 /* PixelboardCore */; };
+		F4692BFF072D51D69B666233 /* StoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7A641579BC815074945BF1F /* StoreManager.swift */; };
+		F64E737BF7B244318DF60234 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AF6EE8538BA5BB5F4C019F85 /* PrivacyInfo.xcprivacy */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		091F90D40D4BBC34464A6EC6 /* ReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportView.swift; sourceTree = "<group>"; };
+		22651EDE0934EF192A615A10 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		26A5EAA50A0866EBAB12941F /* InfinitePixelboardApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfinitePixelboardApp.swift; sourceTree = "<group>"; };
+		277151D067B154F6F1CF192F /* infinite-pixelboard-ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "infinite-pixelboard-ios"; path = .; sourceTree = SOURCE_ROOT; };
+		3099949C37EEA15601D5A443 /* AdBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdBanner.swift; sourceTree = "<group>"; };
+		44B24BCDEBEADB8E88850C33 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		65F2C7887D76C8ECBBE0DF5D /* TileCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TileCacheTests.swift; sourceTree = "<group>"; };
+		75915BECB7377347E52E0816 /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
+		A18BE893282591A519E0EFA8 /* PixelboardCoreTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = PixelboardCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A51D78F9D6764E3C82BD2252 /* InfinitePixelboard.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = InfinitePixelboard.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AF6EE8538BA5BB5F4C019F85 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		B7A641579BC815074945BF1F /* StoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreManager.swift; sourceTree = "<group>"; };
+		C59046AEE5FC0F3B424EF09B /* BoardCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardCanvasView.swift; sourceTree = "<group>"; };
+		D501B653E62F8FBAE71FBDBF /* APIModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModelsTests.swift; sourceTree = "<group>"; };
+		E0C02803C95D1D2AF41B25E5 /* BoardGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardGeometryTests.swift; sourceTree = "<group>"; };
+		E2D4BA2B005A8A60974F33F1 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
+		F79590CCCDA0AEF9A5F38550 /* FirebaseAuthAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseAuthAdapter.swift; sourceTree = "<group>"; };
+		FCEDCF597B60B782D572E37A /* InfinitePixelboard.storekit */ = {isa = PBXFileReference; path = InfinitePixelboard.storekit; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		8DD5EF5ACB6262F7DF146ABA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EF5ADA10BD95B05400D797C1 /* PixelboardCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C2CE776DCDEEA25ADF401754 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1CD605DDBD9F1010876B5DB3 /* PixelboardCore in Frameworks */,
+				11DC07118C5D003778B12A08 /* FirebaseAuth in Frameworks */,
+				1430FA6B60A110671ABACBAC /* FirebaseCore in Frameworks */,
+				9538A9021F8A9FECCDB5F8DB /* GoogleSignIn in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		084850709E821B39BC85F920 /* InfinitePixelboardApp */ = {
+			isa = PBXGroup;
+			children = (
+				E2D4BA2B005A8A60974F33F1 /* AccountView.swift */,
+				3099949C37EEA15601D5A443 /* AdBanner.swift */,
+				75915BECB7377347E52E0816 /* AppConfiguration.swift */,
+				22651EDE0934EF192A615A10 /* AppModel.swift */,
+				C59046AEE5FC0F3B424EF09B /* BoardCanvasView.swift */,
+				44B24BCDEBEADB8E88850C33 /* ContentView.swift */,
+				F79590CCCDA0AEF9A5F38550 /* FirebaseAuthAdapter.swift */,
+				26A5EAA50A0866EBAB12941F /* InfinitePixelboardApp.swift */,
+				091F90D40D4BBC34464A6EC6 /* ReportView.swift */,
+				B7A641579BC815074945BF1F /* StoreManager.swift */,
+			);
+			path = InfinitePixelboardApp;
+			sourceTree = "<group>";
+		};
+		404ADD3405E16B21F6F22754 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				FCEDCF597B60B782D572E37A /* InfinitePixelboard.storekit */,
+				AF6EE8538BA5BB5F4C019F85 /* PrivacyInfo.xcprivacy */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		50AADD1D94FC9DEDA0310BDD /* PixelboardCoreTests */ = {
+			isa = PBXGroup;
+			children = (
+				D501B653E62F8FBAE71FBDBF /* APIModelsTests.swift */,
+				E0C02803C95D1D2AF41B25E5 /* BoardGeometryTests.swift */,
+				65F2C7887D76C8ECBBE0DF5D /* TileCacheTests.swift */,
+			);
+			path = PixelboardCoreTests;
+			sourceTree = "<group>";
+		};
+		76B5E4C892B9638622FE86FB /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				50AADD1D94FC9DEDA0310BDD /* PixelboardCoreTests */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		A567C9D500EBB5696C3F1619 = {
+			isa = PBXGroup;
+			children = (
+				E0F66969C60B7996783AC352 /* Packages */,
+				404ADD3405E16B21F6F22754 /* Resources */,
+				E9CC464A421BD0B1D562B836 /* Sources */,
+				76B5E4C892B9638622FE86FB /* Tests */,
+				D794B5E3442C0BE07B1B0D48 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D794B5E3442C0BE07B1B0D48 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A51D78F9D6764E3C82BD2252 /* InfinitePixelboard.app */,
+				A18BE893282591A519E0EFA8 /* PixelboardCoreTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		E0F66969C60B7996783AC352 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				277151D067B154F6F1CF192F /* infinite-pixelboard-ios */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		E9CC464A421BD0B1D562B836 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				084850709E821B39BC85F920 /* InfinitePixelboardApp */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		3E4A160E2E6512D940CEC0A2 /* InfinitePixelboard */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5C3679B7C74860CACFA92BC9 /* Build configuration list for PBXNativeTarget "InfinitePixelboard" */;
+			buildPhases = (
+				CBFFDA3F8FAE8D51810CA581 /* Sources */,
+				C5E8007EBF58734A563C702A /* Resources */,
+				C2CE776DCDEEA25ADF401754 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = InfinitePixelboard;
+			packageProductDependencies = (
+				EE27B760C8D6D8D40F72908E /* PixelboardCore */,
+				CE7205D2650372A6F23F63BD /* FirebaseAuth */,
+				0D07065E4A492959FE38274E /* FirebaseCore */,
+				94C181AD6B5332C017ABF51A /* GoogleSignIn */,
+			);
+			productName = InfinitePixelboard;
+			productReference = A51D78F9D6764E3C82BD2252 /* InfinitePixelboard.app */;
+			productType = "com.apple.product-type.application";
+		};
+		CE8A2735E8D426AB0447BA7A /* PixelboardCoreTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 99603B03FE5C53B032E3ED5A /* Build configuration list for PBXNativeTarget "PixelboardCoreTests" */;
+			buildPhases = (
+				EF369DC8EE338FD606655A02 /* Sources */,
+				8DD5EF5ACB6262F7DF146ABA /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PixelboardCoreTests;
+			packageProductDependencies = (
+				CCD07644DDEBEF0EE4E40866 /* PixelboardCore */,
+			);
+			productName = PixelboardCoreTests;
+			productReference = A18BE893282591A519E0EFA8 /* PixelboardCoreTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		31418F4B3D9F7F550F66AAC0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					3E4A160E2E6512D940CEC0A2 = {
+						ProvisioningStyle = Automatic;
+					};
+					CE8A2735E8D426AB0447BA7A = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 626D83D9D6B5AB70BAB6B601 /* Build configuration list for PBXProject "InfinitePixelboard" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = A567C9D500EBB5696C3F1619;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				E3823BC6C8EC5A13AB1C1416 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				A381C1E70DE5303D2425FBA9 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				7E31E3F1A36866A00EA6A686 /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = D794B5E3442C0BE07B1B0D48 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				3E4A160E2E6512D940CEC0A2 /* InfinitePixelboard */,
+				CE8A2735E8D426AB0447BA7A /* PixelboardCoreTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		C5E8007EBF58734A563C702A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8A32CE0AE4C5D8718BD193D7 /* InfinitePixelboard.storekit in Resources */,
+				F64E737BF7B244318DF60234 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		CBFFDA3F8FAE8D51810CA581 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D0F8352BDF800CA129242403 /* AccountView.swift in Sources */,
+				1149DC267F58FD53E2667EE3 /* AdBanner.swift in Sources */,
+				34C9CAFB806FB41AB21D8829 /* AppConfiguration.swift in Sources */,
+				0AA57E1EC3F8695C947CB354 /* AppModel.swift in Sources */,
+				66013A20F8B301283D30E2A1 /* BoardCanvasView.swift in Sources */,
+				8A686428919FFE9E9A4351BE /* ContentView.swift in Sources */,
+				5CF67E80619391698C58A14E /* FirebaseAuthAdapter.swift in Sources */,
+				8612FFB793833B9BDE6C95F9 /* InfinitePixelboardApp.swift in Sources */,
+				4D607B2259CE1B249FD956C2 /* ReportView.swift in Sources */,
+				F4692BFF072D51D69B666233 /* StoreManager.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EF369DC8EE338FD606655A02 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B71A06A41DCBDE31307BDB8F /* APIModelsTests.swift in Sources */,
+				740A92401492E0CDF3C1725E /* BoardGeometryTests.swift in Sources */,
+				96F8FBFFDDA294B7C69F6A45 /* TileCacheTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		0D2A4441FA5288F43545AB6F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = InfinitePixelboard.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.CONFIGURE_ME;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PIXELBOARD_BASE_URL = "https://pixelboard.collapsetechnologies.com";
+				PRODUCT_BUNDLE_IDENTIFIER = com.collapse.infinitepixelboard;
+				PRODUCT_NAME = "Infinite Pixelboard";
+				SDKROOT = iphoneos;
+				SWIFT_STRICT_CONCURRENCY = targeted;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		61FAF686F810B3B71F3E1934 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = InfinitePixelboard.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.CONFIGURE_ME;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PIXELBOARD_BASE_URL = "https://pixelboard.collapsetechnologies.com";
+				PRODUCT_BUNDLE_IDENTIFIER = com.collapse.infinitepixelboard;
+				PRODUCT_NAME = "Infinite Pixelboard";
+				SDKROOT = iphoneos;
+				SWIFT_STRICT_CONCURRENCY = targeted;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		66645263DA89A6B7B5976DB3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.collapse.infinitepixelboard.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		7D8413FB8C8FAA4FA1F39486 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C84918F93CD1B6051DB3E3A8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.collapse.infinitepixelboard.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		FFD3CEBA73595AD2035253E4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5C3679B7C74860CACFA92BC9 /* Build configuration list for PBXNativeTarget "InfinitePixelboard" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0D2A4441FA5288F43545AB6F /* Debug */,
+				61FAF686F810B3B71F3E1934 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		626D83D9D6B5AB70BAB6B601 /* Build configuration list for PBXProject "InfinitePixelboard" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7D8413FB8C8FAA4FA1F39486 /* Debug */,
+				FFD3CEBA73595AD2035253E4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		99603B03FE5C53B032E3ED5A /* Build configuration list for PBXNativeTarget "PixelboardCoreTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				66645263DA89A6B7B5976DB3 /* Debug */,
+				C84918F93CD1B6051DB3E3A8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		7E31E3F1A36866A00EA6A686 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A381C1E70DE5303D2425FBA9 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
+		E3823BC6C8EC5A13AB1C1416 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 11.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		0D07065E4A492959FE38274E /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E3823BC6C8EC5A13AB1C1416 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		94C181AD6B5332C017ABF51A /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A381C1E70DE5303D2425FBA9 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		CCD07644DDEBEF0EE4E40866 /* PixelboardCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PixelboardCore;
+		};
+		CE7205D2650372A6F23F63BD /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E3823BC6C8EC5A13AB1C1416 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		EE27B760C8D6D8D40F72908E /* PixelboardCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PixelboardCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 31418F4B3D9F7F550F66AAC0 /* Project object */;
+}
