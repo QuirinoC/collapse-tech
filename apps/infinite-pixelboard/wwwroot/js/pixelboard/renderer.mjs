@@ -23,7 +23,7 @@ export class PixelRenderer {
     this.context.imageSmoothingEnabled = false;
   }
 
-  draw(viewport, cache, highlightedPixel = null) {
+  draw(viewport, cache, highlightedPixel = null, reportRegion = null) {
     const context = this.context;
     const cell = this.cellSize * viewport.scale;
     const range = visibleTileRange(
@@ -54,7 +54,19 @@ export class PixelRenderer {
 
     drawGrid(context, viewport, this.width, this.height, cell, this.tileRows, this.tileColumns);
     if (highlightedPixel) drawHighlight(context, viewport, highlightedPixel, cell, this.cellSize);
+    if (reportRegion) drawReportRegion(context, viewport, reportRegion, cell, this.cellSize);
     return range;
+  }
+
+  function drawReportRegion(context, viewport, region, cell, cellSize) {
+    const point = boardToScreen(viewport, region.top, region.left, cellSize);
+    context.fillStyle = "rgba(211, 82, 60, .12)";
+    context.strokeStyle = "#d3523c";
+    context.lineWidth = 2;
+    context.setLineDash([6, 4]);
+    context.fillRect(point.x, point.y, region.width * cell, region.height * cell);
+    context.strokeRect(point.x, point.y, region.width * cell, region.height * cell);
+    context.setLineDash([]);
   }
 }
 

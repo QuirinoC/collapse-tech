@@ -5,6 +5,7 @@ import { ConnectionState } from "./connection-state.mjs";
 import { attachPointerControls } from "./pointer-controls.mjs";
 import { PlacementReconciler } from "./reconciliation.mjs";
 import { PixelRenderer } from "./renderer.mjs";
+import { boundedReportRegion } from "./reporting.mjs";
 import { TileCache } from "./tile-cache.mjs";
 import {
   createViewport,
@@ -43,6 +44,7 @@ async function start(app) {
   let visibleRange = null;
   let retryTimer = 0;
   let placementPending = false;
+  let reportRegion = null;
 
   const connection = new ConnectionState({
     onChange(state) {
@@ -67,6 +69,7 @@ async function start(app) {
   });
   attachPanel(elements);
   attachIntro(elements);
+  attachReporting();
 
   try {
     const metadata = await api.metadata();
@@ -154,7 +157,7 @@ async function start(app) {
     if (frame || !renderer) return;
     frame = requestAnimationFrame(() => {
       frame = 0;
-      const range = renderer.draw(viewport, cache, hoveredPixel);
+      const range = renderer.draw(viewport, cache, hoveredPixel, reportRegion);
       visibleRange = range;
       elements.zoom.textContent = `${Math.round(viewport.scale * 100)}%`;
       const rangeKey = JSON.stringify(range);
@@ -247,6 +250,66 @@ async function start(app) {
       elements.placementStatus.textContent = state.canPlace ? "Ready to place" : "Account action required";
     }
   }
+
+  function attachReporting() {
+    elements.reportOpen.addEventListener("click", () => {
+      if (!accountState.snapshot.authenticated) {
+        elements.placementStatus.textContent = "Sign in to report this position";
+        openPanel(elements);
+        return;
+      }
+      updateReportRegion();
+      elements.reportStatus.textContent = "";
+      elements.reportDialog.showModal();
+      elements.reportReason.focus();
+    });
+    elements.reportClose.addEventListener("click", closeReport);
+    elements.reportDialog.addEventListener("close", () => {
+      reportRegion = null;
+      scheduleDraw();
+    });
+    elements.reportWidth.addEventListener("input", updateReportRegion);
+    elements.reportHeight.addEventListener("input", updateReportRegion);
+    elements.reportForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      updateReportRegion();
+      elements.reportStatus.textContent = "Submitting report…";
+      elements.reportSubmit.disabled = true;
+      try {
+        const response = await api.report({
+          region: reportRegion,
+          reason: Number(elements.reportReason.value),
+          note: elements.reportNote.value.trim(),
+        });
+        elements.reportStatus.textContent = `Report received · ${reportId(response.reportId)}`;
+        elements.reportForm.reset();
+        window.setTimeout(closeReport, 1_500);
+      } catch (error) {
+        elements.reportStatus.textContent = error.message ?? "Report could not be submitted.";
+      } finally {
+        elements.reportSubmit.disabled = false;
+      }
+    });
+  }
+
+  function updateReportRegion() {
+    reportRegion = boundedReportRegion(
+      hoveredPixel,
+      elements.reportWidth.value,
+      elements.reportHeight.value,
+    );
+    elements.reportWidth.value = String(reportRegion.width);
+    elements.reportHeight.value = String(reportRegion.height);
+    elements.reportRegion.textContent =
+      `${formatCoordinate({ row: reportRegion.top, column: reportRegion.left })} · ` +
+      `${reportRegion.width} × ${reportRegion.height}`;
+    scheduleDraw();
+  }
+
+  function closeReport() {
+    if (elements.reportDialog.open) elements.reportDialog.close();
+    elements.reportOpen.focus();
+  }
 }
 
 function collectElements(app) {
@@ -271,6 +334,17 @@ function collectElements(app) {
     acceptStandards: app.querySelector("[data-accept-standards]"),
     intro: app.querySelector("[data-intro]"),
     dismissIntro: app.querySelector("[data-dismiss-intro]"),
+    reportOpen: app.querySelector("[data-report-open]"),
+    reportDialog: app.querySelector("[data-report-dialog]"),
+    reportClose: app.querySelector("[data-report-close]"),
+    reportForm: app.querySelector("[data-report-form]"),
+    reportWidth: app.querySelector("[data-report-width]"),
+    reportHeight: app.querySelector("[data-report-height]"),
+    reportReason: app.querySelector("[data-report-reason]"),
+    reportNote: app.querySelector("[data-report-note]"),
+    reportRegion: app.querySelector("[data-report-region]"),
+    reportStatus: app.querySelector("[data-report-status]"),
+    reportSubmit: app.querySelector("[data-report-form] button[type='submit']"),
   };
 }
 
@@ -353,6 +427,10 @@ function formatCoordinate({ row, column }) {
 
 function signed(value) {
   return `${value < 0 ? "−" : "+"}${String(Math.abs(value)).padStart(4, "0")}`;
+}
+
+function reportId(value) {
+  return typeof value === "string" ? value : value?.value ?? "receipt recorded";
 }
 
 function connectionLabel(state) {

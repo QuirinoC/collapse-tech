@@ -40,3 +40,31 @@ test("anonymous placement is rejected before any network request", async (contex
   );
   assert.equal(fetchMock.mock.callCount(), 0);
 });
+
+test("reports send only bounded coordinates, reason, note, and client context", async (context) => {
+  let request;
+  context.mock.method(globalThis, "fetch", async (url, options) => {
+    request = { url, options };
+    return new Response(JSON.stringify({
+      reportId: { value: "report-1" },
+      status: 0,
+      submittedAt: "2026-08-21T00:00:00Z",
+    }), { status: 201, headers: { "content-type": "application/json" } });
+  });
+  const api = new PixelboardApi({ getToken: async () => "firebase-token" });
+
+  await api.report({
+    region: { top: -7, left: 9, width: 8, height: 8 },
+    reason: 0,
+    note: "Current area",
+  });
+
+  const body = JSON.parse(request.options.body);
+  assert.equal(request.url, "/api/v1/reports");
+  assert.equal(request.options.method, "POST");
+  assert.deepEqual(body.region, { top: -7, left: 9, width: 8, height: 8 });
+  assert.equal(body.reason, 0);
+  assert.equal(body.client.platform, "web");
+  assert.equal("screenshot" in body, false);
+  assert.equal("accountId" in body, false);
+});

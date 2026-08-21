@@ -50,6 +50,19 @@ export class PixelboardApi {
     });
   }
 
+  report({ region, reason, note }, signal) {
+    return this.#authorized("/reports", {
+      method: "POST",
+      signal,
+      body: {
+        region,
+        reason,
+        note: note || null,
+        client: { platform: "web", appVersion: "1.0" },
+      },
+    });
+  }
+
   async #authorized(path, options) {
     const token = await this.getToken();
     if (!token) {

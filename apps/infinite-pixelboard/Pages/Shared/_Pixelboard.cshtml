@@ -45,6 +45,7 @@
         <div class="board-readout" aria-live="polite">
             <span data-coordinate>ROW +0000 / COL +0000</span>
             <span data-zoom>100%</span>
+            <button type="button" data-report-open>Report current position</button>
         </div>
 
         <div class="zoom-controls" aria-label="Canvas zoom">
@@ -111,6 +112,44 @@
         </dl>
         <p class="panel-footnote">One coordinate is one public act. Row comes before column.</p>
     </aside>
+
+    <dialog class="report-dialog" data-report-dialog aria-labelledby="report-title">
+        <form data-report-form>
+            <div class="panel-heading">
+                <p class="eyebrow">Community safety</p>
+                <button class="icon-button" type="button" data-report-close aria-label="Close report dialog">Close</button>
+            </div>
+            <h2 id="report-title">Report current position.</h2>
+            <p class="panel-copy">
+                Mark the affected area. The server captures the current pixels and private
+                placement evidence; you do not need to take a screenshot.
+            </p>
+            <output class="report-region" data-report-region>ROW +0000 / COL +0000 · 8 × 8</output>
+            <div class="report-dimensions">
+                <label>Width <input type="number" min="1" max="64" value="8" data-report-width /></label>
+                <label>Height <input type="number" min="1" max="64" value="8" data-report-height /></label>
+            </div>
+            <label class="report-field">
+                Reason
+                <select required data-report-reason>
+                    <option value="">Select a reason</option>
+                    <option value="0">Explicit sexual content</option>
+                    <option value="1">Graphic violence</option>
+                    <option value="2">Hate or harassment</option>
+                    <option value="3">Threat</option>
+                    <option value="4">Illegal content</option>
+                    <option value="5">Copyright</option>
+                    <option value="6">Other</option>
+                </select>
+            </label>
+            <label class="report-field">
+                Note <span>Optional · 500 characters</span>
+                <textarea maxlength="500" rows="4" data-report-note></textarea>
+            </label>
+            <p class="auth-note" data-report-status role="status" aria-live="polite"></p>
+            <button class="report-submit" type="submit">Submit report</button>
+        </form>
+    </dialog>
 
     <div class="panel-scrim" data-panel-scrim hidden></div>
 </div>
