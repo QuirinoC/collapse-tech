@@ -40,13 +40,13 @@ The runtime identity can read Key Vault secrets and pull the image. The migratio
 
 Set these protected GitHub environment variables:
 
-`AZURE_CLIENT_ID`, `AZURE_PRINCIPAL_OBJECT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP`, `AZURE_LOCATION`, `AZURE_ACR_NAME`, `AZURE_ACR_RESOURCE_ID`, `FIREBASE_PROJECT_ID`, `STOREKIT_BUNDLE_ID`, `STOREKIT_MONTHLY_PRODUCT_ID`, and `STOREKIT_ANNUAL_PRODUCT_ID`.
+`AZURE_CLIENT_ID`, `AZURE_PRINCIPAL_OBJECT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP`, `AZURE_LOCATION`, `AZURE_ACR_NAME`, `AZURE_ACR_RESOURCE_ID`, `FIREBASE_PROJECT_ID`, `STOREKIT_BUNDLE_ID`, `STOREKIT_MONTHLY_PRODUCT_ID`, `STOREKIT_ANNUAL_PRODUCT_ID`, `ADSENSE_PUBLISHER_ID`, `ADSENSE_BOARD_SLOT_ID`, `ADMOB_APPLICATION_ID`, and `ADMOB_MAX_CONTENT_RATING`.
 
 Set these protected environment secrets:
 
 `POSTGRES_ADMIN_PASSWORD`, `POSTGRES_RUNTIME_CONNECTION_STRING`, `ABUSE_SIGNAL_HMAC_KEY`, and `STOREKIT_TRUSTED_ROOT_CERTIFICATE`.
 
-Run **Deploy Infinite Pixelboard** manually. It logs into Azure by OIDC, builds only `apps/infinite-pixelboard`, pushes a commit-addressed image, validates the ARM template, then deploys the exact image digest. It does not use publish profiles, registry passwords, client secrets, or repository-wide Docker contexts.
+Run **Deploy Infinite Pixelboard** manually and explicitly choose the StoreKit and advertising feature switches. Advertising enablement fails closed when its protected identifiers are absent or operational moderation is not asserted. The workflow logs into Azure by OIDC, builds only `apps/infinite-pixelboard`, pushes a commit-addressed image, validates the ARM template, then deploys the exact image digest. It creates a distinct Container Apps revision for each workflow run, including configuration-only rollouts, and retries the initial deployment while a new Key Vault role assignment propagates. It does not use publish profiles, registry passwords, client secrets, or repository-wide Docker contexts.
 
 For a local operator, authenticate with `az login`, select the intended subscription explicitly, and use `az deployment group validate` followed by `az deployment group create`. Pass secure values interactively or from a secret manager; never persist them in shell history or a checked-in parameters file.
 

@@ -18,6 +18,11 @@ on:
         required: true
         default: false
         type: boolean
+      storekit_enabled:
+        description: Enable verified StoreKit subscriptions
+        required: true
+        default: false
+        type: boolean
 
 concurrency:
   group: pixelboard-production
@@ -81,6 +86,10 @@ jobs:
           STOREKIT_BUNDLE_ID: ${{ vars.STOREKIT_BUNDLE_ID }}
           STOREKIT_MONTHLY_PRODUCT_ID: ${{ vars.STOREKIT_MONTHLY_PRODUCT_ID }}
           STOREKIT_ANNUAL_PRODUCT_ID: ${{ vars.STOREKIT_ANNUAL_PRODUCT_ID }}
+          ADSENSE_PUBLISHER_ID: ${{ vars.ADSENSE_PUBLISHER_ID }}
+          ADSENSE_BOARD_SLOT_ID: ${{ vars.ADSENSE_BOARD_SLOT_ID }}
+          ADMOB_APPLICATION_ID: ${{ vars.ADMOB_APPLICATION_ID }}
+          ADMOB_MAX_CONTENT_RATING: ${{ vars.ADMOB_MAX_CONTENT_RATING }}
           POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
           POSTGRES_RUNTIME_CONNECTION_STRING: ${{ secrets.POSTGRES_RUNTIME_CONNECTION_STRING }}
           ABUSE_SIGNAL_HMAC_KEY: ${{ secrets.ABUSE_SIGNAL_HMAC_KEY }}
@@ -89,6 +98,7 @@ jobs:
           ADVERTISING_WEB_ENABLED: ${{ inputs.advertising_web_enabled }}
           ADVERTISING_MOBILE_ENABLED: ${{ inputs.advertising_mobile_enabled }}
           MODERATION_OPERATIONS_ENABLED: ${{ inputs.moderation_operations_enabled }}
+          STOREKIT_ENABLED: ${{ inputs.storekit_enabled }}
         run: |
           set -euo pipefail
           case "$IMAGE_REFERENCE" in
@@ -98,6 +108,16 @@ jobs:
           if { [ "$ADVERTISING_WEB_ENABLED" = "true" ] || [ "$ADVERTISING_MOBILE_ENABLED" = "true" ]; } \
             && [ "$MODERATION_OPERATIONS_ENABLED" != "true" ]; then
             echo "Advertising requires operational moderation." >&2
+            exit 1
+          fi
+          if [ "$ADVERTISING_WEB_ENABLED" = "true" ] \
+            && { [ -z "$ADSENSE_PUBLISHER_ID" ] || [ -z "$ADSENSE_BOARD_SLOT_ID" ]; }; then
+            echo "Web advertising requires the protected AdSense publisher and slot variables." >&2
+            exit 1
+          fi
+          if [ "$ADVERTISING_MOBILE_ENABLED" = "true" ] \
+            && { [ -z "$ADMOB_APPLICATION_ID" ] || [ -z "$ADMOB_MAX_CONTENT_RATING" ]; }; then
+            echo "Mobile advertising requires the protected AdMob application and rating variables." >&2
             exit 1
           fi
           common=(
@@ -117,9 +137,24 @@ jobs:
               storeKitBundleId="$STOREKIT_BUNDLE_ID"
               storeKitMonthlyProductId="$STOREKIT_MONTHLY_PRODUCT_ID"
               storeKitAnnualProductId="$STOREKIT_ANNUAL_PRODUCT_ID"
+              storeKitEnabled="$STOREKIT_ENABLED"
               advertisingWebEnabled="$ADVERTISING_WEB_ENABLED"
               advertisingMobileEnabled="$ADVERTISING_MOBILE_ENABLED"
               advertisingModerationOperationsEnabled="$MODERATION_OPERATIONS_ENABLED"
+              adSensePublisherId="$ADSENSE_PUBLISHER_ID"
+              adSenseBoardSlotId="$ADSENSE_BOARD_SLOT_ID"
+              adMobApplicationId="$ADMOB_APPLICATION_ID"
+              adMobMaxContentRating="$ADMOB_MAX_CONTENT_RATING"
+              deploymentRevision="$GITHUB_RUN_ID"
           )
           az deployment group validate "${common[@]}" --name "pixelboard-${GITHUB_RUN_ID}"
-          az deployment group create "${common[@]}" --name "pixelboard-${GITHUB_RUN_ID}"
+          for attempt in 1 2 3; do
+            if az deployment group create "${common[@]}" --name "pixelboard-${GITHUB_RUN_ID}"; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Deployment failed after waiting for role-assignment propagation." >&2
+              exit 1
+            fi
+            sleep 30
+          done

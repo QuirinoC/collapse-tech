@@ -121,6 +121,15 @@
         "T"
       ]
     },
+    "deploymentRevision": {
+      "type": "string",
+      "defaultValue": "manual",
+      "minLength": 1,
+      "maxLength": 32,
+      "metadata": {
+        "description": "Lowercase alphanumeric deployment identity used to create a distinct immutable revision for configuration-only rollouts."
+      }
+    },
     "minReplicas": {
       "type": "int",
       "defaultValue": 1,
@@ -666,7 +675,7 @@
           ]
         },
         "template": {
-          "revisionSuffix": "[take(uniqueString(parameters('containerImage')), 10)]",
+          "revisionSuffix": "[take(toLower(format('{0}-{1}', take(uniqueString(parameters('containerImage')), 10), parameters('deploymentRevision'))), 63)]",
           "containers": [
             {
               "name": "pixelboard",
