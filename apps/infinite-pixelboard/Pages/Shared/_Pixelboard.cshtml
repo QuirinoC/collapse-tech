@@ -1,0 +1,92 @@
+<div class="pixelboard-app" data-pixelboard-app>
+    <a class="skip-link" href="#board-canvas">Skip to canvas</a>
+
+    <header class="board-header">
+        <a class="board-wordmark" href="/" aria-label="Collapse Technologies Infinite Pixelboard">
+            <span>Collapse</span>
+            <span>Technologies</span>
+        </a>
+        <p class="board-edition">Infinite Pixelboard <span>/ Public field 001</span></p>
+        <button class="icon-button" type="button" data-panel-toggle aria-expanded="false"
+                aria-controls="account-panel">
+            Account
+        </button>
+    </header>
+
+    <main class="board-stage">
+        <canvas id="board-canvas" class="board-canvas" tabindex="0"
+                aria-label="Infinite collaborative pixel canvas. Drag to pan, use the mouse wheel to zoom, use arrow keys to move the keyboard cursor, Shift plus arrow keys to pan, and Enter to place.">
+        </canvas>
+
+        <div class="board-intro" data-intro>
+            <p class="eyebrow">A shared surface without edges</p>
+            <h1>Make<br />your mark.</h1>
+            <p>Explore anonymously. Sign in to place one pixel at a time.</p>
+            <button class="text-button" type="button" data-dismiss-intro>
+                Enter the field <span aria-hidden="true">↘</span>
+            </button>
+        </div>
+
+        <section class="palette" aria-label="Pixel color">
+            <span class="palette-label">Ink</span>
+            <div class="swatches" role="radiogroup" aria-label="Choose a pixel color" data-palette></div>
+            <label class="custom-color">
+                <span class="sr-only">Custom color</span>
+                <input type="color" value="#d3523c" data-color-picker />
+            </label>
+        </section>
+
+        <div class="board-readout" aria-live="polite">
+            <span data-coordinate>ROW +0000 / COL +0000</span>
+            <span data-zoom>100%</span>
+        </div>
+
+        <div class="zoom-controls" aria-label="Canvas zoom">
+            <button type="button" data-zoom-out aria-label="Zoom out">−</button>
+            <button type="button" data-reset-view aria-label="Reset view">⌖</button>
+            <button type="button" data-zoom-in aria-label="Zoom in">+</button>
+        </div>
+
+        <div class="connection-pill" data-connection role="status">
+            <span aria-hidden="true"></span>
+            <strong>Connecting</strong>
+        </div>
+
+        <div class="placement-status" data-placement-status role="status" aria-live="polite">
+            Viewing anonymously
+        </div>
+    </main>
+
+    <aside class="account-panel" id="account-panel" data-account-panel aria-hidden="true" inert>
+        <div class="panel-heading">
+            <p class="eyebrow">Identity / placement</p>
+            <button class="icon-button" type="button" data-panel-close aria-label="Close account panel">Close</button>
+        </div>
+        <h2>Place with<br />intention.</h2>
+        <p class="panel-copy">
+            The board is open to everyone. Painting requires a verified account so each
+            contribution can be reconciled and the shared cooldown respected.
+        </p>
+        <div class="auth-actions">
+            <button type="button" data-login-provider="google">
+                <span aria-hidden="true">G</span> Continue with Google
+            </button>
+            <button type="button" data-login-provider="apple">
+                <span aria-hidden="true">●</span> Continue with Apple
+            </button>
+            <button type="button" data-accept-standards hidden>
+                Accept community standards
+            </button>
+        </div>
+        <p class="auth-note" data-auth-note>
+            Sign-in will be enabled when the production Firebase configuration is connected.
+        </p>
+        <dl class="account-state">
+            <div><dt>State</dt><dd data-account-state>Anonymous</dd></div>
+            <div><dt>Cooldown</dt><dd data-cooldown>—</dd></div>
+        </dl>
+        <p class="panel-footnote">One coordinate is one public act. Row comes before column.</p>
+    </aside>
+
+    <div class="panel-scrim" data-panel-scrim hidden></div>
+</div>

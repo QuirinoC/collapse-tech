@@ -1,7 +1,11 @@
 @page "/board"
+@{
+    ViewData["Title"] = "Infinite Pixelboard";
+    ViewData["BodyClass"] = "pixelboard-page";
+}
 
-<div class="board" id="board"></div>
+<partial name="_Pixelboard" />
 
 @section Scripts {
-
+    <script type="module" src="~/js/pixelboard/app.mjs" asp-append-version="true"></script>
 }

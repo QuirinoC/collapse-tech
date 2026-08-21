@@ -18,9 +18,24 @@ The development configuration connects to Redis at `localhost:6379`. The board i
 
 ```bash
 npm run lint:pixelboard
+npm run test:pixelboard:web
 npm run test:pixelboard
 npm run build:pixelboard
 ```
+
+## Browser architecture
+
+The Razor pages at `/` and `/board` share a progressively enhanced canvas shell. Browser behavior is split into dependency-free ES modules under `wwwroot/js/pixelboard`:
+
+- `viewport.mjs` owns row/column transforms, negative-coordinate tile math, pan, and pointer-anchored zoom.
+- `tile-cache.mjs` deduplicates visible tile reads and keeps a bounded in-memory cache.
+- `pointer-controls.mjs` provides pointer, wheel, touch, and keyboard navigation.
+- `renderer.mjs` draws device-pixel-aware hard-edged pixels and grid lines.
+- `api.mjs` is the only browser transport and uses the v1 HTTP routes.
+- `reconciliation.mjs` applies optimistic pixels and rolls them back when placement is rejected.
+- `account-state.mjs` and `connection-state.mjs` expose cooldown and network state without coupling them to the UI.
+
+Anonymous visitors can navigate and read public tiles. Painting only uses `POST /api/v1/placements`; legacy `SendPixel` is not used by the browser. Google and Apple controls are intentional placeholders until the production Firebase web configuration and provider flows are available.
 
 ## Frozen board compatibility contract
 

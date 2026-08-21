@@ -17,8 +17,9 @@
     "lint:challenge": "npm --prefix apps/asymmetric-challenge run lint",
     "lint:studio": "npm --prefix apps/collapse-technologies run lint",
     "lint:pixelboard": "dotnet format apps/infinite-pixelboard/PixelBoard.sln --verify-no-changes --no-restore",
-    "test": "npm run test:challenge && npm run test:pixelboard",
+    "test": "npm run test:challenge && npm run test:pixelboard:web && npm run test:pixelboard",
     "test:challenge": "npm --prefix apps/asymmetric-challenge run test",
+    "test:pixelboard:web": "node --test apps/infinite-pixelboard/wwwroot/js/pixelboard/tests/*.test.mjs",
     "test:pixelboard": "dotnet test apps/infinite-pixelboard/PixelBoard.sln --no-restore"
   }
 }
