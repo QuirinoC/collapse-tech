@@ -1,3 +1,9 @@
+@using Microsoft.Extensions.Options
+@using PixelBoard.Configuration
+@inject IOptions<AdvertisingOptions> Advertising
+@{
+    var advertising = Advertising.Value;
+}
 <div class="pixelboard-app" data-pixelboard-app>
     <a class="skip-link" href="#board-canvas">Skip to canvas</a>
 
@@ -55,6 +61,24 @@
         <div class="placement-status" data-placement-status role="status" aria-live="polite">
             Viewing anonymously
         </div>
+
+        @if (advertising.WebEnabled && advertising.ModerationOperationsEnabled)
+        {
+            <aside class="board-ad" data-ad-container
+                   data-ad-client="@advertising.AdSensePublisherId"
+                   data-ad-slot="@advertising.AdSenseBoardSlotId"
+                   aria-label="Advertisement" hidden>
+                <span>Sponsored</span>
+                <ins class="adsbygoogle"
+                     data-ad-client="@advertising.AdSensePublisherId"
+                     data-ad-slot="@advertising.AdSenseBoardSlotId"
+                     data-ad-format="horizontal"
+                     data-full-width-responsive="true"></ins>
+                <a class="board-ad__fallback" data-ad-fallback href="#pro" hidden>
+                    Pixelboard Pro / one-second paint / no ads
+                </a>
+            </aside>
+        }
     </main>
 
     <aside class="account-panel" id="account-panel" data-account-panel aria-hidden="true" inert>

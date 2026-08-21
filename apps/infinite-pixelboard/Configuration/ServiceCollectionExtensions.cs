@@ -75,13 +75,20 @@ public static class ServiceCollectionExtensions
             .Bind(configuration.GetSection(AdvertisingOptions.SectionName))
             .Validate(
                 options => !options.WebEnabled
-                    || !string.IsNullOrWhiteSpace(options.AdSensePublisherId),
-                "An AdSense publisher ID is required when web advertising is enabled.")
+                    || (IsAdSensePublisherId(options.AdSensePublisherId)
+                        && IsNumericId(options.AdSenseBoardSlotId)),
+                "Valid AdSense publisher and manual board slot IDs are required when web advertising is enabled.")
             .Validate(
                 options => !options.MobileEnabled
-                    || !string.IsNullOrWhiteSpace(options.AdMobApplicationId),
-                "An AdMob application ID is required when mobile advertising is enabled.")
+                    || (IsAdMobApplicationId(options.AdMobApplicationId)
+                        && IsSafeAdContentRating(options.AdMobMaxContentRating)),
+                "A valid AdMob application ID and G, PG, or T content rating are required when mobile advertising is enabled.")
+            .Validate(
+                options => (!options.WebEnabled && !options.MobileEnabled)
+                    || options.ModerationOperationsEnabled,
+                "Advertising cannot be enabled until staffed moderation operations are enabled.")
             .ValidateOnStart();
+        services.AddSingleton<IAdvertisingPolicy, ConfiguredAdvertisingPolicy>();
 
         services
             .AddOptions<SecurityOptions>()
@@ -191,4 +198,25 @@ public static class ServiceCollectionExtensions
             return false;
         }
     }
+
+    private static bool IsAdSensePublisherId(string value) =>
+        value.StartsWith("ca-pub-", StringComparison.Ordinal)
+        && IsNumericId(value["ca-pub-".Length..]);
+
+    private static bool IsAdMobApplicationId(string value)
+    {
+        if (!value.StartsWith("ca-app-pub-", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var parts = value["ca-app-pub-".Length..].Split('~');
+        return parts.Length == 2 && parts.All(IsNumericId);
+    }
+
+    private static bool IsNumericId(string value) =>
+        value.Length >= 6 && value.All(char.IsAsciiDigit);
+
+    private static bool IsSafeAdContentRating(string value) =>
+        value is "G" or "PG" or "T";
 }

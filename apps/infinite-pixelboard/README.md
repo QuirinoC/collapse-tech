@@ -68,6 +68,14 @@ Both client submissions and server notifications validate the ES256 signature an
 
 Configure `StoreKit__Enabled=true`, `StoreKit__BundleId`, `StoreKit__MonthlyProductId`, `StoreKit__AnnualProductId`, one or more base64 DER Apple root certificates under `StoreKit__TrustedRootCertificates__0`, and allowed App Store environments under `StoreKit__AllowedEnvironments__0`. Production should allow only `Production`; add `Sandbox` only in non-production/TestFlight environments.
 
+## Advertising safety gate
+
+Advertising is disabled by default. The web client supports exactly one manually positioned horizontal AdSense unit on the Pixelboard surface. It never enables Auto Ads, anchors, vignettes, interstitials, automatic refresh, or rewarded placement advantages. The Google script is loaded only after account state is known and is never requested for Pro accounts. A failed Google request falls back to a first-party Pro promotion.
+
+Production startup rejects advertising unless `Advertising__ModerationOperationsEnabled=true`. This setting is an operational assertion: do not enable it merely because report intake exists. A staffed report queue, moderator actions, emergency ad shutdown, and the moderation runbooks must be working first. Set `Advertising__WebEnabled=true`, a `ca-pub-...` publisher ID, and the numeric manual unit ID in `Advertising__AdSenseBoardSlotId` only after that gate is met.
+
+Before launch, block sexual and other unsuitable sensitive categories in AdSense and AdMob, use Ad Review Center, and complete Google consent/CMP configuration. When the respective ad platform is safely enabled, the service publishes the configured authorized-seller record at `/ads.txt` or `/app-ads.txt`; otherwise those routes return 404. Do not use production ad identifiers outside production. Mobile ads remain configuration-only until the native client implements a reserved banner with the configured maximum content rating; `MA` is intentionally rejected.
+
 ## Deployment
 
 The application requires a persistent ASP.NET Core process for SignalR and Redis-backed shared state, so it is not compatible with Vercel's serverless runtime and intentionally has no `vercel.json`.
@@ -87,6 +95,13 @@ Build from this directory with the included Dockerfile. The production container
 | `StoreKit__MonthlyProductId` / `StoreKit__AnnualProductId` | Accepted Pro subscription product identifiers |
 | `StoreKit__TrustedRootCertificates__0` | Base64 DER Apple root certificate trust anchor |
 | `StoreKit__AllowedEnvironments__0` | Accepted App Store environment (`Production` in production) |
+| `Advertising__ModerationOperationsEnabled` | Operational assertion required before any Google advertising can start |
+| `Advertising__WebEnabled` | Enables the single manual AdSense board unit |
+| `Advertising__AdSensePublisherId` | AdSense publisher ID in `ca-pub-...` format |
+| `Advertising__AdSenseBoardSlotId` | Numeric ID for the manual board unit |
+| `Advertising__MobileEnabled` | Enables mobile ad eligibility for the future native client |
+| `Advertising__AdMobApplicationId` | AdMob app ID in `ca-app-pub-...~...` format |
+| `Advertising__AdMobMaxContentRating` | Maximum mobile ad content rating (`G`, `PG`, or `T`) |
 
 `Infrastructure/Cloud/ContainerApp.json` retains the source repository's Azure Container Apps deployment template.
 

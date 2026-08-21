@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using PixelBoard.Api;
 using PixelBoard.Api.V1;
 using PixelBoard.Configuration;
 using PixelBoard.Infrastructure.Identity;
@@ -41,6 +42,7 @@ app.MapRazorPages()
 app.MapHub<BoardHub>("/boardHub");
 app.MapBoardApiV1();
 app.MapStoreKitApiV1();
+app.MapAdvertisingMetadata();
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
     Predicate = _ => false

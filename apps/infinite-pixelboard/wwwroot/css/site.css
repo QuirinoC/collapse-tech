@@ -229,6 +229,26 @@ a { color: inherit; }
 .connection-pill[data-state="offline"] span { background: var(--accent); }
 .placement-status { top: 62px; left: 24px; color: var(--muted); }
 
+.board-ad {
+  position: fixed;
+  z-index: 7;
+  top: 62px;
+  left: 50%;
+  width: min(728px, calc(100vw - 48px));
+  min-height: 90px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  background: rgba(238, 232, 220, .88);
+  backdrop-filter: blur(8px);
+  transform: translateX(-50%);
+}
+
+.board-ad[hidden] { display: none; }
+.board-ad > span { display: block; margin-bottom: 3px; color: var(--muted); font: 500 .5rem var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+.board-ad .adsbygoogle { display: block; min-height: 70px; }
+.board-ad__fallback { display: grid; min-height: 70px; place-items: center; color: var(--ink); font: 700 .75rem var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+.board-ad__fallback[hidden] { display: none; }
+
 .zoom-controls {
   position: fixed;
   z-index: 8;

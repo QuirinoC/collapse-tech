@@ -1,4 +1,5 @@
 import { AccountState } from "./account-state.mjs";
+import { AdController } from "./ads.mjs";
 import { ApiError, PixelboardApi } from "./api.mjs";
 import { ConnectionState } from "./connection-state.mjs";
 import { attachPointerControls } from "./pointer-controls.mjs";
@@ -53,6 +54,7 @@ async function start(app) {
     getToken: () => globalThis.CollapsePixelboardAuth?.getToken?.() ?? null,
     onRequest: (event) => connection.request(event),
   });
+  const ads = new AdController(app.querySelector("[data-ad-container]"));
   const accountState = new AccountState({ onChange: renderAccountState });
 
   createPalette(elements.palette, selectedColor, (color) => {
@@ -231,6 +233,7 @@ async function start(app) {
   }
 
   function renderAccountState(state) {
+    ads.update(state.tier);
     elements.accountState.textContent = state.authenticated
       ? `${state.tier ?? "Free"} account`
       : "Anonymous";

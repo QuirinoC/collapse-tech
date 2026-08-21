@@ -70,9 +70,15 @@ public sealed class AdvertisingOptions
 
     public bool MobileEnabled { get; set; }
 
+    public bool ModerationOperationsEnabled { get; set; }
+
     public string AdSensePublisherId { get; set; } = string.Empty;
 
+    public string AdSenseBoardSlotId { get; set; } = string.Empty;
+
     public string AdMobApplicationId { get; set; } = string.Empty;
+
+    public string AdMobMaxContentRating { get; set; } = "T";
 }
 
 public sealed class SecurityOptions
