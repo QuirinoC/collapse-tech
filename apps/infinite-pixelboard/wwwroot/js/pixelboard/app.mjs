@@ -2,6 +2,7 @@ import { AccountState } from "./account-state.mjs";
 import { AdController } from "./ads.mjs";
 import { ApiError, PixelboardApi } from "./api.mjs";
 import { ConnectionState } from "./connection-state.mjs";
+import { authErrorMessage, createFirebaseAuthClient } from "./firebase-auth.mjs";
 import { attachPointerControls } from "./pointer-controls.mjs";
 import { PlacementReconciler } from "./reconciliation.mjs";
 import { PixelRenderer } from "./renderer.mjs";
@@ -60,6 +61,8 @@ async function start(app) {
   });
   const ads = new AdController(app.querySelector("[data-ad-container]"));
   const accountState = new AccountState({ onChange: renderAccountState });
+  let authUser = null;
+  const authReady = initializeAuthentication();
 
   createPalette(elements.palette, selectedColor, (color) => {
     selectedColor = color;
@@ -70,6 +73,7 @@ async function start(app) {
     markCustomColor(elements.palette);
   });
   attachPanel(elements);
+  attachAuthentication();
   attachIntro(elements);
   attachReporting();
 
@@ -261,6 +265,70 @@ async function start(app) {
     }
   }
 
+  async function initializeAuthentication() {
+    try {
+      const client = await createFirebaseAuthClient();
+      globalThis.CollapsePixelboardAuth = client;
+      client.subscribe(async (user) => {
+        authUser = user;
+        renderAuthentication();
+        await refreshAccount();
+      });
+      return client;
+    } catch (error) {
+      console.error("Firebase Authentication failed to initialize.", error);
+      elements.authNote.textContent =
+        "Secure sign-in is temporarily unavailable. The board remains open for viewing.";
+      return null;
+    }
+  }
+
+  function attachAuthentication() {
+    for (const button of elements.loginButtons) {
+      button.addEventListener("click", async () => {
+        setAuthControlsDisabled(true);
+        elements.authNote.textContent = "Opening secure sign-in…";
+        try {
+          const client = await authReady;
+          if (!client) throw new Error("authentication_unavailable");
+          await client.signIn(button.dataset.loginProvider);
+        } catch (error) {
+          elements.authNote.textContent = error.message === "authentication_unavailable"
+            ? "Secure sign-in is temporarily unavailable."
+            : authErrorMessage(error);
+        } finally {
+          setAuthControlsDisabled(false);
+        }
+      });
+    }
+    elements.signOut.addEventListener("click", async () => {
+      setAuthControlsDisabled(true);
+      elements.authNote.textContent = "Signing out…";
+      try {
+        const client = await authReady;
+        await client?.signOut();
+      } catch (error) {
+        elements.authNote.textContent = "Sign-out could not be completed.";
+      } finally {
+        setAuthControlsDisabled(false);
+      }
+    });
+  }
+
+  function renderAuthentication() {
+    for (const button of elements.loginButtons) button.hidden = Boolean(authUser);
+    elements.signOut.hidden = !authUser;
+    elements.authNote.textContent = authUser
+      ? `Signed in as ${authUser.email ?? "a verified account"}.`
+      : "Sign in with Google or Apple to place pixels.";
+  }
+
+  function setAuthControlsDisabled(disabled) {
+    for (const button of [...elements.loginButtons, elements.signOut]) {
+      button.disabled = disabled;
+    }
+  }
+
   function renderAccountState(state) {
     ads.update(state.tier);
     elements.accountState.textContent = state.authenticated
@@ -357,6 +425,8 @@ function collectElements(app) {
     accountState: app.querySelector("[data-account-state]"),
     cooldown: app.querySelector("[data-cooldown]"),
     authNote: app.querySelector("[data-auth-note]"),
+    loginButtons: [...app.querySelectorAll("[data-login-provider]")],
+    signOut: app.querySelector("[data-sign-out]"),
     acceptStandards: app.querySelector("[data-accept-standards]"),
     intro: app.querySelector("[data-intro]"),
     dismissIntro: app.querySelector("[data-dismiss-intro]"),
@@ -420,13 +490,6 @@ function attachPanel(elements) {
       closePanel(elements);
     }
   });
-  for (const button of document.querySelectorAll("[data-login-provider]")) {
-    button.addEventListener("click", () => {
-      const provider = button.dataset.loginProvider;
-      elements.authNote.textContent =
-        `${provider[0].toUpperCase()}${provider.slice(1)} sign-in is awaiting production Firebase configuration.`;
-    });
-  }
 }
 
 function openPanel(elements) {
