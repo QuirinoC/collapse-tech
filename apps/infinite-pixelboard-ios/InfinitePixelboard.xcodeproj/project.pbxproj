@@ -291,7 +291,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.CONFIGURE_ME;
+				GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.241184054384-84u2od6udm9eishc63g7vs1lkq2evb84;
 				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -315,7 +315,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.CONFIGURE_ME;
+				GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.241184054384-84u2od6udm9eishc63g7vs1lkq2evb84;
 				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

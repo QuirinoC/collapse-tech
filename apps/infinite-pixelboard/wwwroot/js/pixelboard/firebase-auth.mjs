@@ -1,5 +1,5 @@
 const FIREBASE_CONFIG = Object.freeze({
-  apiKey: "AIzaSyD4xI6IV0Y9VWTBFUvV2jQlhdjlbl1fya4",
+  apiKey: "AIzaSyAQyBTp_0z7f-ZrAA0zHTXg-HCvRIu_lNs",
   authDomain: "collapse-technologies.firebaseapp.com",
   projectId: "collapse-technologies",
   storageBucket: "collapse-technologies.firebasestorage.app",
