@@ -28,7 +28,7 @@ Super Smash Bros Ultimate player analysis tool. Enter your [start.gg](https://st
 ┌──────────────────────────────────────────────────────────────┐
 │  Browser                           Mobile (Expo Go)          │
 │  index.html / app.js / styles.css  App.tsx                   │
-│         │ SignalR WebSocket              │ socket.io-client   │
+│         │ SignalR WebSocket              │ SignalR client     │
 └─────────┼──────────────────────────────-┼────────────────────┘
           │ /analysishub                  │
           ▼                              ▼
@@ -53,11 +53,11 @@ Super Smash Bros Ultimate player analysis tool. Enter your [start.gg](https://st
               ┌───────────┴──────────┐
               ▼                      ▼
 ┌─────────────────────┐   ┌─────────────────────────────────┐
-│      Redis           │   │    start.gg GraphQL API         │
+│ Redis sidecar        │   │    start.gg GraphQL API         │
 │                      │   │  api.start.gg/gql/alpha         │
 │  games:{slug}  24h   │   │                                 │
-│  jobstate:{slug} 1h  │   │  Auth: Bearer STARTGG_APIKEY    │
-│  (with StatsVersion) │   │  Rate limit: 80 req/min         │
+│  jobstate:{slug} 1h  │   │  Auth: Bearer token              │
+│  ephemeral at zero   │   │  Rate limit: 80 req/min         │
 └─────────────────────┘   └─────────────────────────────────┘
 ```
 
@@ -152,16 +152,11 @@ JobError({slug, error})             ← failure
 
 ---
 
-## Deployment (Railway)
+## Deployment (Azure Container Apps)
 
-1. Connect the `collapse-tech` GitHub repository to Railway
-2. Set the service root directory to `apps/coach-gg`
-3. Railway builds from the app's `Dockerfile` (set in `railway.toml`)
-4. Set env vars in Railway dashboard: `STARTGG_APIKEY`, `REDIS_URL`, `ASPNETCORE_URLS=http://+:8080`
-5. Add `coach.collapsetechnologies.com` as the service's custom domain
-6. Push to `main` to auto-deploy
+CoachGG deploys as a scale-to-zero Azure Container App. SignalR runs in-process through the ASP.NET Core SDK; Azure SignalR Service is not provisioned. A Redis sidecar scales with the app and loses its cache when the replica reaches zero. Deployments are manual through the **Deploy CoachGG** GitHub Actions workflow.
 
-Free Redis: [Upstash](https://upstash.com) (10k commands/day free tier).
+The app is capped at one replica because SignalR groups and active job ownership are process-local. See [`Infrastructure/Azure`](Infrastructure/Azure/README.md) for deployment, cost, and custom-domain details.
 
 ---
 
@@ -169,8 +164,8 @@ Free Redis: [Upstash](https://upstash.com) (10k commands/day free tier).
 
 ```
 apps/coach-gg/
-├── Dockerfile                 # Multi-stage .NET 8 build (Railway)
-├── railway.toml               # Railway config (dockerfilePath, healthcheck)
+├── Dockerfile                 # Multi-stage .NET 8 production build
+├── Infrastructure/Azure/      # Scale-to-zero Container Apps deployment
 ├── playwright.config.ts       # E2E test config (baseURL = prod)
 ├── tests/
 │   └── e2e.spec.ts            # 9 Playwright tests

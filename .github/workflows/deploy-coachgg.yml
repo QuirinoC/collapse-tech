@@ -1,0 +1,94 @@
+name: Deploy CoachGG
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: coachgg-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy production
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.COACHGG_AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.COACHGG_AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.COACHGG_AZURE_SUBSCRIPTION_ID }}
+      - name: Ensure managed identity attachment
+        env:
+          RESOURCE_GROUP: ${{ vars.COACHGG_AZURE_RESOURCE_GROUP }}
+          ENVIRONMENT_ID: ${{ vars.COACHGG_CONTAINER_ENVIRONMENT_ID }}
+          RUNTIME_IDENTITY_ID: ${{ vars.COACHGG_RUNTIME_IDENTITY_ID }}
+        run: |
+          set -euo pipefail
+          if ! az containerapp show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name coachgg \
+            --output none 2>/dev/null; then
+            az containerapp create \
+              --resource-group "$RESOURCE_GROUP" \
+              --name coachgg \
+              --environment "$ENVIRONMENT_ID" \
+              --image mcr.microsoft.com/dotnet/samples:aspnetapp \
+              --user-assigned "$RUNTIME_IDENTITY_ID" \
+              --ingress external \
+              --target-port 8080 \
+              --transport auto \
+              --min-replicas 0 \
+              --max-replicas 1 \
+              --output none
+          fi
+      - name: Build immutable image
+        id: image
+        env:
+          ACR_NAME: ${{ vars.COACHGG_ACR_NAME }}
+        run: |
+          set -euo pipefail
+          az acr build \
+            --registry "$ACR_NAME" \
+            --image "coachgg:${GITHUB_SHA}" \
+            apps/coach-gg
+          digest=$(az acr repository show \
+            --name "$ACR_NAME" \
+            --image "coachgg:${GITHUB_SHA}" \
+            --query digest \
+            --output tsv)
+          test -n "$digest"
+          echo "reference=${ACR_NAME}.azurecr.io/coachgg@${digest}" >> "$GITHUB_OUTPUT"
+      - name: Validate and deploy
+        env:
+          RESOURCE_GROUP: ${{ vars.COACHGG_AZURE_RESOURCE_GROUP }}
+          LOCATION: ${{ vars.COACHGG_AZURE_LOCATION }}
+          ENVIRONMENT_ID: ${{ vars.COACHGG_CONTAINER_ENVIRONMENT_ID }}
+          RUNTIME_IDENTITY_ID: ${{ vars.COACHGG_RUNTIME_IDENTITY_ID }}
+          REGISTRY_SERVER: ${{ vars.COACHGG_ACR_NAME }}.azurecr.io
+          STARTGG_API_KEY: ${{ secrets.COACHGG_STARTGG_API_KEY }}
+          IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
+        run: |
+          set -euo pipefail
+          case "$IMAGE_REFERENCE" in
+            *@sha256:*) ;;
+            *) echo "Deployment requires an immutable image digest." >&2; exit 1 ;;
+          esac
+          common=(
+            --resource-group "$RESOURCE_GROUP"
+            --template-file apps/coach-gg/Infrastructure/Azure/main.bicep
+            --parameters
+              location="$LOCATION"
+              containerImage="$IMAGE_REFERENCE"
+              environmentResourceId="$ENVIRONMENT_ID"
+              runtimeIdentityResourceId="$RUNTIME_IDENTITY_ID"
+              registryServer="$REGISTRY_SERVER"
+              startGGApiKey="$STARTGG_API_KEY"
+              deploymentRevision="$GITHUB_RUN_ID"
+          )
+          az deployment group validate "${common[@]}" --name "coachgg-${GITHUB_RUN_ID}"
+          az deployment group create "${common[@]}" --name "coachgg-${GITHUB_RUN_ID}"
