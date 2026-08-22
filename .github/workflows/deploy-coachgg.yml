@@ -70,6 +70,8 @@ jobs:
           ENVIRONMENT_ID: ${{ vars.COACHGG_CONTAINER_ENVIRONMENT_ID }}
           RUNTIME_IDENTITY_ID: ${{ vars.COACHGG_RUNTIME_IDENTITY_ID }}
           REGISTRY_SERVER: ${{ vars.COACHGG_ACR_NAME }}.azurecr.io
+          CUSTOM_DOMAIN_NAME: ${{ vars.COACHGG_CUSTOM_DOMAIN_NAME }}
+          CUSTOM_DOMAIN_CERTIFICATE_ID: ${{ vars.COACHGG_CUSTOM_DOMAIN_CERTIFICATE_ID }}
           STARTGG_API_KEY: ${{ secrets.COACHGG_STARTGG_API_KEY }}
           IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
         run: |
@@ -87,6 +89,8 @@ jobs:
               environmentResourceId="$ENVIRONMENT_ID"
               runtimeIdentityResourceId="$RUNTIME_IDENTITY_ID"
               registryServer="$REGISTRY_SERVER"
+              customDomainName="$CUSTOM_DOMAIN_NAME"
+              customDomainCertificateId="$CUSTOM_DOMAIN_CERTIFICATE_ID"
               startGGApiKey="$STARTGG_API_KEY"
               deploymentRevision="$GITHUB_RUN_ID"
           )

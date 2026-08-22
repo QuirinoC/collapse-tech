@@ -29,6 +29,8 @@ test("loads the challenge page and shows commitment", async ({ page }) => {
   await stubTelemetry(page);
   await page.goto("/");
 
+  await expect(page.getByRole("link", { name: "Back to Collapse Technologies" }))
+    .toHaveAttribute("href", "https://collapsetechnologies.com");
   await expect(page.locator(".hero .kicker")).toHaveText("Asymmetric Challenge");
   await expect(
     page.getByRole("heading", { name: "Guess the 256-bit key. Win $100." })

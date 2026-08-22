@@ -13,6 +13,12 @@ param runtimeIdentityResourceId string
 @description('ACR login server, for example example.azurecr.io.')
 param registryServer string
 
+@description('Production custom hostname.')
+param customDomainName string
+
+@description('Resource ID of the managed certificate bound to the production hostname.')
+param customDomainCertificateId string
+
 @secure()
 @description('start.gg personal access token.')
 param startGGApiKey string
@@ -38,6 +44,13 @@ resource coachGG 'Microsoft.App/containerApps@2024-03-01' = {
         allowInsecure: false
         targetPort: 8080
         transport: 'auto'
+        customDomains: [
+          {
+            name: customDomainName
+            bindingType: 'SniEnabled'
+            certificateId: customDomainCertificateId
+          }
+        ]
       }
       registries: [
         {

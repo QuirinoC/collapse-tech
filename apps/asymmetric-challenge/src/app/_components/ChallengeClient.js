@@ -329,6 +329,15 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
 
   return (
     <main className="page">
+      <a
+        className="studio-wordmark"
+        href="https://collapsetechnologies.com"
+        aria-label="Back to Collapse Technologies"
+      >
+        <span>Collapse</span>
+        <span>Technologies</span>
+      </a>
+
       <section className="hero reveal">
         <div className="kicker">Asymmetric Challenge</div>
         <h1>Guess the 256-bit key. Win $100.</h1>

@@ -31,6 +31,8 @@ Environment variables:
 - `COACHGG_ACR_RESOURCE_ID`
 - `COACHGG_CONTAINER_ENVIRONMENT_ID`
 - `COACHGG_RUNTIME_IDENTITY_ID`
+- `COACHGG_CUSTOM_DOMAIN_NAME`
+- `COACHGG_CUSTOM_DOMAIN_CERTIFICATE_ID`
 
 Environment secrets:
 
@@ -62,3 +64,7 @@ az containerapp hostname bind \
   --hostname coach.collapsetechnologies.com \
   --validation-method CNAME
 ```
+
+Set the resulting hostname and managed certificate resource ID in the two
+custom-domain environment variables above. Subsequent Bicep deployments preserve
+the binding.

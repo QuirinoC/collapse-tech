@@ -9,6 +9,8 @@ test('health endpoint returns 200', async ({ request }) => {
 
 test('homepage loads with search UI', async ({ page }) => {
   await page.goto('/');
+  await expect(page.getByRole('link', { name: 'Back to Collapse Technologies' }))
+    .toHaveAttribute('href', 'https://collapsetechnologies.com');
   await expect(page.locator('#slugInput')).toBeVisible();
   await expect(page.locator('#slugInput')).toHaveAttribute('placeholder', /slug/i);
   await expect(page.locator('#slugInput')).toHaveValue('bc954a2e');

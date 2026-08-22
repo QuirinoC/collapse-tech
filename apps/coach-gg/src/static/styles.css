@@ -73,6 +73,33 @@ body {
   padding: 0 24px;
 }
 
+.studio-wordmark {
+  position: absolute;
+  top: 28px;
+  left: 28px;
+  z-index: 2;
+  display: inline-flex;
+  flex-direction: column;
+  color: var(--text-primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  line-height: 1.05;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.studio-wordmark span:last-child {
+  color: var(--text-secondary);
+  font-size: 0.56rem;
+  letter-spacing: 0.16em;
+  transition: color 0.2s ease;
+}
+
+.studio-wordmark:hover span:last-child {
+  color: var(--text-primary);
+}
+
 /* ── Hero / Header ────────────────────────────────────────── */
 .hero {
   min-height: 52vh;
@@ -965,6 +992,11 @@ body {
 }
 
 @media (max-width: 640px) {
+  .studio-wordmark {
+    top: 18px;
+    left: 18px;
+  }
+
   .logo { font-size: 3rem; }
   .hero.compact .logo { font-size: 1.9rem; }
 
