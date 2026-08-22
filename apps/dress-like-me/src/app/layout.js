@@ -39,15 +39,21 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body className={`${spaceGrotesk.variable} ${plexMono.variable}`}>
         <header className="site-header">
-          <Link className="wordmark" href="/" aria-label="Dress Like Me home">
-            DRESS
-            <span>LIKE ME</span>
+          <a
+            className="corporate-wordmark"
+            href="https://collapsetechnologies.com"
+            aria-label="Back to Collapse Technologies"
+          >
+            <span>Collapse</span>
+            <span>Technologies</span>
+          </a>
+          <Link className="header-edition" href="/" aria-label="Dress Like Me home">
+            Dress Like Me <span>/ AI outfit finder 001</span>
           </Link>
           <nav aria-label="Primary navigation">
             <Link href="/explore">Explore</Link>
             <Link href="/about">How it works</Link>
           </nav>
-          <span className="header-tag">AI outfit finder / 001</span>
         </header>
         <main>{children}</main>
         <footer className="site-footer">
