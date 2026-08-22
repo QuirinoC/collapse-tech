@@ -44,7 +44,12 @@ export class FirebaseAuthClient {
 
     const provider = providerName === "apple" ? new Provider("apple.com") : new Provider();
     provider.setCustomParameters?.({ prompt: providerName === "google" ? "select_account" : "login" });
-    return this.#sdk.signInWithPopup(this.#auth, provider);
+    try {
+      return await this.#sdk.signInWithPopup(this.#auth, provider);
+    } catch (error) {
+      if (error?.code !== "auth/popup-blocked") throw error;
+      return this.#sdk.signInWithRedirect(this.#auth, provider);
+    }
   }
 
   signOut() {

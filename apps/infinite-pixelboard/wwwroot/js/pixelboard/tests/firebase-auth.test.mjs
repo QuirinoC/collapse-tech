@@ -44,6 +44,7 @@ function sdkFixture() {
       GoogleAuthProvider: GoogleProvider,
       OAuthProvider: AppleProvider,
       signInWithPopup: async (...arguments_) => calls.push(["sign-in", ...arguments_]),
+      signInWithRedirect: async (...arguments_) => calls.push(["redirect", ...arguments_]),
       signOut: async (...arguments_) => calls.push(["sign-out", ...arguments_]),
       onAuthStateChanged: (_auth, listener) => {
         listener(user);
@@ -78,6 +79,18 @@ test("uses the Firebase Google and Apple popup providers", async () => {
 
   assert.equal(fixture.calls.filter(([name]) => name === "sign-in").length, 2);
   assert.ok(fixture.calls.some((call) => call[0] === "provider" && call[1] === "apple.com"));
+});
+
+test("falls back to redirect when the browser blocks a sign-in popup", async () => {
+  const fixture = sdkFixture();
+  fixture.sdk.signInWithPopup = async () => {
+    throw { code: "auth/popup-blocked" };
+  };
+  const client = await createFirebaseAuthClient({ loadSdk: async () => fixture.sdk });
+
+  await client.signIn("google");
+
+  assert.equal(fixture.calls.filter(([name]) => name === "redirect").length, 1);
 });
 
 test("publishes auth changes and signs out", async () => {
