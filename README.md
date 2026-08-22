@@ -53,11 +53,11 @@ Create Vercel projects for the Next.js applications. In each project, set **Root
 | --- | --- | --- |
 | Collapse Technologies | `apps/collapse-technologies` | Vercel | `collapsetechnologies.com` |
 | Asymmetric Challenge | `apps/asymmetric-challenge` | Vercel | Configure separately |
-| CoachGG | `apps/coach-gg` | Railway container | `coach.collapsetechnologies.com` |
+| CoachGG | `apps/coach-gg` | Azure Container Apps | `coach.collapsetechnologies.com` |
 | Infinite Pixelboard | `apps/infinite-pixelboard` | Container image built from its `Dockerfile` | Configure separately |
 
 Vercel automatically detects Next.js from the selected root directory. The challenge's existing Supabase environment variables belong only to the Asymmetric Challenge project; they must not be added to the studio project.
 
-CoachGG and Infinite Pixelboard require persistent ASP.NET Core processes for SignalR and are not compatible with Vercel's serverless runtime. For CoachGG, create a Railway service with **Root Directory** set to `apps/coach-gg`; its `railway.toml` builds the local `Dockerfile`. Set `STARTGG_APIKEY`, `REDIS_URL`, and `ASPNETCORE_URLS=http://+:8080`, then attach `coach.collapsetechnologies.com` as the custom domain.
+CoachGG and Infinite Pixelboard require persistent ASP.NET Core processes for SignalR and are not compatible with Vercel's serverless runtime. CoachGG runs in Azure Container Apps with in-process SignalR and a Redis sidecar, scales from zero to one replica, and deploys manually through `.github/workflows/deploy-coachgg.yml`.
 
 Infinite Pixelboard's production container must set `ASPNETCORE_ENVIRONMENT=Production` and `redisconnectionstring`.
