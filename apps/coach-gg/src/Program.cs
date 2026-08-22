@@ -47,16 +47,6 @@ builder.Services.AddHttpClient<StartGGService>(client =>
 builder.Services.AddSingleton<AggregationService>();
 builder.Services.AddSingleton<JobManager>();
 
-// Search service (separate HttpClient instance)
-builder.Services.AddHttpClient<SearchService>(client =>
-{
-    client.BaseAddress = new Uri("https://api.start.gg/gql/alpha");
-    client.DefaultRequestHeaders.Authorization =
-        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
-    client.DefaultRequestHeaders.Add("Accept", "application/json");
-    client.Timeout = TimeSpan.FromSeconds(10);
-});
-
 // SignalR
 builder.Services.AddSignalR(opts =>
 {
@@ -99,16 +89,6 @@ app.UseRouting();
 
 // Health check (used by Railway)
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
-
-// Player search endpoint — used by autocomplete
-app.MapGet("/search", async (string q, SearchService search, HttpContext ctx) =>
-{
-    if (string.IsNullOrWhiteSpace(q) || q.Length < 2)
-        return Results.Ok(new List<object>());
-
-    var results = await search.SearchAsync(q, ctx.RequestAborted);
-    return Results.Ok(results);
-});
 
 // SignalR hub
 app.MapHub<AnalysisHub>("/analysishub");

@@ -1,6 +1,6 @@
 # CoachGG
 
-Super Smash Bros Ultimate player analysis tool. Enter your [start.gg](https://start.gg) gamerTag or slug and get real-time win rate stats as your game history streams in.
+Super Smash Bros Ultimate player analysis tool. Enter your [start.gg](https://start.gg) user slug and get real-time win rate stats as your game history streams in.
 
 **Live:** https://coach.collapsetechnologies.com
 
@@ -37,7 +37,6 @@ Super Smash Bros Ultimate player analysis tool. Enter your [start.gg](https://st
 │                                                              │
 │  GET  /            → static/index.html                       │
 │  GET  /health      → {"status":"healthy"}                    │
-│  GET  /search?q=   → SearchService (gamerTag + slug lookup)  │
 │  WS   /analysishub → AnalysisHub (SignalR)                   │
 │                                                              │
 │  AnalysisHub.Subscribe(slug)                                 │
@@ -99,7 +98,6 @@ npx playwright test --reporter=line
 | Endpoint | Description |
 |---|---|
 | `GET /health` | `{"status":"healthy","timestamp":"..."}` |
-| `GET /search?q=<query>` | Player search — by gamerTag or slug. Returns `[{gamerTag, prefix, slug, userId}]` |
 | `GET /counterpicker/{slug}` | Blocking full analysis (REST fallback) |
 
 ### SignalR Hub (`/analysishub`)
@@ -178,7 +176,6 @@ apps/coach-gg/
 │   │   ├── Constants.cs           # StatsVersion, SkipCharacters, char map
 │   │   ├── JobManager.cs          # Job deduplication
 │   │   ├── RedisService.cs        # Redis cache wrapper
-│   │   ├── SearchService.cs       # Hybrid player search
 │   │   └── StartGGService.cs      # GraphQL client + retry
 │   ├── Models/
 │   │   ├── GameData.cs        # Raw API models

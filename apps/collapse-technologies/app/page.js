@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 
 const projects = [
@@ -8,24 +9,36 @@ const projects = [
     description: "A 256-bit key, a public commitment, and no easy way out.",
     category: "Experiment",
     status: "Live",
-    href: "https://asymmetric-challenge.vercel.app",
+    href: "https://asymetric-challenge.vercel.app",
+    image: "/projects/asymmetric-challenge.webp",
     mark: "01",
   },
   {
-    name: "Project Zero",
-    description: "A new social game built for the parts of the internet worth keeping.",
-    category: "Game",
-    status: "In progress",
-    href: "#contact",
+    name: "CoachGG",
+    description: "Real-time Smash Ultimate player analysis powered by start.gg match history.",
+    category: "Software",
+    status: "Live",
+    href: "https://coach.collapsetechnologies.com",
+    image: "/projects/coachgg.webp",
     mark: "02",
   },
   {
-    name: "Black Box",
-    description: "A long-term software platform currently being taught new tricks.",
+    name: "Infinite Pixelboard",
+    description: "A shared infinite canvas for making pixel art together, one tile at a time.",
     category: "Platform",
-    status: "In progress",
-    href: "#contact",
+    status: "Live",
+    href: "https://pixelboard.collapsetechnologies.com",
+    image: "/projects/infinite-pixelboard.webp",
     mark: "03",
+  },
+  {
+    name: "Dress Like Me",
+    description: "Find the pieces behind the people whose style you actually want to wear.",
+    category: "Software",
+    status: "Live",
+    href: "https://dress-like-me.vercel.app",
+    image: "/projects/dress-like-me.webp",
+    mark: "04",
   },
 ];
 
@@ -132,7 +145,13 @@ export default function Home() {
             <a className="project-card reveal" href={project.href} key={project.name}>
               <div className="project-visual">
                 <span>{project.mark}</span>
-                <div className={`project-shape shape-${project.mark}`} />
+                <Image
+                  alt={`${project.name} website`}
+                  className="project-screenshot"
+                  fill
+                  sizes="(max-width: 760px) 88vw, 33vw"
+                  src={project.image}
+                />
               </div>
               <div className="project-info">
                 <div>

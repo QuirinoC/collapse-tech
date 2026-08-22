@@ -112,12 +112,20 @@ h2 { margin-bottom: 0; font-size: clamp(3.4rem, 7vw, 7rem); }
 .project-card { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(0, 1.3fr); border-top: 1px solid var(--line); }
 .project-card:last-child { border-bottom: 1px solid var(--line); }
 .project-visual { position: relative; min-height: 250px; overflow: hidden; background: #ded6ca; }
-.project-visual > span { position: absolute; z-index: 1; top: 18px; left: 19px; font-family: var(--font-plex-mono), monospace; font-size: .7rem; }
-.project-shape { position: absolute; width: 150px; aspect-ratio: 1; border: 1px solid var(--ink); border-radius: 50%; top: 50%; left: 50%; transition: transform .5s cubic-bezier(.2,.8,.2,1); }
-.project-card:hover .project-shape { transform: translate(-50%, -50%) scale(1.16) rotate(30deg); }
-.shape-01 { background: var(--ink); transform: translate(-50%, -50%); }
-.shape-02 { border-radius: 0; transform: translate(-50%, -50%) rotate(45deg); }
-.shape-03 { width: 205px; border-radius: 50% 50% 0 0; transform: translate(-50%, -50%); }
+.project-visual::after {
+  position: absolute; inset: 0; background: linear-gradient(135deg, rgba(17,17,15,.08), transparent 55%);
+  content: ""; pointer-events: none;
+}
+.project-visual > span {
+  position: absolute; z-index: 2; top: 18px; left: 19px; padding: 6px 8px; border-radius: 7px;
+  background: rgba(244,240,232,.88); font-family: var(--font-plex-mono), monospace; font-size: .7rem;
+  backdrop-filter: blur(8px);
+}
+.project-screenshot {
+  object-fit: cover; object-position: top center;
+  transition: transform .5s cubic-bezier(.2,.8,.2,1), filter .5s ease;
+}
+.project-card:hover .project-screenshot { filter: saturate(1.08); transform: scale(1.035); }
 .project-info { display: flex; flex-direction: column; justify-content: space-between; min-height: 250px; padding: 21px 0 21px 30px; }
 .project-info h3 { margin-bottom: 12px; font-size: clamp(1.7rem, 3vw, 3.3rem); letter-spacing: -.07em; line-height: .9; text-transform: uppercase; }
 .project-info p { max-width: 440px; margin: 0; color: var(--muted); line-height: 1.42; }
