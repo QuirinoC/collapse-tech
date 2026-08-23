@@ -38,6 +38,10 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className={`${spaceGrotesk.variable} ${plexMono.variable}`}>
+        <div className="wip-banner" role="status">
+          <p>Work in progress — post imports are not live yet.</p>
+          <Link href="/about">What works today</Link>
+        </div>
         <header className="site-header">
           <a
             className="corporate-wordmark"
