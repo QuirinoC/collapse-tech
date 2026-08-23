@@ -20,6 +20,9 @@ COPY --from=build /app/publish .
 # Set environment to Production explicitly
 ENV ASPNETCORE_ENVIRONMENT=Production
 
+# Bind to all interfaces on 8080 so any PaaS can route to the container
+ENV ASPNETCORE_URLS=http://+:8080
+
 # Expose port and run
 EXPOSE 8080
 EXPOSE 443

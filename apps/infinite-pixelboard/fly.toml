@@ -1,0 +1,42 @@
+# Fly.io deployment for Infinite Pixelboard.
+#
+# Prerequisites:
+#   1. Install flyctl: https://fly.io/docs/flyctl/install/
+#   2. fly auth signup (or login)
+#   3. fly launch --no-deploy --copy-config   (creates the app, do not deploy yet)
+#   4. Provision Upstash Redis and set the connection:
+#        fly secrets set REDISCONNECTIONSTRING="<upstash-rediss-url>"
+#      plus the Firebase/StoreKit/advertising secrets previously stored in
+#      Azure Key Vault `pixelboardkv` (export them before deleting Azure).
+#   5. fly secrets set FORWARDEDHEADERS__TRUSTPLATFORMPROXY=true
+#   6. fly deploy --dockerfile apps/infinite-pixelboard/Dockerfile
+#   7. fly certs add pixelboard.collapsetechnologies.com
+#      then CNAME that host to <app-name>.fly.dev in your DNS provider.
+#
+# The app already speaks StackExchange.Redis over rediss:// TLS URLs.
+
+app = "infinite-pixelboard"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  ASPNETCORE_ENVIRONMENT = "Production"
+  ASPNETCORE_URLS = "http://+:8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
