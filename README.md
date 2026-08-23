@@ -8,6 +8,7 @@ The workspace behind [collapsetechnologies.com](https://collapsetechnologies.com
 | --- | --- | --- |
 | Collapse Technologies | `apps/collapse-technologies` | Studio landing site |
 | Asymmetric Challenge | `apps/asymmetric-challenge` | 256-bit key challenge experiment |
+| Dress Like Me | `apps/dress-like-me` | Creator-style discovery and shopping matches |
 | CoachGG | `apps/coach-gg` | Super Smash Bros. Ultimate player analysis with live SignalR updates |
 | Infinite Pixelboard | `apps/infinite-pixelboard` | Collaborative, infinite canvas built with ASP.NET Core SignalR |
 
@@ -23,6 +24,11 @@ npm run dev:studio
 ```bash
 npm --prefix apps/asymmetric-challenge install
 npm run dev:challenge
+```
+
+```bash
+npm --prefix apps/dress-like-me install
+npm run dev:dress
 ```
 
 ```bash
@@ -53,10 +59,11 @@ Create Vercel projects for the Next.js applications. In each project, set **Root
 | --- | --- | --- |
 | Collapse Technologies | `apps/collapse-technologies` | Vercel | `collapsetechnologies.com` |
 | Asymmetric Challenge | `apps/asymmetric-challenge` | Vercel | `challenge.collapsetechnologies.com` |
+| Dress Like Me | `apps/dress-like-me` | Vercel | `dresslikeme.collapsetechnologies.com` |
 | CoachGG | `apps/coach-gg` | Railway container | `coach.collapsetechnologies.com` (planned) |
 | Infinite Pixelboard | `apps/infinite-pixelboard` | Container image built from its `Dockerfile` | `pixelboard.collapsetechnologies.com` |
 
-Vercel automatically detects Next.js from the selected root directory. The challenge's existing Supabase environment variables belong only to the Asymmetric Challenge project; they must not be added to the studio project.
+Vercel automatically detects Next.js from the selected root directory. Each application owns its environment variables; do not share the challenge or Dress Like Me Supabase credentials with the studio project. Vercel Web Analytics is mounted in all three Vercel applications and intentionally omitted from Infinite Pixelboard.
 
 CoachGG and Infinite Pixelboard require persistent ASP.NET Core processes for SignalR and are not compatible with Vercel's serverless runtime. For CoachGG, create a Railway service with **Root Directory** set to `apps/coach-gg`; its `railway.toml` builds the local `Dockerfile`. Set `STARTGG_APIKEY`, `REDIS_URL`, and `ASPNETCORE_URLS=http://+:8080`, then attach `coach.collapsetechnologies.com` as the custom domain.
 
