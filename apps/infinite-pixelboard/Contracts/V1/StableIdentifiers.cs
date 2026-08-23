@@ -43,6 +43,14 @@ public readonly record struct BanId(Guid Value) : IStableIdentifier<BanId>
     public static BanId From(Guid value) => new(value);
 }
 
+[JsonConverter(typeof(StableIdentifierJsonConverter<AppAccountToken>))]
+public readonly record struct AppAccountToken(Guid Value) : IStableIdentifier<AppAccountToken>
+{
+    public static AppAccountToken New() => new(Guid.NewGuid());
+
+    public static AppAccountToken From(Guid value) => new(value);
+}
+
 public sealed class StableIdentifierJsonConverter<TIdentifier> : JsonConverter<TIdentifier>
     where TIdentifier : struct, IStableIdentifier<TIdentifier>
 {

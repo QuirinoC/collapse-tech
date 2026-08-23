@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using PixelBoard.Application;
 using PixelBoard.Configuration;
 using PixelBoard.Domain;
 using PixelBoard.Infrastructure.Board;
@@ -7,7 +9,8 @@ using PixelBoard.Infrastructure.Board;
 public class BoardHub(
     IBoardStore boardStore,
     IOptions<FirebaseOptions> firebaseOptions,
-    IOptions<PostgresOptions> postgresOptions) : Hub
+    IOptions<PostgresOptions> postgresOptions,
+    IServiceProvider services) : Hub
 {
     public async Task SendPixel(int x, int y, string color)
     {
@@ -31,9 +34,15 @@ public class BoardHub(
 
     public async Task<string[][]> RequestTile(int x, int y)
     {
-        return await boardStore.GetTileAsync(
-            new TileAddress(x, y),
-            Context.ConnectionAborted);
+        var tile = new TileAddress(x, y);
+        var pixels = await boardStore.GetTileAsync(tile, Context.ConnectionAborted);
+        var visibilityFilter = services.GetService<IBoardVisibilityFilter>();
+        if (visibilityFilter is not null)
+        {
+            await visibilityFilter.ApplyAsync(tile, pixels, Context.ConnectionAborted);
+        }
+
+        return pixels;
     }
 
     public override async Task OnConnectedAsync()

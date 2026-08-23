@@ -3,6 +3,7 @@ using PixelBoard.Contracts.V1;
 using PixelBoard.Domain;
 using PixelBoard.Infrastructure.Board;
 using PixelBoard.Infrastructure.Ledger;
+using PixelBoard.Infrastructure.Realtime;
 
 namespace PixelBoard.Api.V1;
 
@@ -17,11 +18,13 @@ public static class BoardApi
         api.MapGet("/board", GetMetadata);
         api.MapGet("/tiles/{tileRow:int}/{tileColumn:int}", GetTileAsync);
         api.MapGet("/account", GetAccountAsync).RequireAuthorization();
+        api.MapDelete("/account", DeleteAccountAsync).RequireAuthorization();
         api.MapPost(
                 "/account/community-standards",
                 AcceptCommunityStandardsAsync)
             .RequireAuthorization();
         api.MapPost("/placements", PlaceAsync).RequireAuthorization();
+        api.MapPost("/reports", ReportAsync).RequireAuthorization();
 
         return endpoints;
     }
@@ -42,11 +45,19 @@ public static class BoardApi
         int tileColumn,
         IBoardStore boardStore,
         TimeProvider timeProvider,
+        IServiceProvider services,
         CancellationToken cancellationToken)
     {
+        var tile = new TileAddress(tileRow, tileColumn);
         var pixels = await boardStore.GetTileAsync(
-            new TileAddress(tileRow, tileColumn),
+            tile,
             cancellationToken);
+        var visibilityFilter = services.GetService<IBoardVisibilityFilter>();
+        if (visibilityFilter is not null)
+        {
+            await visibilityFilter.ApplyAsync(tile, pixels, cancellationToken);
+        }
+
         return new TileSnapshotResponse(
             ApiVersions.V1,
             tileRow,
@@ -109,6 +120,27 @@ public static class BoardApi
         return Results.NoContent();
     }
 
+    public static async Task<IResult> DeleteAccountAsync(
+        IAccountIdentityAccessor identityAccessor,
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        var account = await identityAccessor.GetCurrentAsync(cancellationToken);
+        if (account is null)
+        {
+            return AuthenticationRequired();
+        }
+
+        var deletionService = services.GetService<IAccountDeletionService>();
+        if (deletionService is null)
+        {
+            return ServiceUnavailable("Account deletion is not configured.");
+        }
+
+        await deletionService.DeleteAsync(account.Id, cancellationToken);
+        return Results.NoContent();
+    }
+
     public static async Task<IResult> PlaceAsync(
         PlacementRequest request,
         IAccountIdentityAccessor identityAccessor,
@@ -126,9 +158,25 @@ public static class BoardApi
         var policyService = services.GetService<IAccountPolicyService>();
         var entitlementService = services.GetService<IEntitlementService>();
         var placementStore = services.GetService<IAtomicPlacementStore>();
-        if (policyService is null || entitlementService is null || placementStore is null)
+        var safetyService = services.GetService<IPlatformSafetyService>();
+        var realtimePublisher = services.GetService<IRealtimeEventPublisher>();
+        if (policyService is null
+            || entitlementService is null
+            || placementStore is null
+            || safetyService is null
+            || realtimePublisher is null)
         {
             return ServiceUnavailable();
+        }
+
+        var safety = await safetyService.GetStateAsync(cancellationToken);
+        if (safety.PlacementsFrozen)
+        {
+            return Results.Json(
+                new ApiError(
+                    ApiErrorCodes.BoardReadOnly,
+                    "Pixel placement is temporarily paused."),
+                statusCode: StatusCodes.Status503ServiceUnavailable);
         }
 
         var policy = await policyService.GetAsync(
@@ -215,6 +263,15 @@ public static class BoardApi
                 statusCode: StatusCodes.Status429TooManyRequests);
         }
 
+        if (!result.IsDuplicate)
+        {
+            await realtimePublisher.PublishAcceptedAsync(
+                result.StreamEntryId,
+                new AcceptedPixelEventData(
+                    result.PlacementId!.Value,
+                    result.Pixel!));
+        }
+
         return Results.Ok(
             new PlacementResult(
                 PlacementOutcome.Accepted,
@@ -226,6 +283,92 @@ public static class BoardApi
                 null));
     }
 
+    public static async Task<IResult> ReportAsync(
+        CreateReportRequest? request,
+        IAccountIdentityAccessor identityAccessor,
+        IReportValidator validator,
+        TimeProvider timeProvider,
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        var account = await identityAccessor.GetCurrentAsync(cancellationToken);
+        if (account is null)
+        {
+            return AuthenticationRequired();
+        }
+
+        var policyService = services.GetService<IAccountPolicyService>();
+        var rateLimiter = services.GetService<IReportRateLimiter>();
+        var evidenceCollector = services.GetService<IReportEvidenceCollector>();
+        var reportStore = services.GetService<IReportStore>();
+        if (policyService is null
+            || rateLimiter is null
+            || evidenceCollector is null
+            || reportStore is null)
+        {
+            return ServiceUnavailable("Reporting is not configured.");
+        }
+
+        var policy = await policyService.GetAsync(
+            account.Id,
+            CurrentCommunityStandardsVersion,
+            cancellationToken);
+        if (policy.IsBanned)
+        {
+            return Results.Json(
+                new ApiError(
+                    ApiErrorCodes.AccountBanned,
+                    "This account cannot submit reports."),
+                statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        var submittedAt = timeProvider.GetUtcNow();
+        var validation = validator.Validate(
+            request,
+            account.Id,
+            ReportId.New(),
+            submittedAt);
+        if (!validation.IsValid)
+        {
+            return Results.BadRequest(validation.Error);
+        }
+
+        var command = validation.Command!;
+        var admission = await rateLimiter.TryAcquireAsync(command, cancellationToken);
+        if (admission == ReportAdmissionOutcome.Duplicate)
+        {
+            return Results.Json(
+                new ApiError(
+                    ApiErrorCodes.DuplicateRequest,
+                    "An equivalent report was submitted recently."),
+                statusCode: StatusCodes.Status409Conflict);
+        }
+
+        if (admission == ReportAdmissionOutcome.RateLimited)
+        {
+            return Results.Json(
+                new ApiError(
+                    ApiErrorCodes.ReportRateLimited,
+                    "Too many reports were submitted recently."),
+                statusCode: StatusCodes.Status429TooManyRequests);
+        }
+
+        try
+        {
+            var evidence = await evidenceCollector.CollectAsync(command, cancellationToken);
+            await reportStore.SaveAsync(command, evidence, cancellationToken);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            await rateLimiter.ReleaseAsync(command, CancellationToken.None);
+            throw;
+        }
+
+        return Results.Json(
+            new ReportResponse(command.ReportId, ReportStatus.Received, submittedAt),
+            statusCode: StatusCodes.Status201Created);
+    }
+
     private static int CooldownSeconds(AccountTier tier) =>
         tier == AccountTier.Pro ? 1 : 10;
 
@@ -234,10 +377,10 @@ public static class BoardApi
             new ApiError(ApiErrorCodes.AuthenticationRequired, "Authentication is required."),
             statusCode: StatusCodes.Status401Unauthorized);
 
-    private static IResult ServiceUnavailable() =>
+    private static IResult ServiceUnavailable(string? message = null) =>
         Results.Json(
             new ApiError(
                 ApiErrorCodes.ServiceUnavailable,
-                "Authenticated placement is not configured."),
+                message ?? "Authenticated placement is not configured."),
             statusCode: StatusCodes.Status503ServiceUnavailable);
 }

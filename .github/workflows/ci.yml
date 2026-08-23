@@ -18,8 +18,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: apps/asymmetric-challenge/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
+        working-directory: .
       - run: npm run lint
       - run: npm test
       - run: SECRET_KEY_HEX=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef npm run build
@@ -36,8 +37,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: apps/collapse-technologies/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
+        working-directory: .
       - run: npm run lint
       - run: npm run build
 
@@ -59,6 +61,27 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  coach:
+    name: CoachGG
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/coach-gg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+          cache: true
+          cache-dependency-path: apps/coach-gg/src/CoachGG.csproj
+      - run: dotnet restore src/CoachGG.csproj
+      - run: dotnet format src/CoachGG.csproj --verify-no-changes --no-restore
+      - run: dotnet build src/CoachGG.csproj --configuration Release --no-restore
+      - name: Build production container
+        run: docker build --tag coach-gg-ci:${{ github.sha }} .
+      - name: Verify production container is non-root
+        run: test -n "$(docker image inspect coach-gg-ci:${{ github.sha }} --format '{{.Config.User}}')"
+
   pixelboard:
     name: Infinite Pixelboard
     runs-on: ubuntu-latest
@@ -76,3 +99,9 @@ jobs:
       - run: dotnet format PixelBoard.sln --verify-no-changes --no-restore
       - run: dotnet test PixelBoard.sln --no-restore
       - run: dotnet build PixelBoard.sln --no-restore
+      - name: Validate production ARM template JSON
+        run: jq empty Infrastructure/Cloud/ContainerApp.json
+      - name: Build production container
+        run: docker build --tag pixelboard-ci:${{ github.sha }} .
+      - name: Verify production container is non-root
+        run: test -n "$(docker image inspect pixelboard-ci:${{ github.sha }} --format '{{.Config.User}}')"

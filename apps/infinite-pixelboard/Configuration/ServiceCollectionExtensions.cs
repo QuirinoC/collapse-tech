@@ -1,10 +1,15 @@
 using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using PixelBoard.Application;
 using PixelBoard.Infrastructure.Board;
 using PixelBoard.Infrastructure.Ledger;
+using PixelBoard.Infrastructure.Moderation;
 using PixelBoard.Infrastructure.Postgres;
+using PixelBoard.Infrastructure.Realtime;
+using PixelBoard.Infrastructure.StoreKit;
 using StackExchange.Redis;
 
 namespace PixelBoard.Configuration;
@@ -59,8 +64,11 @@ public static class ServiceCollectionExtensions
                 options => !options.Enabled
                     || (!string.IsNullOrWhiteSpace(options.BundleId)
                         && !string.IsNullOrWhiteSpace(options.MonthlyProductId)
-                        && !string.IsNullOrWhiteSpace(options.AnnualProductId)),
-                "StoreKit bundle and product identifiers are required when StoreKit is enabled.")
+                        && !string.IsNullOrWhiteSpace(options.AnnualProductId)
+                        && options.TrustedRootCertificates.Length > 0
+                        && options.TrustedRootCertificates.All(IsCertificate)
+                        && options.AllowedEnvironments.Length > 0),
+                "StoreKit bundle, product, environment, and trusted root certificate settings are required when StoreKit is enabled.")
             .ValidateOnStart();
 
         services
@@ -68,13 +76,20 @@ public static class ServiceCollectionExtensions
             .Bind(configuration.GetSection(AdvertisingOptions.SectionName))
             .Validate(
                 options => !options.WebEnabled
-                    || !string.IsNullOrWhiteSpace(options.AdSensePublisherId),
-                "An AdSense publisher ID is required when web advertising is enabled.")
+                    || (IsAdSensePublisherId(options.AdSensePublisherId)
+                        && IsNumericId(options.AdSenseBoardSlotId)),
+                "Valid AdSense publisher and manual board slot IDs are required when web advertising is enabled.")
             .Validate(
                 options => !options.MobileEnabled
-                    || !string.IsNullOrWhiteSpace(options.AdMobApplicationId),
-                "An AdMob application ID is required when mobile advertising is enabled.")
+                    || (IsAdMobApplicationId(options.AdMobApplicationId)
+                        && IsSafeAdContentRating(options.AdMobMaxContentRating)),
+                "A valid AdMob application ID and G, PG, or T content rating are required when mobile advertising is enabled.")
+            .Validate(
+                options => (!options.WebEnabled && !options.MobileEnabled)
+                    || options.ModerationOperationsEnabled,
+                "Advertising cannot be enabled until staffed moderation operations are enabled.")
             .ValidateOnStart();
+        services.AddSingleton<IAdvertisingPolicy, ConfiguredAdvertisingPolicy>();
 
         services
             .AddOptions<SecurityOptions>()
@@ -91,6 +106,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddBoardStorage(this IServiceCollection services)
     {
         services.AddSingleton<IPlacementValidator, PlacementValidator>();
+        services.AddSingleton<IReportValidator, ReportValidator>();
         services.AddStackExchangeRedisCache(_ => { });
         services
             .AddOptions<RedisCacheOptions>()
@@ -130,12 +146,26 @@ public static class ServiceCollectionExtensions
             return NpgsqlDataSource.Create(postgresOptions.ConnectionString);
         });
         services.AddSingleton<IAtomicPlacementStore, RedisAtomicPlacementStore>();
+        services.AddSingleton<IRealtimeEventPublisher, RedisRealtimeEventPublisher>();
+        services.AddSingleton<RealtimeEventDeliveryPolicy>();
+        services.AddHostedService<RedisRealtimeEventSubscriber>();
         services.AddSingleton<IPlacementLedger, PostgresPlacementLedger>();
+        services.AddSingleton<IReportRateLimiter, RedisReportRateLimiter>();
+        services.AddSingleton<IReportEvidenceCollector, ReportEvidenceCollector>();
+        services.AddSingleton<IReportStore, PostgresReportStore>();
+        services.AddSingleton<PostgresModerationService>();
+        services.AddSingleton<IModerationService>(
+            provider => provider.GetRequiredService<PostgresModerationService>());
+        services.AddSingleton<IPlatformSafetyService>(
+            provider => provider.GetRequiredService<PostgresModerationService>());
+        services.AddSingleton<IBoardVisibilityFilter>(
+            provider => provider.GetRequiredService<PostgresModerationService>());
         services.AddSingleton<PostgresAccountStateService>();
         services.AddSingleton<IAccountPolicyService>(
             provider => provider.GetRequiredService<PostgresAccountStateService>());
         services.AddSingleton<IEntitlementService>(
             provider => provider.GetRequiredService<PostgresAccountStateService>());
+        services.AddSingleton<IAccountDeletionService, PostgresAccountDeletionService>();
         services.AddHostedService<PlacementOutboxWorker>();
         services
             .AddHealthChecks()
@@ -143,4 +173,62 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    public static IServiceCollection AddStoreKitEntitlements(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        if (!configuration.GetValue<bool>($"{StoreKitOptions.SectionName}:Enabled"))
+        {
+            return services;
+        }
+
+        if (!configuration.GetValue<bool>($"{PostgresOptions.SectionName}:Enabled"))
+        {
+            throw new InvalidOperationException(
+                "PostgreSQL must be enabled when StoreKit is enabled.");
+        }
+
+        services.AddSingleton<IStoreKitTransactionVerifier, StoreKitTransactionVerifier>();
+        services.AddSingleton<PostgresStoreKitEntitlementStore>();
+        services.AddSingleton<IStoreKitEntitlementStore>(
+            provider => provider.GetRequiredService<PostgresStoreKitEntitlementStore>());
+        return services;
+    }
+
+    private static bool IsCertificate(string encodedCertificate)
+    {
+        try
+        {
+            using var certificate = X509CertificateLoader.LoadCertificate(
+                Convert.FromBase64String(encodedCertificate));
+            return certificate.RawData.Length > 0;
+        }
+        catch (Exception exception)
+            when (exception is FormatException or CryptographicException)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsAdSensePublisherId(string value) =>
+        value.StartsWith("ca-pub-", StringComparison.Ordinal)
+        && IsNumericId(value["ca-pub-".Length..]);
+
+    private static bool IsAdMobApplicationId(string value)
+    {
+        if (!value.StartsWith("ca-app-pub-", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var parts = value["ca-app-pub-".Length..].Split('~');
+        return parts.Length == 2 && parts.All(IsNumericId);
+    }
+
+    private static bool IsNumericId(string value) =>
+        value.Length >= 6 && value.All(char.IsAsciiDigit);
+
+    private static bool IsSafeAdContentRating(string value) =>
+        value is "G" or "PG" or "T";
 }

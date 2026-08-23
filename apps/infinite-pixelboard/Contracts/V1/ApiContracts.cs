@@ -5,10 +5,18 @@ public static class ApiVersions
     public const int V1 = 1;
 }
 
+public static class RealtimeProtocol
+{
+    public const int V1 = 1;
+    public const string AcceptedPixelType = "pixel.accepted";
+    public const string AcceptedPixelClientMethod = "AcceptedPixelV1";
+}
+
 public static class ApiErrorCodes
 {
     public const string AuthenticationRequired = "authentication_required";
     public const string AccountBanned = "account_banned";
+    public const string AccountDeleted = "account_deleted";
     public const string BoardReadOnly = "board_read_only";
     public const string CommunityStandardsRequired = "community_standards_required";
     public const string CooldownActive = "cooldown_active";
@@ -17,9 +25,15 @@ public static class ApiErrorCodes
     public const string InvalidClientContext = "invalid_client_context";
     public const string InvalidCoordinates = "invalid_coordinates";
     public const string InvalidIdempotencyKey = "invalid_idempotency_key";
+    public const string InvalidReportNote = "invalid_report_note";
+    public const string InvalidReportReason = "invalid_report_reason";
     public const string InvalidReportRegion = "invalid_report_region";
     public const string ReportRateLimited = "report_rate_limited";
     public const string ServiceUnavailable = "service_unavailable";
+    public const string InvalidStoreKitTransaction = "invalid_storekit_transaction";
+    public const string InvalidModerationAction = "invalid_moderation_action";
+    public const string ModerationConflict = "moderation_conflict";
+    public const string StoreKitAccountMismatch = "storekit_account_mismatch";
     public const string TileUnavailable = "tile_unavailable";
 }
 
@@ -120,10 +134,10 @@ public sealed record ReportRegion(
     int Height);
 
 public sealed record CreateReportRequest(
-    ReportRegion Region,
-    ReportReason Reason,
+    ReportRegion? Region,
+    ReportReason? Reason,
     string? Note,
-    ClientContext Client);
+    ClientContext? Client);
 
 public sealed record ReportResponse(
     ReportId ReportId,
@@ -138,3 +152,23 @@ public sealed record AcceptedPixelEvent(
     string Type,
     PlacementId PlacementId,
     PixelState Pixel);
+
+public sealed record AcceptedPixelEventData(
+    PlacementId PlacementId,
+    PixelState Pixel);
+
+public sealed record RealtimeEventEnvelope(
+    int ProtocolVersion,
+    string Type,
+    string Cursor,
+    AcceptedPixelEventData Data);
+
+public sealed record StoreKitAccountTokenResponse(AppAccountToken AppAccountToken);
+
+public sealed record VerifyStoreKitTransactionRequest(string SignedTransactionInfo);
+
+public sealed record StoreKitNotificationRequest(string SignedPayload);
+
+public sealed record StoreKitEntitlementResponse(
+    AccountTier Tier,
+    DateTimeOffset? ExpiresAt);

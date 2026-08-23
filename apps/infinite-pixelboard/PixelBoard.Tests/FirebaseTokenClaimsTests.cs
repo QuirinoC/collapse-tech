@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -122,6 +123,7 @@ public sealed class FirebaseTokenClaimsTests
     public async Task DisabledFirebaseSuppressesBearerAuthentication()
     {
         var services = new ServiceCollection();
+        services.AddLogging();
         services.AddOptions<FirebaseOptions>()
             .Configure(options => options.Enabled = false);
         services.AddFirebaseAuthentication();
@@ -141,6 +143,37 @@ public sealed class FirebaseTokenClaimsTests
         await options.Events.OnMessageReceived(context);
 
         Assert.True(context.Result?.None);
+    }
+
+    [Theory]
+    [InlineData("true", true)]
+    [InlineData("false", false)]
+    [InlineData(null, false)]
+    public async Task ModeratorPolicyRequiresExplicitTrueCustomClaim(
+        string? moderatorClaim,
+        bool expectedAuthorized)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOptions<FirebaseOptions>()
+            .Configure(options => options.Enabled = false);
+        services.AddFirebaseAuthentication();
+        using var provider = services.BuildServiceProvider();
+        var claims = new List<Claim> { new("sub", "firebase-user") };
+        if (moderatorClaim is not null)
+        {
+            claims.Add(new Claim("moderator", moderatorClaim));
+        }
+
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "firebase"));
+        var result = await provider
+            .GetRequiredService<IAuthorizationService>()
+            .AuthorizeAsync(
+                principal,
+                resource: null,
+                FirebaseAuthenticationExtensions.ModeratorPolicy);
+
+        Assert.Equal(expectedAuthorized, result.Succeeded);
     }
 
     private static ClaimsPrincipal CreatePrincipal(

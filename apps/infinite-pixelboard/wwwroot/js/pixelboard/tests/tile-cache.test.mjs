@@ -1,0 +1,120 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { TileCache } from "../tile-cache.mjs";
+
+function tile(color = "#FFFFFF", size = 2) {
+  return Array.from({ length: size }, () => Array(size).fill(color));
+}
+
+test("visible tile loads are deduplicated and cached by row then column", async () => {
+  const calls = [];
+  const cache = new TileCache({
+    tileRows: 2,
+    tileColumns: 2,
+    loadTile: async (row, column) => {
+      calls.push([row, column]);
+      return { pixels: tile(`${row}:${column}`) };
+    },
+  });
+  const range = { firstRow: -1, lastRow: 0, firstColumn: 2, lastColumn: 2 };
+
+  await Promise.all([cache.ensureVisible(range), cache.ensureVisible(range)]);
+
+  assert.deepEqual(calls, [[-1, 2], [0, 2]]);
+  assert.equal(cache.get(-1, 2)[0][0], "-1:2");
+});
+
+test("pixel updates respect negative tile offsets", () => {
+  const cache = new TileCache({
+    tileRows: 2,
+    tileColumns: 2,
+    loadTile: async () => ({ pixels: tile() }),
+  });
+
+  const mutation = cache.applyPixel(-1, -1, "#123456");
+
+  assert.equal(mutation.previous.color, "#FFFFFF");
+  assert.equal(cache.get(-1, -1)[1][1], "#123456");
+});
+
+test("a tile response cannot overwrite a placement made while it was loading", async () => {
+  let finish;
+  const cache = new TileCache({
+    tileRows: 2,
+    tileColumns: 2,
+    loadTile: () => new Promise((resolve) => { finish = resolve; }),
+  });
+  const loading = cache.ensureVisible({ firstRow: 0, lastRow: 0, firstColumn: 0, lastColumn: 0 });
+
+  cache.applyPixel(0, 0, "#123456");
+  finish({ pixels: tile() });
+  await loading;
+
+  assert.equal(cache.get(0, 0)[0][0], "#123456");
+});
+
+test("refresh replaces mutations that predate the authoritative request", async () => {
+  const cache = new TileCache({
+    tileRows: 2,
+    tileColumns: 2,
+    loadTile: async () => ({ pixels: tile("#ABCDEF") }),
+  });
+  cache.applyPixel(0, 0, "#123456");
+
+  await cache.refreshVisible({ firstRow: 0, lastRow: 0, firstColumn: 0, lastColumn: 0 });
+
+  assert.equal(cache.get(0, 0)[0][0], "#ABCDEF");
+});
+
+test("refresh follows a pending load with an authoritative request", async () => {
+  const resolvers = [];
+  const cache = new TileCache({
+    tileRows: 2,
+    tileColumns: 2,
+    loadTile: () => new Promise((resolve) => resolvers.push(resolve)),
+  });
+  const range = { firstRow: 0, lastRow: 0, firstColumn: 0, lastColumn: 0 };
+  const initial = cache.ensureVisible(range);
+  const refresh = cache.refreshVisible(range);
+
+  resolvers[0]({ pixels: tile("#111111") });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(resolvers.length, 2);
+  resolvers[1]({ pixels: tile("#222222") });
+  await Promise.all([initial, refresh]);
+
+  assert.equal(cache.get(0, 0)[0][0], "#222222");
+});
+
+test("malformed server tiles are rejected instead of corrupting the cache", async () => {
+  const cache = new TileCache({
+    tileRows: 2,
+    tileColumns: 2,
+    loadTile: async () => ({ pixels: [["#FFFFFF"]] }),
+  });
+
+  await cache.ensureVisible({ firstRow: 0, lastRow: 0, firstColumn: 0, lastColumn: 0 });
+
+  assert.equal(cache.get(0, 0), null);
+});
+
+test("real-time pixels only mutate tiles already loaded from snapshots", async () => {
+  const cache = new TileCache({
+    tileRows: 2,
+    tileColumns: 2,
+    loadTile: async () => ({ pixels: tile("#111111") }),
+  });
+
+  assert.equal(cache.applyPixelIfLoaded(0, 0, "#ABCDEF"), false);
+  assert.equal(cache.get(0, 0), null);
+
+  await cache.ensureVisible({
+    firstRow: 0,
+    lastRow: 0,
+    firstColumn: 0,
+    lastColumn: 0,
+  });
+
+  assert.equal(cache.applyPixelIfLoaded(0, 0, "#ABCDEF"), true);
+  assert.equal(cache.get(0, 0)[0][0], "#ABCDEF");
+});

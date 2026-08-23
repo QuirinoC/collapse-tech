@@ -23,4 +23,5 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 # Expose port and run
 EXPOSE 8080
 EXPOSE 443
+USER $APP_UID
 ENTRYPOINT ["dotnet", "PixelBoard.dll"]

@@ -56,6 +56,10 @@ public sealed class StoreKitOptions
     public string MonthlyProductId { get; set; } = string.Empty;
 
     public string AnnualProductId { get; set; } = string.Empty;
+
+    public string[] TrustedRootCertificates { get; set; } = [];
+
+    public string[] AllowedEnvironments { get; set; } = ["Production"];
 }
 
 public sealed class AdvertisingOptions
@@ -66,9 +70,15 @@ public sealed class AdvertisingOptions
 
     public bool MobileEnabled { get; set; }
 
+    public bool ModerationOperationsEnabled { get; set; }
+
     public string AdSensePublisherId { get; set; } = string.Empty;
 
+    public string AdSenseBoardSlotId { get; set; } = string.Empty;
+
     public string AdMobApplicationId { get; set; } = string.Empty;
+
+    public string AdMobMaxContentRating { get; set; } = "T";
 }
 
 public sealed class SecurityOptions

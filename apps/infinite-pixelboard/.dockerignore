@@ -1,0 +1,7 @@
+**/bin/
+**/obj/
+.git/
+.gitignore
+PixelBoard.Tests/
+Infrastructure/Cloud/
+README.md

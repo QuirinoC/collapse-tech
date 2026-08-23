@@ -1,4 +1,6 @@
 using Npgsql;
+using System.Security.Cryptography;
+using System.Text;
 using PixelBoard.Application;
 using PixelBoard.Contracts.V1;
 
@@ -17,6 +19,11 @@ public sealed class PostgresAccountStateService(NpgsqlDataSource dataSource)
             SELECT
                 EXISTS (
                     SELECT 1
+                    FROM pixelboard.deleted_accounts
+                    WHERE account_hash = $3
+                ),
+                EXISTS (
+                    SELECT 1
                     FROM pixelboard.account_bans
                     WHERE firebase_uid = $1
                       AND starts_at <= now()
@@ -32,9 +39,12 @@ public sealed class PostgresAccountStateService(NpgsqlDataSource dataSource)
         await using var command = dataSource.CreateCommand(sql);
         command.Parameters.AddWithValue(accountId.Value);
         command.Parameters.AddWithValue(requiredCommunityStandardsVersion);
+        command.Parameters.AddWithValue(AccountHash(accountId));
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         await reader.ReadAsync(cancellationToken);
-        return new AccountPolicyState(reader.GetBoolean(0), reader.GetBoolean(1));
+        return new AccountPolicyState(
+            reader.GetBoolean(0) || reader.GetBoolean(1),
+            !reader.GetBoolean(0) && reader.GetBoolean(2));
     }
 
     public async ValueTask AcceptCommunityStandardsAsync(
@@ -49,7 +59,12 @@ public sealed class PostgresAccountStateService(NpgsqlDataSource dataSource)
                 community_standards_version,
                 community_standards_accepted_at,
                 updated_at)
-            VALUES ($1, $2, now(), now())
+            SELECT $1, $2, now(), now()
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM pixelboard.deleted_accounts
+                WHERE account_hash = $3
+            )
             ON CONFLICT (firebase_uid) DO UPDATE SET
                 community_standards_version = EXCLUDED.community_standards_version,
                 community_standards_accepted_at = EXCLUDED.community_standards_accepted_at,
@@ -58,6 +73,7 @@ public sealed class PostgresAccountStateService(NpgsqlDataSource dataSource)
         await using var command = dataSource.CreateCommand(sql);
         command.Parameters.AddWithValue(accountId.Value);
         command.Parameters.AddWithValue(version);
+        command.Parameters.AddWithValue(AccountHash(accountId));
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -88,4 +104,7 @@ public sealed class PostgresAccountStateService(NpgsqlDataSource dataSource)
             tier,
             reader.IsDBNull(1) ? null : reader.GetFieldValue<DateTimeOffset>(1));
     }
+
+    private static byte[] AccountHash(AccountId accountId) =>
+        SHA256.HashData(Encoding.UTF8.GetBytes(accountId.Value));
 }

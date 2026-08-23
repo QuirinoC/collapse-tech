@@ -1,0 +1,27 @@
+{
+  "name": "coachgg",
+  "version": "1.0.0",
+  "description": "Super Smash Bros Ultimate player analysis tool. Analyzes your match history from start.gg and shows win rates by stage, character, and character-stage combinations.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test:e2e": "playwright test --reporter=line"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/QuirinoC/collapse-tech.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/QuirinoC/collapse-tech/issues"
+  },
+  "homepage": "https://coach.collapsetechnologies.com",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
+  }
+}
