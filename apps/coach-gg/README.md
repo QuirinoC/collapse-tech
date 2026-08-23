@@ -152,16 +152,18 @@ JobError({slug, error})             ← failure
 
 ---
 
-## Deployment (Railway)
+## Deployment (Render)
 
-1. Connect the `collapse-tech` GitHub repository to Railway
-2. Set the service root directory to `apps/coach-gg`
-3. Railway builds from the app's `Dockerfile` (set in `railway.toml`)
-4. Set env vars in Railway dashboard: `STARTGG_APIKEY`, `REDIS_URL`, `ASPNETCORE_URLS=http://+:8080`
-5. Add `coach.collapsetechnologies.com` as the service's custom domain
-6. Push to `main` to auto-deploy
+CoachGG runs as a Render web service in project **collapse-tech**
+(`srv-da56cr2jobas73dmulv0`), built from the app's `Dockerfile`.
 
-Free Redis: [Upstash](https://upstash.com) (10k commands/day free tier).
+1. Render service root directory: `apps/coach-gg`
+2. Set env vars in the Render dashboard: `STARTGG_APIKEY`,
+   `ASPNETCORE_ENVIRONMENT=Production`, `FORWARDEDHEADERS__TRUSTPLATFORMPROXY=true`
+3. Add `coach.collapsetechnologies.com` as the service's custom domain
+4. Push to `main` to auto-deploy
+
+The app is stateless (no Redis required in production).
 
 ---
 
@@ -169,8 +171,7 @@ Free Redis: [Upstash](https://upstash.com) (10k commands/day free tier).
 
 ```
 apps/coach-gg/
-├── Dockerfile                 # Multi-stage .NET 8 build (Railway)
-├── railway.toml               # Railway config (dockerfilePath, healthcheck)
+├── Dockerfile                 # Multi-stage .NET 8 build (Render)
 ├── playwright.config.ts       # E2E test config (baseURL = prod)
 ├── tests/
 │   └── e2e.spec.ts            # 9 Playwright tests

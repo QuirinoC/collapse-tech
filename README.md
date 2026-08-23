@@ -53,18 +53,39 @@ npm test
 
 ## Deployments
 
-Create Vercel projects for the Next.js applications. In each project, set **Root Directory** before deploying:
+**Current architecture (Aug 2026): Cloudflare for frontends + DNS, Render for backends. Azure and Vercel are retired.**
 
-| Application | Root Directory | Deployment target | Production domain |
-| --- | --- | --- |
-| Collapse Technologies | `apps/collapse-technologies` | Vercel | `collapsetechnologies.com` |
-| Asymmetric Challenge | `apps/asymmetric-challenge` | Vercel | `challenge.collapsetechnologies.com` |
-| Dress Like Me | `apps/dress-like-me` | Vercel | `dresslikeme.collapsetechnologies.com` |
-| CoachGG | `apps/coach-gg` | Railway container | `coach.collapsetechnologies.com` (planned) |
-| Infinite Pixelboard | `apps/infinite-pixelboard` | Container image built from its `Dockerfile` | `pixelboard.collapsetechnologies.com` |
+| Application | Directory | Host | Production URL |
+| --- | --- | --- | --- |
+| Collapse Technologies | `apps/collapse-technologies` | Cloudflare Pages (static export) | `collapsetechnologies.com` ✅ live |
+| Asymmetric Challenge | `apps/asymmetric-challenge` | Cloudflare Workers via `@opennextjs/cloudflare` | `challenge.collapsetechnologies.com` (pending) |
+| Dress Like Me | `apps/dress-like-me` | Cloudflare Workers via `@opennextjs/cloudflare` | `dresslikeme.collapsetechnologies.com` (parked) |
+| CoachGG | `apps/coach-gg` | Render web service (`srv-da56cr2jobas73dmulv0`) | `coachgg-api.onrender.com` ✅ live |
+| Infinite Pixelboard | `apps/infinite-pixelboard` | Render web service (`srv-da55t78u01pc73e3rlu0`) + Render Key Value (Redis) | `infinite-pixelboard.onrender.com` ✅ live |
 
-Vercel automatically detects Next.js from the selected root directory. Each application owns its environment variables; do not share the challenge or Dress Like Me Supabase credentials with the studio project. Vercel Web Analytics is mounted in all three Vercel applications and intentionally omitted from Infinite Pixelboard.
+### Cloudflare Pages / Workers
 
-CoachGG and Infinite Pixelboard require persistent ASP.NET Core processes for SignalR and are not compatible with Vercel's serverless runtime. For CoachGG, create a Railway service with **Root Directory** set to `apps/coach-gg`; its `railway.toml` builds the local `Dockerfile`. Set `STARTGG_APIKEY`, `REDIS_URL`, and `ASPNETCORE_URLS=http://+:8080`, then attach `coach.collapsetechnologies.com` as the custom domain.
+Frontends deploy from the repo with `wrangler`. The Collapse Technologies site is fully static — build, then deploy the App Router asset folder:
 
-Infinite Pixelboard's production container must set `ASPNETCORE_ENVIRONMENT=Production` and `redisconnectionstring`.
+```bash
+cd apps/collapse-technologies
+npx next build
+npx wrangler pages deploy .next/server/app --project-name collapse-technologies --branch main
+```
+
+> **Gotcha:** Next.js App Router static assets live under `.next/server/app`, not `.next/` root. Deploying `.next/` root serves nothing useful.
+
+DNS lives on Cloudflare (zone `collapsetechnologies.com`). Apex and `www` are proxied CNAMEs to `collapse-technologies.pages.dev`. Email records are untouched. Product subdomains get attached as custom domains on their Pages/Workers projects during cutover.
+
+Each application owns its environment variables; do not share the challenge or Dress Like Me Supabase credentials with the studio project.
+
+### Render (backends)
+
+Render services live in project **collapse-tech**; `apps/render.yaml` documents the intended blueprint. Both backends are Docker builds from their app directories and auto-deploy on push to `main`:
+
+- **Pixelboard** — root dir `apps/infinite-pixelboard`, env: `ASPNETCORE_ENVIRONMENT=Production`, `REDISCONNECTIONSTRING` (Render KV internal URL), `Firebase__Enabled=true`, `Firebase__ProjectId`, `FORWARDEDHEADERS__TRUSTPLATFORMPROXY=true`.
+- **CoachGG** — root dir `apps/coach-gg`, env: `STARTGG_APIKEY`, `ASPNETCORE_ENVIRONMENT=Production`, `FORWARDEDHEADERS__TRUSTPLATFORMPROXY=true`.
+
+Custom domains (`pixelboard.collapsetechnologies.com`, `coach.collapsetechnologies.com`) attach to the Render services after DNS cutover.
+
+The legacy Azure Container Apps stack (`apps/infinite-pixelboard/Infrastructure/Cloud/ContainerApp.json` + `.github/workflows/deploy-pixelboard.yml`) is retired pending decommission of the Azure resource group.

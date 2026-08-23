@@ -1,3 +1,6 @@
+# RETIRED: production now runs on Render (see apps/render.yaml and root README).
+# Kept for historical reference only.
+#
 # Fly.io deployment for Infinite Pixelboard.
 #
 # Prerequisites:
