@@ -65,15 +65,15 @@ npm test
 
 ### Cloudflare Pages / Workers
 
-Frontends deploy from the repo with `wrangler`. The Collapse Technologies site is fully static — build, then deploy the App Router asset folder:
+Frontends deploy from the repo with `wrangler`. The Collapse Technologies site is fully static — build the static export, then deploy the `out/` folder:
 
 ```bash
 cd apps/collapse-technologies
 npx next build
-npx wrangler pages deploy .next/server/app --project-name collapse-technologies --branch main
+npx wrangler pages deploy out --project-name collapse-technologies --branch main
 ```
 
-> **Gotcha:** Next.js App Router static assets live under `.next/server/app`, not `.next/` root. Deploying `.next/` root serves nothing useful.
+> **Gotcha:** `next.config.mjs` sets `output: "export"`. Deploy `out/` (the static export), not `.next/` or `.next/server/app`. The old `.next/server/app` recipe shipped HTML without any `_next/static` chunks, so every stylesheet/script request fell through to the HTML fallback and the page rendered unstyled and broken.
 
 DNS lives on Cloudflare (zone `collapsetechnologies.com`). Apex and `www` are proxied CNAMEs to `collapse-technologies.pages.dev`. Email records are untouched. Product subdomains get attached as custom domains on their Pages/Workers projects during cutover.
 
