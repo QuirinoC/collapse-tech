@@ -30,5 +30,8 @@
     "test:coach:e2e": "npm --prefix apps/coach-gg run test:e2e",
     "test:pixelboard:web": "node --test apps/infinite-pixelboard/wwwroot/js/pixelboard/tests/*.test.mjs",
     "test:pixelboard": "dotnet test apps/infinite-pixelboard/PixelBoard.sln --no-restore"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
   }
 }
