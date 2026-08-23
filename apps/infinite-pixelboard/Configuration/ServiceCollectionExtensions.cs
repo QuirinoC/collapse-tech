@@ -24,9 +24,9 @@ public static class ServiceCollectionExtensions
         var legacyRedisConnection = Environment.GetEnvironmentVariable("redisconnectionstring");
         var configuredRedisConnection = configuration[$"{RedisOptions.SectionName}:ConnectionString"]
             ?? configuration["redisconnectionstring"];
-        var redisConnection = legacyRedisConnection
+        var redisConnection = NormalizeRedisConnectionString(legacyRedisConnection
             ?? configuredRedisConnection
-            ?? (environment.IsDevelopment() ? "localhost:6379" : string.Empty);
+            ?? (environment.IsDevelopment() ? "localhost:6379" : string.Empty));
 
         services
             .AddOptions<RedisOptions>()
@@ -231,4 +231,41 @@ public static class ServiceCollectionExtensions
 
     private static bool IsSafeAdContentRating(string value) =>
         value is "G" or "PG" or "T";
+
+    // StackExchange.Redis does not support the redis:// URI scheme; it would treat the
+    // whole URI (including "redis://" and the port) as a hostname and fail to connect.
+    private static string NormalizeRedisConnectionString(string connectionString)
+    {
+        var isUriScheme = connectionString is not null
+            && (connectionString.StartsWith("redis://", StringComparison.OrdinalIgnoreCase)
+                || connectionString.StartsWith("rediss://", StringComparison.OrdinalIgnoreCase));
+        if (string.IsNullOrWhiteSpace(connectionString) || !isUriScheme)
+        {
+            return connectionString;
+        }
+
+        if (!Uri.TryCreate(connectionString, UriKind.Absolute, out var uri))
+        {
+            throw new InvalidOperationException(
+                $"Redis connection string '{connectionString}' uses the redis:// scheme but could not be parsed.");
+        }
+
+        var parts = new List<string> { $"{uri.Host}:{(uri.IsDefaultPort ? 6379 : uri.Port)}" };
+        if (!string.IsNullOrEmpty(uri.UserInfo))
+        {
+            var separator = uri.UserInfo.IndexOf(':');
+            var username = separator < 0 ? uri.UserInfo : uri.UserInfo[..separator];
+            var password = separator < 0 ? null : uri.UserInfo[(separator + 1)..];
+            if (username is not ("default" or "")) parts.Add($"user={username}");
+            if (!string.IsNullOrEmpty(password)) parts.Add($"password={password}");
+        }
+
+        // Render Key Value external endpoints use TLS on 6380; internal endpoints are plaintext.
+        if (uri.Port == 6380 || uri.Scheme == "rediss") parts.Add("ssl=true");
+
+        var path = uri.AbsolutePath.Trim('/');
+        if (!string.IsNullOrEmpty(path)) parts.Add($"defaultDatabase={path}");
+
+        return string.Join(',', parts);
+    }
 }

@@ -16,7 +16,9 @@ services:
       - key: FORWARDEDHEADERS__TRUSTPLATFORMPROXY
         value: "true" # Render's ingress is the platform proxy; needed for correct client IPs
       - key: REDISCONNECTIONSTRING
-        sync: false # set from Render Key Value instance after creation
+        sync: false # set to the Key Value internal hostname in host:port form (e.g. red-xxxx:6379).
+                    # StackExchange.Redis does not parse redis:// URIs — do NOT paste Render's
+                    # "redis://..." connection URL; use host:port only.
       - key: Firebase__Enabled
         value: "true"
       - key: Firebase__ProjectId
