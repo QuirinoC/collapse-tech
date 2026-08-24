@@ -65,7 +65,24 @@ Background: Medicare pays nothing for elective care outside the US (foreign-hosp
 - ☐ SEO foundation: procedure cost guides ×10, destination guides ×5, FAQ schema
 - ☐ Launch ad tests: Google Search ($1.5–3k/mo) + Meta ($0.5–1.5k/mo), track CPL and booking rate
 
-## Phase 5 — Go-Live Gates (do NOT operate until all checked)
+## Phase 4b — Website legal elements (competitor benchmark)
+
+Researched Aug 2026 against Bookimed, Medical Departures/Dental Departures, and general facilitator practice. What established operators carry:
+
+| Element | Bookimed | Med Departures | Us (current) | Action |
+|---|---|---|---|---|
+| "Informational only / not medical advice" disclaimer | ✅ full page | ✅ in terms | ✅ in copy + terms | Keep |
+| Facilitator role + no liability for provider outcomes | ✅ "no endorsement" | ✅ explicit "no responsibility or liability of any kind", direct relationship with provider | partial | **Add explicit clause at launch** |
+| Prices/quotes are estimates, not final charges | implicit | ✅ "merely quotations and estimates… request an estimate directly from the Provider" | ✅ "illustrative examples" | Strengthen wording |
+| Insurance is patient's responsibility to determine | n/a (cash market) | ✅ explicit | ✅ FAQ answer | Keep |
+| Results may vary / no outcome guarantees | ✅ | implied | ❌ | **Add before testimonials launch** |
+| Emergency notice ("call 911, don't rely on site") | ✅ | — | 1 mention | Keep |
+| International standards differ / verify credentials yourself | ✅ | ✅ "endeavor to locate reputable… no warranties" | partial via due-diligence FAQ | Add line to terms |
+| Cookie consent banner (GDPR/CCPA) if analytics run | ✅ (EU traffic) | ✅ cookie prefs | ❌ none (no analytics yet) | Required only once we add analytics/tracking |
+| FTC testimonial rules: real results, disclosed compensation, not typical-outcome claims | ✅ review platform | ✅ reviews | n/a pre-launch | Apply when reviews added |
+| AI-content disclaimer (emerging trend) | — | ✅ has dedicated page | n/a | Optional |
+
+**Bottom line:** our current WIP posture already exceeds what competitors disclose. Before go-live, add to `app/terms`: explicit facilitator/no-liability clause, "prices are estimates; obtain a written estimate from the provider," results-may-vary, verify-credentials language. Cookie banner deferred until analytics are installed. (do NOT operate until all checked)
 
 - ☑ Entity formed, bank account confirmed
 - ☐ Attorney-reviewed T&Cs, privacy policy, and referral disclosures live on site
@@ -76,8 +93,9 @@ Background: Medicare pays nothing for elective care outside the US (foreign-hosp
 - ☐ Lead pipeline tested end-to-end with a test inquiry
 - ☐ Financial model reviewed: CAC targets, commission collection process (invoicing providers)
 - ☐ Remove non-operating banner; switch site to live mode
+- ☐ Add launch-time legal elements per Phase 4b benchmark: facilitator/no-liability clause, estimates-not-final-prices wording, results-may-vary, verify-credentials language; cookie banner if analytics installed
 
-## Phase 6 — Post-Launch (first 90 days)
+## Phase 5 — Go-live gates
 
 - ☐ Weekly provider check-ins; monthly quality scorecard updates
 - ☐ Post-return patient surveys after every booking
