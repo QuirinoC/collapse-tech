@@ -1,6 +1,6 @@
 # Collapse Health — Startup Cost Breakdown
 
-Medical tourism referral facilitator (US/Canada → Mexico) · Draft Aug 2026
+Medical tourism referral facilitator (US/Canada → Mexico) · Draft Aug 2026 · **Entity formation: DONE (WA)**
 
 > Planning estimates, not quotes. Ranges reflect lean vs. comfortable setups.
 > Not legal or financial advice.
@@ -9,17 +9,18 @@ Medical tourism referral facilitator (US/Canada → Mexico) · Draft Aug 2026
 
 | Item | Lean | Comfortable | Notes |
 | --- | ---: | ---: | --- |
-| Entity formation (LLC/Corp + EIN + registered agent) | $500 | $1,500 | Delaware/Wyoming common; Texas fine if operating there |
-| US healthcare-compliance consult | $1,500 | $5,000 | AKS/Stark posture review, T&Cs, disclaimers |
-| Mexican counsel: provider contract templates + regulatory review | $2,000 | $6,000 | Bilingual referral agreements; COFEPRIS verification process design |
-| Branding (logo, palette, copy) | $500 | $5,000 | DIY vs. agency |
-| Website (this app) | $100 | $1,000 | Hosting ~$0–20/mo on Cloudflare; domain already owned |
-| CRM / forms / e-sign setup | $0 | $800 | Free tiers exist (HubSpot free, Formspree); paid when scaling |
-| Provider site-visit trip #1 (Tijuana/Los Algodones) | $1,200 | $3,000 | Flights, hotel, ground transport, meals |
+| ~~Entity formation~~ | — | — | ✅ Done |
+| General business attorney: T&Cs, privacy policy, referral disclosures | $500 | $1,500 | Full healthcare-compliance memo is optional; revisit before scaling |
+| Mexican counsel: bilingual referral agreement template only | $1,000 | $2,000 | Providers hold their own COFEPRIS licenses; no separate regulatory review needed |
+| Branding (logo, palette, copy) | $0 | $2,000 | DIY acceptable at start |
+| Website (this app) | $0 | $300 | Built; Cloudflare Pages hosting ~$0/mo; domain owned |
+| CRM / forms / e-sign setup | $0 | $500 | Free tiers cover early volume |
+| Provider site-visit trip #1 (Tijuana/Los Algodones) | $1,200 | $3,000 | Flights, hotel, ground transport, meals — doubles as liability-shield vetting documentation |
 | Provider site-visit trip #2 (Guadalajara/Monterrey/CDMX) | $1,500 | $4,000 | Optional in phase 2 |
-| E&O / professional liability insurance (first year) | $2,000 | $6,000 | Facilitator coverage; brokers familiar with medical tourism |
-| Business licenses/registrations, misc. filings | $200 | $800 | City/state depending on entity location |
-| **One-time subtotal** | **~$9,500** | **~$33,000** | |
+| E&O / professional liability insurance (deferred until launch) | $0 now | $4,000/yr | Required by some partner hospital contracts; buy before first booking, not before |
+| USPTO trademark search for "Collapse Health" | $0 | $500 | Self-search free; attorney opinion optional |
+| Business licenses (WA BLS + city endorsement) | $90 | $300 | Likely partially done with entity |
+| **One-time subtotal** | **~$2,800** | **~$16,000** | |
 
 ## Recurring monthly operating costs
 
@@ -32,7 +33,8 @@ Medical tourism referral facilitator (US/Canada → Mexico) · Draft Aug 2026
 | Email/workspace | $0 | $15 | |
 | Accounting software | $0 | $40 | QuickBooks Simple Start tier |
 | Bookkeeping (outsourced, part-time) | $0 | $300 | Can DIY early |
-| **Monthly subtotal** | **~$0–50/mo** | **~$490/mo** | |
+| E&O insurance (from launch) | — | ~$200–350/mo equivalent | First booking triggers this |
+| **Monthly subtotal (pre-launch)** | **~$0–50/mo** | **~$490/mo** | |
 
 ## Marketing budget (the big variable)
 
@@ -45,11 +47,11 @@ Medical tourism referral facilitator (US/Canada → Mexico) · Draft Aug 2026
 
 ## Total to launch
 
-| Scenario | Cash needed |
+| Scenario | Cash needed (excl. entity, already done) |
 | --- | ---: |
-| **Bootstrapped minimum** (DIY brand/travel/marketing, free tool tiers) | **~$12,000–15,000** |
-| **Lean recommended** (one site visit, small ad test, outsourced legal templates) | **~$20,000–25,000** |
-| **Comfortable** (two site visits, agency branding, 3-month ad runway, bookkeeper) | **~$45,000–55,000** |
+| **Bootstrapped minimum** (DIY brand/marketing, free tool tiers, one trip) | **~$8,000–10,000** |
+| **Lean recommended** (attorney-drafted contracts, small ad test) | **~$12,000–18,000** |
+| **Comfortable** (two trips, agency branding, 3-month ad runway, bookkeeper, E&O from day one) | **~$35,000–45,000** |
 
 ## Revenue context (why these costs are worth it)
 
@@ -60,7 +62,8 @@ Medical tourism referral facilitator (US/Canada → Mexico) · Draft Aug 2026
 
 ## What NOT to spend on yet
 
+- ❌ Healthcare-compliance specialist memo — general attorney covers launch posture; add the specialist before Medicare/Medicaid-adjacent or employer-benefit channels
+- ❌ Separate Mexican regulatory review — provider licensing stays the provider's obligation; verify per-provider during due diligence
 - ❌ Office space — remote until >20 bookings/month
 - ❌ Employees — contractors and free tiers first
-- ❌ Custom lead-routing software — a spreadsheet and CRM free tier suffice
 - ❌ Paid "accreditations" or directory listings of dubious value — verify legitimacy before paying any Mexico-side intermediary
