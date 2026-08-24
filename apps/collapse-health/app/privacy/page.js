@@ -13,27 +13,27 @@ export default function Privacy() {
         <h1>Privacy Policy</h1>
         <p className="updated">Last updated: August 2026</p>
         <p>
-          Collapse Health (&ldquo;we&rdquo;, &ldquo;us&rdquo;) is a medical travel facilitation
-          service operated by Collapse Technologies. This policy explains what information we
-          collect and how we use it.
+          Collapse Health (&ldquo;we&rdquo;, &ldquo;us&rdquo;) is a planned medical travel
+          facilitation service operated by Collapse Technologies. <strong>We are not
+          currently operating and are not providing services.</strong> This policy explains
+          what information this preview site collects and how we use it.
         </p>
         <h2>Information we collect</h2>
         <ul>
-          <li>Contact details you submit through our quote form (name, email, phone) and any notes you provide.</li>
-          <li>Health-related information you choose to share with us for the purpose of obtaining quotes (e.g., procedure of interest). Please share only what you are comfortable sharing.</li>
+          <li>Contact details you submit through the waitlist form (name, email, phone) and any notes you choose to provide.</li>
           <li>Basic usage data such as pages visited.</li>
         </ul>
         <h2>How we use it</h2>
         <ul>
-          <li>To prepare and send you personalized provider quotes.</li>
-          <li>To coordinate care logistics if you choose to proceed.</li>
+          <li>Solely to notify you when (and if) the service launches.</li>
           <li>We never sell your personal information.</li>
         </ul>
         <h2>Sharing</h2>
         <p>
-          When you request a quote, we share the relevant details with the vetted Mexican
-          providers matched to your request. We do not share your information with anyone
-          else without your consent, except where required by law.
+          While we are not operating, your details are not shared with healthcare providers.
+          If the service launches, we would share relevant details only with providers you
+          approve, for the purpose of preparing quotes. We do not otherwise share your
+          information except where required by law.
         </p>
         <h2>Data retention &amp; your rights</h2>
         <p>

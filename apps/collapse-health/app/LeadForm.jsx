@@ -20,7 +20,7 @@ export default function LeadForm() {
     setSending(true);
     setStatus(null);
     const form = new FormData(e.target);
-    // Static export has no API routes — leads are captured via the
+    // Static export has no API routes — waitlist signups are captured via the
     // configured endpoint env var (e.g., a Formspree/Worker URL) baked at build.
     const endpoint = process.env.NEXT_PUBLIC_LEAD_ENDPOINT;
     try {
@@ -31,12 +31,12 @@ export default function LeadForm() {
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
       if (!res.ok) throw new Error("bad-status");
-      setStatus({ ok: true, msg: "Thanks! A care coordinator will reach out within one business day." });
+    setStatus({ ok: true, msg: "You're on the list! We'll email you when we launch." });
       e.target.reset();
     } catch {
       setStatus({
         ok: false,
-        msg: "We couldn't send your request just now — email hello@collapsetechnologies.com and we'll take it from there.",
+      msg: "We couldn't add you just now — email hello@collapsetechnologies.com and we'll add you manually.",
       });
     } finally {
       setSending(false);
@@ -58,11 +58,9 @@ export default function LeadForm() {
         <input type="tel" name="phone" autoComplete="tel" />
       </label>
       <label>
-        Procedure of interest
-        <select name="procedure" required defaultValue="">
-          <option value="" disabled>
-            Select a procedure…
-          </option>
+        Procedure you&apos;re considering (optional)
+        <select name="procedure" defaultValue="">
+          <option value="">Select a procedure…</option>
           {PROCEDURES.map((p) => (
             <option key={p} value={p}>
               {p}
@@ -75,7 +73,7 @@ export default function LeadForm() {
         <textarea name="notes" rows="3" />
       </label>
       <button className="btn btn-primary" type="submit" disabled={sending}>
-        {sending ? "Sending…" : "Request my free quote"}
+        {sending ? "Sending…" : "Notify me at launch"}
       </button>
       <p className={`form-status ${status ? (status.ok ? "ok" : "err") : ""}`}>
         {status?.msg}

@@ -28,6 +28,20 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* WIP banner */
+.site-banner {
+  background: #4a3208;
+  color: #ffe9b3;
+  text-align: center;
+  padding: 10px 20px;
+  font-size: 0.88rem;
+  border-bottom: 1px solid rgba(255, 233, 179, 0.25);
+}
+
+.site-banner strong {
+  color: #ffd166;
+}
+
 .container {
   max-width: var(--maxw);
   margin: 0 auto;
