@@ -40,6 +40,7 @@ Background: Medicare pays nothing for elective care outside the US (foreign-hosp
 - ☐ Written policy: commissions accepted only from Mexican providers; never from any US-based provider
 - ☐ Written policy: never assist with any Medicare/Medicaid claim related to a medical travel trip
 - ☐ Revisit compliance attorney review before: partnering with any US clinic, selling employer benefit products, or handling insurance navigation
+- ☐ Insurance posture (documented): US insurance does not cover planned care abroad regardless of referrals — customers are cash-pay by definition. Never suggest or facilitate insurance billing; FAQ answers this plainly. Future exception: employer self-funded plans are a legitimate coverage channel, but require compliance counsel first
 
 ## Phase 3 — Operations Setup (weeks 4–8)
 

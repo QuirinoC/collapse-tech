@@ -248,6 +248,19 @@ export default function Home() {
             </p>
           </details>
           <details>
+            <summary>Will my insurance cover treatment in Mexico?</summary>
+            <p>
+              Almost certainly not. US health insurance — employer plans, ACA marketplace plans,
+              HMOs, Medicare, and Medicaid — generally does not pay for planned (non-emergency)
+              care delivered outside the United States, regardless of referrals. Travel insurance
+              covers emergencies abroad only, never scheduled surgery. This is exactly why the
+              self-pay market exists: the service is designed for patients paying directly,
+              whose savings versus US prices are largest. Some border-area insurers do offer
+              plans with Mexican provider networks, but those come with their own providers.
+              Check your policy documents for the definitive answer on your specific plan.
+            </p>
+          </details>
+          <details>
             <summary>How would Collapse Health make money?</summary>
             <p>
               Our intended model is that partner providers pay us a referral fee when a patient
