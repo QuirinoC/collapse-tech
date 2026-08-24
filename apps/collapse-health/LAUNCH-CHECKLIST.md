@@ -32,7 +32,9 @@ For each target specialty (start: dental + bariatric):
 
 ## Phase 2b — Federal Anti-Kickback (AKS) Safeguards
 
-AKS (42 U.S.C. § 1320a-7b(b)) criminalizes paying/receiving anything of value for referrals into care paid by Medicare, Medicaid, TRICARE, or VA. Our model is safe only because Mexican providers cannot bill federal programs and patients pay cash. Keep it that way:
+AKS (42 U.S.C. § 1320a-7b(b)) criminalizes paying/receiving anything of value for referrals into care paid by Medicare, Medicaid, TRICARE, or VA. Our model is safe only because Mexican providers cannot bill federal programs and patients pay cash. Keep it that way.
+
+Background: Medicare pays nothing for elective care outside the US (foreign-hospital coverage exists only for emergencies occurring on US soil near a border); Medicaid generally doesn't cover out-of-state, let alone out-of-country, care. There is no legitimate reimbursement path — any "claim" would be fraud (e.g., forged invoices or a US provider re-billing), which we must never assist or appear to assist:
 
 - ☐ Add a screening question to intake: "Do you intend to seek reimbursement from Medicare/Medicaid for any part of this?" — document the answer per lead
 - ☐ Written policy: commissions accepted only from Mexican providers; never from any US-based provider
