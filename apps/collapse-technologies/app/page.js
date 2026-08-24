@@ -28,6 +28,15 @@ const projects = [
     href: null,
     mark: "03",
   },
+  {
+    name: "Dress Like Me",
+    description:
+      "Paste a fit, get the pieces. AI outfit breakdowns turned into shoppable signal.",
+    category: "Experiment",
+    status: "In progress",
+    href: null,
+    mark: "04",
+  },
 ];
 
 const disciplines = [

@@ -90,7 +90,7 @@ Before launch, block sexual and other unsuitable sensitive categories in AdSense
 
 ## Deployment
 
-The application requires a persistent ASP.NET Core process for SignalR and Redis-backed shared state, so it is not compatible with Vercel's serverless runtime and intentionally has no `vercel.json`.
+The application requires a persistent ASP.NET Core process for SignalR and Redis-backed shared state. Production runs as a Render web service (auto-deploy on push to `main`) with Render Key Value providing Redis.
 
 Build from this directory with the included Dockerfile. The production container listens on port `8080` and requires:
 
@@ -115,7 +115,7 @@ Build from this directory with the included Dockerfile. The production container
 | `Advertising__AdMobApplicationId` | AdMob app ID in `ca-app-pub-...~...` format |
 | `Advertising__AdMobMaxContentRating` | Maximum mobile ad content rating (`G`, `PG`, or `T`) |
 
-`Infrastructure/Cloud/ContainerApp.json` retains the source repository's Azure Container Apps deployment template.
+`Infrastructure/Cloud/ContainerApp.json` retains the retired Azure Container Apps deployment template for historical reference only; production is Render (see root README and `apps/render.yaml`).
 
 ## Moderation ledger
 

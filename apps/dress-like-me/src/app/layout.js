@@ -1,4 +1,3 @@
-import { Analytics } from "@vercel/analytics/next";
 import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
@@ -68,7 +67,6 @@ export default function RootLayout({ children }) {
             <a href="https://collapsetechnologies.com">Collapse Technologies</a>
           </div>
         </footer>
-        <Analytics />
       </body>
     </html>
   );

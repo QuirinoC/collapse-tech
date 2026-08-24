@@ -14,6 +14,7 @@ import GoogleSignIn
 final class FirebaseAuthAdapter: NSObject, AuthenticationSession, @unchecked Sendable {
     private var appleAuthorization: AppleAuthorizationCoordinator?
     private var isAuthorizing = false
+    private var pendingAppleAuthorizationCode: String?
 
     var isAuthenticated: Bool {
         FirebaseApp.app() != nil && Auth.auth().currentUser != nil
@@ -33,8 +34,8 @@ final class FirebaseAuthAdapter: NSObject, AuthenticationSession, @unchecked Sen
         defer { isAuthorizing = false }
         switch provider {
         case .apple:
-            let credential = try await appleCredential()
-            _ = try await Auth.auth().signIn(with: credential)
+            let result = try await appleCredential()
+            _ = try await Auth.auth().signIn(with: result.firebaseCredential)
         case .google:
             let credential = try await googleCredential()
             _ = try await Auth.auth().signIn(with: credential)
@@ -48,16 +49,24 @@ final class FirebaseAuthAdapter: NSObject, AuthenticationSession, @unchecked Sen
         guard !isAuthorizing else { throw ProviderSignInError.signInInProgress }
         isAuthorizing = true
         defer { isAuthorizing = false }
+        pendingAppleAuthorizationCode = nil
         let providerIDs = Set(user.providerData.map(\.providerID))
         let credential: AuthCredential
+        var appleAuthorizationCode: String?
         if providerIDs.contains("google.com") {
             credential = try await googleCredential()
         } else if providerIDs.contains("apple.com") {
-            credential = try await appleCredential()
+            let result = try await appleCredential()
+            credential = result.firebaseCredential
+            guard let authorizationCode = result.authorizationCode else {
+                throw ProviderSignInError.missingAppleAuthorizationCode
+            }
+            appleAuthorizationCode = authorizationCode
         } else {
             throw AuthenticationError.reauthenticationUnavailable
         }
         _ = try await user.reauthenticate(with: credential)
+        pendingAppleAuthorizationCode = appleAuthorizationCode
     }
 
     func signOut() throws {
@@ -65,6 +74,7 @@ final class FirebaseAuthAdapter: NSObject, AuthenticationSession, @unchecked Sen
             throw AuthenticationError.providerNotConfigured
         }
         GIDSignIn.sharedInstance.signOut()
+        pendingAppleAuthorizationCode = nil
         try Auth.auth().signOut()
     }
 
@@ -72,14 +82,24 @@ final class FirebaseAuthAdapter: NSObject, AuthenticationSession, @unchecked Sen
         guard FirebaseApp.app() != nil, let user = Auth.auth().currentUser else {
             throw AuthenticationError.authenticationRequired
         }
+        let providerIDs = Set(user.providerData.map(\.providerID))
+        if providerIDs.contains("apple.com") {
+            guard let authorizationCode = pendingAppleAuthorizationCode else {
+                throw AuthenticationError.reauthenticationUnavailable
+            }
+            try await Auth.auth().revokeToken(withAuthorizationCode: authorizationCode)
+            pendingAppleAuthorizationCode = nil
+        }
         try await user.delete()
     }
 
     private func googleCredential() async throws -> AuthCredential {
         guard let options = FirebaseApp.app()?.options,
-              let clientID = options.clientID,
-              let reversedClientID = options.reversedClientID,
-              Self.registeredURLSchemes.contains(reversedClientID) else {
+              let clientID = options.clientID else {
+            throw AuthenticationError.providerNotConfigured
+        }
+        let callbackScheme = clientID.split(separator: ".").reversed().joined(separator: ".")
+        guard Self.registeredURLSchemes.contains(callbackScheme) else {
             throw AuthenticationError.providerNotConfigured
         }
         GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
@@ -94,7 +114,7 @@ final class FirebaseAuthAdapter: NSObject, AuthenticationSession, @unchecked Sen
         )
     }
 
-    private func appleCredential() async throws -> AuthCredential {
+    private func appleCredential() async throws -> AppleCredentialResult {
         let nonce = try Self.randomNonce()
         let coordinator = AppleAuthorizationCoordinator(
             anchor: try presentationAnchor(),
@@ -111,10 +131,15 @@ final class FirebaseAuthAdapter: NSObject, AuthenticationSession, @unchecked Sen
               let idToken = String(data: identityToken, encoding: .utf8) else {
             throw ProviderSignInError.missingAppleIDToken
         }
-        return OAuthProvider.appleCredential(
-            withIDToken: idToken,
-            rawNonce: nonce,
-            fullName: appleCredential.fullName
+        return AppleCredentialResult(
+            firebaseCredential: OAuthProvider.appleCredential(
+                withIDToken: idToken,
+                rawNonce: nonce,
+                fullName: appleCredential.fullName
+            ),
+            authorizationCode: appleCredential.authorizationCode.flatMap {
+                String(data: $0, encoding: .utf8)
+            }
         )
     }
 
@@ -166,6 +191,11 @@ final class FirebaseAuthAdapter: NSObject, AuthenticationSession, @unchecked Sen
         }
         return result
     }
+}
+
+private struct AppleCredentialResult {
+    let firebaseCredential: AuthCredential
+    let authorizationCode: String?
 }
 
 @MainActor
@@ -225,6 +255,7 @@ private final class AppleAuthorizationCoordinator: NSObject,
 
 private enum ProviderSignInError: LocalizedError {
     case invalidAppleCredential
+    case missingAppleAuthorizationCode
     case missingAppleIDToken
     case missingGoogleIDToken
     case nonceGenerationFailed
@@ -235,6 +266,8 @@ private enum ProviderSignInError: LocalizedError {
         switch self {
         case .invalidAppleCredential:
             return "Apple returned an unsupported sign-in credential."
+        case .missingAppleAuthorizationCode:
+            return "Apple did not return the authorization code required to delete this account."
         case .missingAppleIDToken:
             return "Apple did not return an identity token."
         case .missingGoogleIDToken:

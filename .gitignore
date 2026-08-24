@@ -5,4 +5,8 @@ out/
 coverage/
 test-results/
 playwright-report/
+<<<<<<< Updated upstream
 .workflow-data/
+=======
+.vercel
+>>>>>>> Stashed changes

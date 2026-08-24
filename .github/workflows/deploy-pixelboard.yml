@@ -1,160 +1,22 @@
-name: Deploy Infinite Pixelboard
+# Infinite Pixelboard production deploys now happen on Render.
+#
+# The Render service (srv-da55t78u01pc73e3rlu0) auto-deploys from `main`
+# whenever this repo pushes. There is nothing to orchestrate here.
+#
+# This workflow previously drove the Azure Container Apps pipeline
+# (ACR build + ARM deploy). That stack is retired; see apps/render.yaml
+# and README.md "Deployments" for the current architecture.
+name: Deploy Infinite Pixelboard (Render)
 
 on:
   workflow_dispatch:
-    inputs:
-      advertising_web_enabled:
-        description: Enable web advertising after moderation approval
-        required: true
-        default: false
-        type: boolean
-      advertising_mobile_enabled:
-        description: Enable mobile advertising after moderation approval
-        required: true
-        default: false
-        type: boolean
-      moderation_operations_enabled:
-        description: Assert staffed moderation and emergency shutdown are operational
-        required: true
-        default: false
-        type: boolean
-      storekit_enabled:
-        description: Enable verified StoreKit subscriptions
-        required: true
-        default: false
-        type: boolean
-
-concurrency:
-  group: pixelboard-production
-  cancel-in-progress: false
 
 jobs:
-  validate:
-    name: Validate image and template
+  noop:
+    name: Deploys are automatic on Render
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - name: Validate ARM JSON
-        run: jq empty apps/infinite-pixelboard/Infrastructure/Cloud/ContainerApp.json
-      - name: Build production image
-        run: docker build --tag pixelboard:${{ github.sha }} apps/infinite-pixelboard
-      - name: Verify production image is non-root
-        run: test -n "$(docker image inspect pixelboard:${{ github.sha }} --format '{{.Config.User}}')"
-
-  deploy:
-    name: Deploy production
-    needs: validate
-    runs-on: ubuntu-latest
-    environment: production
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Build and push path-scoped image
-        id: image
-        env:
-          ACR_NAME: ${{ vars.AZURE_ACR_NAME }}
+      - name: Explain
         run: |
-          set -euo pipefail
-          az acr build \
-            --registry "$ACR_NAME" \
-            --image "pixelboard:${GITHUB_SHA}" \
-            apps/infinite-pixelboard
-          digest=$(az acr repository show \
-            --name "$ACR_NAME" \
-            --image "pixelboard:${GITHUB_SHA}" \
-            --query digest \
-            --output tsv)
-          test -n "$digest"
-          echo "reference=${ACR_NAME}.azurecr.io/pixelboard@${digest}" >> "$GITHUB_OUTPUT"
-      - name: Validate and deploy infrastructure
-        env:
-          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-          LOCATION: ${{ vars.AZURE_LOCATION }}
-          ACR_RESOURCE_ID: ${{ vars.AZURE_ACR_RESOURCE_ID }}
-          ACR_LOGIN_SERVER: ${{ vars.AZURE_ACR_NAME }}.azurecr.io
-          DEPLOYMENT_PRINCIPAL_OBJECT_ID: ${{ vars.AZURE_PRINCIPAL_OBJECT_ID }}
-          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
-          STOREKIT_BUNDLE_ID: ${{ vars.STOREKIT_BUNDLE_ID }}
-          STOREKIT_MONTHLY_PRODUCT_ID: ${{ vars.STOREKIT_MONTHLY_PRODUCT_ID }}
-          STOREKIT_ANNUAL_PRODUCT_ID: ${{ vars.STOREKIT_ANNUAL_PRODUCT_ID }}
-          ADSENSE_PUBLISHER_ID: ${{ vars.ADSENSE_PUBLISHER_ID }}
-          ADSENSE_BOARD_SLOT_ID: ${{ vars.ADSENSE_BOARD_SLOT_ID }}
-          ADMOB_APPLICATION_ID: ${{ vars.ADMOB_APPLICATION_ID }}
-          ADMOB_MAX_CONTENT_RATING: ${{ vars.ADMOB_MAX_CONTENT_RATING }}
-          POSTGRES_ADMIN_PASSWORD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
-          POSTGRES_RUNTIME_CONNECTION_STRING: ${{ secrets.POSTGRES_RUNTIME_CONNECTION_STRING }}
-          ABUSE_SIGNAL_HMAC_KEY: ${{ secrets.ABUSE_SIGNAL_HMAC_KEY }}
-          STOREKIT_TRUSTED_ROOT_CERTIFICATE: ${{ secrets.STOREKIT_TRUSTED_ROOT_CERTIFICATE }}
-          IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
-          ADVERTISING_WEB_ENABLED: ${{ inputs.advertising_web_enabled }}
-          ADVERTISING_MOBILE_ENABLED: ${{ inputs.advertising_mobile_enabled }}
-          MODERATION_OPERATIONS_ENABLED: ${{ inputs.moderation_operations_enabled }}
-          STOREKIT_ENABLED: ${{ inputs.storekit_enabled }}
-        run: |
-          set -euo pipefail
-          case "$IMAGE_REFERENCE" in
-            *@sha256:*) ;;
-            *) echo "Deployment requires an immutable image digest." >&2; exit 1 ;;
-          esac
-          if { [ "$ADVERTISING_WEB_ENABLED" = "true" ] || [ "$ADVERTISING_MOBILE_ENABLED" = "true" ]; } \
-            && [ "$MODERATION_OPERATIONS_ENABLED" != "true" ]; then
-            echo "Advertising requires operational moderation." >&2
-            exit 1
-          fi
-          if [ "$ADVERTISING_WEB_ENABLED" = "true" ] \
-            && { [ -z "$ADSENSE_PUBLISHER_ID" ] || [ -z "$ADSENSE_BOARD_SLOT_ID" ]; }; then
-            echo "Web advertising requires the protected AdSense publisher and slot variables." >&2
-            exit 1
-          fi
-          if [ "$ADVERTISING_MOBILE_ENABLED" = "true" ] \
-            && { [ -z "$ADMOB_APPLICATION_ID" ] || [ -z "$ADMOB_MAX_CONTENT_RATING" ]; }; then
-            echo "Mobile advertising requires the protected AdMob application and rating variables." >&2
-            exit 1
-          fi
-          common=(
-            --resource-group "$RESOURCE_GROUP"
-            --template-file apps/infinite-pixelboard/Infrastructure/Cloud/ContainerApp.json
-            --parameters
-              location="$LOCATION"
-              containerImage="$IMAGE_REFERENCE"
-              deploymentPrincipalObjectId="$DEPLOYMENT_PRINCIPAL_OBJECT_ID"
-              acrResourceId="$ACR_RESOURCE_ID"
-              acrLoginServer="$ACR_LOGIN_SERVER"
-              firebaseProjectId="$FIREBASE_PROJECT_ID"
-              postgresAdministratorPassword="$POSTGRES_ADMIN_PASSWORD"
-              postgresRuntimeConnectionString="$POSTGRES_RUNTIME_CONNECTION_STRING"
-              abuseSignalHmacKey="$ABUSE_SIGNAL_HMAC_KEY"
-              storeKitTrustedRootCertificate="$STOREKIT_TRUSTED_ROOT_CERTIFICATE"
-              storeKitBundleId="$STOREKIT_BUNDLE_ID"
-              storeKitMonthlyProductId="$STOREKIT_MONTHLY_PRODUCT_ID"
-              storeKitAnnualProductId="$STOREKIT_ANNUAL_PRODUCT_ID"
-              storeKitEnabled="$STOREKIT_ENABLED"
-              advertisingWebEnabled="$ADVERTISING_WEB_ENABLED"
-              advertisingMobileEnabled="$ADVERTISING_MOBILE_ENABLED"
-              advertisingModerationOperationsEnabled="$MODERATION_OPERATIONS_ENABLED"
-              adSensePublisherId="$ADSENSE_PUBLISHER_ID"
-              adSenseBoardSlotId="$ADSENSE_BOARD_SLOT_ID"
-              adMobApplicationId="$ADMOB_APPLICATION_ID"
-              adMobMaxContentRating="$ADMOB_MAX_CONTENT_RATING"
-              deploymentRevision="$GITHUB_RUN_ID"
-          )
-          az deployment group validate "${common[@]}" --name "pixelboard-${GITHUB_RUN_ID}"
-          for attempt in 1 2 3; do
-            if az deployment group create "${common[@]}" --name "pixelboard-${GITHUB_RUN_ID}"; then
-              exit 0
-            fi
-            if [ "$attempt" -eq 3 ]; then
-              echo "Deployment failed after waiting for role-assignment propagation." >&2
-              exit 1
-            fi
-            sleep 30
-          done
+          echo "Infinite Pixelboard deploys automatically via Render on push to main."
+          echo "No GitHub Actions deployment steps are required."

@@ -1,0 +1,27 @@
+# Collapse Technologies — Render Blueprint
+# Apply from Render Dashboard → collapse-tech project → New → Blueprint
+# or via CLI: render blueprints validate apps/render.yaml
+services:
+  - type: web
+    name: infinite-pixelboard
+    runtime: docker
+    dockerfilePath: ./apps/infinite-pixelboard/Dockerfile
+    dockerContext: ./apps/infinite-pixelboard
+    plan: starter
+    healthCheckPath: /health/ready
+    autoDeploy: true
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: FORWARDEDHEADERS__TRUSTPLATFORMPROXY
+        value: "true" # Render's ingress is the platform proxy; needed for correct client IPs
+      - key: REDISCONNECTIONSTRING
+        sync: false # set to the Key Value internal hostname in host:port form (e.g. red-xxxx:6379).
+                    # StackExchange.Redis does not parse redis:// URIs — do NOT paste Render's
+                    # "redis://..." connection URL; use host:port only.
+      - key: Firebase__Enabled
+        value: "true"
+      - key: Firebase__ProjectId
+        sync: false
+      - key: Postgres__Enabled
+        value: "false"

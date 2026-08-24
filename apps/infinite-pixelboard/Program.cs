@@ -23,10 +23,22 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
         | ForwardedHeaders.XForwardedProto;
     options.ForwardLimit = 1;
-    options.KnownNetworks.Add(
-        new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
-            IPAddress.Parse("10.42.0.0"),
-            23));
+    // Azure Container Apps proxies originate from 10.42.0.0/23. Other PaaS
+    // ingress layers (Fly.io, Render, Railway) use different proxy ranges, so
+    // allow trusting the platform proxy explicitly via configuration instead
+    // of hardcoding one cloud's network.
+    if (builder.Configuration.GetValue<bool>("ForwardedHeaders:TrustPlatformProxy"))
+    {
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+    }
+    else
+    {
+        options.KnownNetworks.Add(
+            new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
+                IPAddress.Parse("10.42.0.0"),
+                23));
+    }
 });
 
 Console.WriteLine($"Environment: {builder.Environment.EnvironmentName}");

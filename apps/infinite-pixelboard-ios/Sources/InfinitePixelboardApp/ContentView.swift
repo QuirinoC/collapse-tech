@@ -112,7 +112,7 @@ struct ContentView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityLiveRegion(.polite)
+                .accessibilityAddTraits(.updatesFrequently)
 
             ReservedAdBanner(tier: model.tier)
         }

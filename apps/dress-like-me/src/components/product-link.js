@@ -1,6 +1,6 @@
 "use client";
 
-import { track } from "@vercel/analytics";
+import { track } from "../lib/analytics";
 
 export default function ProductLink({ children, className, href, merchant }) {
   return (

@@ -1,3 +1,5 @@
+# STATUS: RETIRED — this Azure Container Apps stack is no longer used. Production runs on Render (see apps/render.yaml and the root README). Retained for historical reference until Azure decommission completes.
+
 # Infinite Pixelboard production deployment
 
 `ContainerApp.json` is a resource-group-scoped ARM template for a self-contained production layer. It provisions a VNet-integrated Container Apps environment, Log Analytics, a continuously running Container App, user-assigned runtime and migration identities, RBAC-enabled Key Vault, TLS-only Redis with a private endpoint, and PostgreSQL Flexible Server on a delegated private subnet. Names, locations, registry IDs, image references, and product settings are parameters; the template contains no subscription or resource-group IDs.

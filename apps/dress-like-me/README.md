@@ -32,20 +32,23 @@ imports. The service-role key is server-only and must never use a
   app stores the permalink, permitted metadata, garment data, and product
   result snapshot—not source image bytes.
 
-Searches are recorded with salted request fingerprints when configured. Vercel
-Analytics events contain only aggregate booleans or merchant names, never raw
-queries, post URLs, or source images.
+Searches are recorded with salted request fingerprints when configured. Analytics
+events contain only aggregate booleans or merchant names, never raw queries,
+post URLs, or source images.
 
 ## Deployment
 
-Create a Vercel project with **Root Directory** set to `apps/dress-like-me`,
-configure the variables in `.env.example`, and deploy. Set
+Deploy as a Cloudflare Worker via `@opennextjs/cloudflare` (same pattern as
+`apps/asymmetric-challenge`: adapter config + `wrangler.jsonc`, build with
+`npx opennextjs-cloudflare build`, deploy with `npx wrangler deploy`). Configure
+the variables in `.env.example` as Worker secrets. Set
 `NEXT_PUBLIC_SITE_URL=https://dresslikeme.collapsetechnologies.com`, then attach
-that domain to the project.
+that domain to the Worker.
 
-The Workflow integration is enabled in `next.config.mjs`. Production workflows
-use Vercel's managed runtime. The internal `/admin` page requires
-`ADMIN_API_TOKEN` and supports reviewing and retrying failed imports.
+> **Status:** migration parked — this app is not yet deployed to Cloudflare.
+
+The internal `/admin` page requires `ADMIN_API_TOKEN` and supports reviewing
+and retrying failed imports.
 
 ## Operations
 

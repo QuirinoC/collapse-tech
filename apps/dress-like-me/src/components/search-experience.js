@@ -1,6 +1,6 @@
 "use client";
 
-import { track } from "@vercel/analytics";
+import { track } from "../lib/analytics";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 

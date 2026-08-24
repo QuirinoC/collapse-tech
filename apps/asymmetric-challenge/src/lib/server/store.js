@@ -41,7 +41,7 @@ function toNumber(value) {
 }
 
 async function fetchTotalsPg() {
-  const pool = getPool();
+  const pool = await getPool();
   const result = await pool.query(
     `select
       coalesce(sum(attempts_total), 0) as attempts_total,
@@ -94,7 +94,7 @@ export async function fetchTotals() {
 }
 
 async function insertTelemetryPg(payload) {
-  const pool = getPool();
+  const pool = await getPool();
   await pool.query(
     `insert into telemetry_aggregates
       (client_id, session_id, started_at, ended_at, attempts_total, attempts_auto, attempts_manual, auto_enabled)
@@ -153,7 +153,7 @@ export async function insertTelemetry(payload) {
 }
 
 async function tryClaimPg({ guessHex, clientId, sessionId }) {
-  const pool = getPool();
+  const pool = await getPool();
   const client = await pool.connect();
 
   try {
