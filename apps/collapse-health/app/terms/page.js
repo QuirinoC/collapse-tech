@@ -29,10 +29,14 @@ export default function Terms() {
         <h2>3. No medical services; no warranties on clinical outcomes</h2>
         <p>
           All clinical care would be provided solely by independent providers selected by you.
-          We intend to make reasonable efforts to verify licenses, certifications, and
-          credentials, but we would not guarantee clinical outcomes and we would not be liable
-          for the acts or omissions of any provider. Any healthcare decision should be made
-          directly with qualified, licensed physicians.
+          If launched, using our facilitation services would mean entering into a direct
+          relationship with the provider you choose — we would not be a party to that
+          relationship, and we would have no responsibility or liability of any kind for the
+          medical services a provider delivers or fails to deliver. We intend to make reasonable
+          efforts to verify licenses, certifications, and credentials, but medical standards,
+          regulation, and outcomes differ by country; you remain responsible for evaluating any
+          provider&rsquo;s credentials and accreditation before traveling for care. Individual
+          results and recovery experiences vary, and no clinical outcome can be guaranteed.
         </p>
         <h2>4. Compensation disclosure</h2>
         <p>
@@ -45,7 +49,10 @@ export default function Terms() {
         <p>
           All prices shown on this site are illustrative examples based on publicly reported
           market rates. They are not quotes, estimates for any specific case, or guarantees,
-          and actual prices vary by provider, case complexity, and time.
+          and actual prices vary by provider, case complexity, and time. Any future estimate
+          obtained through facilitation would be non-binding until confirmed in writing by the
+          provider after in-person examination; final charges may differ from any preliminary
+          figure.
         </p>
         <h2>6. Travel and personal responsibility</h2>
         <p>
