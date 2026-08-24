@@ -1,45 +1,28 @@
-// Illustrative price examples based on publicly reported market rates.
-// These are NOT quotes, offers, or guarantees. Actual prices vary by
-// provider, case complexity, and time.
+// Procedure categories we plan to facilitate. No pricing is shown anywhere —
+// when operating, every patient receives itemized quotes directly from providers.
 export const procedures = [
   {
     name: "Dental implants (full arch)",
-    usPrice: 24000,
-    mxPrice: 9000,
-    desc: "All-on-X implant treatment, commonly sought in border dental towns.",
+    desc: "All-on-X implant treatment at established dental clinics in border and resort cities.",
   },
   {
     name: "Gastric sleeve",
-    usPrice: 18000,
-    mxPrice: 5500,
     desc: "Laparoscopic sleeve gastrectomy, one of the most-traveled-for procedures.",
   },
   {
-    name: "Cosmetic surgery (mommy makeover)",
-    usPrice: 16000,
-    mxPrice: 6500,
-    desc: "Combined cosmetic procedures from board-certified plastic surgeons.",
+    name: "Cosmetic surgery",
+    desc: "Planned access to board-certified plastic surgeons for common aesthetic procedures.",
   },
   {
-    name: "Hip replacement",
-    usPrice: 40000,
-    mxPrice: 14000,
-    desc: "Total hip arthroplasty at major hospital cities.",
+    name: "Hip & knee replacement",
+    desc: "Total joint arthroplasty at major hospital cities with international patient departments.",
   },
   {
-    name: "IVF cycle",
-    usPrice: 20000,
-    mxPrice: 7500,
-    desc: "Full IVF with ICSI at established fertility clinics.",
+    name: "IVF & fertility care",
+    desc: "Fertility treatment cycles at established clinics with English-speaking coordinators.",
   },
   {
-    name: "Dental crowns (per crown)",
-    usPrice: 1800,
-    mxPrice: 450,
-    desc: "Zirconia crowns, same-day CAD/CAM options commonly available.",
+    name: "Dental crowns & cosmetics",
+    desc: "Zirconia crowns and cosmetic dentistry, often completed in fewer visits than at home.",
   },
 ];
-
-export function pctSaving(usPrice, mxPrice) {
-  return Math.round(((usPrice - mxPrice) / usPrice) * 100);
-}

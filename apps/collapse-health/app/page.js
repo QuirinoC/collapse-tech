@@ -1,6 +1,6 @@
 import Link from "next/link";
 import LeadForm from "./LeadForm";
-import { procedures, pctSaving } from "./data";
+import { procedures } from "./data";
 
 export default function Home() {
   return (
@@ -57,16 +57,16 @@ export default function Home() {
       <section className="strip">
         <div className="container strip-grid">
           <div>
-            <strong>40–70%</strong>
-            <span>savings often reported for comparable procedures in Mexico vs. U.S. list prices*</span>
-          </div>
-          <div>
             <strong>Licensed only</strong>
             <span>our plan is to work exclusively with facilities holding valid sanitary licenses</span>
           </div>
           <div>
-            <strong>$0 planned</strong>
-            <span>our intended model has providers paying our fee, not patients</span>
+            <strong>Credential-checked</strong>
+            <span>planned verification of physician credentials before any partner is added</span>
+          </div>
+          <div>
+            <strong>English-speaking</strong>
+            <span>planned care coordination in English from first contact to follow-up</span>
           </div>
           <div>
             <strong>Coming soon</strong>
@@ -80,25 +80,14 @@ export default function Home() {
         <div className="container">
           <h2>Procedures patients commonly consider in Mexico</h2>
           <p className="section-sub">
-            *Illustrative examples based on publicly reported market rates — not quotes,
-            not offers, and actual prices vary widely by provider, case, and time.
+            When operating, every patient receives itemized quotes directly from providers
+            for their specific case — no generic price lists, no surprises.
           </p>
           <div className="cards">
             {procedures.map((p) => (
               <article key={p.name} className="card">
                 <h3>{p.name}</h3>
                 <p className="card-desc">{p.desc}</p>
-                <div className="prices">
-                  <div className="price-us">
-                    <span>Reported U.S. range</span>
-                    <s>${p.usPrice.toLocaleString()}</s>
-                  </div>
-                  <div className="price-mx">
-                    <span>Reported Mexico range*</span>
-                    <em>~${p.mxPrice.toLocaleString()}</em>
-                  </div>
-                  <div className="price-save">Illustrative gap: {pctSaving(p.usPrice, p.mxPrice)}%</div>
-                </div>
               </article>
             ))}
           </div>
@@ -219,12 +208,13 @@ export default function Home() {
             </p>
           </details>
           <details>
-            <summary>How much could I save?</summary>
+            <summary>What does care in Mexico cost?</summary>
             <p>
-              Publicly reported rates suggest substantial savings versus U.S. hospital list prices
-              for many procedures, though figures vary widely by provider, case complexity, and
-              time — and travel costs offset some of the difference. All numbers on this site are
-              illustrative examples, not quotes or guarantees.
+              Costs vary widely by procedure, provider, case complexity, and time — which is
+              exactly why we plan not to publish generic price lists. Publicly reported rates
+              suggest care in Mexico can cost substantially less than comparable U.S. hospital
+              pricing. When operating, our process is built around itemized written quotes from
+              providers for your specific case before any commitment.
             </p>
           </details>
           <details>
@@ -295,11 +285,9 @@ export default function Home() {
             When operating, Collapse Health intends to act solely as a medical travel
             facilitator. We do not and will not practice medicine, employ physicians, or
             provide healthcare services; all clinical care would be provided by independent,
-            licensed Mexican providers. Price figures shown are illustrative examples based on
-            publicly reported rates, are subject to change without notice, and are not quotes,
-            estimates for your case, or guarantees of savings. Content on this site is
-            informational only and is not medical advice — consult a qualified physician
-            before making any healthcare or travel decision.
+            licensed Mexican providers. Content on this site is informational only and is
+            not medical advice — consult a qualified physician before making any healthcare
+            or travel decision.
           </p>
           <p>© {new Date().getFullYear()} Collapse Technologies. All rights reserved.</p>
         </div>
