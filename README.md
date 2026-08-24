@@ -9,6 +9,7 @@ The workspace behind [collapsetechnologies.com](https://collapsetechnologies.com
 | Collapse Technologies | `apps/collapse-technologies` | Studio landing site |
 | Asymmetric Challenge | `apps/asymmetric-challenge` | 256-bit key challenge experiment |
 | Dress Like Me | `apps/dress-like-me` | Creator-style discovery and shopping matches |
+| Collapse Health | `apps/collapse-health` | Medical tourism referral site (US/Canada → Mexico) |
 | CoachGG | `apps/coach-gg` | Super Smash Bros. Ultimate player analysis with live SignalR updates |
 | Infinite Pixelboard | `apps/infinite-pixelboard` | Collaborative, infinite canvas built with ASP.NET Core SignalR |
 
@@ -29,6 +30,13 @@ npm run dev:challenge
 ```bash
 npm --prefix apps/dress-like-me install
 npm run dev:dress
+```
+
+Collapse Health is a fully static export, same as the studio site:
+
+```bash
+npm --prefix apps/collapse-health install
+npx --prefix apps/collapse-health next dev   # or: cd apps/collapse-health && npm run dev
 ```
 
 ```bash
@@ -60,6 +68,7 @@ npm test
 | Collapse Technologies | `apps/collapse-technologies` | Cloudflare Pages (static export) | `collapsetechnologies.com` ✅ live |
 | Asymmetric Challenge | `apps/asymmetric-challenge` | Cloudflare Workers via `@opennextjs/cloudflare` | `challenge.collapsetechnologies.com` (pending) |
 | Dress Like Me | `apps/dress-like-me` | Cloudflare Workers via `@opennextjs/cloudflare` | `dresslikeme.collapsetechnologies.com` (parked) |
+| Collapse Health | `apps/collapse-health` | Cloudflare Pages (static export) — deploy target `health.collapsetechnologies.com` (pending DNS cutover) | not yet deployed |
 | CoachGG | `apps/coach-gg` | Render web service (`srv-da56cr2jobas73dmulv0`) | `coachgg-api.onrender.com` ✅ live |
 | Infinite Pixelboard | `apps/infinite-pixelboard` | Render web service (`srv-da55t78u01pc73e3rlu0`) + Render Key Value (Redis) | `infinite-pixelboard.onrender.com` ✅ live |
 
@@ -74,6 +83,16 @@ npx wrangler pages deploy out --project-name collapse-technologies --branch main
 ```
 
 > **Gotcha:** `next.config.mjs` sets `output: "export"`. Deploy `out/` (the static export), not `.next/` or `.next/server/app`. The old `.next/server/app` recipe shipped HTML without any `_next/static` chunks, so every stylesheet/script request fell through to the HTML fallback and the page rendered unstyled and broken.
+
+Collapse Health deploys the same way:
+
+```bash
+cd apps/collapse-health
+npx next build
+npx wrangler pages deploy out --project-name collapse-health --branch main
+```
+
+Then attach the custom domain `health.collapsetechnologies.com` to the Pages project (DNS is already on Cloudflare, so it's just a CNAME record + custom-domain attach during cutover). The lead form posts JSON to `NEXT_PUBLIC_LEAD_ENDPOINT` (baked at build time — set it to a Formspree endpoint or a small Worker before going live; without it, the form shows a fallback email address).
 
 DNS lives on Cloudflare (zone `collapsetechnologies.com`). Apex and `www` are proxied CNAMEs to `collapse-technologies.pages.dev`. Email records are untouched. Product subdomains get attached as custom domains on their Pages/Workers projects during cutover.
 
