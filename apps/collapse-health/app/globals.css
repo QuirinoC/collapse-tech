@@ -465,18 +465,25 @@ a {
   margin-bottom: 16px;
 }
 
-.form-field label {
+.lead-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.lead-form > label {
   display: block;
   font-weight: 600;
   font-size: 0.9rem;
-  margin-bottom: 6px;
+  margin-bottom: 14px;
   color: var(--navy);
 }
 
-.form-field input,
-.form-field textarea,
-.form-field select {
+.lead-form input,
+.lead-form textarea,
+.lead-form select {
+  display: block;
   width: 100%;
+  margin-top: 6px;
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -486,13 +493,22 @@ a {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.form-field input:focus,
-.form-field textarea:focus,
-.form-field select:focus {
+.lead-form input:focus,
+.lead-form textarea:focus,
+.lead-form select:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(14, 124, 102, 0.14);
   background: #ffffff;
+}
+
+.lead-form .btn {
+  align-self: flex-start;
+}
+
+.lead-form button[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .form-note {

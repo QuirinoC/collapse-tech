@@ -190,7 +190,9 @@ export default function Home() {
               <li>Nothing to pay, ever, for updates</li>
             </ul>
           </div>
-          <LeadForm />
+          <div className="form-card">
+            <LeadForm />
+          </div>
         </div>
       </section>
 
