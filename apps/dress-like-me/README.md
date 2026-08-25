@@ -45,7 +45,8 @@ the variables in `.env.example` as Worker secrets. Set
 `NEXT_PUBLIC_SITE_URL=https://dresslikeme.collapsetechnologies.com`, then attach
 that domain to the Worker.
 
-> **Status:** migration parked — this app is not yet deployed to Cloudflare.
+> **Status:** deployed to Cloudflare at
+> `dresslikeme.collapsetechnologies.com` (app content still pre-launch).
 
 The internal `/admin` page requires `ADMIN_API_TOKEN` and supports reviewing
 and retrying failed imports.
