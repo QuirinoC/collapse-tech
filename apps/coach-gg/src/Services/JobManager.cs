@@ -42,6 +42,13 @@ public class JobManager
         return true;
     }
 
+    /// <summary>Whether a worker for this slug exists in THIS process. Redis job_state can say
+    /// "Running" after a deploy/restart killed the worker — callers must double-check this.</summary>
+    public bool IsRunning(string slug)
+    {
+        lock (_running) { return _running.Contains(slug); }
+    }
+
     private async Task RunJobAsync(string slug)
     {
         try
@@ -96,9 +103,7 @@ public class JobManager
         }
         finally
         {
-            await _mutex.WaitAsync();
-            try { _running.Remove(slug); }
-            finally { _mutex.Release(); }
+            lock (_running) { _running.Remove(slug); }
         }
     }
 }

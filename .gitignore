@@ -8,3 +8,8 @@ playwright-report/
 .workflow-data/
 .vercel
 .DS_Store
+
+# .NET build artifacts
+[Bb]in/
+[Oo]bj/
+*.user
