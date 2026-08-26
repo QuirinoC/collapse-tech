@@ -19,4 +19,8 @@
     <None Remove="PixelBoard.Tests/**" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Infrastructure/Postgres/Migrations/*.sql" />
+  </ItemGroup>
+
 </Project>

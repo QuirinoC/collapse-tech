@@ -119,7 +119,12 @@ Build from this directory with the included Dockerfile. The production container
 
 ## Moderation ledger
 
-PostgreSQL-backed attribution is feature-gated with `Postgres:Enabled` and remains off until the database is provisioned and every ordered script in `Infrastructure/Postgres/Migrations` has been applied by a dedicated migration identity. The runtime role must not own the schema.
+PostgreSQL-backed attribution is feature-gated with `Postgres:Enabled`. Production
+keeps Pixelboard data in its own `pixelboard` schema and uses a restricted
+runtime role. Apply the ordered scripts with the image's
+`--provision-postgres` one-off command before enabling the service; see
+`Infrastructure/Postgres/Migrations/README.md`. The runtime role must not own
+the schema.
 
 Accepted authenticated placements will use an atomic Redis operation that updates the compatible board tile, updates current-pixel ownership, and appends a durable outbox event. `PlacementOutboxWorker` idempotently copies that stream into PostgreSQL, acknowledges and removes an entry only after the database write succeeds, and reclaims abandoned pending entries after a configurable idle period. The worker emits ingested, failed, and reclaimed counters through `System.Diagnostics.Metrics`.
 
