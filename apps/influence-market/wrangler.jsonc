@@ -8,6 +8,13 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "influence-market",
+      "database_id": "f5a7fdde-dfbf-4c16-bc83-92495a6d6013"
+    }
+  ],
   "observability": {
     "enabled": true
   }
