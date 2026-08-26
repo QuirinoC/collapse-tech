@@ -8,6 +8,7 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  "routes": [{ "pattern": "influence.market", "custom_domain": true }],
   "observability": {
     "enabled": true
   }
