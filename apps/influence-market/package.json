@@ -1,0 +1,28 @@
+{
+  "name": "influence-market",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "node --test tests/*.test.js",
+    "build:worker": "opennextjs-cloudflare build",
+    "deploy:worker": "npm run build:worker && wrangler deploy"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.112.3",
+    "next": "^16.3.2",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@opennextjs/cloudflare": "^1.20.2",
+    "eslint": "^9",
+    "eslint-config-next": "^16.3.2",
+    "wrangler": "^4.125.0"
+  }
+}

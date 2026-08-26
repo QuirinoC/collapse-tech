@@ -208,12 +208,24 @@ async function fetchSuggestions(q) {
   searchSpinner.classList.remove('hidden');
   try {
     const res = await fetch(`/search?q=${encodeURIComponent(q)}`);
+    if (res.status === 502 || res.status === 503) {
+      let msg = 'Player search is temporarily unavailable — you can still paste your start.gg slug below.';
+      try { msg = (await res.json()).error || msg; } catch { /* keep default */ }
+      renderDropdownError(msg);
+      return;
+    }
     if (!res.ok) return;
     const results = await res.json();
     renderDropdown(results);
   } catch { /* network errors are fine */ } finally {
     searchSpinner.classList.add('hidden');
   }
+}
+
+function renderDropdownError(msg) {
+  activeIndex = -1;
+  searchDropdown.innerHTML = `<li class="dropdown-empty">${msg}</li>`;
+  searchDropdown.classList.remove('hidden');
 }
 
 function renderDropdown(results) {

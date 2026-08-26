@@ -9,3 +9,8 @@ playwright-report/
 .vercel
 .wrangler/
 .DS_Store
+
+# .NET build artifacts
+[Bb]in/
+[Oo]bj/
+*.user

@@ -51,10 +51,21 @@ public class AnalysisHub : Hub
                     totalPages = jobState.TotalPages,
                     partialStats = jobState.PartialStats
                 });
-                return;
+
+                if (_jobManager.IsRunning(slug))
+                    return;
+
+                // Stale "Running" row: the worker died (deploy/restart) and will never finish.
+                // Clear it so the fresh job below can start instead of leaving clients on an
+                // eternal progress bar.
+                _logger.LogWarning("Discarding stale Running job state for {Slug} — no worker alive", slug);
+                await _redis.DeleteJobStateAsync(slug);
             }
-            // Stale version, error, or unexpected state — clear and recompute
-            await _redis.DeleteJobStateAsync(slug);
+            else
+            {
+                // Stale version, error, or unexpected state — clear and recompute
+                await _redis.DeleteJobStateAsync(slug);
+            }
         }
 
         // 2. Check if game data is already cached (fast path)

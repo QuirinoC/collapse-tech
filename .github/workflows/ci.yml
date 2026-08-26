@@ -43,12 +43,49 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+  collapse-health:
+    name: Collapse Health
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/collapse-health
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+        working-directory: .
+      - run: npm run lint
+      - run: npm run build
+
   dress-like-me:
     name: Dress Like Me
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/dress-like-me
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+        working-directory: .
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  influence-market:
+    name: Influence Market
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/influence-market
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
