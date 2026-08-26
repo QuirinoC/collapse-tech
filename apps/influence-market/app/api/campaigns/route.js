@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { campaignSchema, firstIssue } from "@/lib/schemas";
 import { getStore } from "@/lib/repository";
-import { currentProfile, requireRole } from "@/lib/session";
+import { currentProfile } from "@/lib/session";
 import {
   campaignFeeCents,
   perCreatorPayoutCents,
@@ -33,14 +33,27 @@ export async function GET(request) {
   const store = getStore();
 
   if (scope === "mine") {
-    try {
-      const brand = await requireRole("brand");
+    const profile = await currentProfile();
+    if (!profile) return NextResponse.json({ campaigns: [] });
+
+    if (profile.role === "brand") {
       return NextResponse.json({
-        campaigns: (await store.listCampaigns({ brandId: brand.id })).map(mapCampaign),
+        campaigns: (await store.listCampaigns({ brandId: profile.id })).map(mapCampaign),
       });
-    } catch {
-      return NextResponse.json({ campaigns: [] });
     }
+
+    // Creators see every campaign they applied to, with their decision state.
+    const applications = await store.listApplications({ creatorId: profile.id });
+    const mine = (
+      await Promise.all(
+        applications.map(async (application) => {
+          const campaign = await store.getCampaign(application.campaign_id);
+          if (!campaign) return null;
+          return { ...mapCampaign(campaign), applicationStatus: application.status };
+        }),
+      )
+    ).filter(Boolean);
+    return NextResponse.json({ campaigns: mine });
   }
 
   // Public marketplace shows funded campaigns (money committed) plus open ones.
@@ -58,10 +71,8 @@ export async function POST(request) {
     return NextResponse.json({ error: firstIssue(error) }, { status: 400 });
   }
 
-  let brand;
-  try {
-    brand = await requireRole("brand");
-  } catch {
+  const brand = await currentProfile();
+  if (!brand || brand.role !== "brand") {
     return NextResponse.json({ error: "Brand account required." }, { status: 401 });
   }
 

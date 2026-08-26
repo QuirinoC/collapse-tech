@@ -119,7 +119,11 @@ export default function CampaignsPage() {
                   {campaign.brief}
                 </p>
                 <div className="meta-col">
-                  <StatusPill campaign={campaign} />
+                  {scope === "mine" && campaign.applicationStatus ? (
+                    <ApplicationPill status={campaign.applicationStatus} />
+                  ) : (
+                    <StatusPill campaign={campaign} />
+                  )}
                   <span>${(campaign.perCreatorCents / 100).toLocaleString()} / slot</span>
                   <span>Budget ${(campaign.budgetCents / 100).toLocaleString()}</span>
                 </div>
@@ -142,4 +146,19 @@ function StatusPill({ campaign }) {
       ? "status-pill held"
       : "status-pill";
   return <span className={cls}>{label}</span>;
+}
+
+const APPLICATION_LABELS = {
+  pending: "Application pending",
+  accepted: "Accepted",
+  declined: "Not selected",
+  withdrawn: "Withdrawn",
+};
+
+function ApplicationPill({ status }) {
+  const cls =
+    status === "accepted" || status === "pending"
+      ? "status-pill held"
+      : "status-pill";
+  return <span className={cls}>{APPLICATION_LABELS[status] || status}</span>;
 }

@@ -28,6 +28,11 @@ button, input, textarea, select { color: inherit; font: inherit; }
   padding: 28px 7vw;
 }
 
+/* Legal pages: header participates in normal document flow. */
+.site-header.header-static {
+  position: static; width: auto;
+}
+
 .wordmark {
   display: inline-grid; font-size: .83rem; font-weight: 700; line-height: .86;
   letter-spacing: -.055em; text-transform: uppercase;
