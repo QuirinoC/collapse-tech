@@ -38,14 +38,14 @@ Business docs (internal only): [STARTUP-COSTS.md](./STARTUP-COSTS.md),
 
 POST-only, accepts `{name, email, phone?, procedure?, notes?}` plus a honeypot
 field. Validates email shape, dedupes via index key `email:<addr>` → lead id,
-stores full record at `lead:<uuid>` (name, email, procedure, message, UA,
-country, timestamp).
+and stores the record at `lead:<uuid>` (name, email, phone, procedure, notes,
+UA, country, timestamp).
 
-Deploying the Worker itself uses the multipart modules format:
+The Worker source and its KV binding are versioned under `worker/`:
 
 ```bash
-# build worker.js locally, then:
-npx wrangler deploy   # from a directory with the Worker's wrangler config
+npm test
+npx wrangler deploy --config worker/wrangler.jsonc
 ```
 
 ## Local development
@@ -61,7 +61,8 @@ NEXT_PUBLIC_LEAD_ENDPOINT=https://collapse-health-leads.juanquirino-workers.work
 Static export — deploy `out/`, never `.next/`:
 
 ```bash
-npm run build
+NEXT_PUBLIC_LEAD_ENDPOINT=https://collapse-health-leads.juanquirino-workers.workers.dev \
+  npm run build
 npx wrangler pages deploy out --project-name collapse-health --branch main --commit-dirty=true
 ```
 

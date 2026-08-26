@@ -97,9 +97,10 @@ Collapse Health deploys the same way, plus a lead-capture Worker:
 
 ```bash
 cd apps/collapse-health
-npx next build
 NEXT_PUBLIC_LEAD_ENDPOINT=https://collapse-health-leads.juanquirino-workers.workers.dev \
-  npx wrangler pages deploy out --project-name collapse-health --branch main --commit-dirty=true
+  npm run build
+npx wrangler pages deploy out --project-name collapse-health --branch main --commit-dirty=true
+npx wrangler deploy --config worker/wrangler.jsonc
 ```
 
 The lead form posts JSON to that Worker (KV namespace `LEADS`, email-deduped).
