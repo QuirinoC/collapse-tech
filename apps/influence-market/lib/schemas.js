@@ -17,6 +17,7 @@ export const NICHES = [
   "fitness",
   "beauty",
   "fashion",
+  "wellness",
   "food",
   "travel",
   "gaming",
@@ -86,16 +87,25 @@ export const applicationDecisionSchema = z.object({
 });
 
 export const submissionSchema = z.object({
-  contentUrl: z.string().url().max(500),
+  contentUrl: z
+    .string()
+    .url()
+    .max(500)
+    .refine((value) => ["http:", "https:"].includes(new URL(value).protocol), {
+      message: "Content URL must use http or https.",
+    }),
+  notes: z.string().max(1000).optional(),
 });
 
 export const reviewSchema = z.object({
   decision: z.enum(["approve", "reject"]),
+  notes: z.string().max(1000).optional(),
 });
 
 export const contactSchema = z.object({
   name: z.string().min(2).max(120),
   email: z.string().email(),
+  company: z.string().max(160).optional(),
   kind: z.enum(["brand", "creator", "other"]),
   message: z.string().min(10).max(4000),
 });

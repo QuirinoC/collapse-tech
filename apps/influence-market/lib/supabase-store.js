@@ -5,33 +5,36 @@
 //     resolved lazily through @opennextjs/cloudflare on first query.
 //   - Supabase Postgres via supabase-js (NEXT_PUBLIC_SUPABASE_URL + service
 //     key), kept as an alternative managed-Postgres option.
-// SUPABASE_QUERY_ENDPOINT doubles as a deploy-time flag that persistence is
-// enabled even before the D1 binding becomes reachable mid-request.
+// PERSISTENCE_DRIVER=d1 selects the native binding in production.
 
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 
 let client = null;
 let d1Binding = null;
-let d1ResolveAttempt = false;
 
 export function setD1Binding(binding) {
   d1Binding = binding ?? null;
 }
 
 export function hasSupabaseConfig() {
+  const driver = process.env.PERSISTENCE_DRIVER?.trim().toLowerCase();
+  const supabaseUrl =
+    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   return Boolean(
+    driver === "d1" ||
     process.env.SUPABASE_QUERY_ENDPOINT ||
-      (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
+      (supabaseUrl && process.env.SUPABASE_SERVICE_ROLE_KEY),
   );
 }
 
 const d1Mode = () =>
-  Boolean(d1Binding) || Boolean(process.env.SUPABASE_QUERY_ENDPOINT);
+  process.env.PERSISTENCE_DRIVER?.trim().toLowerCase() === "d1" ||
+  Boolean(d1Binding) ||
+  Boolean(process.env.SUPABASE_QUERY_ENDPOINT);
 
 async function resolveD1Binding() {
-  if (d1Binding || d1ResolveAttempt) return d1Binding;
-  d1ResolveAttempt = true;
+  if (d1Binding) return d1Binding;
   try {
     const { getCloudflareContext } = await import("@opennextjs/cloudflare");
     d1Binding = getCloudflareContext().env?.DB ?? null;
@@ -54,13 +57,30 @@ async function d1(sql, params = []) {
   return results || [];
 }
 
+async function d1Batch(statements) {
+  const binding = await resolveD1Binding();
+  if (!binding) {
+    throw new Error("D1 binding is not available in this environment.");
+  }
+  const results = await binding.batch(
+    statements.map(({ sql, params = [] }) =>
+      binding.prepare(sql).bind(...params),
+    ),
+  );
+  const failed = results.find((result) => !result.success);
+  if (failed) throw new Error(failed.error ?? "D1 transaction failed.");
+  return results;
+}
+
 function db() {
   if (!hasSupabaseConfig()) {
     throw new Error("Supabase credentials are not configured.");
   }
   if (!client) {
+    const supabaseUrl =
+      process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
     client = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      supabaseUrl,
       process.env.SUPABASE_SERVICE_ROLE_KEY,
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
@@ -169,6 +189,8 @@ export function createSupabaseStore() {
       if ("channels" in patch) update.channels = patch.channels;
       if ("minBudgetCents" in patch) update.min_budget_cents = patch.minBudgetCents;
       if ("password_hash" in patch) update.password_hash = patch.password_hash;
+      if ("name" in patch) update.name = patch.name;
+      if ("company" in patch) update.company = patch.company;
       if (d1Mode()) {
         const entries = Object.entries(update);
         if (!entries.length) return this.getProfile(id);
@@ -271,13 +293,14 @@ export function createSupabaseStore() {
     async insertCampaign(campaign) {
       if (d1Mode()) {
         const out = await d1(
-          `insert into campaigns (id, brand_id, title, brief, product_info, platforms, niches,
+          `insert into campaigns (id, brand_id, brand_name, title, brief, product_info, platforms, niches,
              demographics, follower_min, follower_max, slots, slots_remaining, budget_cents,
              fee_cents, per_creator_cents, status, payment_status, payment_ref, funded_at)
-           values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) returning *`,
+           values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) returning *`,
           [
             campaign.id || randomUUID(),
             campaign.brand_id,
+            campaign.brand_name,
             campaign.title,
             campaign.brief,
             campaign.product_info ?? null,
@@ -342,6 +365,124 @@ export function createSupabaseStore() {
         .eq("id", id)
         .select()
         .single();
+      if (error) throw error;
+      return data;
+    },
+    async claimCampaignFunding(id, claimRef) {
+      if (d1Mode()) {
+        const claimed = (
+          await d1(
+            `update campaigns
+             set payment_ref = ?
+             where id = ?
+               and status = 'open'
+               and payment_status = 'unpaid'
+               and slots_remaining = 0
+               and payment_ref is null
+             returning *`,
+            [claimRef, id],
+          )
+        )[0];
+        if (claimed) return this.getCampaign(id);
+        const existing = await this.getCampaign(id);
+        return existing?.status === "open" &&
+          existing.payment_status === "unpaid" &&
+          existing.slots_remaining === 0 &&
+          existing.payment_ref === claimRef
+          ? existing
+          : null;
+      }
+      const { data, error } = await table("campaigns")
+        .update({ payment_ref: claimRef })
+        .eq("id", id)
+        .eq("status", "open")
+        .eq("payment_status", "unpaid")
+        .eq("slots_remaining", 0)
+        .is("payment_ref", null)
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      if (data) return data;
+      const existing = await this.getCampaign(id);
+      return existing?.status === "open" &&
+        existing.payment_status === "unpaid" &&
+        existing.slots_remaining === 0 &&
+        existing.payment_ref === claimRef
+        ? existing
+        : null;
+    },
+    async releaseCampaignFundingClaim(id, claimRef) {
+      if (d1Mode()) {
+        await d1(
+          `update campaigns
+           set payment_ref = null
+           where id = ?
+             and status = 'open'
+             and payment_status = 'unpaid'
+             and payment_ref = ?`,
+          [id, claimRef],
+        );
+        return;
+      }
+      const { error } = await table("campaigns")
+        .update({ payment_ref: null })
+        .eq("id", id)
+        .eq("status", "open")
+        .eq("payment_status", "unpaid")
+        .eq("payment_ref", claimRef);
+      if (error) throw error;
+    },
+    async finalizeCampaignFunding({
+      campaignId,
+      claimRef,
+      providerRef,
+      fundedAt,
+      charge,
+      fee,
+    }) {
+      const chargeEntry = withLedgerId(charge);
+      const feeEntry = withLedgerId(fee);
+      if (d1Mode()) {
+        await d1Batch([
+          {
+            sql: `update campaigns
+                  set status = 'funded',
+                      payment_status = 'held',
+                      funded_at = ?,
+                      payment_ref = ?
+                  where id = ?
+                    and status = 'open'
+                    and payment_status = 'unpaid'
+                    and payment_ref = ?`,
+            params: [fundedAt, providerRef, campaignId, claimRef],
+          },
+          ledgerInsertStatement(chargeEntry),
+          ledgerInsertStatement(feeEntry),
+        ]);
+        const campaign = await this.getCampaign(campaignId);
+        if (
+          campaign?.status !== "funded" ||
+          campaign.payment_status !== "held" ||
+          campaign.payment_ref !== providerRef
+        ) {
+          throw new Error("Campaign funding transaction did not finalize.");
+        }
+        return campaign;
+      }
+      const { data, error } = await db().rpc("finalize_campaign_funding", {
+        p_campaign_id: campaignId,
+        p_claim_ref: claimRef,
+        p_provider_ref: providerRef,
+        p_funded_at: fundedAt,
+        p_charge_id: chargeEntry.id,
+        p_charge_amount_cents: chargeEntry.amount_cents,
+        p_charge_operation_key: chargeEntry.operation_key,
+        p_charge_memo: chargeEntry.memo,
+        p_fee_id: feeEntry.id,
+        p_fee_amount_cents: feeEntry.amount_cents,
+        p_fee_operation_key: feeEntry.operation_key,
+        p_fee_memo: feeEntry.memo,
+      });
       if (error) throw error;
       return data;
     },
@@ -420,6 +561,29 @@ export function createSupabaseStore() {
       if (error) throw error;
       return data;
     },
+    async declineApplication(id, decidedAt) {
+      if (d1Mode()) {
+        return (
+          (
+            await d1(
+              `update applications
+               set status = 'declined', decided_at = ?
+               where id = ? and status = 'pending'
+               returning *`,
+              [decidedAt, id],
+            )
+          )[0] ?? null
+        );
+      }
+      const { data, error } = await table("applications")
+        .update({ status: "declined", decided_at: decidedAt })
+        .eq("id", id)
+        .eq("status", "pending")
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      return data || null;
+    },
     async findApplication(campaignId, creatorId) {
       if (d1Mode()) {
         return (
@@ -462,12 +626,32 @@ export function createSupabaseStore() {
       return data || [];
     },
 
+    async acceptApplication(result) {
+      if (d1Mode()) {
+        const assignment = await this.insertAssignment(result.assignment);
+        const [campaign, application] = await Promise.all([
+          this.getCampaign(result.campaign.id),
+          this.getApplication(result.application.id),
+        ]);
+        return { campaign, application, assignment };
+      }
+      const { data, error } = await db().rpc("accept_campaign_application", {
+        p_campaign_id: result.campaign.id,
+        p_application_id: result.application.id,
+        p_creator_id: result.assignment.creator_id,
+        p_assignment_id: result.assignment.id || randomUUID(),
+        p_decided_at: result.application.decided_at,
+      });
+      if (error) throw error;
+      return data;
+    },
+
     async insertAssignment(assignment) {
       if (d1Mode()) {
         const out = await d1(
           `insert into assignments (id, campaign_id, creator_id, status, content_url,
-             submitted_at, reviewed_at, paid_at, payout_ref)
-           values (?, ?, ?, ?, ?, ?, ?, ?, ?) returning *`,
+             submitted_at, reviewed_at, paid_at, payout_ref, notes)
+           values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) returning *`,
           [
             assignment.id || randomUUID(),
             assignment.campaign_id,
@@ -478,6 +662,7 @@ export function createSupabaseStore() {
             assignment.reviewed_at ?? null,
             assignment.paid_at ?? null,
             assignment.payout_ref ?? null,
+            assignment.notes ?? null,
           ],
         );
         return out[0];
@@ -523,6 +708,137 @@ export function createSupabaseStore() {
       if (error) throw error;
       return data;
     },
+    async claimAssignmentApproval(id, { reviewedAt, notes }) {
+      if (d1Mode()) {
+        return (
+          (
+            await d1(
+              `update assignments
+               set status = 'approved',
+                   reviewed_at = ?,
+                   notes = ?,
+                   updated_at = datetime('now')
+               where id = ? and status = 'submitted'
+               returning *`,
+              [reviewedAt, notes ?? null, id],
+            )
+          )[0] ?? null
+        );
+      }
+      const { data, error } = await table("assignments")
+        .update({
+          status: "approved",
+          reviewed_at: reviewedAt,
+          notes: notes ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .eq("status", "submitted")
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      return data || null;
+    },
+    async rejectAssignment(id, { reviewedAt, notes }) {
+      if (d1Mode()) {
+        return (
+          (
+            await d1(
+              `update assignments
+               set status = 'rejected',
+                   reviewed_at = ?,
+                   notes = ?,
+                   updated_at = datetime('now')
+               where id = ? and status = 'submitted'
+               returning *`,
+              [reviewedAt, notes ?? null, id],
+            )
+          )[0] ?? null
+        );
+      }
+      const { data, error } = await table("assignments")
+        .update({
+          status: "rejected",
+          reviewed_at: reviewedAt,
+          notes: notes ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .eq("status", "submitted")
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      return data || null;
+    },
+    async finalizeAssignmentPayout({
+      assignmentId,
+      campaignId,
+      providerRef,
+      paidAt,
+      notes,
+      ledgerEntry,
+    }) {
+      const payoutEntry = withLedgerId(ledgerEntry);
+      if (d1Mode()) {
+        await d1Batch([
+          {
+            sql: `update assignments
+                  set status = 'paid',
+                      paid_at = ?,
+                      payout_ref = ?,
+                      notes = ?,
+                      updated_at = datetime('now')
+                  where id = ? and status = 'approved'`,
+            params: [
+              paidAt,
+              providerRef,
+              notes ?? null,
+              assignmentId,
+            ],
+          },
+          ledgerInsertStatement(payoutEntry),
+          {
+            sql: `update campaigns
+                  set status = 'completed', payment_status = 'settled'
+                  where id = ?
+                    and status = 'funded'
+                    and (
+                      select count(*)
+                      from assignments
+                      where campaign_id = campaigns.id
+                    ) = campaigns.slots
+                    and not exists (
+                      select 1
+                      from assignments
+                      where campaign_id = campaigns.id
+                        and status not in ('paid', 'declined')
+                    )`,
+            params: [campaignId],
+          },
+        ]);
+        const assignment = await this.getAssignment(assignmentId);
+        if (
+          assignment?.status !== "paid" ||
+          assignment.payout_ref !== providerRef
+        ) {
+          throw new Error("Creator payout transaction did not finalize.");
+        }
+        return assignment;
+      }
+      const { data, error } = await db().rpc("finalize_assignment_payout", {
+        p_assignment_id: assignmentId,
+        p_campaign_id: campaignId,
+        p_provider_ref: providerRef,
+        p_paid_at: paidAt,
+        p_notes: notes ?? null,
+        p_ledger_id: payoutEntry.id,
+        p_amount_cents: payoutEntry.amount_cents,
+        p_operation_key: payoutEntry.operation_key,
+        p_memo: payoutEntry.memo,
+      });
+      if (error) throw error;
+      return data;
+    },
     async listAssignments({ campaignId, creatorId } = {}) {
       if (d1Mode()) {
         let list;
@@ -546,25 +862,56 @@ export function createSupabaseStore() {
     },
 
     async appendLedger(entry) {
+      const row = { ...entry, id: entry.id || randomUUID() };
       if (d1Mode()) {
-        await d1(
-          `insert into ledger_entries (id, campaign_id, assignment_id, kind, amount_cents, provider_ref, memo)
-           values (?, ?, ?, ?, ?, ?, ?)`,
+        const inserted = await d1(
+          `insert into ledger_entries
+             (id, campaign_id, assignment_id, kind, amount_cents, provider_ref, operation_key, memo)
+           values (?, ?, ?, ?, ?, ?, ?, ?)
+           on conflict(operation_key) do nothing
+           returning *`,
           [
-            entry.id || randomUUID(),
-            entry.campaign_id,
-            entry.assignment_id ?? null,
-            entry.kind,
-            entry.amount_cents,
-            entry.provider_ref ?? null,
-            entry.memo ?? null,
+            row.id,
+            row.campaign_id,
+            row.assignment_id ?? null,
+            row.kind,
+            row.amount_cents,
+            row.provider_ref ?? null,
+            row.operation_key ?? null,
+            row.memo ?? null,
           ],
         );
-        return entry;
+        const stored =
+          inserted[0] ??
+          (
+            await d1(
+              "select * from ledger_entries where operation_key = ? limit 1",
+              [row.operation_key],
+            )
+          )[0];
+        assertSameLedgerOperation(stored, row);
+        return stored;
       }
-      const { error } = await table("ledger_entries").insert(entry);
+      if (row.operation_key) {
+        const { error } = await table("ledger_entries").upsert(row, {
+          onConflict: "operation_key",
+          ignoreDuplicates: true,
+        });
+        if (error) throw error;
+        const { data, error: readError } = await table("ledger_entries")
+          .select()
+          .eq("operation_key", row.operation_key)
+          .single();
+        if (readError) throw readError;
+        assertSameLedgerOperation(data, row);
+        return data;
+      }
+      const { data, error } = await table("ledger_entries")
+        .insert(row)
+        .select()
+        .single();
       if (error) throw error;
-      return entry;
+      return data;
     },
     async listLedger({ campaignId } = {}) {
       if (d1Mode()) {
@@ -582,8 +929,15 @@ export function createSupabaseStore() {
     async insertLead(lead) {
       if (d1Mode()) {
         await d1(
-          "insert into leads (id, name, email, kind, message) values (?, ?, ?, ?, ?)",
-          [lead.id || randomUUID(), lead.name, lead.email, lead.kind, lead.message],
+          "insert into leads (id, name, email, company, kind, message) values (?, ?, ?, ?, ?, ?)",
+          [
+            lead.id || randomUUID(),
+            lead.name,
+            lead.email,
+            lead.company ?? null,
+            lead.kind,
+            lead.message,
+          ],
         );
         return lead;
       }
@@ -591,5 +945,52 @@ export function createSupabaseStore() {
       if (error) throw error;
       return lead;
     },
+  };
+}
+
+function assertSameLedgerOperation(stored, expected) {
+  if (
+    !stored ||
+    stored.campaign_id !== expected.campaign_id ||
+    (stored.assignment_id ?? null) !== (expected.assignment_id ?? null) ||
+    stored.kind !== expected.kind ||
+    stored.amount_cents !== expected.amount_cents ||
+    (stored.provider_ref ?? null) !== (expected.provider_ref ?? null)
+  ) {
+    throw new Error("Ledger idempotency key was reused with different payment data.");
+  }
+}
+
+function withLedgerId(entry) {
+  return { ...entry, id: entry.id || randomUUID() };
+}
+
+function ledgerInsertStatement(entry) {
+  return {
+    sql: `insert into ledger_entries
+            (id, campaign_id, assignment_id, kind, amount_cents, provider_ref, operation_key, memo)
+          values (?, ?, ?, ?, ?, ?, ?, ?)
+          on conflict(operation_key) do update set
+            amount_cents = case
+              when ledger_entries.campaign_id = excluded.campaign_id
+                and ifnull(ledger_entries.assignment_id, '') =
+                    ifnull(excluded.assignment_id, '')
+                and ledger_entries.kind = excluded.kind
+                and ledger_entries.amount_cents = excluded.amount_cents
+                and ifnull(ledger_entries.provider_ref, '') =
+                    ifnull(excluded.provider_ref, '')
+              then ledger_entries.amount_cents
+              else 0
+            end`,
+    params: [
+      entry.id,
+      entry.campaign_id,
+      entry.assignment_id ?? null,
+      entry.kind,
+      entry.amount_cents,
+      entry.provider_ref ?? null,
+      entry.operation_key,
+      entry.memo ?? null,
+    ],
   };
 }

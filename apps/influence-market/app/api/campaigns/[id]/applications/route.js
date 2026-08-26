@@ -5,24 +5,25 @@ import { acceptApplication, declineApplicationPatch } from "@/lib/campaign-flow"
 
 export async function GET(request, { params }) {
   const { id } = await params;
+  let brand;
   try {
-    const brand = await requireRole("brand");
-    const store = getStore();
-    const campaign = await store.getCampaign(id);
-    if (!campaign || campaign.brand_id !== brand.id) {
-      return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
-    }
-    const applications = await store.listApplications({ campaignId: id });
-    const withCreators = await Promise.all(
-      applications.map(async (application) => ({
-        ...application,
-        creator: stripHash(await store.getProfile(application.creator_id)),
-      })),
-    );
-    return NextResponse.json({ applications: withCreators });
-  } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 401 });
+    brand = await requireRole("brand");
+  } catch {
+    return NextResponse.json({ error: "Brand account required." }, { status: 401 });
   }
+  const store = getStore();
+  const campaign = await store.getCampaign(id);
+  if (!campaign || campaign.brand_id !== brand.id) {
+    return NextResponse.json({ error: "Campaign not found." }, { status: 404 });
+  }
+  const applications = await store.listApplications({ campaignId: id });
+  const withCreators = await Promise.all(
+    applications.map(async (application) => ({
+      ...application,
+      creator: stripHash(await store.getProfile(application.creator_id)),
+    })),
+  );
+  return NextResponse.json({ applications: withCreators });
 }
 
 export async function POST(request, { params }) {
@@ -59,10 +60,17 @@ export async function POST(request, { params }) {
     if (application.status !== "pending") {
       return NextResponse.json({ error: "Application already decided." }, { status: 409 });
     }
-    const updated = await store.updateApplication(
+    const patch = declineApplicationPatch();
+    const updated = await store.declineApplication(
       application.id,
-      declineApplicationPatch(),
+      patch.decided_at,
     );
+    if (!updated) {
+      return NextResponse.json(
+        { error: "Application already decided." },
+        { status: 409 },
+      );
+    }
     return NextResponse.json({ application: updated });
   }
 
@@ -76,16 +84,18 @@ export async function POST(request, { params }) {
       { status: error.statusCode || 409 },
     );
   }
-  await store.updateCampaign(campaign.id, { slots_remaining: result.campaign.slots_remaining });
-  await store.updateApplication(application.id, {
-    status: result.application.status,
-    decided_at: result.application.decided_at,
-  });
-  const assignment = await store.insertAssignment(result.assignment);
-  return NextResponse.json({
-    application: { ...result.application },
-    assignment,
-  });
+  try {
+    const accepted = await store.acceptApplication(result);
+    return NextResponse.json({
+      application: accepted.application,
+      assignment: accepted.assignment,
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "This application can no longer be accepted." },
+      { status: 409 },
+    );
+  }
 }
 
 function stripHash(profile) {

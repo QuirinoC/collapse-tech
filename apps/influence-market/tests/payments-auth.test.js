@@ -1,33 +1,64 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getSandboxProvider } from "../lib/payments.js";
+import {
+  getPaymentsProvider,
+  getPaymentsStatus,
+  getSandboxProvider,
+  PaymentsUnavailableError,
+} from "../lib/payments.js";
 import {
   hashPassword,
   verifyPassword,
 } from "../lib/auth.js";
 
 test("sandbox provider charges and returns a ref", async () => {
-  const provider = getSandboxProvider();
-  const charge = await provider.charge({ campaignId: "c1", amountCents: 590000 });
+  const charge = await getSandboxProvider().charge({
+    campaignId: "c1",
+    amountCents: 590000,
+    idempotencyKey: "campaign:c1:charge",
+  });
   assert.ok(charge.ref.startsWith("sbx_"));
   assert.equal(charge.status, "succeeded");
+  const retry = await getSandboxProvider().charge({
+    campaignId: "c1",
+    amountCents: 590000,
+    idempotencyKey: "campaign:c1:charge",
+  });
+  assert.equal(retry.ref, charge.ref);
 });
 
 test("sandbox provider releases payouts idempotently per assignment", async () => {
-  const provider = getSandboxProvider();
-  const first = await provider.payout({
+  const first = await getSandboxProvider().payout({
     assignmentId: "as-42",
     amountCents: 102500,
     destination: "acct_demo",
+    idempotencyKey: "assignment:as-42:payout",
   });
   assert.ok(first.ref.startsWith("payout_sbx_"));
-  // Same inputs must not mint a new transfer id (idempotency guard).
-  const again = await provider.payout({
+  // A different Worker isolate/provider instance must return the same transfer.
+  const again = await getSandboxProvider().payout({
     assignmentId: "as-42",
     amountCents: 102500,
     destination: "acct_demo",
+    idempotencyKey: "assignment:as-42:payout",
   });
   assert.equal(again.ref, first.ref);
+});
+
+test("production payments fail closed unless sandbox is explicitly enabled", () => {
+  const disabled = getPaymentsStatus({ NODE_ENV: "production" });
+  assert.equal(disabled.ready, false);
+  assert.throws(
+    () => getPaymentsProvider({ NODE_ENV: "production" }),
+    PaymentsUnavailableError,
+  );
+
+  const sandbox = getPaymentsStatus({
+    NODE_ENV: "production",
+    PAYMENTS_MODE: "sandbox",
+  });
+  assert.equal(sandbox.ready, true);
+  assert.equal(sandbox.mode, "sandbox");
 });
 
 test("scrypt password round-trips and rejects wrong password", async () => {

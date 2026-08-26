@@ -6,6 +6,10 @@
 
 **Single line item: flat 18% take on every funded campaign.** No subscriptions, no creator fees, no exclusivity contracts.
 
+Brands fund only after every creator slot in the approved roster is filled. This
+keeps the full creator pool allocated and prevents unassigned budget from being
+stranded after settlement.
+
 Unit economics per campaign:
 
 | Example budget | Platform fee (18%) | Payout pool | 4-creator slot payout |
@@ -96,4 +100,4 @@ Every +1pt of average take (e.g., surge pricing on expedited rosters) adds ~11% 
 
 ### Deployment note (per repo convention)
 
-Platform runs on **Cloudflare Workers via `@opennextjs/cloudflare`** (same stack as dress-like-me) with **Supabase Postgres** behind `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`. No servers to babysit; infra stays in the noise floor of the cost table above. Sandbox payments provider keeps the full escrow loop demonstrable pre-Stripe.
+Platform runs on **Cloudflare Workers via `@opennextjs/cloudflare`** with a native **D1** binding in production; Supabase remains an optional alternative store. No servers to babysit, so infrastructure stays in the noise floor of the cost table above. Sandbox payments are local/test-only, and stable operation keys make retries idempotent across Worker isolates. Production funding remains explicitly disabled until a Stripe Connect Checkout + webhook flow and creator destination accounts are configured; the platform never represents simulated funds as real escrow.

@@ -33,49 +33,115 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: "Assignment not found." }, { status: 404 });
   }
 
-  let reviewed;
-  try {
-    reviewed = reviewSubmission(assignment, payload.decision);
-  } catch (error) {
+  if (payload.decision === "reject") {
+    let reviewed;
+    try {
+      reviewed = reviewSubmission(assignment, "reject");
+    } catch (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.statusCode || 409 },
+      );
+    }
+    const updated = await store.rejectAssignment(id, {
+      reviewedAt: reviewed.reviewed_at,
+      notes: payload.notes ?? assignment.notes ?? null,
+    });
+    if (!updated) {
+      return NextResponse.json(
+        { error: "This submission was already reviewed." },
+        { status: 409 },
+      );
+    }
+    return NextResponse.json({ assignment: updated });
+  }
+
+  if (assignment.status === "paid") {
+    return NextResponse.json({ assignment, idempotent: true });
+  }
+
+  if (!["submitted", "approved"].includes(assignment.status)) {
     return NextResponse.json(
-      { error: error.message },
-      { status: error.statusCode || 409 },
+      { error: "Nothing to review." },
+      { status: 409 },
     );
   }
-  let updated = await store.updateAssignment(id, {
-    status: reviewed.status,
-    reviewed_at: reviewed.reviewed_at,
-  });
 
-  if (payload.decision === "approve" && reviewed.status === "approved") {
-    const provider = getPaymentsProvider();
-    const transfer = await provider.payout({
-      assignmentId: id,
-      amountCents: campaign.per_creator_cents,
-    });
-    updated = await store.updateAssignment(id, {
-      ...markPaid(updated),
-      payout_ref: transfer.ref,
-    });
-    await store.appendLedger({
-      campaign_id: campaign.id,
-      assignment_id: id,
-      kind: "payout",
-      amount_cents: campaign.per_creator_cents,
-      provider_ref: transfer.ref,
-      memo: `Payout released to creator after approval`,
-    });
+  let payments;
+  try {
+    payments = getPaymentsProvider();
+  } catch (error) {
+    return NextResponse.json(
+      { error: error.message || "Creator payout failed." },
+      { status: error.statusCode || 502 },
+    );
+  }
 
-    // Settle the campaign once every assignment reached a terminal state.
-    const assignments = await store.listAssignments({ campaignId: campaign.id });
-    const settled = assignments.every((a) => ["paid", "declined"].includes(a.status));
-    if (settled) {
-      await store.updateCampaign(campaign.id, {
-        status: "completed",
-        payment_status: "settled",
-      });
+  let approved = assignment;
+  if (assignment.status === "submitted") {
+    const reviewed = reviewSubmission(assignment, "approve");
+    approved = await store.claimAssignmentApproval(id, {
+      reviewedAt: reviewed.reviewed_at,
+      notes: payload.notes ?? assignment.notes ?? null,
+    });
+    if (!approved) {
+      return NextResponse.json(
+        { error: "This submission was already reviewed." },
+        { status: 409 },
+      );
     }
   }
 
-  return NextResponse.json({ assignment: updated });
+  const payoutOperationKey = `assignment:${id}:payout`;
+  let transfer;
+  try {
+    transfer = await payments.payout({
+      assignmentId: id,
+      amountCents: campaign.per_creator_cents,
+      idempotencyKey: payoutOperationKey,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error.message || "Creator payout failed." },
+      { status: error.statusCode || 502 },
+    );
+  }
+
+  const paid = markPaid(approved);
+  const ledgerEntry = {
+    campaign_id: campaign.id,
+    assignment_id: id,
+    kind: "payout",
+    amount_cents: campaign.per_creator_cents,
+    provider_ref: transfer.ref,
+    operation_key: payoutOperationKey,
+    memo: "Payout released to creator after approval",
+  };
+
+  try {
+    const updated = await store.finalizeAssignmentPayout({
+      assignmentId: id,
+      campaignId: campaign.id,
+      providerRef: transfer.ref,
+      paidAt: paid.paid_at,
+      notes: approved.notes ?? null,
+      ledgerEntry,
+    });
+    return NextResponse.json({ assignment: updated });
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "creator_payout_reconciliation_pending",
+        assignmentId: id,
+        error: error.message,
+      }),
+    );
+    return NextResponse.json(
+      {
+        error:
+          "Payout reconciliation is pending. Retry this approval safely.",
+      },
+      { status: 503 },
+    );
+  }
 }

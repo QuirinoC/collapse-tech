@@ -44,10 +44,20 @@ function assignment(overrides = {}) {
   };
 }
 
-test("open unfunded campaign accepts applications and funding", () => {
+test("open unfunded campaign accepts applications but waits for a full roster", () => {
   const c = campaign();
   assert.equal(canApply(c), true);
-  assert.equal(canFund(c), true);
+  assert.equal(canFund(c), false);
+  assert.equal(canFund(campaign({ slots_remaining: 0 })), true);
+  assert.equal(
+    canFund(
+      campaign({
+        slots_remaining: 0,
+        payment_ref: "pending:campaign:c1:charge",
+      }),
+    ),
+    false,
+  );
 });
 
 test("cannot apply when no slots remain", () => {
@@ -75,7 +85,7 @@ test("accept throws for pending application when full", () => {
 });
 
 test("fund transitions to funded/held", () => {
-  const next = fundCampaign(campaign());
+  const next = fundCampaign(campaign({ slots_remaining: 0 }));
   assert.equal(next.status, "funded");
   assert.equal(next.payment_status, "held");
 });
@@ -129,8 +139,16 @@ test("campaign settles only when every assignment is terminal", () => {
     submitContent(assignment(), "https://x.com/a"),
     "approve",
   ));
-  assert.equal(isSettled("funded", [paid]), true);
-  assert.equal(isSettled("funded", [paid, assignment()]), false);
-  assert.equal(isSettled("funded", []), false);
-  assert.equal(isSettled("open", [paid]), false);
+  assert.equal(isSettled(campaign({ status: "funded", slots: 1 }), [paid]), true);
+  assert.equal(
+    isSettled(campaign({ status: "funded", slots: 2 }), [paid]),
+    false,
+    "a partially filled roster cannot strand the remaining creator pool",
+  );
+  assert.equal(
+    isSettled(campaign({ status: "funded", slots: 2 }), [paid, assignment()]),
+    false,
+  );
+  assert.equal(isSettled(campaign({ status: "funded", slots: 1 }), []), false);
+  assert.equal(isSettled(campaign({ status: "open", slots: 1 }), [paid]), false);
 });

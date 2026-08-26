@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getStore } from "@/lib/repository";
 import { currentProfile } from "@/lib/session";
+import { getPaymentsStatus } from "@/lib/payments";
 
 // Role-aware dashboard payload: one call powering the whole /dashboard page.
 // Stores persist snake_case; this route maps to the camelCase view-model the UI consumes.
@@ -10,6 +11,7 @@ export async function GET() {
 
   const store = getStore();
   if (profile.role === "brand") {
+    const payments = getPaymentsStatus();
     const campaigns = await store.listCampaigns({ brandId: profile.id });
     const enriched = await Promise.all(
       campaigns.map(async (campaign) => {
@@ -33,12 +35,23 @@ export async function GET() {
             );
           }
         }
+        const fundingPending =
+          campaign.status === "open" &&
+          campaign.payment_status === "unpaid" &&
+          campaign.payment_ref === `pending:campaign:${campaign.id}:charge`;
+        const rosterComplete =
+          campaign.slots_remaining === 0 &&
+          assignments.filter((assignment) => assignment.status !== "declined").length ===
+            campaign.slots;
         return {
           ...mapCampaign(campaign),
+          fundingPending,
           canFund:
-            campaign.status === "open" &&
-            campaign.payment_status === "unpaid" &&
-            campaign.slots_remaining < campaign.slots,
+            rosterComplete &&
+            (fundingPending ||
+              (campaign.status === "open" &&
+                campaign.payment_status === "unpaid" &&
+                !campaign.payment_ref)),
           applications: applications.map((a) => ({
             id: a.id,
             pitch: a.pitch,
@@ -58,7 +71,7 @@ export async function GET() {
             creatorName: profilesById[a.creator_id]?.name || "Creator",
           })),
           ledger: ledger.map((entry) => ({
-            id: `${entry.campaign_id}-${entry.kind}-${entry.amount_cents}`,
+            id: entry.id,
             kind: entry.kind,
             amountCents: entry.amount_cents,
             memo: entry.memo,
@@ -66,7 +79,11 @@ export async function GET() {
         };
       }),
     );
-    return NextResponse.json({ role: "brand", campaigns: enriched });
+    return NextResponse.json({
+      role: "brand",
+      campaigns: enriched,
+      payments,
+    });
   }
 
   // creator
@@ -83,7 +100,12 @@ export async function GET() {
   }
   const appliedIds = new Set(applications.map((a) => a.campaign_id));
   const marketplace = (await store.listCampaigns())
-    .filter((c) => c.status === "open")
+    .filter(
+      (c) =>
+        c.status === "open" &&
+        c.payment_status === "unpaid" &&
+        c.slots_remaining > 0,
+    )
     .map((c) => ({
       ...mapCampaign(c),
       myApplicationId: appliedIds.has(c.id) ? c.id : null,

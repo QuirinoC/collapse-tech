@@ -80,22 +80,27 @@ export default function LandingPage() {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     setContactStatus("Sending…");
-    const response = await fetch("/api/contact", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: data.get("name"),
-        email: data.get("email"),
-        company: data.get("company"),
-        message: data.get("message"),
-      }),
-    });
-    if (response.ok) {
-      event.target.reset();
-      setContactStatus("Received. We reply within one business day.");
-    } else {
-      const { error } = await response.json().catch(() => ({}));
-      setContactStatus(error || "Could not send. Try again.");
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: data.get("name"),
+          email: data.get("email"),
+          company: data.get("company"),
+          kind: "brand",
+          message: data.get("message"),
+        }),
+      });
+      if (response.ok) {
+        event.target.reset();
+        setContactStatus("Received. We reply within one business day.");
+      } else {
+        const { error } = await response.json().catch(() => ({}));
+        setContactStatus(error || "Could not send. Try again.");
+      }
+    } catch {
+      setContactStatus("Could not connect. Check your connection and try again.");
     }
   }
 
@@ -200,7 +205,7 @@ export default function LandingPage() {
           <FlowStep
             mark="Step 03 — Escrow"
             title="Fund once, upfront"
-            body="A single payment covers all creator slots plus our flat 18% fee. Funds sit in escrow — no creator is paid yet."
+            body="Your total budget includes our flat 18% fee. The remaining 82% is split across the creator slots and held until work is approved."
           />
           <FlowStep
             mark="Step 04 — Ship"
@@ -254,13 +259,13 @@ export default function LandingPage() {
         <div className="flow-list fee-list">
           <FlowStep
             mark="You pay"
-            title="18% of campaign budget"
-            body="A $5,000 campaign costs $5,900 total: $5,000 reaches creators, $900 is our entire fee. Compare that to $24,000+/yr for typical agency software."
+            title="One all-in campaign budget"
+            body="A $5,000 campaign allocates $4,100 to creator payouts and $900 to our fee. No additional software subscription or agency retainer."
           />
           <FlowStep
             mark="Creators receive"
-            title="100% of their slot"
-            body="The 18% covers curation, contracts, escrow and verification — it is never deducted from creator payouts."
+            title="100% of the quoted payout"
+            body="Each creator sees their exact slot payout before accepting. Our fee is reserved at campaign funding and never deducted again."
           />
         </div>
       </section>

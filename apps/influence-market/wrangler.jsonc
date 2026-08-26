@@ -3,8 +3,12 @@
   "name": "influence-market",
   "main": ".open-next/worker.js",
   "workers_dev": false,
-  "compatibility_date": "2026-08-01",
+  "compatibility_date": "2026-08-26",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "vars": {
+    "PERSISTENCE_DRIVER": "d1",
+    "PAYMENTS_MODE": "disabled"
+  },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
@@ -13,7 +17,8 @@
     {
       "binding": "DB",
       "database_name": "influence-market",
-      "database_id": "f5a7fdde-dfbf-4c16-bc83-92495a6d6013"
+      "database_id": "f5a7fdde-dfbf-4c16-bc83-92495a6d6013",
+      "migrations_dir": "d1/migrations"
     }
   ],
   "routes": [
@@ -23,6 +28,7 @@
     }
   ],
   "observability": {
-    "enabled": true
+    "enabled": true,
+    "head_sampling_rate": 1
   }
 }

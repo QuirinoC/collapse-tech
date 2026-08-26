@@ -7,8 +7,36 @@ import SiteFooter from "@/components/site-footer";
 
 const TABS = {
   brand: ["campaigns", "new"],
-  creator: ["marketplace", "work"],
+  creator: ["marketplace", "work", "profile"],
 };
+
+const CREATOR_PLATFORMS = [
+  "instagram",
+  "tiktok",
+  "youtube",
+  "facebook",
+  "x",
+  "twitch",
+];
+
+const CREATOR_NICHES = [
+  "beauty",
+  "fashion",
+  "wellness",
+  "lifestyle",
+  "fitness",
+  "food",
+  "travel",
+  "gaming",
+  "tech",
+  "finance",
+  "education",
+  "music",
+  "sports",
+  "automotive",
+  "home",
+  "pets",
+];
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -17,36 +45,64 @@ export default function DashboardPage() {
   const [tab, setTab] = useState("campaigns");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   const refresh = useCallback(async () => {
-    const response = await fetch("/api/dashboard");
-    if (response.ok) setData(await response.json());
-    setLoading(false);
+    try {
+      const response = await fetch("/api/dashboard");
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        setLoadError(payload.error || "Could not load your dashboard.");
+        return;
+      }
+      setData(await response.json());
+      setLoadError("");
+    } catch {
+      setLoadError("Could not connect. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : null))
+      .then((response) => {
+        if (response.status === 401) return null;
+        if (!response.ok) throw new Error("Could not load your account.");
+        return response.json();
+      })
       .then(async (meData) => {
         if (!meData?.profile) {
           router.push("/login");
+          setLoading(false);
           return;
         }
         setMe(meData.profile);
+        setTab(meData.profile.role === "brand" ? "campaigns" : "marketplace");
         await refresh();
+      })
+      .catch(() => {
+        setLoadError("Could not connect. Check your connection and try again.");
+        setLoading(false);
       });
   }, [refresh, router]);
 
   async function act(url, body, method = "POST") {
     setStatus("Working…");
-    const response = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-    });
-    const payload = await response.json().catch(() => ({}));
-    setStatus(response.ok ? payload.message || "Done." : payload.error || "Failed.");
-    if (response.ok) await refresh();
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+      const payload = await response.json().catch(() => ({}));
+      setStatus(response.ok ? payload.message || "Done." : payload.error || "Failed.");
+      if (response.ok) await refresh();
+      return { ok: response.ok, payload };
+    } catch {
+      setStatus("Could not connect. Check your connection and try again.");
+      return { ok: false, payload: {} };
+    }
   }
 
   const role = me?.role;
@@ -55,11 +111,24 @@ export default function DashboardPage() {
   return (
     <main>
       <SiteHeader />
-      <div className="page-head">
+      <div className="page-head dashboard-head">
         <p className="eyebrow">{role === "brand" ? "Brand console" : "Creator studio"}</p>
         <h1>{me?.name || "Dashboard"}</h1>
       </div>
       <div className="page-body">
+        {loading && <p className="dashboard-loading">Loading your workspace…</p>}
+        {loadError && !loading && (
+          <div className="payment-notice error-notice">
+            <p>{loadError}</p>
+            <button
+              type="button"
+              className="chip-button"
+              onClick={() => window.location.reload()}
+            >
+              Retry
+            </button>
+          </div>
+        )}
         {!loading && (
           <>
             <div className="dash-tabs">
@@ -74,6 +143,7 @@ export default function DashboardPage() {
                   {t === "new" && "+ New campaign"}
                   {t === "marketplace" && "Open briefs"}
                   {t === "work" && "My work & payouts"}
+                  {t === "profile" && "Public profile"}
                 </button>
               ))}
             </div>
@@ -82,12 +152,21 @@ export default function DashboardPage() {
             {role === "brand" && data && tab === "campaigns" && (
               <BrandCampaigns data={data} act={act} />
             )}
-            {role === "brand" && tab === "new" && <NewCampaign act={act} />}
+            {role === "brand" && tab === "new" && (
+              <NewCampaign act={act} onCreated={() => setTab("campaigns")} />
+            )}
             {role === "creator" && data && tab === "marketplace" && (
               <CreatorMarketplace data={data} act={act} />
             )}
             {role === "creator" && data && tab === "work" && (
               <CreatorWork data={data} act={act} />
+            )}
+            {role === "creator" && tab === "profile" && (
+              <CreatorProfile
+                profile={me}
+                onSaved={(profile) => setMe((current) => ({ ...current, ...profile }))}
+                setStatus={setStatus}
+              />
             )}
           </>
         )}
@@ -119,7 +198,7 @@ function BrandCampaigns({ data, act }) {
           <p className="eyebrow" style={{ marginBottom: 0 }}>
             Budget ${(c.budgetCents / 100).toLocaleString()} · fee $
             {(c.feeCents / 100).toLocaleString()} · ${(c.perCreatorPayoutCents / 100).toLocaleString()}
-            /slot × {c.creatorSlots}
+            /slot × {c.slots}
           </p>
 
           {(c.applications || []).length > 0 && (
@@ -167,60 +246,51 @@ function BrandCampaigns({ data, act }) {
                       </a>
                     </p>
                   )}
-                  {asg.notes && <p style={{ margin: "6px 0" }}>{asg.notes}</p>}
+                  {asg.notes && (
+                    <p style={{ margin: "6px 0" }}>
+                      <strong>Latest note:</strong> {asg.notes}
+                    </p>
+                  )}
                   {asg.status === "instructions_sent" && (
                     <p style={{ margin: "6px 0" }}>Awaiting submission. Instructions sent.</p>
                   )}
-                  {asg.status === "submitted" && (
-                    <div className="inline-actions">
-                      <button
-                        type="button"
-                        className="chip-button"
-                        onClick={() =>
-                          act(`/api/assignments/${asg.id}/review`, {
-                            decision: "approve",
-                            notes: asg.notes,
-                          })
-                        }
-                      >
-                        Approve &amp; release ${((asg.payoutCents ?? c.perCreatorPayoutCents) / 100).toLocaleString()}
-                      </button>
-                      <button
-                        type="button"
-                        className="chip-button secondary"
-                        onClick={() =>
-                          act(`/api/assignments/${asg.id}/review`, {
-                            decision: "reject",
-                            notes: asg.notes || "Please revise per the brief.",
-                          })
-                        }
-                      >
-                        Request revision
-                      </button>
-                    </div>
+                  {["submitted", "approved"].includes(asg.status) && (
+                    <ReviewActions
+                      assignment={asg}
+                      campaign={c}
+                      act={act}
+                      retry={asg.status === "approved"}
+                    />
                   )}
                 </div>
               ))}
             </>
           )}
 
-          {c.canFund && (
+          {c.canFund && data.payments?.ready && (
             <div className="inline-actions">
               <button
                 type="button"
                 className="chip-button"
                 onClick={() => act(`/api/campaigns/${c.id}/fund`, {})}
               >
-                Fund campaign — pay ${(c.budgetCents / 100).toLocaleString()} now
+                {c.fundingPending
+                  ? "Retry funding reconciliation"
+                  : `Fund campaign — pay $${(c.budgetCents / 100).toLocaleString()} now`}
               </button>
             </div>
+          )}
+          {c.canFund && !data.payments?.ready && (
+            <p className="payment-notice">
+              {data.payments?.message || "Online funding is not enabled yet."}
+            </p>
           )}
           {(c.ledger || []).length > 0 && (
             <details style={{ marginTop: 14 }}>
               <summary className="eyebrow" style={{ cursor: "pointer" }}>Ledger</summary>
               {c.ledger.map((entry) => (
                 <p key={entry.id} style={{ margin: "8px 0 0", fontFamily: "var(--font-plex-mono), monospace", fontSize: ".72rem" }}>
-                  {entry.kind.toUpperCase()} · ${(entry.amountCents / 100).toLocaleString()} · {entry.description}
+                  {entry.kind.toUpperCase()} · ${(entry.amountCents / 100).toLocaleString()} · {entry.memo}
                 </p>
               ))}
             </details>
@@ -231,28 +301,94 @@ function BrandCampaigns({ data, act }) {
   );
 }
 
-function NewCampaign({ act }) {
+function ReviewActions({ assignment, campaign, act, retry = false }) {
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function review(decision) {
+    setBusy(true);
+    await act(`/api/assignments/${assignment.id}/review`, {
+      decision,
+      notes:
+        notes.trim() ||
+        (decision === "reject" ? "Please revise the content to match the brief." : undefined),
+    });
+    setBusy(false);
+  }
+
+  return (
+    <div className="review-actions">
+      {!retry && (
+        <label className="field-label">
+          Review note (required when requesting a revision)
+          <textarea
+            className="inline-pitch"
+            rows={2}
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            placeholder="Call out the approved deliverables or the exact revision needed."
+          />
+        </label>
+      )}
+      <div className="inline-actions">
+        <button
+          type="button"
+          className="chip-button"
+          disabled={busy}
+          onClick={() => review("approve")}
+        >
+          {retry ? "Retry payout" : "Approve & release"} · $
+          {((assignment.payoutCents ?? campaign.perCreatorPayoutCents) / 100).toLocaleString()}
+        </button>
+        {!retry && (
+          <button
+            type="button"
+            className="chip-button secondary"
+            disabled={busy}
+            onClick={() => review("reject")}
+          >
+            Request revision
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NewCampaign({ act, onCreated }) {
   const [busy, setBusy] = useState(false);
 
   async function submit(event) {
     event.preventDefault();
     setBusy(true);
-    const data = new FormData(event.currentTarget);
-    await act(
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const result = await act(
       "/api/campaigns",
       {
         title: data.get("title"),
         brandName: data.get("brandName"),
         brief: data.get("brief"),
+        productInfo: data.get("productInfo") || undefined,
         demographics: data.get("demographics") || undefined,
         platforms: data.getAll("platforms").filter(Boolean),
         niches: data.getAll("niches").filter(Boolean),
+        followerMin: data.get("followerMin")
+          ? Number(data.get("followerMin"))
+          : undefined,
+        followerMax: data.get("followerMax")
+          ? Number(data.get("followerMax"))
+          : undefined,
         budgetCents: Math.round(Number(data.get("budget")) * 100),
-        creatorSlots: Number(data.get("creatorSlots")),
+        slots: Number(data.get("creatorSlots")),
       },
       "POST",
     );
     setBusy(false);
+    if (result.ok) {
+      form.reset();
+      onCreated();
+    }
   }
 
   return (
@@ -271,9 +407,18 @@ function NewCampaign({ act }) {
           <textarea
             name="brief"
             required
-            minLength={20}
+            minLength={30}
             rows={5}
             placeholder="What to promote, how to test it, key messages, do's and don'ts."
+          />
+        </label>
+        <label className="full">
+          Product and fulfillment
+          <textarea
+            name="productInfo"
+            rows={3}
+            maxLength={1500}
+            placeholder="What creators receive, who ships it, and any reimbursement details."
           />
         </label>
         <label className="full">
@@ -283,8 +428,17 @@ function NewCampaign({ act }) {
         <PlatformsField />
         <NichesField />
         <label>
-          Total budget (USD)
+          Minimum followers (optional)
+          <input name="followerMin" type="number" min={0} step={1} placeholder="10000" />
+        </label>
+        <label>
+          Maximum followers (optional)
+          <input name="followerMax" type="number" min={0} step={1} placeholder="250000" />
+        </label>
+        <label>
+          Total budget, fee included (USD)
           <input name="budget" type="number" min={100} max={1000000} step={1} required placeholder="5000" />
+          <small className="helper-text">82% funds creator payouts; 18% is the platform fee.</small>
         </label>
         <label>
           Creator slots
@@ -299,14 +453,14 @@ function NewCampaign({ act }) {
 }
 
 function PlatformsField() {
-  const platforms = ["tiktok", "youtube", "instagram", "facebook", "x"];
   return (
     <fieldset className="full field-label" style={{ border: 0, padding: 0 }}>
       Platforms
-      <div className="tag-row" style={{ marginTop: 6 }}>
-        {platforms.map((p) => (
-          <label key={p} style={{ display: "inline-flex", gap: 6, alignItems: "center", textTransform: "none", fontSize: ".85rem" }}>
-            <input type="checkbox" name="platforms" value={p} /> {p}
+      <div className="option-grid">
+        {CREATOR_PLATFORMS.map((p) => (
+          <label key={p} className="option-chip">
+            <input type="checkbox" name="platforms" value={p} />
+            <span>{p}</span>
           </label>
         ))}
       </div>
@@ -315,14 +469,14 @@ function PlatformsField() {
 }
 
 function NichesField() {
-  const niches = ["fitness", "beauty", "gaming", "food", "finance", "travel"];
   return (
-    <fieldset className="field-label" style={{ border: 0, padding: 0 }}>
+    <fieldset className="full field-label" style={{ border: 0, padding: 0 }}>
       Topics
-      <div className="tag-row" style={{ marginTop: 6 }}>
-        {niches.map((n) => (
-          <label key={n} style={{ display: "inline-flex", gap: 6, alignItems: "center", textTransform: "none", fontSize: ".85rem" }}>
-            <input type="checkbox" name="niches" value={n} /> {n}
+      <div className="option-grid">
+        {CREATOR_NICHES.map((n) => (
+          <label key={n} className="option-chip">
+            <input type="checkbox" name="niches" value={n} />
+            <span>{n}</span>
           </label>
         ))}
       </div>
@@ -373,14 +527,11 @@ function ApplyInline({ campaignId, act }) {
         <textarea
           rows={2}
           required
-          minLength={10}
+          minLength={20}
           value={pitch}
           onChange={(e) => setPitch(e.target.value)}
           placeholder="One or two lines on your fit for this brief."
-          style={{
-            border: "0", borderBottom: "1px solid var(--line)", background: "transparent",
-            padding: "6px 0", outline: "none", resize: "vertical", font: "inherit",
-          }}
+          className="inline-pitch"
         />
       </label>
       <button type="submit" className="chip-button" disabled={busy}>
@@ -398,7 +549,7 @@ function CreatorWork({ data, act }) {
     <div className="dash-panel">
       <article className="panel-card">
         <h3>Lifetime paid out</h3>
-        <p style={{ fontFamily: "var(--font-plex-mono), monospace", fontSize: "1.9rem", color: "var(--ink)", fontWeight: 600 }}>
+        <p className="earnings-total">
           ${(earnings / 100).toLocaleString()}
         </p>
       </article>
@@ -455,6 +606,11 @@ function AssignmentCard({ asg, act }) {
           {asg.status === "paid" ? " · released" : " · held in escrow until approval"}
         </p>
       )}
+      {asg.notes && (
+        <p style={{ marginTop: 10 }}>
+          <strong>Latest note:</strong> {asg.notes}
+        </p>
+      )}
       {["instructions_sent", "rejected"].includes(asg.status) && (
         <SubmitInline assignment={asg} act={act} />
       )}
@@ -464,7 +620,9 @@ function AssignmentCard({ asg, act }) {
 
 function SubmitInline({ assignment, act }) {
   const [contentUrl, setContentUrl] = useState("");
-  const [notes, setNotes] = useState(assignment.notes || "");
+  const [notes, setNotes] = useState(
+    assignment.status === "rejected" ? "" : assignment.notes || "",
+  );
   const [busy, setBusy] = useState(false);
   return (
     <form
@@ -495,6 +653,228 @@ function SubmitInline({ assignment, act }) {
       </label>
       <button type="submit" className="chip-button" disabled={busy}>
         {assignment.status === "rejected" ? "Resubmit revision" : "Submit content"}
+      </button>
+    </form>
+  );
+}
+
+function CreatorProfile({ profile, onSaved, setStatus }) {
+  const [bio, setBio] = useState(profile?.bio || "");
+  const [niches, setNiches] = useState(profile?.niches || []);
+  const [minBudget, setMinBudget] = useState(
+    profile?.minBudgetCents != null ? String(profile.minBudgetCents / 100) : "",
+  );
+  const [channels, setChannels] = useState(() => {
+    const existing = profile?.channels || [];
+    if (!existing.length) {
+      return [{ platform: "instagram", handle: "", followers: "", topic: "lifestyle" }];
+    }
+    return existing.map((channel) => ({
+      platform: channel.platform,
+      handle: channel.handle,
+      followers: String(channel.followers ?? ""),
+      topic: channel.topics?.[0] || "lifestyle",
+    }));
+  });
+  const [busy, setBusy] = useState(false);
+
+  function toggleNiche(niche) {
+    setNiches((current) => {
+      if (current.includes(niche)) return current.filter((item) => item !== niche);
+      if (current.length >= 6) return current;
+      return [...current, niche];
+    });
+  }
+
+  function updateChannel(index, field, value) {
+    setChannels((current) =>
+      current.map((channel, channelIndex) =>
+        channelIndex === index ? { ...channel, [field]: value } : channel,
+      ),
+    );
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setBusy(true);
+    setStatus("Saving profile…");
+    const normalizedChannels = channels
+      .filter((channel) => channel.handle.trim())
+      .map((channel) => ({
+        platform: channel.platform,
+        handle: channel.handle.trim(),
+        followers: Number(channel.followers) || 0,
+        topics: [channel.topic],
+      }));
+    const payload = {
+      bio,
+      niches,
+      channels: normalizedChannels,
+      ...(minBudget.trim()
+        ? { minBudgetCents: Math.round(Number(minBudget) * 100) }
+        : { minBudgetCents: 0 }),
+    };
+
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setStatus(data.error || "Could not save your profile.");
+        return;
+      }
+      onSaved(data.profile);
+      setStatus("Profile saved. Your creator listing is live.");
+    } catch {
+      setStatus("Could not connect. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="profile-form" onSubmit={submit}>
+      <div className="profile-intro">
+        <p className="eyebrow">Your public listing</p>
+        <h2>Show brands why you&apos;re the right fit.</h2>
+        <p>
+          Keep your audience and rates current. Brands use these signals to build
+          their campaign shortlists.
+        </p>
+      </div>
+
+      <label className="field-label">
+        Bio
+        <textarea
+          rows={4}
+          maxLength={600}
+          value={bio}
+          onChange={(event) => setBio(event.target.value)}
+          placeholder="What you make, who follows you, and what your audience trusts you for."
+        />
+      </label>
+
+      <fieldset className="field-label profile-fieldset">
+        Content niches <small>Choose up to six.</small>
+        <div className="option-grid">
+          {CREATOR_NICHES.map((niche) => {
+            const selected = niches.includes(niche);
+            return (
+              <label key={niche} className="option-chip">
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  disabled={!selected && niches.length >= 6}
+                  onChange={() => toggleNiche(niche)}
+                />
+                <span>{niche}</span>
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
+
+      <label className="field-label profile-budget">
+        Minimum campaign payout (USD)
+        <input
+          type="number"
+          min={0}
+          step={1}
+          value={minBudget}
+          onChange={(event) => setMinBudget(event.target.value)}
+          placeholder="250"
+        />
+      </label>
+
+      <div className="channel-editor">
+        <div className="channel-editor-head">
+          <div>
+            <p className="eyebrow">Channels</p>
+            <h3>Where your audience lives</h3>
+          </div>
+          {channels.length < 8 && (
+            <button
+              type="button"
+              className="chip-button secondary"
+              onClick={() =>
+                setChannels((current) => [
+                  ...current,
+                  { platform: "tiktok", handle: "", followers: "", topic: "lifestyle" },
+                ])
+              }
+            >
+              + Add channel
+            </button>
+          )}
+        </div>
+
+        {channels.map((channel, index) => (
+          <div className="channel-row" key={`${index}-${channel.platform}`}>
+            <label>
+              Platform
+              <select
+                value={channel.platform}
+                onChange={(event) => updateChannel(index, "platform", event.target.value)}
+              >
+                {CREATOR_PLATFORMS.map((platform) => (
+                  <option key={platform} value={platform}>{platform}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Handle
+              <input
+                value={channel.handle}
+                onChange={(event) => updateChannel(index, "handle", event.target.value)}
+                placeholder="@yourhandle"
+                maxLength={80}
+              />
+            </label>
+            <label>
+              Followers
+              <input
+                type="number"
+                min={0}
+                max={500000000}
+                value={channel.followers}
+                onChange={(event) => updateChannel(index, "followers", event.target.value)}
+                placeholder="25000"
+              />
+            </label>
+            <label>
+              Primary topic
+              <select
+                value={channel.topic}
+                onChange={(event) => updateChannel(index, "topic", event.target.value)}
+              >
+                {CREATOR_NICHES.map((niche) => (
+                  <option key={niche} value={niche}>{niche}</option>
+                ))}
+              </select>
+            </label>
+            {channels.length > 1 && (
+              <button
+                type="button"
+                className="remove-channel"
+                aria-label={`Remove ${channel.platform} channel`}
+                onClick={() =>
+                  setChannels((current) =>
+                    current.filter((_, channelIndex) => channelIndex !== index),
+                  )
+                }
+              >
+                ×
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <button className="button profile-save" type="submit" disabled={busy}>
+        {busy ? "Saving…" : "Save public profile"} <span>↗</span>
       </button>
     </form>
   );
