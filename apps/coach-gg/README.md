@@ -90,6 +90,62 @@ npx playwright test --reporter=line
 # Runs against https://coach.collapsetechnologies.com
 ```
 
+### Unit Tests
+```bash
+dotnet test tests/CoachGG.Tests/CoachGG.Tests.csproj
+```
+
+---
+
+## Troubleshooting
+
+### Search returns 502/503 instead of results
+
+`GET /search` previously masked upstream start.gg failures as `200 []`
+("no players found"). It now fails loudly:
+
+- **502** — start.gg rejected the API key (auth failure) or is unreachable.
+- **503** — start.gg rate limit persisted after bounded retries.
+
+The SignalR analysis flow behaves the same way: jobs emit `JobError` with an
+actionable message instead of hanging on unbounded retries, and a stale
+`Running` job state left in Redis by a restart/redeploy no longer blocks a new
+run.
+
+### STARTGG_APIKEY (most common cause)
+
+Search and analysis both fail when the start.gg token configured on the host
+is blank, revoked, or expired. The app refuses to boot with a blank key
+(startup throws), so a healthy `/health` with failing searches means the
+configured token was **rejected by start.gg**, not that it is missing.
+
+To rotate:
+
+1. Log in at [start.gg](https://start.gg) → **Profile → Developer Settings**
+   (https://start.gg/admin/profile/developer) → create/copy a personal access
+   token.
+2. Set it as `STARTGG_APIKEY` in the Render dashboard for service
+   `srv-da56cr2jobas73dmulv0` (Environment tab) and redeploy. This secret
+   cannot be read from the repo — only from the hosting dashboard.
+3. Verify: `curl https://coach.collapsetechnologies.com/search?q=bc954a2e`
+   should return a JSON array containing the player, and
+   `https://coach.collapsetechnologies.com/?slug=bc954a2e` should stream a
+   full analysis to completion.
+
+> **Note:** live validity of the production token could not be verified from
+> within this repository (the value lives only in the hosting dashboard).
+> Once a valid `STARTGG_APIKEY` is set, search **and** the direct
+> `?slug=bc954a2e` deep link complete successfully — verified end-to-end
+> locally against a stubbed start.gg API plus the real API's error paths.
+
+### Rate limits
+
+Each search issues a bounded number of start.gg requests (direct lookup +
+recent-events pages + major tournaments, capped and aborted early once enough
+results are found). If you still hit the ~80 req/min per-token limit, `/search`
+returns 503 and analysis emits a `JobError` mentioning the rate limit; retry
+after about a minute.
+
 ---
 
 ## API Reference
@@ -184,16 +240,19 @@ apps/coach-gg/
 │   │   ├── Constants.cs           # StatsVersion, SkipCharacters, char map
 │   │   ├── JobManager.cs          # Job deduplication
 │   │   ├── RedisService.cs        # Redis cache wrapper
-│   │   ├── SearchService.cs       # Hybrid player search
+│   │   ├── SearchService.cs       # Hybrid player search + upstream health
 │   │   └── StartGGService.cs      # GraphQL client + retry
 │   ├── Models/
 │   │   ├── GameData.cs        # Raw API models
 │   │   ├── JobState.cs        # Job state + StatsVersion
 │   │   └── Stats.cs           # PlayerStats, StatEntry
-│   └── static/
-│       ├── index.html         # App shell
-│       ├── app.js             # SignalR client, rendering, sort
-│       └── styles.css         # Dark theme, responsive
+│   ├── static/
+│   │   ├── index.html         # App shell
+│   │   ├── app.js             # SignalR client, rendering, sort
+│   │   └── styles.css         # Dark theme, responsive
+├── tests/
+│   ├── e2e.spec.ts            # 9 Playwright tests (contract: ?slug=bc954a2e)
+│   └── CoachGG.Tests/         # xUnit unit tests (search + aggregation)
 └── mobile/                    # React Native / Expo
     └── App.tsx
 ```
