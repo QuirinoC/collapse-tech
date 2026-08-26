@@ -94,13 +94,23 @@ export default function CreatorsPage() {
 function CreatorCard({ creator }) {
   return (
     <article className="creator-card">
-      <div>
-        <h3 className="creator-name">{creator.name}</h3>
-        <p className="creator-bio">{creator.bio}</p>
-        <div className="tag-row">
-          {(creator.niches || []).map((n) => (
-            <span key={n} className="tag">{n}</span>
-          ))}
+      <div className="creator-identity">
+        <span className="creator-avatar" aria-hidden="true">
+          {creator.name
+            .split(/\s+/)
+            .slice(0, 2)
+            .map((part) => part[0])
+            .join("")
+            .toUpperCase()}
+        </span>
+        <div>
+          <h3 className="creator-name">{creator.name}</h3>
+          <p className="creator-bio">{creator.bio}</p>
+          <div className="tag-row">
+            {(creator.niches || []).map((n) => (
+              <span key={n} className="tag">{n}</span>
+            ))}
+          </div>
         </div>
       </div>
       <div className="tag-row">

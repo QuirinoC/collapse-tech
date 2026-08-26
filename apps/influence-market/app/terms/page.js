@@ -13,8 +13,8 @@ export default function TermsPage() {
         <p className="legal-copy">
           Influence.Market operates a curated marketplace connecting brands with
           independent content creators. Brands fund campaigns upfront; funds are
-          held by the platform and released to creators only after the brand
-          approves content that complies with the campaign brief.
+          held through the payment processor and released to creators only after
+          the brand approves content that complies with the campaign brief.
         </p>
         <p className="legal-copy">
           Creators are independent contractors, not employees; no exclusivity is

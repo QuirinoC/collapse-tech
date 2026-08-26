@@ -1,100 +1,81 @@
-// Payments provider interface:
-//   charge({ campaignId, amountCents }) -> { ref, status: "captured" }
-//   payout({ assignmentId, amountCents, destination }) -> { ref }
-//   refund({ campaignId, amountCents, reason }) -> { ref }
-// The sandbox provider mirrors the exact state transitions with fake refs so
-// the full escrow loop runs without keys; the Stripe adapter performs real
-// API calls when STRIPE_SECRET_KEY is present.
+export class PaymentsUnavailableError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "PaymentsUnavailableError";
+    this.statusCode = 503;
+  }
+}
 
 export function getSandboxProvider() {
-  let counter = 0;
-  // Payouts are idempotent per assignment: re-running settlement never
-  // double-transfers, mirroring Stripe transfer idempotency keys.
-  const payouts = new Map();
-  const ref = (prefix) => `${prefix}_sbx_${Date.now().toString(36)}_${(++counter).toString(36)}`;
   return {
     name: "sandbox",
-    async charge({ amountCents }) {
-      if (!Number.isInteger(amountCents) || amountCents <= 0) {
-        throw new Error("Invalid charge amount.");
-      }
-      return { ref: ref("sbx"), status: "succeeded" };
+    async charge({ campaignId, amountCents, idempotencyKey }) {
+      assertAmount(amountCents, "charge");
+      return {
+        ref: sandboxRef(
+          "sbx",
+          idempotencyKey || `campaign:${campaignId}:charge:${amountCents}`,
+        ),
+        status: "succeeded",
+      };
     },
-    async payout({ assignmentId, amountCents }) {
-      if (!Number.isInteger(amountCents) || amountCents <= 0) {
-        throw new Error("Invalid payout amount.");
-      }
-      const key = `${assignmentId}:${amountCents}`;
-      if (!payouts.has(key)) {
-        payouts.set(key, { ref: ref("payout_sbx") });
-      }
-      return payouts.get(key);
+    async payout({ assignmentId, amountCents, idempotencyKey }) {
+      assertAmount(amountCents, "payout");
+      return {
+        ref: sandboxRef(
+          "payout_sbx",
+          idempotencyKey || `assignment:${assignmentId}:payout:${amountCents}`,
+        ),
+      };
     },
-    async refund({ amountCents }) {
-      if (!Number.isInteger(amountCents) || amountCents <= 0) {
-        throw new Error("Invalid refund amount.");
-      }
-      return { ref: ref("sbx") };
+    async refund({ amountCents, idempotencyKey }) {
+      assertAmount(amountCents, "refund");
+      return { ref: sandboxRef("sbx", idempotencyKey) };
     },
   };
 }
 
-// Stripe adapter over the REST API — no Node SDK dependency, so it runs on
-// Cloudflare Workers unchanged.
-export function getStripeProvider(secretKey = process.env.STRIPE_SECRET_KEY) {
-  const api = "https://api.stripe.com/v1";
-
-  async function call(path, params) {
-    const response = await fetch(`${api}${path}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${secretKey}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams(params),
-    });
-    const body = await response.json();
-    if (!response.ok) {
-      throw new Error(`Stripe ${path} failed: ${body?.error?.message || response.status}`);
-    }
-    return body;
+export function getPaymentsStatus(env = process.env) {
+  const explicitMode = env.PAYMENTS_MODE?.trim().toLowerCase();
+  if (explicitMode === "sandbox") {
+    return {
+      ready: true,
+      mode: "sandbox",
+      message: "Sandbox payments are enabled for testing.",
+    };
   }
-
+  if (!explicitMode && env.NODE_ENV !== "production") {
+    return {
+      ready: true,
+      mode: "sandbox",
+      message: "Sandbox payments are enabled for local development.",
+    };
+  }
   return {
-    name: "stripe",
-    // v1 captures immediately; funds are held by the platform until payouts run.
-    // Phase 2 moves this to Connect destination charges for true split escrow.
-    async charge({ campaignId, amountCents }) {
-      const intent = await call("/payment_intents", {
-        amount: amountCents,
-        currency: "usd",
-        "automatic_payment_methods[enabled]": "true",
-        "metadata[campaign_id]": campaignId,
-      });
-      return { ref: intent.id, status: intent.status };
-    },
-    async payout({ assignmentId, amountCents, destination }) {
-      const transfer = await call("/transfers", {
-        amount: amountCents,
-        currency: "usd",
-        destination, // Stripe Connect account id of the creator
-        "metadata[assignment_id]": assignmentId,
-      });
-      return { ref: transfer.id };
-    },
-    async refund({ paymentIntentRef, amountCents, reason }) {
-      const params = { payment_intent: paymentIntentRef };
-      if (amountCents) params.amount = amountCents;
-      if (reason) params["metadata[reason]"] = reason;
-      const refund = await call("/refunds", params);
-      return { ref: refund.id };
-    },
+    ready: false,
+    mode: explicitMode || "disabled",
+    message:
+      "Online funding is not enabled yet. Contact the Influence.Market team to fund this campaign.",
   };
 }
 
-export function getPaymentsProvider() {
-  if (process.env.STRIPE_SECRET_KEY) {
-    return getStripeProvider();
+export function getPaymentsProvider(env = process.env) {
+  const status = getPaymentsStatus(env);
+  if (status.ready && status.mode === "sandbox") {
+    return getSandboxProvider();
   }
-  return getSandboxProvider();
+  throw new PaymentsUnavailableError(status.message);
+}
+
+function assertAmount(amountCents, operation) {
+  if (!Number.isInteger(amountCents) || amountCents <= 0) {
+    throw new Error(`Invalid ${operation} amount.`);
+  }
+}
+
+function sandboxRef(prefix, idempotencyKey) {
+  if (!idempotencyKey || typeof idempotencyKey !== "string") {
+    throw new Error("A stable idempotency key is required.");
+  }
+  return `${prefix}_${idempotencyKey.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 }

@@ -29,10 +29,16 @@ export function canApply(campaign) {
 }
 
 export function canFund(campaign) {
-  return campaign.status === "open" && campaign.payment_status === "unpaid";
+  return (
+    campaign.status === "open" &&
+    campaign.payment_status === "unpaid" &&
+    campaign.slots_remaining === 0 &&
+    !campaign.payment_ref
+  );
 }
 
-// Funding requires at least one accepted application: money follows committed supply.
+// Funding starts only after the full roster is committed, so every dollar in the
+// creator pool is assigned before the brand is charged.
 export function canAcceptApplication(campaign, application) {
   return (
     campaign.status === "open" &&
@@ -128,10 +134,10 @@ export function markPaid(assignment, now = new Date().toISOString()) {
 
 // A campaign completes when every accepted slot reached a terminal state
 // (paid or declined). Rejected/instructions/submitted keep it open.
-export function isSettled(campaignStatus, assignments) {
-  if (campaignStatus !== "funded") return false;
+export function isSettled(campaign, assignments) {
+  if (campaign.status !== "funded") return false;
   return (
-    assignments.length > 0 &&
+    assignments.length === campaign.slots &&
     assignments.every(
       (a) => a.status === "paid" || a.status === "declined",
     )

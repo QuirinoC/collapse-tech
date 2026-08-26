@@ -21,21 +21,27 @@ export default function AuthForm({ mode }) {
             password: data.get("password"),
             role,
             name: data.get("name"),
+            ...(role === "brand" ? { company: data.get("company") } : {}),
           }
         : { email: data.get("email"), password: data.get("password") };
 
-    const response = await fetch(`/api/auth/${mode}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    setBusy(false);
-    if (!response.ok) {
-      const { error: message } = await response.json().catch(() => ({}));
-      setError(message || "Something went wrong. Try again.");
-      return;
+    try {
+      const response = await fetch(`/api/auth/${mode}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const { error: message } = await response.json().catch(() => ({}));
+        setError(message || "Something went wrong. Try again.");
+        return;
+      }
+      router.push("/dashboard");
+    } catch {
+      setError("Could not connect. Check your connection and try again.");
+    } finally {
+      setBusy(false);
     }
-    router.push("/dashboard");
   }
 
   return (
@@ -62,6 +68,12 @@ export default function AuthForm({ mode }) {
             Name
             <input name="name" autoComplete="name" required minLength={2} />
           </label>
+          {role === "brand" && (
+            <label>
+              Company
+              <input name="company" autoComplete="organization" maxLength={160} />
+            </label>
+          )}
         </>
       )}
       <label>

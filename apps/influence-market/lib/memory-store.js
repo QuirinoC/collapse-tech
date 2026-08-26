@@ -199,6 +199,60 @@ export function createMemoryStore() {
       campaigns.set(id, updated);
       return structuredClone(updated);
     },
+    async claimCampaignFunding(id, claimRef) {
+      const campaign = campaigns.get(id);
+      if (
+        campaign?.status === "open" &&
+        campaign.payment_status === "unpaid" &&
+        campaign.slots_remaining === 0 &&
+        (campaign.payment_ref == null || campaign.payment_ref === claimRef)
+      ) {
+        campaign.payment_ref = claimRef;
+        campaigns.set(id, campaign);
+        return structuredClone(campaign);
+      }
+      return null;
+    },
+    async releaseCampaignFundingClaim(id, claimRef) {
+      const campaign = campaigns.get(id);
+      if (
+        campaign?.status === "open" &&
+        campaign.payment_status === "unpaid" &&
+        campaign.payment_ref === claimRef
+      ) {
+        campaign.payment_ref = null;
+        campaigns.set(id, campaign);
+      }
+    },
+    async finalizeCampaignFunding({
+      campaignId,
+      claimRef,
+      providerRef,
+      fundedAt,
+      charge,
+      fee,
+    }) {
+      const campaign = campaigns.get(campaignId);
+      if (
+        !campaign ||
+        campaign.status !== "open" ||
+        campaign.payment_status !== "unpaid" ||
+        campaign.payment_ref !== claimRef
+      ) {
+        throw new Error("Campaign funding transaction did not finalize.");
+      }
+      const updated = {
+        ...campaign,
+        status: "funded",
+        payment_status: "held",
+        funded_at: fundedAt,
+        payment_ref: providerRef,
+      };
+      campaigns.set(campaignId, updated);
+      await this.appendLedger(charge);
+      await this.appendLedger(fee);
+      return structuredClone(updated);
+    },
     async listCampaigns({ brandId } = {}) {
       let rows = [...campaigns.values()];
       if (brandId) rows = rows.filter((c) => c.brand_id === brandId);
@@ -226,6 +280,17 @@ export function createMemoryStore() {
       applications.set(id, updated);
       return structuredClone(updated);
     },
+    async declineApplication(id, decidedAt) {
+      const existing = applications.get(id);
+      if (!existing || existing.status !== "pending") return null;
+      const updated = {
+        ...existing,
+        status: "declined",
+        decided_at: decidedAt,
+      };
+      applications.set(id, updated);
+      return structuredClone(updated);
+    },
     async findApplication(campaignId, creatorId) {
       const found = [...applications.values()].find(
         (a) => a.campaign_id === campaignId && a.creator_id === creatorId,
@@ -237,6 +302,54 @@ export function createMemoryStore() {
       if (campaignId) rows = rows.filter((a) => a.campaign_id === campaignId);
       if (creatorId) rows = rows.filter((a) => a.creator_id === creatorId);
       return rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    },
+
+    async acceptApplication(result) {
+      const currentCampaign = campaigns.get(result.campaign.id);
+      const currentApplication = applications.get(result.application.id);
+      const duplicateAssignment = [...assignments.values()].some(
+        (assignment) =>
+          assignment.campaign_id === result.campaign.id &&
+          assignment.creator_id === result.assignment.creator_id,
+      );
+      if (
+        !currentCampaign ||
+        currentCampaign.status !== "open" ||
+        currentCampaign.payment_status !== "unpaid" ||
+        currentCampaign.slots_remaining <= 0 ||
+        !currentApplication ||
+        currentApplication.status !== "pending" ||
+        currentApplication.campaign_id !== currentCampaign.id ||
+        currentApplication.creator_id !== result.assignment.creator_id ||
+        duplicateAssignment
+      ) {
+        const error = new Error("Application can no longer be accepted.");
+        error.statusCode = 409;
+        throw error;
+      }
+
+      const campaign = {
+        ...currentCampaign,
+        slots_remaining: currentCampaign.slots_remaining - 1,
+      };
+      const application = {
+        ...currentApplication,
+        status: "accepted",
+        decided_at: result.application.decided_at,
+      };
+      const assignment = {
+        ...result.assignment,
+        id: result.assignment.id || randomUUID(),
+        created_at: result.assignment.created_at || new Date().toISOString(),
+      };
+      campaigns.set(campaign.id, campaign);
+      applications.set(application.id, application);
+      assignments.set(assignment.id, assignment);
+      return {
+        campaign: structuredClone(campaign),
+        application: structuredClone(application),
+        assignment: structuredClone(assignment),
+      };
     },
 
     // --- assignments ---
@@ -260,6 +373,71 @@ export function createMemoryStore() {
       assignments.set(id, updated);
       return structuredClone(updated);
     },
+    async claimAssignmentApproval(id, { reviewedAt, notes }) {
+      const existing = assignments.get(id);
+      if (!existing || existing.status !== "submitted") return null;
+      const updated = {
+        ...existing,
+        status: "approved",
+        reviewed_at: reviewedAt,
+        notes: notes ?? null,
+      };
+      assignments.set(id, updated);
+      return structuredClone(updated);
+    },
+    async rejectAssignment(id, { reviewedAt, notes }) {
+      const existing = assignments.get(id);
+      if (!existing || existing.status !== "submitted") return null;
+      const updated = {
+        ...existing,
+        status: "rejected",
+        reviewed_at: reviewedAt,
+        notes: notes ?? null,
+      };
+      assignments.set(id, updated);
+      return structuredClone(updated);
+    },
+    async finalizeAssignmentPayout({
+      assignmentId,
+      campaignId,
+      providerRef,
+      paidAt,
+      notes,
+      ledgerEntry,
+    }) {
+      const assignment = assignments.get(assignmentId);
+      if (!assignment || assignment.status !== "approved") {
+        throw new Error("Creator payout transaction did not finalize.");
+      }
+      const paid = {
+        ...assignment,
+        status: "paid",
+        paid_at: paidAt,
+        payout_ref: providerRef,
+        notes: notes ?? null,
+      };
+      assignments.set(assignmentId, paid);
+      await this.appendLedger(ledgerEntry);
+
+      const campaign = campaigns.get(campaignId);
+      const campaignAssignments = [...assignments.values()].filter(
+        (item) => item.campaign_id === campaignId,
+      );
+      if (
+        campaign?.status === "funded" &&
+        campaignAssignments.length === campaign.slots &&
+        campaignAssignments.every((item) =>
+          ["paid", "declined"].includes(item.status),
+        )
+      ) {
+        campaigns.set(campaignId, {
+          ...campaign,
+          status: "completed",
+          payment_status: "settled",
+        });
+      }
+      return structuredClone(paid);
+    },
     async listAssignments({ campaignId, creatorId } = {}) {
       let rows = [...assignments.values()];
       if (campaignId) rows = rows.filter((a) => a.campaign_id === campaignId);
@@ -269,8 +447,16 @@ export function createMemoryStore() {
 
     // --- ledger ---
     async appendLedger(entry) {
-      ledger.push(structuredClone(entry));
-      return entry;
+      const existing = entry.operation_key
+        ? ledger.find((item) => item.operation_key === entry.operation_key)
+        : null;
+      if (existing) {
+        assertSameLedgerOperation(existing, entry);
+        return structuredClone(existing);
+      }
+      const row = { id: entry.id || randomUUID(), ...structuredClone(entry) };
+      ledger.push(row);
+      return structuredClone(row);
     },
     async listLedger({ campaignId } = {}) {
       return ledger
@@ -284,4 +470,16 @@ export function createMemoryStore() {
       return lead;
     },
   };
+}
+
+function assertSameLedgerOperation(stored, expected) {
+  if (
+    stored.campaign_id !== expected.campaign_id ||
+    (stored.assignment_id ?? null) !== (expected.assignment_id ?? null) ||
+    stored.kind !== expected.kind ||
+    stored.amount_cents !== expected.amount_cents ||
+    (stored.provider_ref ?? null) !== (expected.provider_ref ?? null)
+  ) {
+    throw new Error("Ledger idempotency key was reused with different payment data.");
+  }
 }

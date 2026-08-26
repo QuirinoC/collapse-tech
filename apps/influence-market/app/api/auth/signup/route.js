@@ -28,13 +28,18 @@ export async function POST(request) {
       { status: 409 },
     );
   }
+  if (existing && existing.role !== payload.role) {
+    return NextResponse.json(
+      { error: `This reserved profile must be claimed as a ${existing.role}.` },
+      { status: 409 },
+    );
+  }
 
   const passwordHash = await hashPassword(payload.password);
   const profile = existing
     ? await store.updateProfile(existing.id, {
         name: payload.name,
         company: payload.company ?? null,
-        passwordHashClaim: undefined,
         ...patchHash(passwordHash),
       })
     : await store.createProfile({

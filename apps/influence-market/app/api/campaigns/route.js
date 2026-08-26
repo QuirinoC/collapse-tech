@@ -56,10 +56,12 @@ export async function GET(request) {
     return NextResponse.json({ campaigns: mine });
   }
 
-  // Public marketplace shows funded campaigns (money committed) plus open ones.
+  // Public marketplace only shows briefs that creators can act on.
   const all = await store.listCampaigns();
   return NextResponse.json({
-    campaigns: all.filter((c) => c.status !== "cancelled").map(mapCampaign),
+    campaigns: all
+      .filter((c) => c.status === "open" && c.slots_remaining > 0)
+      .map(mapCampaign),
   });
 }
 

@@ -33,9 +33,10 @@ export async function POST(request, { params }) {
     );
   }
 
-  const updated = await store.updateAssignment(
-    id,
-    submitContent(assignment, payload.contentUrl),
-  );
+  const submitted = submitContent(assignment, payload.contentUrl);
+  const updated = await store.updateAssignment(id, {
+    ...submitted,
+    notes: payload.notes ?? null,
+  });
   return NextResponse.json({ assignment: updated });
 }

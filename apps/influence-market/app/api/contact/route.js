@@ -12,6 +12,7 @@ export async function POST(request) {
   await getStore().insertLead({
     name: payload.name,
     email: payload.email.toLowerCase(),
+    company: payload.company ?? null,
     kind: payload.kind,
     message: payload.message,
   });

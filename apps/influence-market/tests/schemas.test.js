@@ -76,6 +76,18 @@ test("application pitch has a floor", () => {
 
 test("submission requires URL-shaped content", () => {
   assert.throws(() => submissionSchema.parse({ contentUrl: "not-a-url" }));
+  assert.throws(() =>
+    submissionSchema.parse({ contentUrl: "javascript:alert(document.cookie)" }),
+  );
+  assert.throws(() =>
+    submissionSchema.parse({ contentUrl: "data:text/html,<h1>not a post</h1>" }),
+  );
+  assert.doesNotThrow(() =>
+    submissionSchema.parse({
+      contentUrl: "https://www.tiktok.com/@creator/video/123",
+      notes: "First cut with the requested disclosure.",
+    }),
+  );
 });
 
 test("review decision is constrained", () => {
@@ -91,6 +103,7 @@ test("contact captures leads", () => {
     kind: "brand",
   });
   assert.equal(lead.email, "ann@brand.com");
+  assert.equal(lead.company, "Brand Co");
 });
 
 test("memory store seeds six demo creators with channels", async () => {
@@ -101,4 +114,143 @@ test("memory store seeds six demo creators with channels", async () => {
     assert.ok(creator.channels.length > 0);
     assert.equal(creator.password_hash, null);
   }
+});
+
+test("memory store persists an accepted application as one repository operation", async () => {
+  const store = createMemoryStore();
+  const brand = await store.createProfile({
+    role: "brand",
+    email: "brand@example.com",
+    password_hash: "hash",
+    name: "Brand",
+  });
+  const creator = (await store.listCreatorDirectory())[0];
+  const campaign = await store.insertCampaign({
+    brand_id: brand.id,
+    brand_name: "Brand",
+    title: "Creator campaign",
+    brief: "A sufficiently detailed campaign brief for repository testing.",
+    platforms: ["tiktok"],
+    niches: ["beauty"],
+    slots: 1,
+    slots_remaining: 1,
+    budget_cents: 100000,
+    fee_cents: 18000,
+    per_creator_cents: 82000,
+    status: "open",
+    payment_status: "unpaid",
+  });
+  const application = await store.insertApplication({
+    campaign_id: campaign.id,
+    creator_id: creator.id,
+    pitch: "I make trusted beauty tutorials for this exact audience.",
+    status: "pending",
+  });
+
+  const acceptance = {
+    campaign: { ...campaign, slots_remaining: 0 },
+    application: { ...application, status: "accepted", decided_at: new Date().toISOString() },
+    assignment: {
+      campaign_id: campaign.id,
+      creator_id: creator.id,
+      status: "instructions_sent",
+    },
+  };
+  const attempts = await Promise.allSettled([
+    store.acceptApplication(acceptance),
+    store.acceptApplication(acceptance),
+  ]);
+  const fulfilled = attempts.filter((attempt) => attempt.status === "fulfilled");
+  const rejected = attempts.filter((attempt) => attempt.status === "rejected");
+  assert.equal(fulfilled.length, 1);
+  assert.equal(rejected.length, 1);
+  const accepted = fulfilled[0].value;
+
+  assert.equal(accepted.campaign.slots_remaining, 0);
+  assert.equal(accepted.application.status, "accepted");
+  assert.equal(accepted.assignment.status, "instructions_sent");
+  assert.equal(
+    (await store.listAssignments({ campaignId: campaign.id })).length,
+    1,
+  );
+});
+
+test("memory ledger deduplicates stable payment operation keys", async () => {
+  const store = createMemoryStore();
+  const entry = {
+    campaign_id: "campaign-1",
+    assignment_id: null,
+    kind: "charge",
+    amount_cents: 500000,
+    provider_ref: "sbx_campaign_1_charge",
+    operation_key: "campaign:campaign-1:charge",
+    memo: "Campaign funding",
+  };
+
+  const first = await store.appendLedger(entry);
+  const retry = await store.appendLedger(entry);
+  assert.equal(retry.id, first.id);
+  assert.equal((await store.listLedger()).length, 1);
+
+  await assert.rejects(
+    () => store.appendLedger({ ...entry, amount_cents: 499999 }),
+    /idempotency key/i,
+  );
+});
+
+test("conditional application decline cannot overwrite an acceptance", async () => {
+  const store = createMemoryStore();
+  const application = await store.insertApplication({
+    campaign_id: "campaign-race",
+    creator_id: "creator-race",
+    pitch: "A sufficiently detailed pitch for the decision race test.",
+    status: "pending",
+  });
+  await store.updateApplication(application.id, { status: "accepted" });
+
+  const staleDecline = await store.declineApplication(
+    application.id,
+    new Date().toISOString(),
+  );
+  assert.equal(staleDecline, null);
+  assert.equal((await store.getApplication(application.id)).status, "accepted");
+});
+
+test("approval and rejection claims are mutually exclusive", async () => {
+  const store = createMemoryStore();
+  const first = await store.insertAssignment({
+    campaign_id: "campaign-review-race",
+    creator_id: "creator-review-a",
+    status: "submitted",
+  });
+  const approved = await store.claimAssignmentApproval(first.id, {
+    reviewedAt: new Date().toISOString(),
+    notes: "Approved",
+  });
+  assert.equal(approved.status, "approved");
+  assert.equal(
+    await store.rejectAssignment(first.id, {
+      reviewedAt: new Date().toISOString(),
+      notes: "Rejected",
+    }),
+    null,
+  );
+
+  const second = await store.insertAssignment({
+    campaign_id: "campaign-review-race",
+    creator_id: "creator-review-b",
+    status: "submitted",
+  });
+  const rejected = await store.rejectAssignment(second.id, {
+    reviewedAt: new Date().toISOString(),
+    notes: "Rejected",
+  });
+  assert.equal(rejected.status, "rejected");
+  assert.equal(
+    await store.claimAssignmentApproval(second.id, {
+      reviewedAt: new Date().toISOString(),
+      notes: "Approved",
+    }),
+    null,
+  );
 });

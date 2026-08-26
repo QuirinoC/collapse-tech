@@ -25,7 +25,7 @@ export default function PrivacyPage() {
         <p className="legal-copy">
           Session cookies are HTTP-only and used solely for authentication. You
           may request export or deletion of your data at any time by writing to
-          privacy@influence.market. Records required for financial compliance
+          privacy@collapsetechnologies.com. Records required for financial compliance
           (ledger entries) are retained as legally required.
         </p>
         <SiteFooter />
