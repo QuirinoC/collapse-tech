@@ -46,6 +46,9 @@ public static class ServiceCollectionExtensions
         services
             .AddOptions<PostgresOptions>()
             .Bind(configuration.GetSection(PostgresOptions.SectionName))
+            .PostConfigure(options =>
+                options.ConnectionString = PostgresConnectionString.Normalize(
+                    options.ConnectionString))
             .Validate(
                 options => !options.Enabled || !string.IsNullOrWhiteSpace(options.ConnectionString),
                 "Postgres:ConnectionString is required when PostgreSQL is enabled.")

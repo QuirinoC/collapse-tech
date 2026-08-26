@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Npgsql;
+using PixelBoard.Configuration;
 
 namespace PixelBoard.Infrastructure.Postgres;
 
@@ -13,9 +14,10 @@ public static partial class PostgresProvisioner
         IConfiguration configuration,
         CancellationToken cancellationToken = default)
     {
-        var connectionString = RequiredSetting(
-            configuration,
-            "PostgresProvisioning:ConnectionString");
+        var connectionString = PostgresConnectionString.Normalize(
+            RequiredSetting(
+                configuration,
+                "PostgresProvisioning:ConnectionString"));
         var runtimeRole = RequiredSetting(
             configuration,
             "PostgresProvisioning:RuntimeRole");
