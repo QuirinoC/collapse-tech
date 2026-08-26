@@ -116,7 +116,7 @@ Each application owns its environment variables; do not share the challenge or D
 
 Render services live in project **collapse-tech**; `apps/render.yaml` documents the blueprint (currently covers the pixelboard service; CoachGG is managed directly in the Render dashboard). Both backends are Docker builds from their app directories and auto-deploy on push to `main`:
 
-- **Pixelboard** — root dir `apps/infinite-pixelboard`, env: `ASPNETCORE_ENVIRONMENT=Production`, `REDISCONNECTIONSTRING` (Render KV internal URL), `Firebase__Enabled=true`, `Firebase__ProjectId`, `FORWARDEDHEADERS__TRUSTPLATFORMPROXY=true`.
+- **Pixelboard** — root dir `apps/infinite-pixelboard`, env: `ASPNETCORE_ENVIRONMENT=Production`, `REDISCONNECTIONSTRING` (Render KV internal URL), `Firebase__Enabled=true`, `Firebase__ProjectId`, `Postgres__Enabled=true`, `Postgres__ConnectionString` (restricted `pixelboard_runtime` role), `FORWARDEDHEADERS__TRUSTPLATFORMPROXY=true`.
 - **CoachGG** — root dir `apps/coach-gg`, env: `STARTGG_APIKEY`, `ASPNETCORE_ENVIRONMENT=Production`, `FORWARDEDHEADERS__TRUSTPLATFORMPROXY=true`.
 
 Custom domains (`pixelboard.collapsetechnologies.com`, `coach.collapsetechnologies.com`) are attached to the Render services.

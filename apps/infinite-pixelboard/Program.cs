@@ -5,9 +5,26 @@ using PixelBoard.Api;
 using PixelBoard.Api.V1;
 using PixelBoard.Configuration;
 using PixelBoard.Infrastructure.Identity;
+using PixelBoard.Infrastructure.Postgres;
 using PixelBoard.Infrastructure.Realtime;
 
-var builder = WebApplication.CreateBuilder(args);
+const string provisionPostgresArgument = "--provision-postgres";
+var provisionPostgres = args.Contains(
+    provisionPostgresArgument,
+    StringComparer.Ordinal);
+var applicationArguments = args
+    .Where(argument => !string.Equals(
+        argument,
+        provisionPostgresArgument,
+        StringComparison.Ordinal))
+    .ToArray();
+var builder = WebApplication.CreateBuilder(applicationArguments);
+
+if (provisionPostgres)
+{
+    await PostgresProvisioner.ProvisionAsync(builder.Configuration);
+    return;
+}
 
 // Add services to the container.
 builder.Services.AddRazorPages();
