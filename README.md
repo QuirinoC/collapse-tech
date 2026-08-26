@@ -67,7 +67,7 @@ npm test
 | Collapse Technologies | `apps/collapse-technologies` | Cloudflare Pages (static export) | `collapsetechnologies.com` ✅ live |
 | Asymmetric Challenge | `apps/asymmetric-challenge` | Cloudflare Workers via `@opennextjs/cloudflare` | `challenge.collapsetechnologies.com` (pending) |
 | Dress Like Me | `apps/dress-like-me` | Cloudflare Workers via `@opennextjs/cloudflare` | `dresslikeme.collapsetechnologies.com` (parked) |
-| Influence.Market | `apps/influence-market` | Cloudflare Workers via `@opennextjs/cloudflare` + Supabase Postgres | `influence-market.juanquirino-workers.workers.dev` · `influence.market` (domain pending) |
+| Influence.Market | `apps/influence-market` | Cloudflare Workers via `@opennextjs/cloudflare` + Cloudflare D1 (native `DB` binding; Supabase Postgres optional) | `influence-market.juanquirino-workers.workers.dev` · `influence.market` (domain pending) |
 | CoachGG | `apps/coach-gg` | Render web service (`srv-da56cr2jobas73dmulv0`) | `coachgg-api.onrender.com` ✅ live |
 | Infinite Pixelboard | `apps/infinite-pixelboard` | Render web service (`srv-da55t78u01pc73e3rlu0`) + Render Key Value (Redis) | `infinite-pixelboard.onrender.com` ✅ live |
 
