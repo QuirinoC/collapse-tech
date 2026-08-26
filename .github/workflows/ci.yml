@@ -1,6 +1,7 @@
 name: Validate applications
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
@@ -31,6 +32,24 @@ jobs:
     defaults:
       run:
         working-directory: apps/collapse-technologies
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+        working-directory: .
+      - run: npm run lint
+      - run: npm run build
+
+  collapse-health:
+    name: Collapse Health
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/collapse-health
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
