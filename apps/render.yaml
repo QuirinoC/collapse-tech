@@ -24,6 +24,6 @@ services:
       - key: Firebase__ProjectId
         sync: false
       - key: Postgres__Enabled
-        value: "false" # switch to true only after provisioning and setting the runtime secret
+        value: "true"
       - key: Postgres__ConnectionString
         sync: false # least-privilege runtime role; provision with --provision-postgres first
