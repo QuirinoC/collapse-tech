@@ -30,15 +30,20 @@
     "lint:studio": "npm --prefix apps/collapse-technologies run lint",
     "lint:influence": "npm --prefix apps/influence-market run lint",
     "lint:pixelboard": "dotnet format apps/infinite-pixelboard/PixelBoard.sln --verify-no-changes --no-restore",
-    "test": "npm run test:challenge && npm run test:dress && npm run test:pixelboard:web && npm run test:pixelboard",
+    "test": "npm run test:challenge && npm run test:dress && npm run test:health && npm run test:pixelboard:web && npm run test:pixelboard",
     "test:influence": "npm --prefix apps/influence-market run test",
     "test:challenge": "npm --prefix apps/asymmetric-challenge run test",
     "test:dress": "npm --prefix apps/dress-like-me run test",
+    "test:health": "npm --prefix apps/collapse-health run test",
     "test:coach:e2e": "npm --prefix apps/coach-gg run test:e2e",
     "test:pixelboard:web": "node --test apps/infinite-pixelboard/wwwroot/js/pixelboard/tests/*.test.mjs",
     "test:pixelboard": "dotnet test apps/infinite-pixelboard/PixelBoard.sln --no-restore"
   },
   "devDependencies": {
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "nanoid@^5": "5.1.16",
+    "undici@^7": "7.29.0"
   }
 }

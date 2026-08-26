@@ -31,12 +31,12 @@ export default function LeadForm() {
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
       if (!res.ok) throw new Error("bad-status");
-    setStatus({ ok: true, msg: "You're on the list! We'll email you when we launch." });
+      setStatus({ ok: true, msg: "You're on the list! We'll email you when we launch." });
       e.target.reset();
     } catch {
       setStatus({
         ok: false,
-      msg: "We couldn't add you just now — email hello@collapsetechnologies.com and we'll add you manually.",
+        msg: "We couldn't add you just now — email hello@collapsetechnologies.com and we'll add you manually.",
       });
     } finally {
       setSending(false);
@@ -69,8 +69,11 @@ export default function LeadForm() {
         </select>
       </label>
       <label>
-        Anything we should know? (optional)
+        Questions or general interests (optional)
         <textarea name="notes" rows="3" />
+        <span className="form-note">
+          Please do not include medical records or sensitive health information.
+        </span>
       </label>
       <button className="btn btn-primary" type="submit" disabled={sending}>
         {sending ? "Sending…" : "Notify me at launch"}
