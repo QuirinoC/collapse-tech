@@ -1,0 +1,12 @@
+.next/
+.open-next/
+.wrangler/
+out/
+build/
+node_modules/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store

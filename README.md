@@ -9,6 +9,7 @@ The workspace behind [collapsetechnologies.com](https://collapsetechnologies.com
 | Collapse Technologies | `apps/collapse-technologies` | Studio landing site |
 | Asymmetric Challenge | `apps/asymmetric-challenge` | 256-bit key challenge experiment |
 | Dress Like Me | `apps/dress-like-me` | Creator-style discovery and shopping matches |
+| Influence.Market | `apps/influence-market` | Influencer marketing agency-marketplace: escrowed multi-creator campaigns |
 | CoachGG | `apps/coach-gg` | Super Smash Bros. Ultimate player analysis with live SignalR updates |
 | Infinite Pixelboard | `apps/infinite-pixelboard` | Collaborative, infinite canvas built with ASP.NET Core SignalR |
 
@@ -29,6 +30,12 @@ npm run dev:challenge
 ```bash
 npm --prefix apps/dress-like-me install
 npm run dev:dress
+```
+
+```bash
+npm --prefix apps/influence-market install
+npm run dev:influence
+# Runs in demo mode with seeded creators; add Supabase/Stripe env for production mode.
 ```
 
 ```bash
@@ -60,6 +67,7 @@ npm test
 | Collapse Technologies | `apps/collapse-technologies` | Cloudflare Pages (static export) | `collapsetechnologies.com` ✅ live |
 | Asymmetric Challenge | `apps/asymmetric-challenge` | Cloudflare Workers via `@opennextjs/cloudflare` | `challenge.collapsetechnologies.com` (pending) |
 | Dress Like Me | `apps/dress-like-me` | Cloudflare Workers via `@opennextjs/cloudflare` | `dresslikeme.collapsetechnologies.com` (parked) |
+| Influence.Market | `apps/influence-market` | Cloudflare Workers via `@opennextjs/cloudflare` + Supabase Postgres | `influence.market` (planned) |
 | CoachGG | `apps/coach-gg` | Render web service (`srv-da56cr2jobas73dmulv0`) | `coachgg-api.onrender.com` ✅ live |
 | Infinite Pixelboard | `apps/infinite-pixelboard` | Render web service (`srv-da55t78u01pc73e3rlu0`) + Render Key Value (Redis) | `infinite-pixelboard.onrender.com` ✅ live |
 
