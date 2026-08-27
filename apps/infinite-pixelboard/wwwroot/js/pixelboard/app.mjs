@@ -48,6 +48,10 @@ async function start(app) {
   let placementPending = false;
   let reportRegion = null;
   let realtime;
+  let advertisingRequest = 0;
+  let accountRequest = 0;
+  let advertisingTier = Symbol("uninitialized");
+  let advertisingTimer = 0;
 
   const connection = new ConnectionState({
     onChange(state) {
@@ -257,9 +261,12 @@ async function start(app) {
   }
 
   async function refreshAccount() {
+    const request = ++accountRequest;
     try {
-      accountState.setAccount(await api.account());
+      const account = await api.account();
+      if (request === accountRequest) accountState.setAccount(account);
     } catch (error) {
+      if (request !== accountRequest) return;
       if (error.status === 401) accountState.setAccount(null);
       else elements.authNote.textContent = "Account state is temporarily unavailable.";
     }
@@ -270,6 +277,8 @@ async function start(app) {
       const client = await createFirebaseAuthClient();
       globalThis.CollapsePixelboardAuth = client;
       client.subscribe(async (user) => {
+        invalidateAdvertising();
+        accountState.setAccount(null);
         authUser = user;
         renderAuthentication();
         await refreshAccount();
@@ -330,7 +339,7 @@ async function start(app) {
   }
 
   function renderAccountState(state) {
-    ads.update(state.tier);
+    refreshAdvertising(state.tier);
     elements.accountState.textContent = state.authenticated
       ? `${state.tier ?? "Free"} account`
       : "Anonymous";
@@ -342,6 +351,38 @@ async function start(app) {
       elements.placementStatus.textContent = `Cooldown · ${state.remainingSeconds}s`;
     } else {
       elements.placementStatus.textContent = state.canPlace ? "Ready to place" : "Account action required";
+    }
+
+  }
+
+  function invalidateAdvertising() {
+    advertisingRequest += 1;
+    clearTimeout(advertisingTimer);
+    advertisingTimer = 0;
+    advertisingTier = Symbol("uninitialized");
+    ads.update(accountState.snapshot.tier, false);
+  }
+
+  async function refreshAdvertising(tier, force = false) {
+    if (!force && Object.is(tier, advertisingTier)) return;
+    advertisingTier = tier;
+    clearTimeout(advertisingTimer);
+    const request = ++advertisingRequest;
+    ads.update(tier, false);
+    try {
+      const decision = await api.advertising();
+      if (request === advertisingRequest) {
+        ads.update(tier, decision?.showAd === true);
+      }
+    } catch {
+      // Advertising fails closed when the runtime safety decision is unavailable.
+    } finally {
+      if (request === advertisingRequest) {
+        advertisingTimer = setTimeout(
+          () => refreshAdvertising(advertisingTier, true),
+          30_000,
+        );
+      }
     }
   }
 

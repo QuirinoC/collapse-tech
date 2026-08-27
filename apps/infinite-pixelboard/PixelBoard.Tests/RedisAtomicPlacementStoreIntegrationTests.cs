@@ -3,6 +3,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using PixelBoard.Application;
 using PixelBoard.Configuration;
 using PixelBoard.Contracts.V1;
 using PixelBoard.Domain;
@@ -97,6 +98,8 @@ public sealed class RedisAtomicPlacementStoreIntegrationTests
 
         var cooldown = TimeSpan.FromSeconds(10);
         var result = await store.PlaceAsync(placement, cooldown);
+        var remainingCooldown = await store.GetRemainingCooldownAsync(
+            new AccountId(placement.FirebaseUid));
 
         var database = redis.GetDatabase();
         var tileJson = await cache.GetStringAsync("MainBoard_-1_1");
@@ -111,6 +114,10 @@ public sealed class RedisAtomicPlacementStoreIntegrationTests
 
         Assert.Equal("#ABCDEF", pixels[127][0]);
         Assert.Equal(placementId.Value.ToString("N"), owner);
+        Assert.InRange(
+            remainingCooldown,
+            TimeSpan.FromSeconds(8),
+            TimeSpan.FromSeconds(10));
         Assert.Equal("#654321", result.PriorColor);
         Assert.Equal(placementId, result.PlacementId);
         Assert.False(result.IsDuplicate);

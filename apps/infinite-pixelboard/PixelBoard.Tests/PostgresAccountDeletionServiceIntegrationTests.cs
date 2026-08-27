@@ -1,10 +1,15 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using PixelBoard.Application;
 using PixelBoard.Configuration;
+using PixelBoard.Contracts.V1;
+using PixelBoard.Infrastructure.Moderation;
+using PixelBoard.Infrastructure.Ledger;
 using PixelBoard.Infrastructure.Postgres;
+using PixelBoard.Infrastructure.StoreKit;
 using StackExchange.Redis;
 
 namespace PixelBoard.Tests;
@@ -31,7 +36,11 @@ public sealed class PostgresAccountDeletionServiceIntegrationTests
                 InstanceName = instanceName
             }));
         var accountId = new AccountId($"firebase-delete-{Guid.NewGuid():N}");
+        var storeKit = new PostgresStoreKitEntitlementStore(dataSource);
+        var storeKitToken = await storeKit.GetOrCreateAccountTokenAsync(accountId);
+        Assert.True(storeKitToken.HasValue);
         var reportId = Guid.NewGuid();
+        var pendingPlacementId = PlacementId.New();
         var snapshot = $$"""{"recentAttributedPlacements":[{"firebaseUid":"{{accountId.Value}}"}]}""";
 
         await ExecuteAsync(
@@ -69,8 +78,38 @@ public sealed class PostgresAccountDeletionServiceIntegrationTests
         await redis.GetDatabase().StringSetAsync(
             $"{instanceName}PlacementCooldown:{Convert.ToHexStringLower(accountHash)}",
             "1");
-
-        await service.DeleteAsync(accountId);
+        var pendingPlacement = new PlacementLedgerEvent(
+            pendingPlacementId,
+            accountId.Value,
+            4_000_000,
+            4_000_000,
+            "#112233",
+            DateTimeOffset.UtcNow,
+            "test",
+            "1",
+            $"delete-outbox-{Guid.NewGuid():N}",
+            null,
+            "#FFFFFF",
+            null,
+            null);
+        var outboxKey = $"{instanceName}{RedisAtomicPlacementStore.OutboxKey}";
+        var producerGuard = await new PostgresAccountOperationGuard(dataSource)
+            .AcquireIfActiveAsync([accountId]);
+        Assert.NotNull(producerGuard);
+        Task deletionTask;
+        await using (producerGuard)
+        {
+            deletionTask = service.DeleteAsync(accountId).AsTask();
+            await Task.Delay(50);
+            Assert.False(deletionTask.IsCompleted);
+            await redis.GetDatabase().StreamAddAsync(
+                outboxKey,
+                "payload",
+                JsonSerializer.Serialize(
+                    pendingPlacement,
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        }
+        await deletionTask;
         await service.DeleteAsync(accountId);
         Assert.True(await service.IsDeletedAsync(accountId));
 
@@ -87,6 +126,7 @@ public sealed class PostgresAccountDeletionServiceIntegrationTests
         Assert.Equal(
             SHA256.HashData(Encoding.UTF8.GetBytes(retained.GetString(1))),
             retained.GetFieldValue<byte[]>(2));
+        var accountState = new PostgresAccountStateService(dataSource);
         Assert.False(await ExistsAsync(
             dataSource,
             "SELECT EXISTS (SELECT 1 FROM pixelboard.accounts WHERE firebase_uid = $1);",
@@ -95,16 +135,123 @@ public sealed class PostgresAccountDeletionServiceIntegrationTests
             dataSource,
             "SELECT EXISTS (SELECT 1 FROM pixelboard.entitlements WHERE firebase_uid = $1);",
             accountId.Value));
-        Assert.True((await new PostgresAccountStateService(dataSource).GetAsync(
+        Assert.True((await accountState.GetAsync(
             accountId,
             "2026-08-21")).IsBanned);
+        await Assert.ThrowsAsync<AccountDeletedException>(
+            async () => await accountState.AcceptCommunityStandardsAsync(
+                accountId,
+                "2026-08-21"));
+        Assert.False(await ExistsAsync(
+            dataSource,
+            "SELECT EXISTS (SELECT 1 FROM pixelboard.accounts WHERE firebase_uid = $1);",
+            accountId.Value));
         Assert.False(await redis.GetDatabase().KeyExistsAsync(
             $"{instanceName}PlacementCooldown:{Convert.ToHexStringLower(accountHash)}"));
+        Assert.Equal(0, await redis.GetDatabase().StreamLengthAsync(outboxKey));
+        await using (var retainedPlacement = await QuerySingleAsync(
+                         dataSource,
+                         """
+                         SELECT firebase_uid
+                         FROM pixelboard.placements
+                         WHERE placement_id = $1;
+                         """,
+                         pendingPlacementId.Value))
+        {
+            Assert.StartsWith(
+                "deleted:",
+                retainedPlacement.GetString(0),
+                StringComparison.Ordinal);
+        }
+        Assert.False(await new PostgresReportStore(dataSource).SaveAsync(
+            new ReportCommand(
+                ReportId.New(),
+                accountId,
+                new ReportRegion(0, 0, 1, 1),
+                ReportReason.Other,
+                null,
+                new ClientContext("test", "1"),
+                DateTimeOffset.UtcNow),
+            new ReportEvidence("{}", SHA256.HashData("{}"u8.ToArray()))));
+        Assert.Null(await storeKit.GetOrCreateAccountTokenAsync(accountId));
+        Assert.False(await storeKit.ApplyAsync(
+            accountId,
+            new VerifiedStoreKitTransaction(
+                $"transaction-{Guid.NewGuid():N}",
+                $"original-{Guid.NewGuid():N}",
+                "pixelboard.pro.monthly",
+                storeKitToken.Value,
+                "Sandbox",
+                DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow.AddMonths(1),
+                null)));
+        var moderation = new PostgresModerationService(
+            dataSource,
+            redis,
+            Options.Create(new RedisOptions
+            {
+                ConnectionString = redisConnection,
+                InstanceName = instanceName
+            }));
+        await Assert.ThrowsAsync<ModerationAccountDeletedException>(
+            async () => await moderation.SetSafetyStateAsync(
+                new ModerationActionCommand(
+                    ModerationActionId.New(),
+                    $"deleted-moderator-{Guid.NewGuid():N}",
+                    accountId,
+                    "safety_update",
+                    "Deleted moderator test",
+                    null,
+                    null,
+                    [],
+                    null,
+                    DateTimeOffset.UtcNow),
+                new PlatformSafetyState(false, false)));
+
+        var attributedReportId = ReportId.New();
+        var reporter = new AccountId($"firebase-reporter-{Guid.NewGuid():N}");
+        var attributedSnapshot =
+            $$"""{"recentAttributedPlacements":[{"firebaseUid":"{{accountId.Value}}"}]}""";
+        Assert.True(await new PostgresReportStore(dataSource).SaveAsync(
+            new ReportCommand(
+                attributedReportId,
+                reporter,
+                new ReportRegion(0, 0, 1, 1),
+                ReportReason.Other,
+                null,
+                new ClientContext("test", "1"),
+                DateTimeOffset.UtcNow),
+            new ReportEvidence(
+                attributedSnapshot,
+                SHA256.HashData(Encoding.UTF8.GetBytes(attributedSnapshot)))));
+        await using var attributedReport = await QuerySingleAsync(
+            dataSource,
+            """
+            SELECT snapshot::text
+            FROM pixelboard.reports
+            WHERE report_id = $1;
+            """,
+            attributedReportId.Value);
+        Assert.DoesNotContain(accountId.Value, attributedReport.GetString(0), StringComparison.Ordinal);
 
         await ExecuteAsync(
             dataSource,
-            "DELETE FROM pixelboard.reports WHERE report_id = $1;",
-            reportId);
+            """
+            DELETE FROM pixelboard.current_pixels
+            WHERE placement_id = $1;
+            """,
+            pendingPlacementId.Value);
+        await ExecuteAsync(
+            dataSource,
+            """
+            DELETE FROM pixelboard.placements
+            WHERE placement_id = $1;
+            """,
+            pendingPlacementId.Value);
+        await ExecuteAsync(
+            dataSource,
+            "DELETE FROM pixelboard.reports WHERE report_id = ANY($1);",
+            new[] { reportId, attributedReportId.Value });
         await ExecuteAsync(
             dataSource,
             "DELETE FROM pixelboard.deleted_accounts WHERE account_hash = $1;",

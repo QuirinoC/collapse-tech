@@ -20,9 +20,9 @@ public sealed class PostgresStoreKitEntitlementStoreIntegrationTests
             (IEntitlementService)new PostgresAccountStateService(dataSource);
         var account = new AccountId($"storekit-{Guid.NewGuid():N}");
         var otherAccount = new AccountId($"storekit-{Guid.NewGuid():N}");
-        var token = await store.GetOrCreateAccountTokenAsync(account);
-        var sameToken = await store.GetOrCreateAccountTokenAsync(account);
-        var otherToken = await store.GetOrCreateAccountTokenAsync(otherAccount);
+        var token = AssertToken(await store.GetOrCreateAccountTokenAsync(account));
+        var sameToken = AssertToken(await store.GetOrCreateAccountTokenAsync(account));
+        var otherToken = AssertToken(await store.GetOrCreateAccountTokenAsync(otherAccount));
         var originalTransactionId = $"original-{Guid.NewGuid():N}";
         var now = DateTimeOffset.UtcNow;
 
@@ -67,14 +67,60 @@ public sealed class PostgresStoreKitEntitlementStoreIntegrationTests
         await CleanupAsync(dataSource, account, otherAccount);
     }
 
+    [PostgresFact]
+    [Trait("Category", "Integration")]
+    public async Task LaterStateForRecordedTransactionRevokesEntitlement()
+    {
+        var connectionString = Environment.GetEnvironmentVariable(
+            "PIXELBOARD_TEST_POSTGRES")!;
+        await using var dataSource = NpgsqlDataSource.Create(connectionString);
+        var store = new PostgresStoreKitEntitlementStore(dataSource);
+        var entitlementService =
+            (IEntitlementService)new PostgresAccountStateService(dataSource);
+        var account = new AccountId($"storekit-{Guid.NewGuid():N}");
+        var token = AssertToken(await store.GetOrCreateAccountTokenAsync(account));
+        var originalTransactionId = $"original-{Guid.NewGuid():N}";
+        var transactionId = $"transaction-{Guid.NewGuid():N}";
+        var now = DateTimeOffset.UtcNow;
+
+        Assert.True(await store.ApplyAsync(
+            account,
+            Transaction(
+                originalTransactionId,
+                token,
+                now,
+                now.AddMonths(1),
+                transactionId: transactionId)));
+        Assert.Equal(AccountTier.Pro, (await entitlementService.GetAsync(account)).Tier);
+
+        Assert.True(await store.ApplyNotificationAsync(
+            Transaction(
+                originalTransactionId,
+                token,
+                now.AddMinutes(1),
+                now.AddMonths(1),
+                now.AddMinutes(1),
+                transactionId)));
+        Assert.Equal(AccountTier.Free, (await entitlementService.GetAsync(account)).Tier);
+
+        await CleanupAsync(dataSource, account);
+    }
+
+    private static AppAccountToken AssertToken(AppAccountToken? token)
+    {
+        Assert.True(token.HasValue);
+        return token.Value;
+    }
+
     private static VerifiedStoreKitTransaction Transaction(
         string originalTransactionId,
         AppAccountToken token,
         DateTimeOffset signedAt,
         DateTimeOffset expiresAt,
-        DateTimeOffset? revokedAt = null) =>
+        DateTimeOffset? revokedAt = null,
+        string? transactionId = null) =>
         new(
-            $"transaction-{Guid.NewGuid():N}",
+            transactionId ?? $"transaction-{Guid.NewGuid():N}",
             originalTransactionId,
             "pixelboard.pro.monthly",
             token,

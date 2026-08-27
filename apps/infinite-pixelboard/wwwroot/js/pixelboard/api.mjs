@@ -29,6 +29,11 @@ export class PixelboardApi {
     return this.#request("/account", { signal, token });
   }
 
+  async advertising(signal) {
+    const token = await this.getToken();
+    return this.#request("/advertising", { signal, token });
+  }
+
   async acceptCommunityStandards(signal) {
     return this.#authorized("/account/community-standards", {
       method: "POST",

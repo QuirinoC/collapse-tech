@@ -1,3 +1,4 @@
+using PixelBoard.Application;
 using PixelBoard.Contracts.V1;
 
 namespace PixelBoard.Infrastructure.Ledger;
@@ -30,6 +31,10 @@ public sealed record AtomicPlacementResult(
 
 public interface IAtomicPlacementStore
 {
+    ValueTask<TimeSpan> GetRemainingCooldownAsync(
+        AccountId accountId,
+        CancellationToken cancellationToken = default);
+
     ValueTask<AtomicPlacementResult> PlaceAsync(
         PlacementLedgerEvent placement,
         TimeSpan cooldown,

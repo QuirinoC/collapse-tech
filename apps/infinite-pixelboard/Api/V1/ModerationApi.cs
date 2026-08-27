@@ -52,30 +52,50 @@ public static class ModerationApi
 
     public static async Task<IResult> ListReportsAsync(
         int? limit,
+        IAccountIdentityAccessor identityAccessor,
         IServiceProvider services,
         CancellationToken cancellationToken)
     {
         var moderation = services.GetService<IModerationService>();
-        if (moderation is null)
+        var guard = services.GetService<IAccountOperationGuard>();
+        var actor = await identityAccessor.GetCurrentAsync(cancellationToken);
+        if (moderation is null || guard is null || actor is null)
         {
             return ServiceUnavailable();
         }
 
+        await using var accountOperation = await guard.AcquireIfActiveAsync(
+            [actor.Id],
+            cancellationToken);
+        if (accountOperation is null)
+        {
+            return AccountDeleted();
+        }
         var reports = await moderation.ListReportsAsync(limit ?? 50, cancellationToken);
         return Results.Ok(reports.Select(ToPrivateResponse));
     }
 
     public static async Task<IResult> GetReportAsync(
         Guid reportId,
+        IAccountIdentityAccessor identityAccessor,
         IServiceProvider services,
         CancellationToken cancellationToken)
     {
         var moderation = services.GetService<IModerationService>();
-        if (moderation is null)
+        var guard = services.GetService<IAccountOperationGuard>();
+        var actor = await identityAccessor.GetCurrentAsync(cancellationToken);
+        if (moderation is null || guard is null || actor is null)
         {
             return ServiceUnavailable();
         }
 
+        await using var accountOperation = await guard.AcquireIfActiveAsync(
+            [actor.Id],
+            cancellationToken);
+        if (accountOperation is null)
+        {
+            return AccountDeleted();
+        }
         var report = await moderation.GetReportAsync(
             ReportId.From(reportId),
             cancellationToken);
@@ -125,6 +145,10 @@ public static class ModerationApi
         {
             return Results.Conflict(
                 new ApiError(ApiErrorCodes.ModerationConflict, exception.Message));
+        }
+        catch (ModerationAccountDeletedException)
+        {
+            return AccountDeleted();
         }
     }
 
@@ -185,6 +209,10 @@ public static class ModerationApi
         {
             return Results.Conflict(
                 new ApiError(ApiErrorCodes.ModerationConflict, exception.Message));
+        }
+        catch (ModerationAccountDeletedException)
+        {
+            return AccountDeleted();
         }
     }
 
@@ -269,4 +297,9 @@ public static class ModerationApi
                 ApiErrorCodes.ServiceUnavailable,
                 "Moderation operations are unavailable."),
             statusCode: StatusCodes.Status503ServiceUnavailable);
+
+    private static IResult AccountDeleted() =>
+        Results.Json(
+            new ApiError(ApiErrorCodes.AccountDeleted, "This account has been deleted."),
+            statusCode: StatusCodes.Status410Gone);
 }

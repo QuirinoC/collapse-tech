@@ -31,6 +31,15 @@ final class AppModel: ObservableObject {
     private var cache: TileCache?
     private var placement: PlacementCoordinator?
     private var timerTask: Task<Void, Never>?
+    private var visibleRefreshTask: Task<Void, Never>?
+    private var foregroundRecoveryTask: Task<Void, Never>?
+    private var boardReloadTask: Task<Void, Never>?
+    private var accountRefreshTask: Task<Void, Never>?
+    private var accountRefreshGeneration: UInt64 = 0
+    private var authenticationGeneration: UInt64 = 0
+    private var isRefreshingVisibleTiles = false
+    private var isReconcilingForeground = false
+    private var isActive = false
     private var started = false
     private var canvasSize = CGSize.zero
 
@@ -44,6 +53,18 @@ final class AppModel: ObservableObject {
         self.api = api
         realtime = BoardRealtimeClient(baseURL: AppConfiguration.baseURL)
         store = StoreManager(api: api)
+        store.onEntitlementChanged = { @MainActor [weak self] in
+            guard let self else { return }
+            await self.refreshAccount()
+        }
+    }
+
+    deinit {
+        timerTask?.cancel()
+        visibleRefreshTask?.cancel()
+        foregroundRecoveryTask?.cancel()
+        boardReloadTask?.cancel()
+        accountRefreshTask?.cancel()
     }
 
     var tier: AccountTierView {
@@ -57,12 +78,22 @@ final class AppModel: ObservableObject {
     }
 
     var canPlace: Bool {
-        account?.canPlace == true && account?.communityStandardsAccepted == true &&
+        guard metadata?.accessMode == .open,
+              cache != nil,
+              placement != nil else {
+            return false
+        }
+        return account?.canPlace == true && account?.communityStandardsAccepted == true &&
             remainingCooldown == 0 && !isPlacing
     }
 
     func start() async {
-        guard !started else { return }
+        guard !started else {
+            if isActive {
+                startPeriodicWork()
+            }
+            return
+        }
         started = true
         await realtime.setHandlers(
             onPixel: { [weak self] event in
@@ -75,17 +106,38 @@ final class AppModel: ObservableObject {
                 await self?.refreshVisibleTiles()
             }
         )
-        await realtime.start()
+        if isActive {
+            await realtime.start()
+        }
         await reloadBoard()
+        store.authenticationDidChange(
+            isAuthenticated: await authentication.isAuthenticated
+        )
         await refreshAccount()
         await store.loadProducts()
-        timerTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
-                guard !Task.isCancelled else { return }
-                self?.now = Date()
+        if isActive {
+            startPeriodicWork()
+            if metadata == nil || cache == nil || placement == nil {
+                scheduleForegroundRecovery()
             }
         }
+    }
+
+    func handleScenePhase(_ phase: ScenePhase) async {
+        isActive = phase == .active
+        guard isActive else {
+            timerTask?.cancel()
+            timerTask = nil
+            visibleRefreshTask?.cancel()
+            visibleRefreshTask = nil
+            foregroundRecoveryTask?.cancel()
+            foregroundRecoveryTask = nil
+            await realtime.stop()
+            return
+        }
+        guard started else { return }
+        startPeriodicWork()
+        scheduleForegroundRecovery()
     }
 
     func resize(to size: CGSize) {
@@ -105,19 +157,25 @@ final class AppModel: ObservableObject {
             statusMessage = account == nil ? "Sign in to place pixels" : "Placement is not ready"
             return
         }
+        guard let placement, let cache, metadata?.accessMode == .open else {
+            statusMessage = "Placement is not ready"
+            return
+        }
         isPlacing = true
         defer { isPlacing = false }
         do {
-            let result = try await placement?.place(
+            let result = try await placement.place(
                 row: selectedPosition.row,
                 column: selectedPosition.column,
                 color: selectedColor
             )
-            if let pixel = result?.pixel {
-                await cache?.apply(pixel)
-                tiles = await cache?.snapshot() ?? tiles
+            guard result.outcome == .accepted, let pixel = result.pixel else {
+                statusMessage = result.error?.message ?? "The pixel placement was rejected."
+                return
             }
-            if let result, let current = account {
+            await cache.apply(pixel)
+            tiles = await cache.snapshot()
+            if let current = account {
                 account = AccountState(
                     tier: current.tier,
                     canPlace: current.canPlace,
@@ -141,8 +199,10 @@ final class AppModel: ObservableObject {
     }
 
     func signIn(with provider: AuthenticationProvider) async {
+        authenticationGeneration &+= 1
         do {
             try await authentication.signIn(with: provider)
+            store.authenticationDidChange(isAuthenticated: true)
             await refreshAccount()
         } catch {
             statusMessage = error.localizedDescription
@@ -150,8 +210,10 @@ final class AppModel: ObservableObject {
     }
 
     func signOut() async {
+        authenticationGeneration &+= 1
         do {
             try await authentication.signOut()
+            store.authenticationDidChange(isAuthenticated: false)
             account = nil
             statusMessage = "Signed out; browsing remains available"
         } catch {
@@ -169,10 +231,12 @@ final class AppModel: ObservableObject {
     }
 
     func deleteAccount() async {
+        authenticationGeneration &+= 1
         do {
             try await authentication.prepareForAccountDeletion()
             try await api.deleteAccount()
             try await authentication.deleteAccount()
+            store.authenticationDidChange(isAuthenticated: false)
             account = nil
             statusMessage = "Account deleted"
         } catch {
@@ -204,18 +268,59 @@ final class AppModel: ObservableObject {
     }
 
     func refreshAccount() async {
+        accountRefreshGeneration &+= 1
+        if let accountRefreshTask {
+            await accountRefreshTask.value
+            return
+        }
+        let task = Task { [weak self] in
+            guard let self else { return }
+            var handledGeneration: UInt64 = 0
+            repeat {
+                handledGeneration = self.accountRefreshGeneration
+                await self.performAccountRefresh()
+            } while handledGeneration != self.accountRefreshGeneration && !Task.isCancelled
+            self.accountRefreshTask = nil
+        }
+        accountRefreshTask = task
+        await task.value
+    }
+
+    private func performAccountRefresh() async {
+        let generation = authenticationGeneration
         guard await authentication.isAuthenticated else {
-            account = nil
+            if generation == authenticationGeneration {
+                account = nil
+            }
             return
         }
         do {
-            account = try await api.account()
+            let refreshedAccount = try await api.account()
+            guard generation == authenticationGeneration else { return }
+            let isStillAuthenticated = await authentication.isAuthenticated
+            guard generation == authenticationGeneration, isStillAuthenticated else { return }
+            account = refreshedAccount
         } catch {
+            guard generation == authenticationGeneration else { return }
             statusMessage = error.localizedDescription
         }
     }
 
     private func reloadBoard() async {
+        if let boardReloadTask {
+            await boardReloadTask.value
+            return
+        }
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.performBoardReload()
+            self.boardReloadTask = nil
+        }
+        boardReloadTask = task
+        await task.value
+    }
+
+    private func performBoardReload() async {
         do {
             let metadata = try await api.metadata()
             guard metadata.apiVersion == 1,
@@ -232,12 +337,10 @@ final class AppModel: ObservableObject {
                 loader: { [api] address in try await api.tile(address) }
             )
             self.cache = cache
-            boardGeneration += 1
             placement = PlacementCoordinator(api: api, appVersion: appVersion)
-            connection = .online
+            boardGeneration += 1
             statusMessage = metadata.accessMode == .open ? "Board ready" : "Board is read-only"
         } catch {
-            connection = .offline
             statusMessage = error.localizedDescription
         }
     }
@@ -263,12 +366,65 @@ final class AppModel: ObservableObject {
     }
 
     private func refreshVisibleTiles() async {
-        guard canvasSize != .zero, let cache else { return }
+        guard isActive, canvasSize != .zero, let cache, !isRefreshingVisibleTiles else {
+            return
+        }
+        isRefreshingVisibleTiles = true
+        defer { isRefreshingVisibleTiles = false }
         let addresses = viewport.visibleTiles(
             width: canvasSize.width,
             height: canvasSize.height
         ).addresses
         await cache.refresh(addresses)
         tiles = await cache.snapshot()
+    }
+
+    private func startPeriodicWork() {
+        guard isActive else { return }
+        if timerTask == nil {
+            timerTask = Task { [weak self] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(1))
+                    guard let self, self.isActive else { return }
+                    self.now = Date()
+                }
+            }
+        }
+        if visibleRefreshTask == nil {
+            visibleRefreshTask = Task { [weak self] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(30))
+                    guard let self, self.isActive else { return }
+                    await self.reconcileForeground()
+                }
+            }
+        }
+    }
+
+    private func scheduleForegroundRecovery() {
+        guard foregroundRecoveryTask == nil else { return }
+        foregroundRecoveryTask = Task { [weak self] in
+            guard let self else { return }
+            await self.recoverForeground()
+            self.foregroundRecoveryTask = nil
+        }
+    }
+
+    private func recoverForeground() async {
+        await reconcileForeground()
+    }
+
+    private func reconcileForeground() async {
+        guard isActive, !Task.isCancelled, !isReconcilingForeground else { return }
+        isReconcilingForeground = true
+        defer { isReconcilingForeground = false }
+        if metadata == nil || cache == nil || placement == nil {
+            await reloadBoard()
+        }
+        guard isActive, !Task.isCancelled else { return }
+        await realtime.start()
+        await refreshVisibleTiles()
+        guard isActive, !Task.isCancelled else { return }
+        await refreshAccount()
     }
 }

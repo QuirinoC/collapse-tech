@@ -31,44 +31,70 @@ public sealed class PlacementOutboxWorker(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var database = redis.GetDatabase();
-        await EnsureConsumerGroupAsync(database);
         RedisValue reclaimStartId = "0-0";
+        var consumerGroupReady = false;
+        var retryDelay = TimeSpan.FromSeconds(1);
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            var reclaimed = await database.StreamAutoClaimAsync(
-                _streamKey,
-                ConsumerGroup,
-                _consumerName,
-                _outboxOptions.ClaimIdleMilliseconds,
-                reclaimStartId,
-                _outboxOptions.BatchSize);
-            reclaimStartId = reclaimed.NextStartId;
-            var entries = reclaimed.ClaimedEntries;
+            try
+            {
+                if (!consumerGroupReady)
+                {
+                    await EnsureConsumerGroupAsync(database);
+                    consumerGroupReady = true;
+                }
 
-            if (entries.Length > 0)
-            {
-                ReclaimedCounter.Add(entries.Length);
-            }
-            else
-            {
-                entries = await database.StreamReadGroupAsync(
+                var reclaimed = await database.StreamAutoClaimAsync(
                     _streamKey,
                     ConsumerGroup,
                     _consumerName,
-                    StreamPosition.NewMessages,
-                    count: _outboxOptions.BatchSize);
-            }
+                    _outboxOptions.ClaimIdleMilliseconds,
+                    reclaimStartId,
+                    _outboxOptions.BatchSize);
+                reclaimStartId = reclaimed.NextStartId;
+                var entries = reclaimed.ClaimedEntries;
 
-            if (entries.Length == 0)
+                if (entries.Length > 0)
+                {
+                    ReclaimedCounter.Add(entries.Length);
+                }
+                else
+                {
+                    entries = await database.StreamReadGroupAsync(
+                        _streamKey,
+                        ConsumerGroup,
+                        _consumerName,
+                        StreamPosition.NewMessages,
+                        count: _outboxOptions.BatchSize);
+                }
+
+                if (entries.Length == 0)
+                {
+                    await Task.Delay(
+                        TimeSpan.FromMilliseconds(_outboxOptions.EmptyPollMilliseconds),
+                        stoppingToken);
+                }
+                else
+                {
+                    await ProcessEntriesAsync(database, entries, stoppingToken);
+                }
+
+                retryDelay = TimeSpan.FromSeconds(1);
+            }
+            catch (Exception exception)
+                when (IsRetryableRedisFailure(exception)
+                      && !stoppingToken.IsCancellationRequested)
             {
-                await Task.Delay(
-                    TimeSpan.FromMilliseconds(_outboxOptions.EmptyPollMilliseconds),
-                    stoppingToken);
-                continue;
+                consumerGroupReady = false;
+                reclaimStartId = "0-0";
+                logger.LogWarning(
+                    exception,
+                    "Placement outbox lost Redis connectivity; retrying in {RetryDelay}.",
+                    retryDelay);
+                await Task.Delay(retryDelay, stoppingToken);
+                retryDelay = TimeSpan.FromSeconds(Math.Min(retryDelay.TotalSeconds * 2, 30));
             }
-
-            await ProcessEntriesAsync(database, entries, stoppingToken);
         }
     }
 
@@ -102,6 +128,12 @@ public sealed class PlacementOutboxWorker(
                 await Task.WhenAll(acknowledge, delete);
                 IngestedCounter.Add(1);
             }
+            catch (Exception exception)
+                when (IsRetryableRedisFailure(exception)
+                      && !stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
             {
                 FailedCounter.Add(1);
@@ -112,6 +144,9 @@ public sealed class PlacementOutboxWorker(
             }
         }
     }
+
+    private static bool IsRetryableRedisFailure(Exception exception) =>
+        exception is RedisException or RedisTimeoutException;
 
     private async Task EnsureConsumerGroupAsync(IDatabase database)
     {

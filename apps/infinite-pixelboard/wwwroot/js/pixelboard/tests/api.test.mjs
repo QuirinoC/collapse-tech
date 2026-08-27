@@ -41,6 +41,24 @@ test("anonymous placement is rejected before any network request", async (contex
   assert.equal(fetchMock.mock.callCount(), 0);
 });
 
+test("advertising policy is fetched for anonymous sessions", async (context) => {
+  let request;
+  context.mock.method(globalThis, "fetch", async (url, options) => {
+    request = { url, options };
+    return new Response(JSON.stringify({ showAd: false, placement: "board" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  });
+  const api = new PixelboardApi();
+
+  const decision = await api.advertising();
+
+  assert.equal(request.url, "/api/v1/advertising");
+  assert.equal("Authorization" in request.options.headers, false);
+  assert.equal(decision.showAd, false);
+});
+
 test("reports send only bounded coordinates, reason, note, and client context", async (context) => {
   let request;
   context.mock.method(globalThis, "fetch", async (url, options) => {

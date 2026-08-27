@@ -10,6 +10,9 @@ public sealed record AuthenticatedAccount(
     bool IsBanned,
     bool CommunityStandardsAccepted);
 
+public sealed class AccountDeletedException()
+    : Exception("This account has been deleted.");
+
 public sealed record EntitlementState(
     AccountTier Tier,
     DateTimeOffset? ExpiresAt);
@@ -130,6 +133,13 @@ public interface IAccountDeletionService
         CancellationToken cancellationToken = default);
 }
 
+public interface IAccountOperationGuard
+{
+    ValueTask<IAsyncDisposable?> AcquireIfActiveAsync(
+        IReadOnlyCollection<AccountId> accountIds,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IPlacementValidator
 {
     PlacementValidation Validate(PlacementCommand command);
@@ -164,7 +174,7 @@ public interface IReportEvidenceCollector
 
 public interface IReportStore
 {
-    ValueTask SaveAsync(
+    ValueTask<bool> SaveAsync(
         ReportCommand command,
         ReportEvidence evidence,
         CancellationToken cancellationToken = default);

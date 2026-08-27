@@ -1,6 +1,10 @@
+import { createFirebaseAuthClient } from "./pixelboard/firebase-auth.mjs";
+
 const elements = {
   status: document.querySelector("#status"),
   refresh: document.querySelector("#refresh"),
+  signIn: document.querySelector("#moderator-sign-in"),
+  signOut: document.querySelector("#moderator-sign-out"),
   list: document.querySelector("#report-list"),
   empty: document.querySelector("#empty-review"),
   review: document.querySelector("#report-review"),
@@ -17,6 +21,8 @@ const elements = {
 };
 
 let selectedReport = null;
+let authorizationGeneration = 0;
+const authReady = initializeAuthentication();
 
 function setStatus(message, error = false) {
   elements.status.textContent = message;
@@ -24,7 +30,7 @@ function setStatus(message, error = false) {
 }
 
 async function token() {
-  const provider = window.CollapsePixelboardAuth;
+  const provider = await authReady;
   if (!provider?.getToken) {
     throw new Error("Moderator authentication is not configured in this browser.");
   }
@@ -32,6 +38,49 @@ async function token() {
   const value = await provider.getToken();
   if (!value) throw new Error("Sign in with a moderator account to continue.");
   return value;
+}
+
+async function initializeAuthentication() {
+  try {
+    const client = await createFirebaseAuthClient();
+    window.CollapsePixelboardAuth = client;
+    await new Promise((resolve) => {
+      let initialized = false;
+      client.subscribe((user) => {
+        authorizationGeneration += 1;
+        clearPrivateState();
+        elements.signIn.hidden = Boolean(user);
+        elements.signOut.hidden = !user;
+        if (!initialized) {
+          initialized = true;
+          resolve();
+        } else {
+          load();
+        }
+
+        function clearPrivateState() {
+          selectedReport = null;
+          elements.list.replaceChildren();
+          elements.empty.hidden = false;
+          elements.review.hidden = true;
+          elements.metadata.replaceChildren();
+          elements.rawEvidence.textContent = "";
+          elements.target.value = "";
+          elements.reason.value = "";
+          elements.expiry.value = "";
+          elements.placementsFrozen.checked = false;
+          elements.adsDisabled.checked = false;
+          elements.safetyReason.value = "";
+          const context = elements.canvas.getContext("2d");
+          context.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
+        }
+      });
+    });
+    return client;
+  } catch (error) {
+    console.error("Moderator authentication failed to initialize.", error);
+    return null;
+  }
 }
 
 async function request(path, options = {}) {
@@ -129,12 +178,14 @@ function renderQueue(reports) {
 }
 
 async function load() {
+  const generation = authorizationGeneration;
   setStatus("Loading private moderation queue...");
   try {
     const [reports, safety] = await Promise.all([
       request("/api/v1/moderation/reports?limit=100"),
       request("/api/v1/moderation/safety"),
     ]);
+    if (generation !== authorizationGeneration) return;
     renderQueue(reports);
     elements.placementsFrozen.checked = safety.placementsFrozen;
     elements.adsDisabled.checked = safety.adsDisabled;
@@ -186,6 +237,24 @@ async function executeAction(actionType) {
 }
 
 elements.refresh.addEventListener("click", load);
+elements.signIn.addEventListener("click", async () => {
+  setStatus("Opening secure moderator sign-in...");
+  try {
+    const client = await authReady;
+    if (!client) throw new Error("Moderator authentication is unavailable.");
+    await client.signIn("google");
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+});
+elements.signOut.addEventListener("click", async () => {
+  try {
+    const client = await authReady;
+    await client?.signOut();
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+});
 elements.saveSafety.addEventListener("click", async () => {
   const reason = elements.safetyReason.value.trim();
   if (!reason) {

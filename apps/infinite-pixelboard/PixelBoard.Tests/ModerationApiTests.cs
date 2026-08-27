@@ -5,6 +5,7 @@ using PixelBoard.Api.V1;
 using PixelBoard.Application;
 using PixelBoard.Contracts.V1;
 using PixelBoard.Domain;
+using PixelBoard.Infrastructure.Moderation;
 
 namespace PixelBoard.Tests;
 
@@ -79,6 +80,47 @@ public sealed class ModerationApiTests
         Assert.Equal(0, moderation.ExecutionCount);
     }
 
+    [Fact]
+    public async Task DeletedModeratorFailureReturnsGone()
+    {
+        await using var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton<IModerationService>(
+                new RecordingModerationService(throwDeleted: true))
+            .BuildServiceProvider();
+
+        var result = await ModerationApi.SetSafetyStateAsync(
+            new SafetyStateRequest(true, true, "Emergency", ValidKey()),
+            new ModeratorIdentityAccessor(),
+            TimeProvider.System,
+            services,
+            CancellationToken.None);
+        var response = await ExecuteAsync<ApiError>(result, services);
+
+        Assert.Equal(StatusCodes.Status410Gone, response.StatusCode);
+        Assert.Equal(ApiErrorCodes.AccountDeleted, response.Body.Code);
+    }
+
+    [Fact]
+    public async Task DeletedModeratorCannotReadPrivateReports()
+    {
+        await using var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton<IModerationService>(new RecordingModerationService())
+            .AddSingleton<IAccountOperationGuard>(new StubAccountOperationGuard())
+            .BuildServiceProvider();
+
+        var result = await ModerationApi.ListReportsAsync(
+            null,
+            new ModeratorIdentityAccessor(),
+            services,
+            CancellationToken.None);
+        var response = await ExecuteAsync<ApiError>(result, services);
+
+        Assert.Equal(StatusCodes.Status410Gone, response.StatusCode);
+        Assert.Equal(ApiErrorCodes.AccountDeleted, response.Body.Code);
+    }
+
     private static string ValidKey() => "valid-idempotency-key";
 
     private static async Task<(int StatusCode, T Body)> ExecuteAsync<T>(
@@ -106,7 +148,15 @@ public sealed class ModerationApiTests
                 new AuthenticatedAccount(new AccountId("moderator"), false, true));
     }
 
-    private sealed class RecordingModerationService : IModerationService
+    private sealed class StubAccountOperationGuard : IAccountOperationGuard
+    {
+        public ValueTask<IAsyncDisposable?> AcquireIfActiveAsync(
+            IReadOnlyCollection<AccountId> accountIds,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult<IAsyncDisposable?>(null);
+    }
+
+    private sealed class RecordingModerationService(bool throwDeleted = false) : IModerationService
     {
         public int ExecutionCount { get; private set; }
 
@@ -133,6 +183,10 @@ public sealed class ModerationApiTests
             PlatformSafetyState state,
             CancellationToken cancellationToken = default)
         {
+            if (throwDeleted)
+            {
+                throw new ModerationAccountDeletedException();
+            }
             ExecutionCount++;
             throw new InvalidOperationException("Invalid updates must not execute.");
         }
@@ -152,4 +206,5 @@ public sealed class ModerationApiTests
             CancellationToken cancellationToken = default) =>
             ValueTask.CompletedTask;
     }
+
 }

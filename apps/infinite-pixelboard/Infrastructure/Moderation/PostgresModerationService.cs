@@ -8,19 +8,62 @@ using PixelBoard.Contracts.V1;
 using PixelBoard.Domain;
 using PixelBoard.Infrastructure.Board;
 using PixelBoard.Infrastructure.Ledger;
+using PixelBoard.Infrastructure.Postgres;
 using StackExchange.Redis;
 
 namespace PixelBoard.Infrastructure.Moderation;
 
 public sealed class ModerationConflictException(string message) : Exception(message);
 
+public sealed class ModerationAccountDeletedException()
+    : Exception("An account involved in this moderation action has been deleted.");
+
 public sealed class PostgresModerationService(
     NpgsqlDataSource dataSource,
-    IBoardStore boardStore,
     IConnectionMultiplexer redis,
     IOptions<RedisOptions> redisOptions) : IModerationService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private const string CompareAndSetPixelScript =
+        """
+        local current_owner = redis.call('HGET', KEYS[2], ARGV[3]) or ''
+        if current_owner ~= ARGV[4] then
+            return 0
+        end
+
+        local tile_type = redis.call('TYPE', KEYS[1])['ok']
+        local tile_json
+        if tile_type == 'hash' then
+            tile_json = redis.call('HGET', KEYS[1], 'data')
+        elseif tile_type == 'string' then
+            tile_json = redis.call('GET', KEYS[1])
+        end
+        if not tile_json then
+            return -1
+        end
+
+        local tile = cjson.decode(tile_json)
+        tile[tonumber(ARGV[1])][tonumber(ARGV[2])] = ARGV[5]
+        if tile_type == 'string' then
+            redis.call('DEL', KEYS[1])
+        end
+        redis.call(
+            'HSET',
+            KEYS[1],
+            'data',
+            cjson.encode(tile),
+            'absexp',
+            '-1',
+            'sldexp',
+            '-1')
+
+        if ARGV[6] == '' then
+            redis.call('HDEL', KEYS[2], ARGV[3])
+        else
+            redis.call('HSET', KEYS[2], ARGV[3], ARGV[6])
+        end
+        return 1
+        """;
 
     public async ValueTask<PlatformSafetyState> GetStateAsync(
         CancellationToken cancellationToken = default)
@@ -156,6 +199,18 @@ public sealed class PostgresModerationService(
         ModerationActionCommand command,
         CancellationToken cancellationToken = default)
     {
+        IReadOnlyCollection<AccountId> accounts = command.TargetAccountId is { } target
+            ? [command.ActorAccountId, target]
+            : [command.ActorAccountId];
+        await using var accountOperation =
+            await new PostgresAccountOperationGuard(dataSource).AcquireIfActiveAsync(
+                accounts,
+                cancellationToken);
+        if (accountOperation is null)
+        {
+            throw new ModerationAccountDeletedException();
+        }
+
         var details = JsonSerializer.Serialize(new
         {
             reportId = command.ReportId?.Value,
@@ -187,6 +242,15 @@ public sealed class PostgresModerationService(
         PlatformSafetyState state,
         CancellationToken cancellationToken = default)
     {
+        await using var accountOperation =
+            await new PostgresAccountOperationGuard(dataSource).AcquireIfActiveAsync(
+                [command.ActorAccountId],
+                cancellationToken);
+        if (accountOperation is null)
+        {
+            throw new ModerationAccountDeletedException();
+        }
+
         var details = JsonSerializer.Serialize(state, JsonOptions);
         var admission = await AdmitAsync(command, details, cancellationToken);
         if (admission.IsReplay)
@@ -425,16 +489,19 @@ public sealed class PostgresModerationService(
 
         const string query =
             """
-            SELECT p.placement_id, p.board_row, p.board_column, p.prior_color,
-                   p.prior_placement_id
+            SELECT p.placement_id, p.board_row, p.board_column, p.color,
+                   p.prior_color, p.prior_placement_id
             FROM pixelboard.placements p
             JOIN pixelboard.current_pixels current
               ON current.board_row = p.board_row
              AND current.board_column = p.board_column
              AND current.placement_id = p.placement_id
-            WHERE p.placement_id = ANY($1);
+            WHERE p.placement_id = ANY($1)
+            FOR UPDATE OF current;
             """;
-        await using var select = dataSource.CreateCommand(query);
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using var select = new NpgsqlCommand(query, connection, transaction);
         select.Parameters.AddWithValue(command.PlacementIds.Select(id => id.Value).ToArray());
         await using var reader = await select.ExecuteReaderAsync(cancellationToken);
         var pixels = new List<RollbackPixel>();
@@ -445,7 +512,8 @@ public sealed class PostgresModerationService(
                 reader.GetInt32(1),
                 reader.GetInt32(2),
                 reader.GetString(3),
-                reader.IsDBNull(4) ? null : reader.GetGuid(4)));
+                reader.GetString(4),
+                reader.IsDBNull(5) ? null : reader.GetGuid(5)));
         }
 
         await reader.CloseAsync();
@@ -455,59 +523,291 @@ public sealed class PostgresModerationService(
                 "None of the selected placements are still current.");
         }
 
-        var database = redis.GetDatabase();
-        var ownersKey = $"{redisOptions.Value.InstanceName}{RedisAtomicPlacementStore.CurrentOwnersKey}";
-        foreach (var pixel in pixels)
+        var rolledBack = 0;
+        var redisMutations = new List<RollbackPixel>();
+        try
         {
-            await boardStore.SetPixelAsync(
-                new BoardPosition(pixel.Row, pixel.Column),
-                pixel.PriorColor,
-                cancellationToken);
-            var ownerField = $"{pixel.Row}:{pixel.Column}";
-            if (pixel.PriorPlacementId is { } priorPlacementId)
+            foreach (var pixel in pixels)
             {
-                await database.HashSetAsync(
-                    ownersKey,
-                    ownerField,
-                    priorPlacementId.ToString("N"));
-            }
-            else
-            {
-                await database.HashDeleteAsync(ownersKey, ownerField);
+                if (!await TrySetRedisPixelAsync(
+                        pixel,
+                        pixel.PlacementId,
+                        pixel.PriorColor,
+                        pixel.PriorPlacementId,
+                        cancellationToken))
+                {
+                    continue;
+                }
+
+                redisMutations.Add(pixel);
+                if (await UpdateCurrentPixelAsync(
+                        connection,
+                        transaction,
+                        pixel,
+                        cancellationToken) != 1)
+                {
+                    throw new ModerationConflictException(
+                        $"Placement '{pixel.PlacementId:N}' is no longer current.");
+                }
+                rolledBack++;
             }
 
-            const string updateCurrent =
-                """
-                UPDATE pixelboard.current_pixels
-                SET placement_id = $1
-                WHERE board_row = $2 AND board_column = $3 AND placement_id = $4;
-                """;
-            const string deleteCurrent =
-                """
-                DELETE FROM pixelboard.current_pixels
-                WHERE board_row = $1 AND board_column = $2 AND placement_id = $3;
-                """;
-            await using var update = pixel.PriorPlacementId is { } prior
-                ? dataSource.CreateCommand(updateCurrent)
-                : dataSource.CreateCommand(deleteCurrent);
-            if (pixel.PriorPlacementId is { } priorId)
+            if (rolledBack == 0)
             {
-                update.Parameters.AddWithValue(priorId);
-                update.Parameters.AddWithValue(pixel.Row);
-                update.Parameters.AddWithValue(pixel.Column);
-                update.Parameters.AddWithValue(pixel.PlacementId);
-            }
-            else
-            {
-                update.Parameters.AddWithValue(pixel.Row);
-                update.Parameters.AddWithValue(pixel.Column);
-                update.Parameters.AddWithValue(pixel.PlacementId);
+                throw new ModerationConflictException(
+                    "None of the selected placements are still current.");
             }
 
-            await update.ExecuteNonQueryAsync(cancellationToken);
+            if (command.ReportId is not null)
+            {
+                await UpdateReportStatusAsync(
+                    command,
+                    "actioned",
+                    connection,
+                    transaction,
+                    cancellationToken);
+            }
+
+        }
+        catch (Exception exception)
+        {
+            var compensationFailures = new List<Exception>();
+            try
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+            }
+            catch (Exception rollbackException)
+            {
+                compensationFailures.Add(rollbackException);
+            }
+
+            foreach (var pixel in Enumerable.Reverse(redisMutations))
+            {
+                try
+                {
+                    await RestoreRedisPixelAsync(pixel);
+                }
+                catch (Exception compensationException)
+                {
+                    compensationFailures.Add(compensationException);
+                }
+            }
+
+            if (compensationFailures.Count > 0)
+            {
+                compensationFailures.Insert(0, exception);
+                throw new AggregateException(
+                    "The rollback failed and could not be fully compensated.",
+                    compensationFailures);
+            }
+            throw;
         }
 
-        await UpdateReportStatusAsync(command, "actioned", cancellationToken);
+        try
+        {
+            await transaction.CommitAsync(CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            Exception? cleanupFailure = null;
+            try
+            {
+                await transaction.DisposeAsync();
+                await connection.DisposeAsync();
+            }
+            catch (Exception cleanupException)
+            {
+                cleanupFailure = cleanupException;
+            }
+
+            var outcome = await DetermineRollbackCommitOutcomeAsync(redisMutations);
+            if (outcome == RollbackCommitOutcome.Committed)
+            {
+                if (cleanupFailure is not null)
+                {
+                    throw new AggregateException(
+                        "The rollback committed, but database cleanup failed.",
+                        exception,
+                        cleanupFailure);
+                }
+                return;
+            }
+            if (outcome == RollbackCommitOutcome.NotCommitted)
+            {
+                var compensationFailures = await RestoreRedisPixelsAsync(redisMutations);
+                if (compensationFailures.Count > 0)
+                {
+                    compensationFailures.Insert(0, exception);
+                    if (cleanupFailure is not null)
+                    {
+                        compensationFailures.Add(cleanupFailure);
+                    }
+                    throw new AggregateException(
+                        "The rollback commit failed and Redis could not be fully compensated.",
+                        compensationFailures);
+                }
+            }
+
+            if (cleanupFailure is not null)
+            {
+                throw new AggregateException(
+                    outcome == RollbackCommitOutcome.NotCommitted
+                        ? "The rollback was not committed and database cleanup failed."
+                        : "The rollback commit outcome is unknown and database cleanup failed.",
+                    exception,
+                    cleanupFailure);
+            }
+            throw new InvalidOperationException(
+                outcome == RollbackCommitOutcome.NotCommitted
+                    ? "The rollback was not committed."
+                    : "The rollback commit outcome could not be determined safely.",
+                exception);
+        }
+    }
+
+    private async ValueTask<RollbackCommitOutcome> DetermineRollbackCommitOutcomeAsync(
+        IReadOnlyList<RollbackPixel> pixels)
+    {
+        const string sql =
+            """
+            SELECT placement_id
+            FROM pixelboard.current_pixels
+            WHERE board_row = $1 AND board_column = $2;
+            """;
+        var committed = 0;
+        var notCommitted = 0;
+        try
+        {
+            foreach (var pixel in pixels)
+            {
+                await using var command = dataSource.CreateCommand(sql);
+                command.Parameters.AddWithValue(pixel.Row);
+                command.Parameters.AddWithValue(pixel.Column);
+                var value = await command.ExecuteScalarAsync(CancellationToken.None);
+                var currentPlacementId = value is Guid id ? id : (Guid?)null;
+                if (currentPlacementId == pixel.PriorPlacementId)
+                {
+                    committed++;
+                }
+                else if (currentPlacementId == pixel.PlacementId)
+                {
+                    notCommitted++;
+                }
+                else
+                {
+                    return RollbackCommitOutcome.Unknown;
+                }
+            }
+        }
+        catch
+        {
+            return RollbackCommitOutcome.Unknown;
+        }
+
+        if (committed == pixels.Count)
+        {
+            return RollbackCommitOutcome.Committed;
+        }
+        if (notCommitted == pixels.Count)
+        {
+            return RollbackCommitOutcome.NotCommitted;
+        }
+        return RollbackCommitOutcome.Unknown;
+    }
+
+    private async ValueTask<List<Exception>> RestoreRedisPixelsAsync(
+        IReadOnlyList<RollbackPixel> pixels)
+    {
+        var failures = new List<Exception>();
+        foreach (var pixel in Enumerable.Reverse(pixels))
+        {
+            try
+            {
+                await RestoreRedisPixelAsync(pixel);
+            }
+            catch (Exception exception)
+            {
+                failures.Add(exception);
+            }
+        }
+        return failures;
+    }
+
+    private async ValueTask<int> UpdateCurrentPixelAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        RollbackPixel pixel,
+        CancellationToken cancellationToken)
+    {
+        const string updateCurrent =
+            """
+            UPDATE pixelboard.current_pixels
+            SET placement_id = $1
+            WHERE board_row = $2 AND board_column = $3 AND placement_id = $4;
+            """;
+        const string deleteCurrent =
+            """
+            DELETE FROM pixelboard.current_pixels
+            WHERE board_row = $1 AND board_column = $2 AND placement_id = $3;
+            """;
+        await using var update = pixel.PriorPlacementId is not null
+            ? new NpgsqlCommand(updateCurrent, connection, transaction)
+            : new NpgsqlCommand(deleteCurrent, connection, transaction);
+        if (pixel.PriorPlacementId is { } priorId)
+        {
+            update.Parameters.AddWithValue(priorId);
+            update.Parameters.AddWithValue(pixel.Row);
+            update.Parameters.AddWithValue(pixel.Column);
+            update.Parameters.AddWithValue(pixel.PlacementId);
+        }
+        else
+        {
+            update.Parameters.AddWithValue(pixel.Row);
+            update.Parameters.AddWithValue(pixel.Column);
+            update.Parameters.AddWithValue(pixel.PlacementId);
+        }
+        return await update.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private ValueTask<bool> RestoreRedisPixelAsync(RollbackPixel pixel) =>
+        TrySetRedisPixelAsync(
+            pixel,
+            pixel.PriorPlacementId,
+            pixel.Color,
+            pixel.PlacementId,
+            CancellationToken.None);
+
+    private async ValueTask<bool> TrySetRedisPixelAsync(
+        RollbackPixel pixel,
+        Guid? expectedPlacementId,
+        string replacementColor,
+        Guid? replacementPlacementId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var location = BoardGeometry.Locate(new BoardPosition(pixel.Row, pixel.Column));
+        var prefix = redisOptions.Value.InstanceName;
+        var result = await redis.GetDatabase().ScriptEvaluateAsync(
+            CompareAndSetPixelScript,
+            [
+                $"{prefix}{BoardGeometry.GetTilePartitionKey(location.Tile)}",
+                $"{prefix}{RedisAtomicPlacementStore.CurrentOwnersKey}"
+            ],
+            [
+                location.Offset.Row + 1,
+                location.Offset.Column + 1,
+                $"{pixel.Row}:{pixel.Column}",
+                expectedPlacementId?.ToString("N") ?? string.Empty,
+                replacementColor,
+                replacementPlacementId?.ToString("N") ?? string.Empty
+            ]);
+        var status = (int)result;
+        if (status < 0)
+        {
+            throw new InvalidOperationException(
+                $"Redis tile for placement '{pixel.PlacementId:N}' is unavailable.");
+        }
+        return status == 1;
     }
 
     private async ValueTask UpdateReportStatusAsync(
@@ -530,6 +830,31 @@ public sealed class PostgresModerationService(
         update.Parameters.AddWithValue(status);
         update.Parameters.AddWithValue(command.CreatedAt);
         update.Parameters.AddWithValue(reportId.Value);
+        if (await update.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new InvalidOperationException("The report does not exist.");
+        }
+    }
+
+    private static async ValueTask UpdateReportStatusAsync(
+        ModerationActionCommand command,
+        string status,
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        const string sql =
+            """
+            UPDATE pixelboard.reports
+            SET status = $1, updated_at = $2
+            WHERE report_id = $3;
+            """;
+        await using var update = new NpgsqlCommand(sql, connection, transaction);
+        update.Parameters.AddWithValue(status);
+        update.Parameters.AddWithValue(command.CreatedAt);
+        update.Parameters.AddWithValue(
+            command.ReportId?.Value
+            ?? throw new ArgumentException("This action requires a report.", nameof(command)));
         if (await update.ExecuteNonQueryAsync(cancellationToken) != 1)
         {
             throw new InvalidOperationException("The report does not exist.");
@@ -611,6 +936,14 @@ public sealed class PostgresModerationService(
         Guid PlacementId,
         int Row,
         int Column,
+        string Color,
         string PriorColor,
         Guid? PriorPlacementId);
+
+    private enum RollbackCommitOutcome
+    {
+        Committed,
+        NotCommitted,
+        Unknown
+    }
 }

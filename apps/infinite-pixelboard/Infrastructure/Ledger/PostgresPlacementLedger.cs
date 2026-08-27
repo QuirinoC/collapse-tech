@@ -87,13 +87,37 @@ public sealed class PostgresPlacementLedger(NpgsqlDataSource dataSource) : IPlac
         string streamEntryId,
         CancellationToken cancellationToken = default)
     {
+        var accountHash = SHA256.HashData(Encoding.UTF8.GetBytes(placement.FirebaseUid));
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await PixelBoard.Infrastructure.Postgres.PostgresAccountLock.AcquireAsync(
+            connection,
+            transaction,
+            accountHash,
+            cancellationToken);
+        await IngestAsync(
+            connection,
+            transaction,
+            placement,
+            streamEntryId,
+            accountHash,
+            cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    internal static async ValueTask IngestAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        PlacementLedgerEvent placement,
+        string streamEntryId,
+        byte[] accountHash,
+        CancellationToken cancellationToken)
+    {
         var (streamTimestampMs, streamSequence) = ParseStreamEntryId(streamEntryId);
-        await using var command = dataSource.CreateCommand(IngestSql);
+        await using var command = new NpgsqlCommand(IngestSql, connection, transaction);
         command.Parameters.AddWithValue("placement_id", placement.PlacementId.Value);
         command.Parameters.AddWithValue("firebase_uid", placement.FirebaseUid);
-        command.Parameters.AddWithValue(
-            "account_hash",
-            SHA256.HashData(Encoding.UTF8.GetBytes(placement.FirebaseUid)));
+        command.Parameters.AddWithValue("account_hash", accountHash);
         command.Parameters.AddWithValue("board_row", placement.Row);
         command.Parameters.AddWithValue("board_column", placement.Column);
         command.Parameters.AddWithValue("color", placement.Color);

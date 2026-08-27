@@ -68,6 +68,7 @@ public static class BoardApi
 
     public static async Task<IResult> GetAccountAsync(
         IAccountIdentityAccessor identityAccessor,
+        TimeProvider timeProvider,
         IServiceProvider services,
         CancellationToken cancellationToken)
     {
@@ -79,7 +80,8 @@ public static class BoardApi
 
         var policyService = services.GetService<IAccountPolicyService>();
         var entitlementService = services.GetService<IEntitlementService>();
-        if (policyService is null || entitlementService is null)
+        var placementStore = services.GetService<IAtomicPlacementStore>();
+        if (policyService is null || entitlementService is null || placementStore is null)
         {
             return ServiceUnavailable();
         }
@@ -89,11 +91,18 @@ public static class BoardApi
             CurrentCommunityStandardsVersion,
             cancellationToken);
         var entitlement = await entitlementService.GetAsync(account.Id, cancellationToken);
+        var remainingCooldown = await placementStore.GetRemainingCooldownAsync(
+            account.Id,
+            cancellationToken);
         return Results.Ok(new AccountStateResponse(
             entitlement.Tier,
             !policy.IsBanned && policy.CommunityStandardsAccepted,
             policy.CommunityStandardsAccepted,
-            new CooldownState(null, CooldownSeconds(entitlement.Tier))));
+            new CooldownState(
+                remainingCooldown > TimeSpan.Zero
+                    ? timeProvider.GetUtcNow().Add(remainingCooldown)
+                    : null,
+                CooldownSeconds(entitlement.Tier))));
     }
 
     public static async Task<IResult> AcceptCommunityStandardsAsync(
@@ -113,10 +122,19 @@ public static class BoardApi
             return ServiceUnavailable();
         }
 
-        await policyService.AcceptCommunityStandardsAsync(
-            account.Id,
-            CurrentCommunityStandardsVersion,
-            cancellationToken);
+        try
+        {
+            await policyService.AcceptCommunityStandardsAsync(
+                account.Id,
+                CurrentCommunityStandardsVersion,
+                cancellationToken);
+        }
+        catch (AccountDeletedException)
+        {
+            return Results.Json(
+                new ApiError(ApiErrorCodes.AccountDeleted, "This account has been deleted."),
+                statusCode: StatusCodes.Status410Gone);
+        }
         return Results.NoContent();
     }
 
@@ -158,11 +176,13 @@ public static class BoardApi
         var policyService = services.GetService<IAccountPolicyService>();
         var entitlementService = services.GetService<IEntitlementService>();
         var placementStore = services.GetService<IAtomicPlacementStore>();
+        var accountOperationGuard = services.GetService<IAccountOperationGuard>();
         var safetyService = services.GetService<IPlatformSafetyService>();
         var realtimePublisher = services.GetService<IRealtimeEventPublisher>();
         if (policyService is null
             || entitlementService is null
             || placementStore is null
+            || accountOperationGuard is null
             || safetyService is null
             || realtimePublisher is null)
         {
@@ -177,6 +197,16 @@ public static class BoardApi
                     ApiErrorCodes.BoardReadOnly,
                     "Pixel placement is temporarily paused."),
                 statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        await using var accountOperation = await accountOperationGuard.AcquireIfActiveAsync(
+            [account.Id],
+            cancellationToken);
+        if (accountOperation is null)
+        {
+            return Results.Json(
+                new ApiError(ApiErrorCodes.AccountDeleted, "This account has been deleted."),
+                statusCode: StatusCodes.Status410Gone);
         }
 
         var policy = await policyService.GetAsync(
@@ -356,7 +386,15 @@ public static class BoardApi
         try
         {
             var evidence = await evidenceCollector.CollectAsync(command, cancellationToken);
-            await reportStore.SaveAsync(command, evidence, cancellationToken);
+            if (!await reportStore.SaveAsync(command, evidence, cancellationToken))
+            {
+                await rateLimiter.ReleaseAsync(command, CancellationToken.None);
+                return Results.Json(
+                    new ApiError(
+                        ApiErrorCodes.AccountDeleted,
+                        "This account has been deleted."),
+                    statusCode: StatusCodes.Status410Gone);
+            }
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {

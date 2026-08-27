@@ -42,7 +42,9 @@ public static class StoreKitApi
         }
 
         var token = await store.GetOrCreateAccountTokenAsync(account.Id, cancellationToken);
-        return Results.Ok(new StoreKitAccountTokenResponse(token));
+        return token is { } accountToken
+            ? Results.Ok(new StoreKitAccountTokenResponse(accountToken))
+            : AccountDeleted();
     }
 
     public static async Task<IResult> VerifyTransactionAsync(

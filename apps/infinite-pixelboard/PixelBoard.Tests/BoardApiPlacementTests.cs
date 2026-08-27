@@ -73,6 +73,31 @@ public sealed class BoardApiPlacementTests
     }
 
     [Fact]
+    public async Task DeletedAccountCannotReachPlacementStore()
+    {
+        var placementStore = new RecordingPlacementStore();
+        await using var services = CreateServices(
+            new StubPolicyService(new AccountPolicyState(false, true)),
+            new StubEntitlementService(AccountTier.Free),
+            placementStore,
+            new RecordingRealtimePublisher(),
+            accountActive: false);
+
+        var result = await BoardApi.PlaceAsync(
+            ValidRequest(),
+            new StubIdentityAccessor(new AccountId("deleted-account")),
+            new PlacementValidator(),
+            TimeProvider.System,
+            services,
+            CancellationToken.None);
+        var response = await ExecuteAsync<ApiError>(result, services);
+
+        Assert.Equal(StatusCodes.Status410Gone, response.StatusCode);
+        Assert.Equal(ApiErrorCodes.AccountDeleted, response.Body.Code);
+        Assert.Equal(0, placementStore.CallCount);
+    }
+
+    [Fact]
     public async Task MismatchedIdempotencyReuseReturnsConflict()
     {
         var placementStore = new RecordingPlacementStore
@@ -229,13 +254,15 @@ public sealed class BoardApiPlacementTests
         IEntitlementService entitlement,
         IAtomicPlacementStore placementStore,
         IRealtimeEventPublisher publisher,
-        bool placementsFrozen = false) =>
+        bool placementsFrozen = false,
+        bool accountActive = true) =>
         new ServiceCollection()
             .AddLogging()
             .AddOptions()
             .AddSingleton(policy)
             .AddSingleton(entitlement)
             .AddSingleton(placementStore)
+            .AddSingleton<IAccountOperationGuard>(new StubAccountOperationGuard(accountActive))
             .AddSingleton<IPlatformSafetyService>(new StubSafetyService(placementsFrozen))
             .AddSingleton(publisher)
             .BuildServiceProvider();
@@ -295,6 +322,20 @@ public sealed class BoardApiPlacementTests
             ValueTask.FromResult(new PlatformSafetyState(placementsFrozen, false));
     }
 
+    private sealed class StubAccountOperationGuard(bool accountActive) : IAccountOperationGuard
+    {
+        public ValueTask<IAsyncDisposable?> AcquireIfActiveAsync(
+            IReadOnlyCollection<AccountId> accountIds,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult<IAsyncDisposable?>(
+                accountActive ? new Lease() : null);
+
+        private sealed class Lease : IAsyncDisposable
+        {
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
+    }
+
     private sealed class RecordingPlacementStore : IAtomicPlacementStore
     {
         public int CallCount { get; private set; }
@@ -302,6 +343,11 @@ public sealed class BoardApiPlacementTests
         public TimeSpan Cooldown { get; private set; }
 
         public Func<PlacementLedgerEvent, AtomicPlacementResult>? ResultFactory { get; init; }
+
+        public ValueTask<TimeSpan> GetRemainingCooldownAsync(
+            AccountId accountId,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(TimeSpan.Zero);
 
         public ValueTask<AtomicPlacementResult> PlaceAsync(
             PlacementLedgerEvent placement,
