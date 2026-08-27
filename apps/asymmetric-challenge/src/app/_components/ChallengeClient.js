@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { bytesToHex, isHexString, normalizeHex } from "@/lib/shared/hex";
 import { sha256Hex } from "@/lib/shared/hash";
 
@@ -21,8 +21,6 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
   const [globalTotals, setGlobalTotals] = useState(null);
   const [recentGuesses, setRecentGuesses] = useState([]);
 
-  const clientIdRef = useRef(null);
-  const autoEnabledRef = useRef(false);
   const totalsRef = useRef({ total: 0, manual: 0, auto: 0 });
   const batchRef = useRef({
     startAt: null,
@@ -33,31 +31,15 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
   });
   const workerRef = useRef(null);
 
-  const sessionId = useMemo(() => generateUuid(), []);
-  const initialGuess = useMemo(() => generateRandomHex(), []);
-
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setGuessInput((current) => current || initialGuess);
-  }, [initialGuess]);
-
-  useEffect(() => {
-    const storageKey = "ac_client_id";
-    let stored = null;
-    try {
-      stored = localStorage.getItem(storageKey);
-    } catch (err) {
-      stored = null;
-    }
-    if (!stored) {
-      stored = generateUuid();
+    const timeout = window.setTimeout(() => {
       try {
-        localStorage.setItem(storageKey, stored);
+        setGuessInput((current) => current || generateRandomHex());
       } catch (err) {
-        // ignore storage failures
+        setError("Secure random generation is unavailable in this browser.");
       }
-    }
-    clientIdRef.current = stored;
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, []);
 
   useEffect(() => {
@@ -93,35 +75,22 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
     });
   }, []);
 
-  useEffect(() => {
-    autoEnabledRef.current = autoEnabled;
-  }, [autoEnabled]);
+  const buildTelemetryPayload = useCallback(() => {
+    if (!batchRef.current.startAt || batchRef.current.total === 0) {
+      return null;
+    }
 
-  const buildTelemetryPayload = useCallback(
-    (endedAt) => {
-      const clientId = clientIdRef.current;
-      if (!clientId || !batchRef.current.startAt || batchRef.current.total === 0) {
-        return null;
-      }
-
-      return {
-        clientId,
-        sessionId,
-        startedAt: batchRef.current.startAt,
-        endedAt,
-        attemptsTotal: batchRef.current.total,
-        attemptsAuto: batchRef.current.auto,
-        attemptsManual: batchRef.current.manual,
-        autoEnabled: autoEnabledRef.current,
-      };
-    },
-    [sessionId]
-  );
+    return {
+      attemptsTotal: batchRef.current.total,
+      attemptsAuto: batchRef.current.auto,
+      attemptsManual: batchRef.current.manual,
+    };
+  }, []);
 
   const flushTelemetry = useCallback(
     (useBeacon) => {
       const endedAt = Date.now();
-      const payload = buildTelemetryPayload(endedAt);
+      const payload = buildTelemetryPayload();
       if (!payload) return;
 
       batchRef.current = {
@@ -198,47 +167,45 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
       setError("");
       setStatus("");
 
-      const clientId = clientIdRef.current;
-      if (!clientId) {
-        setError("Client ID unavailable. Try again.");
-        return;
-      }
+      try {
+        const response = await fetch("/api/claim", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ guessHex }),
+        });
 
-      const response = await fetch("/api/claim", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guessHex, clientId, sessionId }),
-      });
+        if (!response.ok) {
+          setError("Claim failed. Try again later.");
+          return;
+        }
 
-      if (!response.ok) {
+        const data = await response.json();
+        if (data.status === "already_won") {
+          setChallengeEnded(true);
+          setAutoEnabled(false);
+          setStatus("Challenge ended. Someone already claimed the prize.");
+          return;
+        }
+
+        if (data.status === "nope") {
+          setStatus("Nope. Not the key.");
+          return;
+        }
+
+        if (data.status === "won") {
+          setClaimToken(data.claimToken);
+          setStatus("You got it. Claim token generated.");
+          setChallengeEnded(true);
+          setAutoEnabled(false);
+          return;
+        }
+
+        setError("Unexpected response.");
+      } catch (err) {
         setError("Claim failed. Try again later.");
-        return;
       }
-
-      const data = await response.json();
-      if (data.status === "already_won") {
-        setChallengeEnded(true);
-        setAutoEnabled(false);
-        setStatus("Challenge ended. Someone already claimed the prize.");
-        return;
-      }
-
-      if (data.status === "nope") {
-        setStatus("Nope. Not the key.");
-        return;
-      }
-
-      if (data.status === "won") {
-        setClaimToken(data.claimToken);
-        setStatus("You got it. Claim token generated.");
-        setChallengeEnded(true);
-        setAutoEnabled(false);
-        return;
-      }
-
-      setError("Unexpected response.");
     },
-    [sessionId]
+    []
   );
 
   useEffect(() => {
@@ -266,7 +233,7 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
         recordAttempts({ auto: attempts || 0, manual: 0 });
         pushRecentGuess(guessHex);
         setAutoEnabled(false);
-        handleClaim(guessHex);
+        void handleClaim(guessHex);
       }
     };
 
@@ -322,9 +289,13 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
   }
 
   async function handleRandomAttempt() {
-    const randomHex = generateRandomHex();
-    setGuessInput(randomHex);
-    await attemptGuess(randomHex);
+    try {
+      const randomHex = generateRandomHex();
+      setGuessInput(randomHex);
+      await attemptGuess(randomHex);
+    } catch (err) {
+      setError("Secure random generation is unavailable in this browser.");
+    }
   }
 
   return (
@@ -348,7 +319,11 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
         ) : null}
 
         <div className="input-row">
+          <label className="sr-only" htmlFor="guess-input">
+            256-bit hexadecimal key guess
+          </label>
           <input
+            id="guess-input"
             className="input-field"
             value={guessInput}
             onChange={(event) => setGuessInput(event.target.value)}
@@ -357,6 +332,7 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
           />
           <button
             className="button"
+            type="button"
             onClick={handleManualAttempt}
             disabled={challengeEnded}
           >
@@ -364,6 +340,7 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
           </button>
           <button
             className="button secondary"
+            type="button"
             onClick={handleRandomAttempt}
             disabled={challengeEnded}
           >
@@ -371,7 +348,14 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
           </button>
         </div>
 
-        <div className="status">{error || status || "Awaiting your guess."}</div>
+        <div className="status" role="status" aria-live="polite">
+          {status || "Awaiting your guess."}
+        </div>
+        {error ? (
+          <div className="status" role="alert">
+            {error}
+          </div>
+        ) : null}
 
         <div className={`toggle-row ${autoEnabled ? "active" : ""}`}>
           <div>
@@ -383,6 +367,7 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
           <button
             className={`toggle ${autoEnabled ? "active" : ""}`}
             type="button"
+            aria-label="Toggle infinite mode"
             aria-pressed={autoEnabled}
             onClick={() => {
               if (!challengeEnded) {
@@ -464,7 +449,7 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
           </p>
           <p>
             A claim requires the exact 256-bit secret. The server verifies
-            claims; no per-guess data is stored server-side.
+            claims. The server stores only aggregate attempt totals.
           </p>
         </div>
       </section>
@@ -477,32 +462,11 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
   );
 }
 
-function generateUuid() {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
-    const bytes = new Uint8Array(16);
-    crypto.getRandomValues(bytes);
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    const hex = Array.from(bytes)
-      .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join("");
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-  }
-  return `fallback-${Math.random().toString(16).slice(2)}`;
-}
-
 function generateRandomHex() {
   if (typeof crypto !== "undefined" && crypto.getRandomValues) {
     const bytes = new Uint8Array(32);
     crypto.getRandomValues(bytes);
     return bytesToHex(bytes);
   }
-  let hex = "";
-  for (let i = 0; i < 64; i += 1) {
-    hex += Math.floor(Math.random() * 16).toString(16);
-  }
-  return hex;
+  throw new Error("Secure random generation is unavailable");
 }

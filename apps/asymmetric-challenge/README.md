@@ -9,8 +9,8 @@ Built to explore proof-of-work style commitments with real money at stake.
 
 A secret 256-bit key (`SECRET_KEY_HEX`) generates public commitment hashes.
 Players submit guesses; the app checks them against the commitment and records
-attempts in Postgres (Supabase). Changing the secret rotates all challenge IDs
-and invalidates existing guesses — see "Local Secret Rotation" in
+aggregate attempt totals in Postgres (Supabase). Changing the secret rotates all
+challenge IDs and invalidates existing guesses — see "Local Secret Rotation" in
 [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ## Stack

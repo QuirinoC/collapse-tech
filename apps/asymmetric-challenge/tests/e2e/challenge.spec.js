@@ -40,6 +40,20 @@ test("loads the challenge page and shows commitment", async ({ page }) => {
 
   await expect(page.getByText("Global attempts")).toBeVisible();
   await expect(page.getByText("123,456")).toBeVisible();
+
+  const response = await page.request.get("/");
+  expect(response.headers()["content-security-policy"]).toBe(
+    "frame-ancestors 'none'"
+  );
+  expect(response.headers()["permissions-policy"]).toBe(
+    "camera=(), geolocation=(), microphone=()"
+  );
+  expect(response.headers()["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+  expect(response.headers()["strict-transport-security"]).toBe(
+    "max-age=31536000; includeSubDomains"
+  );
+  expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+  expect(response.headers()["x-frame-options"]).toBe("DENY");
 });
 
 test("random guess button fills input and attempts", async ({ page }) => {

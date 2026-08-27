@@ -1,9 +1,7 @@
 import crypto from "node:crypto";
-import { getPool } from "./db.js";
+import { createPool } from "./db.js";
 import { evaluateClaim } from "./claim.js";
 import { getSupabaseAdmin, isSupabaseConfigured } from "./supabase.js";
-
-let pgDisabled = false;
 
 function isPgConfigured() {
   return Boolean(process.env.DATABASE_URL);
@@ -28,10 +26,36 @@ function isConnectionError(error) {
   );
 }
 
-function markPgDisabled(error) {
-  if (isConnectionError(error)) {
-    pgDisabled = true;
+export function getDatabaseErrorMetadata(error) {
+  const explicitCode = error?.code;
+  if (
+    (typeof explicitCode === "string" || typeof explicitCode === "number") &&
+    String(explicitCode).length <= 32
+  ) {
+    return { provider: error?.provider || "database", code: String(explicitCode) };
   }
+
+  const errorCodeMatch = String(error?.message || "").match(
+    /\berror code:\s*([a-z0-9_-]{1,32})\b/i
+  );
+  return {
+    provider: error?.provider || "database",
+    code: errorCodeMatch ? errorCodeMatch[1] : "unknown",
+  };
+}
+
+function toProviderError(provider, error) {
+  const providerError = new Error(`${provider} request failed`);
+  providerError.provider = provider;
+  if (error?.code !== undefined) {
+    providerError.code = error.code;
+  } else {
+    const { code } = getDatabaseErrorMetadata(error);
+    if (code !== "unknown") {
+      providerError.code = code;
+    }
+  }
+  return providerError;
 }
 
 function toNumber(value) {
@@ -41,20 +65,21 @@ function toNumber(value) {
 }
 
 async function fetchTotalsPg() {
-  const pool = await getPool();
-  const result = await pool.query(
-    `select
-      coalesce(sum(attempts_total), 0) as attempts_total,
-      coalesce(sum(attempts_auto), 0) as attempts_auto,
-      coalesce(sum(attempts_manual), 0) as attempts_manual
-     from telemetry_aggregates`
-  );
-  const row = result.rows[0] || {};
-  return {
-    total: toNumber(row.attempts_total),
-    auto: toNumber(row.attempts_auto),
-    manual: toNumber(row.attempts_manual),
-  };
+  return withPgPool(async (pool) => {
+    const result = await pool.query(
+      `select
+        attempts_total,
+        attempts_auto,
+        attempts_manual
+       from telemetry_totals`
+    );
+    const row = result.rows[0] || {};
+    return {
+      total: toNumber(row.attempts_total),
+      auto: toNumber(row.attempts_auto),
+      manual: toNumber(row.attempts_manual),
+    };
+  });
 }
 
 async function fetchTotalsSupabase() {
@@ -64,7 +89,7 @@ async function fetchTotalsSupabase() {
     .select("attempts_total, attempts_auto, attempts_manual")
     .single();
   if (error) {
-    throw new Error(error.message);
+    throw toProviderError("supabase", error);
   }
   return {
     total: toNumber(data?.attempts_total),
@@ -74,12 +99,11 @@ async function fetchTotalsSupabase() {
 }
 
 export async function fetchTotals() {
-  if (isPgConfigured() && !pgDisabled) {
+  if (isPgConfigured()) {
     try {
       return await fetchTotalsPg();
     } catch (error) {
-      markPgDisabled(error);
-      if (isSupabaseConfigured()) {
+      if (isConnectionError(error) && isSupabaseConfigured()) {
         return await fetchTotalsSupabase();
       }
       throw error;
@@ -94,49 +118,43 @@ export async function fetchTotals() {
 }
 
 async function insertTelemetryPg(payload) {
-  const pool = await getPool();
-  await pool.query(
-    `insert into telemetry_aggregates
-      (client_id, session_id, started_at, ended_at, attempts_total, attempts_auto, attempts_manual, auto_enabled)
-     values ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [
-      payload.clientId,
-      payload.sessionId,
-      payload.startedAt,
-      payload.endedAt,
-      payload.attemptsTotal,
-      payload.attemptsAuto,
-      payload.attemptsManual,
-      payload.autoEnabled,
-    ]
+  await withPgPool((pool) =>
+    pool.query(
+      `insert into telemetry_totals
+        (id, attempts_total, attempts_auto, attempts_manual)
+       values (1, $1, $2, $3)
+       on conflict (id) do update
+       set attempts_total = telemetry_totals.attempts_total + excluded.attempts_total,
+           attempts_auto = telemetry_totals.attempts_auto + excluded.attempts_auto,
+           attempts_manual = telemetry_totals.attempts_manual + excluded.attempts_manual`,
+      [
+        payload.attemptsTotal,
+        payload.attemptsAuto,
+        payload.attemptsManual,
+      ]
+    )
   );
 }
 
 async function insertTelemetrySupabase(payload) {
   const supabase = getSupabaseAdmin();
-  const { error } = await supabase.from("telemetry_aggregates").insert({
-    client_id: payload.clientId,
-    session_id: payload.sessionId,
-    started_at: payload.startedAt,
-    ended_at: payload.endedAt,
-    attempts_total: payload.attemptsTotal,
-    attempts_auto: payload.attemptsAuto,
-    attempts_manual: payload.attemptsManual,
-    auto_enabled: payload.autoEnabled,
+  const { error } = await supabase.rpc("record_telemetry", {
+    in_attempts_total: payload.attemptsTotal,
+    in_attempts_auto: payload.attemptsAuto,
+    in_attempts_manual: payload.attemptsManual,
   });
   if (error) {
-    throw new Error(error.message);
+    throw toProviderError("supabase", error);
   }
 }
 
 export async function insertTelemetry(payload) {
-  if (isPgConfigured() && !pgDisabled) {
+  if (isPgConfigured()) {
     try {
       await insertTelemetryPg(payload);
       return;
     } catch (error) {
-      markPgDisabled(error);
-      if (isSupabaseConfigured()) {
+      if (isConnectionError(error) && isSupabaseConfigured()) {
         await insertTelemetrySupabase(payload);
         return;
       }
@@ -152,86 +170,76 @@ export async function insertTelemetry(payload) {
   throw new Error("Database not configured");
 }
 
-async function tryClaimPg({ guessHex, clientId, sessionId }) {
-  const pool = await getPool();
-  const client = await pool.connect();
-
-  try {
-    await client.query("begin");
-    const existing = await client.query("select id from winners limit 1");
-    const alreadyWon = existing.rows.length > 0;
-    const status = evaluateClaim({ guessHex, alreadyWon });
-
-    if (status === "already_won" || status === "nope") {
-      await client.query("commit");
-      return { status };
-    }
-
-    const claimToken = crypto.randomBytes(16).toString("hex");
-    await client.query(
-      "insert into winners (claim_token, client_id, session_id) values ($1, $2, $3)",
-      [claimToken, clientId, sessionId]
-    );
-    await client.query("commit");
-    return { status: "won", claimToken };
-  } catch (error) {
-    await client.query("rollback");
-    throw error;
-  } finally {
-    client.release();
-  }
-}
-
-async function tryClaimSupabase({ guessHex, clientId, sessionId }) {
-  const supabase = getSupabaseAdmin();
-  const { data: existing, error: existingError } = await supabase
-    .from("winners")
-    .select("id")
-    .limit(1);
-
-  if (existingError) {
-    throw new Error(existingError.message);
-  }
-
-  const alreadyWon = Array.isArray(existing) && existing.length > 0;
-  const status = evaluateClaim({ guessHex, alreadyWon });
-
-  if (status === "already_won" || status === "nope") {
+async function tryClaimPg({ guessHex }) {
+  const status = evaluateClaim({ guessHex, alreadyWon: false });
+  if (status === "nope") {
     return { status };
   }
 
   const claimToken = crypto.randomBytes(16).toString("hex");
+  const result = await withPgPool((pool) =>
+    pool.query(
+      `insert into winners (claim_token, winner_slot)
+       values ($1, 1)
+       on conflict (winner_slot) do nothing
+       returning claim_token`,
+      [claimToken]
+    )
+  );
+
+  if (result.rows.length === 0) {
+    return { status: "already_won" };
+  }
+
+  return { status: "won", claimToken };
+}
+
+async function withPgPool(operation) {
+  const pool = await createPool();
+  try {
+    return await operation(pool);
+  } finally {
+    await pool.end();
+  }
+}
+
+async function tryClaimSupabase({ guessHex }) {
+  const status = evaluateClaim({ guessHex, alreadyWon: false });
+  if (status === "nope") {
+    return { status };
+  }
+
+  const supabase = getSupabaseAdmin();
+  const claimToken = crypto.randomBytes(16).toString("hex");
   const { error: insertError } = await supabase.from("winners").insert({
     claim_token: claimToken,
-    client_id: clientId,
-    session_id: sessionId,
+    winner_slot: 1,
   });
 
   if (insertError) {
     if (insertError.code === "23505") {
       return { status: "already_won" };
     }
-    throw new Error(insertError.message);
+    throw toProviderError("supabase", insertError);
   }
 
   return { status: "won", claimToken };
 }
 
-export async function tryClaim({ guessHex, clientId, sessionId }) {
-  if (isPgConfigured() && !pgDisabled) {
+export async function tryClaim({ guessHex }) {
+  if (isPgConfigured()) {
     try {
-      return await tryClaimPg({ guessHex, clientId, sessionId });
+      return await tryClaimPg({ guessHex });
     } catch (error) {
-      markPgDisabled(error);
-      if (isSupabaseConfigured()) {
-        return await tryClaimSupabase({ guessHex, clientId, sessionId });
+      if (isConnectionError(error) && isSupabaseConfigured()) {
+        return await tryClaimSupabase({ guessHex });
       }
       throw error;
     }
   }
 
   if (isSupabaseConfigured()) {
-    return await tryClaimSupabase({ guessHex, clientId, sessionId });
+    return await tryClaimSupabase({ guessHex });
   }
 
   throw new Error("Database not configured");
