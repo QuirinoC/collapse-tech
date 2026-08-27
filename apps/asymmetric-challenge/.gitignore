@@ -39,6 +39,7 @@ yarn-error.log*
 # cloudflare workers (opennext build output)
 /.open-next/
 .wrangler
+*.cpuprofile
 
 # typescript
 *.tsbuildinfo

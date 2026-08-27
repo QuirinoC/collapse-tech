@@ -9,8 +9,8 @@ Built to explore proof-of-work style commitments with real money at stake.
 
 A secret 256-bit key (`SECRET_KEY_HEX`) generates public commitment hashes.
 Players submit guesses; the app checks them against the commitment and records
-attempts in Postgres (Supabase). Changing the secret rotates all challenge IDs
-and invalidates existing guesses — see "Local Secret Rotation" in
+aggregate attempt totals in Postgres (Supabase). Changing the secret rotates all
+challenge IDs and invalidates existing guesses — see "Local Secret Rotation" in
 [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ## Stack
@@ -24,7 +24,10 @@ and invalidates existing guesses — see "Local Secret Rotation" in
 
 ```bash
 npm install --legacy-peer-deps   # adapter peer-wants next >= 16.2.11
-SECRET_KEY_HEX=$(openssl rand -hex 32) DATABASE_URL=... npm run dev
+SECRET_KEY_HEX=$(openssl rand -hex 32) \
+SUPABASE_URL=... \
+SUPABASE_SERVICE_ROLE_KEY=... \
+npm run dev
 ```
 
 From repo root: `npm run dev:challenge`.
@@ -40,5 +43,5 @@ npx wrangler deploy
 ```
 
 Secrets are Worker secrets set via `wrangler secret put`: `SECRET_KEY_HEX`,
-`DATABASE_URL` (or `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`). The custom
-domain `challenge.collapsetechnologies.com` is bound in `wrangler.jsonc`.
+`SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`. The custom domain
+`challenge.collapsetechnologies.com` is bound in `wrangler.jsonc`.
