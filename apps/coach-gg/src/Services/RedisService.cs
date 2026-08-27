@@ -49,7 +49,11 @@ public class RedisService
             var val = await _db.StringGetAsync($"job_state:{slug}");
             return val.HasValue ? JsonSerializer.Deserialize<JobState>(val!, JsonOpts) : null;
         }
-        catch { return null; }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Redis job-state read failed for {Slug}", slug);
+            return null;
+        }
     }
 
     public async Task SetJobStateAsync(string slug, JobState state, TimeSpan? ttl = null)
@@ -58,13 +62,19 @@ public class RedisService
         {
             await _db.StringSetAsync($"job_state:{slug}", JsonSerializer.Serialize(state, JsonOpts), ttl ?? TimeSpan.FromHours(1));
         }
-        catch { /* non-critical */ }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Redis job-state write failed for {Slug}", slug);
+        }
     }
 
     public async Task DeleteJobStateAsync(string slug)
     {
         try { await _db.KeyDeleteAsync($"job_state:{slug}"); }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Redis job-state deletion failed for {Slug}", slug);
+        }
     }
 
     private class CachedGames

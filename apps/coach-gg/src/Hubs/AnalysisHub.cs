@@ -19,15 +19,15 @@ public class AnalysisHub : Hub
         _logger = logger;
     }
 
-    public async Task Subscribe(string slug)
+    public async Task Subscribe(string? slug)
     {
-        slug = slug.Trim();
-        if (string.IsNullOrEmpty(slug))
+        if (!PlayerSlug.TryNormalize(slug, out var normalizedSlug))
         {
             await Clients.Caller.SendAsync("JobError", new { slug, error = "Invalid slug" });
             return;
         }
 
+        slug = normalizedSlug;
         await Groups.AddToGroupAsync(Context.ConnectionId, slug);
         _logger.LogInformation("Client {ConnectionId} subscribed to {Slug}", Context.ConnectionId, slug);
 

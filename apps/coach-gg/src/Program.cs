@@ -85,6 +85,17 @@ builder.Services.AddControllers().AddJsonOptions(opts =>
 var app = builder.Build();
 
 app.UseCors();
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["Content-Security-Policy"] =
+        "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https://ssb.wiki.gallery data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "no-referrer";
+    context.Response.Headers["Permissions-Policy"] = "camera=(), geolocation=(), microphone=()";
+    context.Response.Headers["Strict-Transport-Security"] = "max-age=31536000";
+    await next();
+});
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
@@ -127,17 +138,20 @@ app.MapGet("/search", async (string q, SearchService search, HttpContext ctx) =>
 app.MapHub<AnalysisHub>("/analysishub");
 
 // Legacy REST endpoints
-app.MapGet("/counterpicker/{slug}", async (string slug, RedisService redis, StartGGService startGG, AggregationService agg) =>
+app.MapGet("/counterpicker/{slug}", async (string slug, RedisService redis, StartGGService startGG, AggregationService agg, HttpContext ctx) =>
 {
-    var cached = await redis.GetCachedGamesAsync(slug);
+    if (!PlayerSlug.TryNormalize(slug, out var normalizedSlug))
+        return Results.BadRequest(new { error = "Invalid slug" });
+
+    var cached = await redis.GetCachedGamesAsync(normalizedSlug);
     if (cached.HasValue)
     {
         var (userId, games) = cached.Value;
         return Results.Ok(agg.ComputeAll(userId, games));
     }
-    var (newUserId, newGames) = await startGG.GetGamesMetadataAsync(slug);
+    var (newUserId, newGames) = await startGG.GetGamesMetadataAsync(normalizedSlug, ct: ctx.RequestAborted);
     if (newUserId == null) return Results.NotFound(new { error = "User not found" });
-    await redis.SetCachedGamesAsync(slug, newUserId.Value, newGames);
+    await redis.SetCachedGamesAsync(normalizedSlug, newUserId.Value, newGames);
     return Results.Ok(agg.ComputeAll(newUserId.Value, newGames));
 });
 

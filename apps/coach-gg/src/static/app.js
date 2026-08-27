@@ -172,6 +172,17 @@ const matchupList     = document.getElementById('matchupList');
 const vsCharList      = document.getElementById('vsCharList');
 const errorToast      = document.getElementById('errorToast');
 const errorText       = document.getElementById('errorText');
+const retryBtn         = document.getElementById('retryBtn');
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[char]);
+}
+
+function normalizeSlug(slug) {
+  return String(slug).trim().replace(/^user\//i, '').toLowerCase();
+}
 
 // ── Search Autocomplete ──────────────────────────────────────
 let searchDebounce = null;
@@ -224,7 +235,7 @@ async function fetchSuggestions(q) {
 
 function renderDropdownError(msg) {
   activeIndex = -1;
-  searchDropdown.innerHTML = `<li class="dropdown-empty">${msg}</li>`;
+  searchDropdown.innerHTML = `<li class="dropdown-empty">${escapeHtml(msg)}</li>`;
   searchDropdown.classList.remove('hidden');
 }
 
@@ -238,10 +249,12 @@ function renderDropdown(results) {
     return;
   }
   searchDropdown.innerHTML = results.map((r, i) => {
-    const tag = r.prefix ? `<span class="dd-prefix">${r.prefix}</span> ${r.gamerTag}` : r.gamerTag;
-    return `<li class="dropdown-item" data-slug="${r.slug}" data-tag="${r.gamerTag}" data-index="${i}">
+    const gamerTag = escapeHtml(r.gamerTag);
+    const slug = escapeHtml(r.slug);
+    const tag = r.prefix ? `<span class="dd-prefix">${escapeHtml(r.prefix)}</span> ${gamerTag}` : gamerTag;
+    return `<li class="dropdown-item" data-slug="${slug}" data-index="${i}">
       <span class="dd-tag">${tag}</span>
-      <span class="dd-slug">${r.slug}</span>
+      <span class="dd-slug">${slug}</span>
     </li>`;
   }).join('');
   searchDropdown.querySelectorAll('.dropdown-item').forEach(el => {
@@ -352,9 +365,13 @@ function stageImgSrc(name) {
 // ── Tab Navigation ───────────────────────────────────────────
 document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => {
+      t.classList.remove('active');
+      t.setAttribute('aria-selected', 'false');
+    });
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     btn.classList.add('active');
+    btn.setAttribute('aria-selected', 'true');
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
   });
 });
@@ -368,7 +385,7 @@ searchForm.addEventListener('submit', (e) => {
 });
 
 async function startAnalysis(slug) {
-  currentSlug = slug;
+  currentSlug = normalizeSlug(slug);
   currentStats = {};
 
   // Reset cards
@@ -384,7 +401,7 @@ async function startAnalysis(slug) {
 
   // Update URL
   const url = new URL(window.location);
-  url.searchParams.set('slug', slug);
+  url.searchParams.set('slug', currentSlug);
   window.history.pushState({}, '', url);
 
   // UI state
@@ -394,15 +411,22 @@ async function startAnalysis(slug) {
   heroSection.classList.add('compact');
   showProgress();  // show immediately — hide on complete/error
 
-  await ensureConnected();
-  await connection.invoke('Subscribe', slug);
+  try {
+    await ensureConnected();
+    await connection.invoke('Subscribe', currentSlug);
+  } catch (error) {
+    progressSection.classList.add('hidden');
+    showError('Could not connect to live analysis. Please try again.');
+    resetAnalyzeBtn();
+    console.error('SignalR analysis connection failed:', error);
+  }
 }
 
 function retry() {
   hideError();
   if (currentSlug) startAnalysis(currentSlug);
 }
-window.retry = retry;
+retryBtn.addEventListener('click', retry);
 
 // ── Socket Events ────────────────────────────────────────────
 
@@ -508,7 +532,7 @@ function updateProgressPills(stats) {
   progressStats.innerHTML = `
     <div class="progress-stat-pill">Games: <strong>${totalGames}</strong></div>
     <div class="progress-stat-pill">Win Rate: <strong>${overallWr}%</strong></div>
-    ${topChar ? `<div class="progress-stat-pill">Top Char: <strong>${topChar[0]}</strong></div>` : ''}
+    ${topChar ? `<div class="progress-stat-pill">Top Char: <strong>${escapeHtml(topChar[0])}</strong></div>` : ''}
   `;
 }
 
@@ -540,11 +564,11 @@ function updateSummaryBar(stats) {
       <span class="summary-label">Overall Win Rate</span>
     </div>
     <div class="summary-stat">
-      <span class="summary-value">${mostPlayedChar ? mostPlayedChar[0] : '--'}</span>
+      <span class="summary-value">${mostPlayedChar ? escapeHtml(mostPlayedChar[0]) : '--'}</span>
       <span class="summary-label">Most Played</span>
     </div>
     <div class="summary-stat">
-      <span class="summary-value">${bestStage ? bestStage[0] : '--'}</span>
+      <span class="summary-value">${bestStage ? escapeHtml(bestStage[0]) : '--'}</span>
       <span class="summary-label">Best Stage</span>
     </div>
   `;
@@ -594,7 +618,7 @@ function createStageCard(name, data, idx) {
     <div class="stage-overlay"></div>
     <div class="stage-info">
       <div class="stage-left">
-        <div class="stage-name">${name}</div>
+        <div class="stage-name">${escapeHtml(name)}</div>
         <div class="stage-record">${recordText(data.total, data.winCount)}</div>
         <div class="stage-games">${data.total} games${isLowData ? '' : ''}</div>
         ${isLowData ? '<span class="low-data-badge">Low data</span>' : ''}
@@ -677,11 +701,11 @@ function createCharCard(name, data, idx) {
         />
       </svg>
       ${imgSrc
-        ? `<img class="portrait-img" src="${imgSrc}" alt="${name}" loading="lazy" />`
-        : `<div class="portrait-img" style="display:flex;align-items:center;justify-content:center;font-size:0.55rem;color:var(--text-muted);text-align:center;padding:4px">${name}</div>`
+        ? `<img class="portrait-img" src="${imgSrc}" alt="${escapeHtml(name)}" loading="lazy" />`
+        : `<div class="portrait-img" style="display:flex;align-items:center;justify-content:center;font-size:0.55rem;color:var(--text-muted);text-align:center;padding:4px">${escapeHtml(name)}</div>`
       }
     </div>
-    <div class="char-name" title="${name}">${name}</div>
+    <div class="char-name" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
     <div class="char-winrate ${wrClass(data.winRate)}">${data.winRate.toFixed(1)}%</div>
     <div class="char-record">${recordText(data.total, data.winCount)}</div>
     <div class="char-games">${data.total} game${data.total !== 1 ? 's' : ''}${isLowData ? ' · Low data' : ''}</div>
@@ -736,7 +760,7 @@ function resortMatchupRows() {
       .sort(([, a], [, b]) => sortComparator(a, b))
       .map(([stageName, sd]) => `
         <div class="matchup-stage-chip">
-          <span class="chip-stage-name">${stageName}</span>
+          <span class="chip-stage-name">${escapeHtml(stageName)}</span>
           <span class="chip-winrate" style="color: ${wrColor(sd.winRate)}">${sd.winRate.toFixed(1)}%</span>
           <span class="chip-record">${recordText(sd.total, sd.winCount)}</span>
         </div>`).join('');
@@ -787,31 +811,32 @@ function createMatchupRow(charName, stageData, overall, idx) {
 
   const stagesHtml = Object.entries(stageData).sort(([, a], [, b]) => sortComparator(a, b)).map(([stageName, sd]) => `
     <div class="matchup-stage-chip">
-      <span class="chip-stage-name">${stageName}</span>
+      <span class="chip-stage-name">${escapeHtml(stageName)}</span>
       <span class="chip-winrate" style="color: ${wrColor(sd.winRate)}">${sd.winRate.toFixed(1)}%</span>
       <span class="chip-record">${recordText(sd.total, sd.winCount)}</span>
     </div>
   `).join('');
 
   el.innerHTML = `
-    <div class="matchup-header">
+    <button type="button" class="matchup-header" aria-expanded="false">
       ${imgSrc
-        ? `<img class="matchup-portrait" src="${imgSrc}" alt="${charName}" loading="lazy" />`
+        ? `<img class="matchup-portrait" src="${imgSrc}" alt="${escapeHtml(charName)}" loading="lazy" />`
         : `<div class="matchup-portrait" style="display:flex;align-items:center;justify-content:center;font-size:0.5rem;color:var(--text-muted)">?</div>`
       }
       <div class="matchup-char-info">
-        <div class="matchup-char-name">${charName}</div>
+        <div class="matchup-char-name">${escapeHtml(charName)}</div>
         <div class="matchup-char-record">${recordText(overall.total, overall.winCount)} &middot; ${overall.total} games</div>
       </div>
       <div class="matchup-winrate" style="color: ${color}">${overall.winRate.toFixed(1)}%</div>
       <span class="matchup-toggle">&#9660;</span>
-    </div>
+    </button>
     <div class="matchup-stages">${stagesHtml}</div>
   `;
 
   // Toggle expand
   el.querySelector('.matchup-header').addEventListener('click', () => {
     el.classList.toggle('expanded');
+    el.querySelector('.matchup-header').setAttribute('aria-expanded', String(el.classList.contains('expanded')));
   });
 
   return el;
@@ -839,7 +864,7 @@ function updateMatchupRow(charName, stageData, overall) {
 
   stagesEl.innerHTML = Object.entries(stageData).sort(([, a], [, b]) => sortComparator(a, b)).map(([stageName, sd]) => `
     <div class="matchup-stage-chip">
-      <span class="chip-stage-name">${stageName}</span>
+      <span class="chip-stage-name">${escapeHtml(stageName)}</span>
       <span class="chip-winrate" style="color: ${wrColor(sd.winRate)}">${sd.winRate.toFixed(1)}%</span>
       <span class="chip-record">${recordText(sd.total, sd.winCount)}</span>
     </div>
@@ -874,8 +899,8 @@ function oppCharChipsHtml(oppCharData) {
     const img = charImgSrc(oppChar);
     return `
       <div class="matchup-stage-chip vschar-chip">
-        ${img ? `<img class="chip-char-portrait" src="${img}" alt="${oppChar}" loading="lazy"/>` : ''}
-        <span class="chip-stage-name">${oppChar}</span>
+        ${img ? `<img class="chip-char-portrait" src="${img}" alt="${escapeHtml(oppChar)}" loading="lazy"/>` : ''}
+        <span class="chip-stage-name">${escapeHtml(oppChar)}</span>
         <span class="chip-winrate" style="color: ${wrColor(sd.winRate)}">${sd.winRate.toFixed(1)}%</span>
         <span class="chip-record">${recordText(sd.total, sd.winCount)}</span>
       </div>`;
@@ -891,22 +916,25 @@ function createVsCharRow(myChar, oppCharData, overall, idx) {
   const color  = wrColor(overall.winRate);
 
   el.innerHTML = `
-    <div class="matchup-header">
+    <button type="button" class="matchup-header" aria-expanded="false">
       ${imgSrc
-        ? `<img class="matchup-portrait" src="${imgSrc}" alt="${myChar}" loading="lazy"/>`
+        ? `<img class="matchup-portrait" src="${imgSrc}" alt="${escapeHtml(myChar)}" loading="lazy"/>`
         : `<div class="matchup-portrait" style="display:flex;align-items:center;justify-content:center;font-size:0.5rem;color:var(--text-muted)">?</div>`
       }
       <div class="matchup-char-info">
-        <div class="matchup-char-name">${myChar}</div>
+        <div class="matchup-char-name">${escapeHtml(myChar)}</div>
         <div class="matchup-char-record">${recordText(overall.total, overall.winCount)} &middot; ${overall.total} games</div>
       </div>
       <div class="matchup-winrate" style="color: ${color}">${overall.winRate.toFixed(1)}%</div>
       <span class="matchup-toggle">&#9660;</span>
-    </div>
+    </button>
     <div class="matchup-stages">${oppCharChipsHtml(oppCharData)}</div>
   `;
 
-  el.querySelector('.matchup-header').addEventListener('click', () => el.classList.toggle('expanded'));
+  el.querySelector('.matchup-header').addEventListener('click', () => {
+    el.classList.toggle('expanded');
+    el.querySelector('.matchup-header').setAttribute('aria-expanded', String(el.classList.contains('expanded')));
+  });
   return el;
 }
 

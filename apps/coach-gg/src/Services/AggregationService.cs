@@ -18,15 +18,25 @@ public class AggregationService
             var entrantA = selA.Entrant;
             var entrantB = selB.Entrant;
 
-            var participantA = entrantA?.Participants?.FirstOrDefault();
-            var participantB = entrantB?.Participants?.FirstOrDefault();
+            // A team entrant has multiple users but only one selection, so assigning that
+            // selection to its first participant would produce incorrect individual stats.
+            if (entrantA?.Participants?.Count != 1 || entrantB?.Participants?.Count != 1) continue;
+
+            var participantA = entrantA.Participants[0];
+            var participantB = entrantB.Participants[0];
 
             var opponentA = participantA?.User?.Id;
             var opponentB = participantB?.User?.Id;
 
             if (opponentA == null || opponentB == null) continue;
 
-            var winnerId = game.WinnerId == entrantA?.Id ? opponentA.Value : opponentB.Value;
+            long winnerId;
+            if (game.WinnerId == entrantA.Id)
+                winnerId = opponentA.Value;
+            else if (game.WinnerId == entrantB.Id)
+                winnerId = opponentB.Value;
+            else
+                continue;
 
             var slugA = (participantA?.User?.Slug ?? "/").Split('/').ElementAtOrDefault(1) ?? "";
             var slugB = (participantB?.User?.Slug ?? "/").Split('/').ElementAtOrDefault(1) ?? "";
@@ -65,6 +75,7 @@ public class AggregationService
 
         foreach (var game in games)
         {
+            if (!IsPlayerInGame(userId, game)) continue;
             if (game.StageName == null) continue;
             if (!res.TryGetValue(game.StageName, out var entry))
             {
@@ -87,7 +98,7 @@ public class AggregationService
 
         foreach (var game in games)
         {
-            var charId = userId == game.OpponentA ? game.CharacterA : game.CharacterB;
+            if (!TryGetPlayerCharacter(userId, game, out var charId)) continue;
             if (charId == null || !Constants.UltimateCharacters.TryGetValue(charId.Value, out var charName)) continue;
 
             if (!res.TryGetValue(charName, out var entry))
@@ -111,7 +122,7 @@ public class AggregationService
 
         foreach (var game in games)
         {
-            var charId = userId == game.OpponentA ? game.CharacterA : game.CharacterB;
+            if (!TryGetPlayerCharacter(userId, game, out var charId)) continue;
             if (charId == null || !Constants.UltimateCharacters.TryGetValue(charId.Value, out var charName)) continue;
             if (game.StageName == null) continue;
 
@@ -140,8 +151,7 @@ public class AggregationService
 
         foreach (var game in games)
         {
-            // Opponent's character is the OTHER player's selection
-            var oppCharId = userId == game.OpponentA ? game.CharacterB : game.CharacterA;
+            if (!TryGetPlayerCharacter(userId, game, out _, out var oppCharId)) continue;
             if (oppCharId == null || !Constants.UltimateCharacters.TryGetValue(oppCharId.Value, out var charName)) continue;
 
             if (!res.TryGetValue(charName, out var entry))
@@ -169,8 +179,7 @@ public class AggregationService
 
         foreach (var game in games)
         {
-            var myCharId = userId == game.OpponentA ? game.CharacterA : game.CharacterB;
-            var oppCharId = userId == game.OpponentA ? game.CharacterB : game.CharacterA;
+            if (!TryGetPlayerCharacter(userId, game, out var myCharId, out var oppCharId)) continue;
 
             if (myCharId == null || !Constants.UltimateCharacters.TryGetValue(myCharId.Value, out var myChar)) continue;
             if (oppCharId == null || !Constants.UltimateCharacters.TryGetValue(oppCharId.Value, out var oppChar)) continue;
@@ -193,6 +202,33 @@ public class AggregationService
                     ? Math.Round(100.0 * oppKv.Value.WinCount / oppKv.Value.Total, 2) : 0;
 
         return res;
+    }
+
+    private static bool IsPlayerInGame(long userId, FlatGame game)
+        => userId == game.OpponentA || userId == game.OpponentB;
+
+    private static bool TryGetPlayerCharacter(long userId, FlatGame game, out int? characterId)
+        => TryGetPlayerCharacter(userId, game, out characterId, out _);
+
+    private static bool TryGetPlayerCharacter(long userId, FlatGame game, out int? characterId, out int? opponentCharacterId)
+    {
+        if (userId == game.OpponentA)
+        {
+            characterId = game.CharacterA;
+            opponentCharacterId = game.CharacterB;
+            return true;
+        }
+
+        if (userId == game.OpponentB)
+        {
+            characterId = game.CharacterB;
+            opponentCharacterId = game.CharacterA;
+            return true;
+        }
+
+        characterId = null;
+        opponentCharacterId = null;
+        return false;
     }
 
     public PlayerStats ComputeAll(long userId, List<RawGame> games)
