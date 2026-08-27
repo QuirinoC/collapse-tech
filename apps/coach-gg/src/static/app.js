@@ -137,7 +137,17 @@ let connectionReady = false;
 
 connection.onclose(() => { connectionReady = false; });
 connection.onreconnecting(() => { connectionReady = false; });
-connection.onreconnected(() => { connectionReady = true; });
+connection.onreconnected(() => {
+  connectionReady = true;
+  if (!currentSlug) return;
+
+  connection.invoke('Subscribe', currentSlug).catch(error => {
+    progressSection.classList.add('hidden');
+    showError('Could not resume live analysis. Please try again.');
+    resetAnalyzeBtn();
+    console.error('SignalR analysis resubscription failed:', error);
+  });
+});
 
 async function ensureConnected() {
   if (connection.state === signalR.HubConnectionState.Disconnected) {
@@ -187,12 +197,20 @@ function normalizeSlug(slug) {
 // ── Search Autocomplete ──────────────────────────────────────
 let searchDebounce = null;
 let activeIndex = -1;
+let activeSearchRequest = null;
+let searchRequestSequence = 0;
 
 slugInput.addEventListener('input', () => {
   clearTimeout(searchDebounce);
+  activeSearchRequest?.abort();
+  const requestSequence = ++searchRequestSequence;
   const q = slugInput.value.trim();
-  if (q.length < 2) { hideDropdown(); return; }
-  searchDebounce = setTimeout(() => fetchSuggestions(q), 300);
+  if (q.length < 2) {
+    searchSpinner.classList.add('hidden');
+    hideDropdown();
+    return;
+  }
+  searchDebounce = setTimeout(() => fetchSuggestions(q, requestSequence), 300);
 });
 
 slugInput.addEventListener('keydown', (e) => {
@@ -215,21 +233,31 @@ function setActive(idx, items) {
   activeIndex = idx;
 }
 
-async function fetchSuggestions(q) {
+async function fetchSuggestions(q, requestSequence) {
+  const controller = new AbortController();
+  activeSearchRequest = controller;
   searchSpinner.classList.remove('hidden');
   try {
-    const res = await fetch(`/search?q=${encodeURIComponent(q)}`);
+    const res = await fetch(`/search?q=${encodeURIComponent(q)}`, { signal: controller.signal });
+    if (requestSequence !== searchRequestSequence) return;
     if (res.status === 502 || res.status === 503) {
       let msg = 'Player search is temporarily unavailable — you can still paste your start.gg slug below.';
       try { msg = (await res.json()).error || msg; } catch { /* keep default */ }
+      if (requestSequence !== searchRequestSequence) return;
       renderDropdownError(msg);
       return;
     }
     if (!res.ok) return;
     const results = await res.json();
+    if (requestSequence !== searchRequestSequence) return;
     renderDropdown(results);
-  } catch { /* network errors are fine */ } finally {
-    searchSpinner.classList.add('hidden');
+  } catch (error) {
+    if (error.name !== 'AbortError') console.error('Player search failed:', error);
+  } finally {
+    if (requestSequence === searchRequestSequence) {
+      activeSearchRequest = null;
+      searchSpinner.classList.add('hidden');
+    }
   }
 }
 
