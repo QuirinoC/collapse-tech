@@ -19,14 +19,16 @@ public class AggregationServiceTests
         string? slugA = "user/aaaa", string? slugB = "user/bbbb",
         long? userAId = 1, long? userBId = 2,
         bool includeParticipantsB = true,
-        bool includeSecondParticipantA = false)
+        bool includeSecondParticipantA = false,
+        long? entrantAId = 100,
+        long? entrantBId = 200)
     {
         var selA = new GameSelection
         {
             SelectionValue = charA,
             Entrant = new GameEntrant
             {
-                Id = 100,
+                Id = entrantAId,
                 Participants = userAId == null ? null :
                     includeSecondParticipantA
                         ? [new GameParticipant { User = new GameUser { Id = userAId, Slug = slugA } }, new GameParticipant { User = new GameUser { Id = 3, Slug = "user/cccc" } }]
@@ -38,7 +40,7 @@ public class AggregationServiceTests
             SelectionValue = charB,
             Entrant = new GameEntrant
             {
-                Id = 200,
+                Id = entrantBId,
                 // opponent with NO linked start.gg user at all (null participants list)
                 Participants = !includeParticipantsB ? null : [new GameParticipant { User = new GameUser { Id = userBId, Slug = slugB } }]
             }
@@ -79,6 +81,20 @@ public class AggregationServiceTests
     public void FlattenGames_WinnerIdMatchesNoEntrant_IsSkipped()
     {
         var flat = _agg.FlattenGames([Game(winnerId: 999)]);
+        Assert.Empty(flat);
+    }
+
+    [Fact]
+    public void FlattenGames_MissingWinnerAndEntrantId_IsSkipped()
+    {
+        var flat = _agg.FlattenGames([Game(winnerId: null, entrantAId: null)]);
+        Assert.Empty(flat);
+    }
+
+    [Fact]
+    public void FlattenGames_MissingWinningEntrantId_IsSkipped()
+    {
+        var flat = _agg.FlattenGames([Game(winnerId: 100, entrantAId: null)]);
         Assert.Empty(flat);
     }
 

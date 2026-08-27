@@ -6,6 +6,20 @@ namespace CoachGG.Services;
 
 public class RedisService
 {
+    private const string RenewLeaseScript = """
+        if redis.call('GET', KEYS[1]) == ARGV[1] then
+          return redis.call('PEXPIRE', KEYS[1], ARGV[2])
+        end
+        return 0
+        """;
+
+    private const string ReleaseLeaseScript = """
+        if redis.call('GET', KEYS[1]) == ARGV[1] then
+          return redis.call('DEL', KEYS[1])
+        end
+        return 0
+        """;
+
     private readonly IDatabase _db;
     private readonly ILogger<RedisService> _logger;
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -75,6 +89,42 @@ public class RedisService
         {
             _logger.LogWarning(ex, "Redis job-state deletion failed for {Slug}", slug);
         }
+    }
+
+    // Lease failures are intentionally propagated: false means another replica owns the job.
+    public Task<bool> TryAcquireJobLeaseAsync(string slug, string ownerId, TimeSpan duration)
+    {
+        ValidateLease(ownerId, duration);
+        return _db.StringSetAsync(JobLeaseKey(slug), ownerId, duration, When.NotExists);
+    }
+
+    public async Task<bool> RenewJobLeaseAsync(string slug, string ownerId, TimeSpan duration)
+    {
+        ValidateLease(ownerId, duration);
+        var result = await _db.ScriptEvaluateAsync(
+            RenewLeaseScript,
+            [JobLeaseKey(slug)],
+            [ownerId, checked((long)duration.TotalMilliseconds)]);
+        return (int)result == 1;
+    }
+
+    public async Task<bool> ReleaseJobLeaseAsync(string slug, string ownerId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerId);
+        var result = await _db.ScriptEvaluateAsync(
+            ReleaseLeaseScript,
+            [JobLeaseKey(slug)],
+            [ownerId]);
+        return (int)result == 1;
+    }
+
+    private static RedisKey JobLeaseKey(string slug) => $"job_lease:{slug}";
+
+    private static void ValidateLease(string ownerId, TimeSpan duration)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerId);
+        if (duration <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(duration), "Lease duration must be positive.");
     }
 
     private class CachedGames

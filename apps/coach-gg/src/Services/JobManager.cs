@@ -7,7 +7,9 @@ namespace CoachGG.Services;
 
 public class JobManager
 {
+    private static readonly TimeSpan JobLeaseDuration = TimeSpan.FromMinutes(3);
     private readonly ConcurrentDictionary<string, byte> _running = new();
+    private readonly string _ownerId = Guid.NewGuid().ToString("N");
     private readonly IHubContext<AnalysisHub> _hub;
     private readonly StartGGService _startGG;
     private readonly AggregationService _aggregations;
@@ -31,13 +33,27 @@ public class JobManager
         _applicationLifetime = applicationLifetime;
     }
 
-    public Task<bool> StartJobAsync(string slug)
+    public async Task<bool> StartJobAsync(string slug)
     {
         if (!_running.TryAdd(slug, 0))
-            return Task.FromResult(false);
+            return false;
 
-        _ = Task.Run(() => RunJobAsync(slug, _applicationLifetime.ApplicationStopping));
-        return Task.FromResult(true);
+        try
+        {
+            if (!await _redis.TryAcquireJobLeaseAsync(slug, _ownerId, JobLeaseDuration))
+            {
+                _running.TryRemove(slug, out _);
+                return false;
+            }
+
+            _ = Task.Run(() => RunJobAsync(slug, _applicationLifetime.ApplicationStopping));
+            return true;
+        }
+        catch
+        {
+            _running.TryRemove(slug, out _);
+            throw;
+        }
     }
 
     /// <summary>Whether a worker for this slug exists in THIS process. Redis job_state can say
@@ -55,6 +71,7 @@ public class JobManager
                 slug,
                 async (page, total, gamesSoFar, uid) =>
                 {
+                    await EnsureLeaseOwnershipAsync(slug);
                     var partial = _aggregations.ComputeAll(uid, gamesSoFar);
                     var state = new JobState
                     {
@@ -74,6 +91,7 @@ public class JobManager
                 },
                 stoppingToken);
 
+            await EnsureLeaseOwnershipAsync(slug);
             if (userId == null)
                 throw new Exception($"User '{slug}' not found on start.gg");
 
@@ -94,6 +112,10 @@ public class JobManager
         {
             _logger.LogInformation("Job cancelled during application shutdown for {Slug}", slug);
         }
+        catch (JobLeaseLostException)
+        {
+            _logger.LogWarning("Job lease was lost for {Slug}; another replica may resume the analysis", slug);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Job failed for {Slug}", slug);
@@ -106,7 +128,23 @@ public class JobManager
         }
         finally
         {
+            try
+            {
+                await _redis.ReleaseJobLeaseAsync(slug, _ownerId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to release job lease for {Slug}", slug);
+            }
             _running.TryRemove(slug, out _);
         }
     }
+
+    private async Task EnsureLeaseOwnershipAsync(string slug)
+    {
+        if (!await _redis.RenewJobLeaseAsync(slug, _ownerId, JobLeaseDuration))
+            throw new JobLeaseLostException();
+    }
+
+    private sealed class JobLeaseLostException : Exception;
 }

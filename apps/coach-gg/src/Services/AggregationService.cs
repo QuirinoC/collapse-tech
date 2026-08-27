@@ -30,17 +30,24 @@ public class AggregationService
 
             if (opponentA == null || opponentB == null) continue;
 
+            if (game.WinnerId is not long winningEntrantId
+                || entrantA.Id is not long entrantAId
+                || entrantB.Id is not long entrantBId)
+            {
+                continue;
+            }
+
             long winnerId;
-            if (game.WinnerId == entrantA.Id)
+            if (winningEntrantId == entrantAId)
                 winnerId = opponentA.Value;
-            else if (game.WinnerId == entrantB.Id)
+            else if (winningEntrantId == entrantBId)
                 winnerId = opponentB.Value;
             else
                 continue;
 
             var slugA = (participantA?.User?.Slug ?? "/").Split('/').ElementAtOrDefault(1) ?? "";
             var slugB = (participantB?.User?.Slug ?? "/").Split('/').ElementAtOrDefault(1) ?? "";
-            var winnerSlug = game.WinnerId == entrantA?.Id ? slugA : slugB;
+            var winnerSlug = winningEntrantId == entrantAId ? slugA : slugB;
 
             var charIdA = selA.SelectionValue;
             var charIdB = selB.SelectionValue;

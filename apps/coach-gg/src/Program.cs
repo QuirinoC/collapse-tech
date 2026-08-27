@@ -17,23 +17,11 @@ var redisUrl = Environment.GetEnvironmentVariable("REDIS_URL")
     ?? builder.Configuration["Redis:ConnectionString"]
     ?? "localhost:6379";
 
-// Parse rediss:// or redis:// URL into StackExchange.Redis connection string
-static string ParseRedisUrl(string url)
-{
-    if (!url.StartsWith("redis://") && !url.StartsWith("rediss://")) return url;
-    var ssl = url.StartsWith("rediss://");
-    var uri = new Uri(url);
-    var host = uri.Host;
-    var port = uri.Port > 0 ? uri.Port : (ssl ? 6380 : 6379);
-    var password = uri.UserInfo.Contains(':') ? Uri.UnescapeDataString(uri.UserInfo.Split(':', 2)[1]) : "";
-    return $"{host}:{port},password={password},ssl={ssl},abortConnect=False,connectTimeout=5000,syncTimeout=5000";
-}
-
-var redisConn = ParseRedisUrl(redisUrl);
+var redisOptions = RedisConnectionOptions.Parse(redisUrl);
 
 // Redis
 builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
-    ConnectionMultiplexer.Connect(redisConn));
+    ConnectionMultiplexer.Connect(redisOptions));
 builder.Services.AddSingleton<RedisService>();
 
 // HTTP client for start.gg
@@ -68,6 +56,9 @@ builder.Services.AddSignalR(opts =>
 }).AddJsonProtocol(opts =>
 {
     opts.PayloadSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+}).AddStackExchangeRedis(options =>
+{
+    options.Configuration = redisOptions;
 });
 
 // CORS (allow frontend everywhere)

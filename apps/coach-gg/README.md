@@ -223,9 +223,9 @@ CoachGG runs as a Render web service in project **collapse-tech**
 3. Add `coach.collapsetechnologies.com` as the service's custom domain
 4. Push to `main` to auto-deploy
 
-Redis is required for shared game caching and job-state recovery. A Redis outage is
-logged explicitly; active SignalR clients can still receive live updates, but a
-restart cannot resume an in-progress analysis until Redis is available again.
+Redis is required for shared game caching, distributed job leases, and the SignalR
+backplane. A Redis outage is logged explicitly, and an expired lease allows one
+replica to resume work after a crash without duplicating the start.gg request.
 
 ---
 
