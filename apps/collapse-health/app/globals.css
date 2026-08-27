@@ -68,6 +68,15 @@ a {
   color: var(--accent-dark);
 }
 
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+section[id] {
+  scroll-margin-top: 80px;
+}
+
 /* Nav */
 .nav {
   position: sticky;
@@ -478,6 +487,19 @@ a {
   color: var(--navy);
 }
 
+.lead-form .form-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.form-consent input {
+  width: auto;
+  margin: 4px 0 0;
+}
+
 .lead-form input,
 .lead-form textarea,
 .lead-form select {
@@ -514,27 +536,27 @@ a {
 .form-note {
   font-size: 0.82rem;
   color: var(--muted);
-  margin: 12px 0 0;
+  margin: 0 0 16px;
 }
 
-.form-success {
+.form-status {
+  margin: 16px 0 0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.form-status.ok {
   background: var(--accent-soft);
   border: 1px solid #bfe3d8;
   color: var(--accent-dark);
-  border-radius: 10px;
-  padding: 14px 16px;
-  font-weight: 600;
-  font-size: 0.95rem;
 }
 
-.form-error {
+.form-status.err {
   background: #fdeeee;
   border: 1px solid #f3c8c8;
   color: #a33;
-  border-radius: 10px;
-  padding: 14px 16px;
-  font-weight: 600;
-  font-size: 0.95rem;
 }
 
 .hp-field {

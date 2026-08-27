@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Terms of Service — Collapse Health",
-  description: "Terms governing use of Collapse Health facilitation services.",
+  title: "Terms of Use — Collapse Health",
+  description: "Terms governing use of the Collapse Health concept-preview website.",
 };
 
 export default function Terms() {
@@ -10,66 +10,38 @@ export default function Terms() {
     <main className="legal">
       <div className="container">
         <Link href="/">← Back to home</Link>
-        <h1>Terms of Service</h1>
+        <h1>Terms of Use</h1>
         <p className="updated">Last updated: August 2026</p>
-        <h2>1. Current status: not operating</h2>
+        <h2>1. Current status</h2>
         <p>
           Collapse Health is a work in progress and is <strong>not currently operating</strong>.
-          We are not accepting patients, providing referrals, arranging travel, or offering any
-          services. This website is an informational preview only. Nothing on it constitutes an
-          offer of services, medical advice, a diagnosis, or a price quote.
+          We are not accepting patients, providing referrals, arranging travel, taking bookings,
+          handling payments, or offering health-travel services. This site is an informational
+          concept preview only and is not an offer of services.
         </p>
-        <h2>2. Who we would be (if launched)</h2>
+        <h2>2. No medical, provider, insurance, or travel advice</h2>
         <p>
-          If launched, Collapse Health intends to operate as a medical travel facilitator
-          under Collapse Technologies — connecting patients in the United States and Canada
-          with independent, licensed healthcare providers in Mexico. We are not a healthcare
-          provider, hospital, clinic, insurer, or travel agency, and we do not practice medicine.
+          Collapse Health is not a medical provider, clinician, hospital, insurer, travel agency,
+          or emergency service. We do not diagnose, treat, assess, vet, certify, endorse, or
+          recommend any provider, facility, procedure, destination, price, savings, or insurance
+          option. Do not rely on this site when making healthcare, travel, or insurance decisions.
         </p>
-        <h2>3. No medical services; no warranties on clinical outcomes</h2>
+        <h2>3. Emergencies</h2>
         <p>
-          All clinical care would be provided solely by independent providers selected by you.
-          If launched, using our facilitation services would mean entering into a direct
-          relationship with the provider you choose — we would not be a party to that
-          relationship, and we would have no responsibility or liability of any kind for the
-          medical services a provider delivers or fails to deliver. We intend to make reasonable
-          efforts to verify licenses, certifications, and credentials, but medical standards,
-          regulation, and outcomes differ by country; you remain responsible for evaluating any
-          provider&rsquo;s credentials and accreditation before traveling for care. Individual
-          results and recovery experiences vary, and no clinical outcome can be guaranteed.
+          Do not use this site or its contact address for urgent or emergency help. Contact local
+          emergency services or 911 immediately in an emergency.
         </p>
-        <h2>4. Compensation disclosure</h2>
+        <h2>4. No launch-update registration</h2>
         <p>
-          Our intended model is that network providers would pay us a referral fee when a
-          patient books through us. This would cost the patient nothing extra and would not
-          affect quoted prices. Any financial relationship relevant to a specific referral
-          would be disclosed upon request.
+          This preview does not collect registrations, contact details, or launch-update consent. Do
+          not submit medical records, symptoms, treatment, insurance, or other sensitive health
+          information through this site.
         </p>
-        <h2>5. Pricing information</h2>
+        <h2>5. No current operating terms</h2>
         <p>
-          All prices shown on this site are illustrative examples based on publicly reported
-          market rates. They are not quotes, estimates for any specific case, or guarantees,
-          and actual prices vary by provider, case complexity, and time. Any future estimate
-          obtained through facilitation would be non-binding until confirmed in writing by the
-          provider after in-person examination; final charges may differ from any preliminary
-          figure.
-        </p>
-        <h2>6. Travel and personal responsibility</h2>
-        <p>
-          Anyone considering medical travel is responsible for their own travel arrangements,
-          documentation (e.g., passport), compliance with government travel advisories, and
-          follow-up care at home.
-        </p>
-        <h2>7. Limitation of liability</h2>
-        <p>
-          To the maximum extent permitted by law, Collapse Technologies&rsquo; total liability
-          arising from your use of this website is limited to the amount you paid to us
-          (currently zero).
-        </p>
-        <h2>8. Governing law</h2>
-        <p>
-          These terms are governed by the laws of the State of Texas, USA, without regard to
-          conflict-of-law principles.
+          Any future service, if one is ever offered, would require separately reviewed terms,
+          privacy disclosures, and operational safeguards before it is announced. Nothing on this
+          preview promises that a service will launch or describes future services as available.
         </p>
       </div>
     </main>

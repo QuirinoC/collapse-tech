@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export const metadata = {
   title: "Privacy Policy — Collapse Health",
-  description: "How Collapse Health collects, uses, and protects your information.",
+  description: "Privacy information for the Collapse Health concept-preview website.",
 };
 
 export default function Privacy() {
@@ -13,38 +13,39 @@ export default function Privacy() {
         <h1>Privacy Policy</h1>
         <p className="updated">Last updated: August 2026</p>
         <p>
-          Collapse Health (&ldquo;we&rdquo;, &ldquo;us&rdquo;) is a planned medical travel
-          facilitation service operated by Collapse Technologies. <strong>We are not
-          currently operating and are not providing services.</strong> This policy explains
-          what information this preview site collects and how we use it.
+          Collapse Health is an early concept operated by Collapse Technologies. <strong>We are
+          not currently operating and do not provide health-travel services.</strong> This policy
+          describes the limited information handled by this preview site.
         </p>
         <h2>Information we collect</h2>
-        <ul>
-          <li>Contact details you submit through the waitlist form (name, email, phone) and any notes you choose to provide.</li>
-          <li>Basic usage data such as pages visited.</li>
-        </ul>
-        <h2>How we use it</h2>
-        <ul>
-          <li>Solely to notify you when (and if) the service launches.</li>
-          <li>We never sell your personal information.</li>
-        </ul>
-        <h2>Sharing</h2>
         <p>
-          While we are not operating, your details are not shared with healthcare providers.
-          If the service launches, we would share relevant details only with providers you
-          approve, for the purpose of preparing quotes. We do not otherwise share your
-          information except where required by law.
+          This concept preview does not collect registrations, contact details, or sensitive health
+          information. Do not submit medical records, symptoms, treatment information, insurance
+          information, or other sensitive health information through this site.
         </p>
-        <h2>Data retention &amp; your rights</h2>
+        <h2>How we use and share it</h2>
         <p>
-          You may request access to, correction of, or deletion of your personal information at
-          any time by emailing hello@collapsetechnologies.com. We retain inquiry data only as
-          long as needed to serve you or as required by law.
+          Because this preview accepts no registrations, it does not use or share submitted personal
+          information. We do not sell information, use it for clinical decisions, or share it with
+          healthcare providers. Our hosting providers may process limited technical information
+          solely to deliver and secure the site.
         </p>
-        <h2>Not medical advice</h2>
+        <h2>Retention and your choices</h2>
         <p>
-          Content on this website is informational only and is not medical advice. Clinical
-          decisions should be made with licensed healthcare providers.
+          There are no registrations or public contact submissions to retain. Any future collection
+          process would need a separately reviewed retention, access, correction, and deletion
+          process before it is made available.
+        </p>
+        <h2>Website data</h2>
+        <p>
+          This preview does not intentionally use analytics or advertising trackers. Service
+          providers may process technical information needed to deliver and secure the site under
+          their own terms and policies.
+        </p>
+        <h2>Not medical or emergency advice</h2>
+        <p>
+          This website is informational only. It does not provide medical, insurance, travel, or
+          emergency advice. For an emergency, contact local emergency services or 911.
         </p>
       </div>
     </main>

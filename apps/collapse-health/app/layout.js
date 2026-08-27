@@ -2,14 +2,14 @@ import { SiteBanner } from "./SiteBanner";
 import "./globals.css";
 
 export const metadata = {
-  title: "Collapse Health — Medical care in Mexico, coordinated end-to-end (concept preview)",
+  title: "Collapse Health — Concept Preview",
   description:
-    "Collapse Health is a planned medical travel facilitation service connecting American and Canadian patients with licensed Mexican providers. Currently in development and not operating.",
+    "Collapse Health is an early concept from Collapse Technologies. It is not operating or providing health-travel services.",
   metadataBase: new URL("https://health.collapsetechnologies.com"),
   openGraph: {
     title: "Collapse Health",
     description:
-      "A planned medical travel facilitation service for North American patients considering care in Mexico. Concept preview — not yet operating.",
+      "An early Collapse Technologies concept preview. No health-travel services are currently available.",
     siteName: "Collapse Health",
   },
 };
