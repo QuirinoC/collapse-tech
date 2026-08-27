@@ -23,6 +23,13 @@ npm run dev
 
 From the repo root: `npm run dev:studio`.
 
+To preview the static production export locally:
+
+```bash
+npm run build
+npm start
+```
+
 ## Build & deploy
 
 Static export — deploy `out/`, never `.next/`:

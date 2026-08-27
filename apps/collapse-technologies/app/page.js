@@ -83,7 +83,11 @@ export default function Home() {
           <span>{menuOpen ? "Close" : "Menu"}</span>
           <i aria-hidden="true" />
         </button>
-        <nav className={menuOpen ? "site-nav open" : "site-nav"} id="site-navigation">
+        <nav
+          className={menuOpen ? "site-nav open" : "site-nav"}
+          id="site-navigation"
+          aria-label="Primary navigation"
+        >
           <a href="#work" onClick={closeMenu}>Work</a>
           <a href="#about" onClick={closeMenu}>About</a>
           <a href="#contact" onClick={closeMenu}>Contact</a>
