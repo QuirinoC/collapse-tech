@@ -2,7 +2,10 @@ import { CreatorCard, OutfitCard } from "@/components/cards";
 import SearchExperience from "@/components/search-experience";
 import { featuredPeople, outfits } from "@/lib/catalog";
 import { listPopularPeople } from "@/lib/repository";
+import { hasImportConfiguration } from "@/lib/request";
 import { hasSupabaseConfig } from "@/lib/supabase";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Explore",
@@ -11,6 +14,7 @@ export const metadata = {
 
 export default async function ExplorePage() {
   let people = featuredPeople;
+  const importsEnabled = hasImportConfiguration();
   if (hasSupabaseConfig()) {
     try {
       const stored = await listPopularPeople();
@@ -34,7 +38,7 @@ export default async function ExplorePage() {
         </p>
       </div>
       <div className="explore-controls">
-        <SearchExperience compact />
+        <SearchExperience compact importsEnabled={importsEnabled} />
       </div>
       <div className="creator-grid">
         {people.map((person, index) => (

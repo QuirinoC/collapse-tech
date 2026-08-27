@@ -17,8 +17,10 @@ Supabase project, Gemini API key, SearchAPI key, and the Workflow development
 runtime configured by the `workflow` package.
 
 Apply `supabase/migrations/001_initial.sql` to the project before enabling
-imports. The service-role key is server-only and must never use a
-`NEXT_PUBLIC_` prefix.
+imports, followed by `002_restrict_popularity_rollups.sql` for existing
+projects. The service-role key is server-only and must never use a
+`NEXT_PUBLIC_` prefix. The UI and API keep post imports disabled until all
+required Worker secrets are configured.
 
 ## Providers and data handling
 

@@ -6,7 +6,7 @@ import { useState } from "react";
 
 const INSTAGRAM_URL = /^https?:\/\/(www\.)?instagram\.com\/(p|reel)\/[^/]+/i;
 
-export default function SearchExperience({ compact = false }) {
+export default function SearchExperience({ compact = false, importsEnabled = false }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState("");
@@ -22,6 +22,10 @@ export default function SearchExperience({ compact = false }) {
 
     try {
       if (INSTAGRAM_URL.test(value)) {
+        if (!importsEnabled) {
+          setMessage("Public-post imports are not available yet.");
+          return;
+        }
         const response = await fetch("/api/import", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -61,14 +65,16 @@ export default function SearchExperience({ compact = false }) {
       onSubmit={handleSubmit}
     >
       <label htmlFor={compact ? "compact-search" : "hero-search"}>
-        Person or public Instagram post
+        {importsEnabled ? "Person or public Instagram post" : "Person or style"}
       </label>
       <div>
         <span aria-hidden="true">⌕</span>
         <input
           id={compact ? "compact-search" : "hero-search"}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Shia LaBeouf or instagram.com/p/..."
+          placeholder={
+            importsEnabled ? "Shia LaBeouf or instagram.com/p/..." : "Shia LaBeouf"
+          }
           value={query}
         />
         <button disabled={busy} type="submit">
