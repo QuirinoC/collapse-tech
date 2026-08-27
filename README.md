@@ -76,7 +76,7 @@ npm test
 | Asymmetric Challenge | `apps/asymmetric-challenge` | Cloudflare Workers via `@opennextjs/cloudflare` | `challenge.collapsetechnologies.com` ✅ live (`x-opennext: 1`) |
 | Dress Like Me | `apps/dress-like-me` | Cloudflare Workers via `@opennextjs/cloudflare` | `dresslikeme.collapsetechnologies.com` ✅ live (app itself still pre-launch) |
 | Collapse Health | `apps/collapse-health` | Cloudflare Pages (static export) + lead Worker `collapse-health-leads` (KV-backed) | `health.collapsetechnologies.com` ✅ live — WIP/not-operating banner, no prices |
-| Influence.Market | `apps/influence-market` | Cloudflare Workers via `@opennextjs/cloudflare` + Cloudflare D1 (native `DB` binding; Supabase Postgres optional) | `influence-market.juanquirino-workers.workers.dev` · `influence.market` (domain pending) |
+| Influence.Market | `apps/influence-market` | Cloudflare Workers via `@opennextjs/cloudflare` + Cloudflare D1 (native `DB` binding; Supabase Postgres optional) | `influence.collapsetechnologies.com` ✅ live |
 | CoachGG | `apps/coach-gg` | Render web service (`srv-da56cr2jobas73dmulv0`) | `coachgg-api.onrender.com`, custom domain `coach.collapsetechnologies.com` ✅ live |
 | Infinite Pixelboard | `apps/infinite-pixelboard` | Render web service (`srv-da55t78u01pc73e3rlu0`) + Render Key Value (Redis) | `infinite-pixelboard.onrender.com`, custom domain `pixelboard.collapsetechnologies.com` ✅ live |
 | Infinite Pixelboard iOS | `apps/infinite-pixelboard-ios` | Native SwiftUI app (TestFlight/App Store) — no server deploys; talks to the pixelboard API + Firebase Auth | n/a |
@@ -121,4 +121,4 @@ Render services live in project **collapse-tech**; `apps/render.yaml` documents 
 
 Custom domains (`pixelboard.collapsetechnologies.com`, `coach.collapsetechnologies.com`) are attached to the Render services.
 
-The legacy Azure Container Apps stack (`apps/infinite-pixelboard/Infrastructure/Cloud/ContainerApp.json` + `.github/workflows/deploy-pixelboard.yml`) is retired pending decommission of the Azure resource group.
+The legacy Azure Container Apps template (`apps/infinite-pixelboard/Infrastructure/Cloud/ContainerApp.json`) is retained for historical reference only. Render deploys Pixelboard automatically from `main`; no GitHub Actions deployment workflow is involved.
