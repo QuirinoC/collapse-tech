@@ -1,5 +1,20 @@
+import Link from "next/link";
+
 export const metadata = {
   title: "Privacy | Collapse Technologies",
+  description:
+    "How Collapse Technologies handles contact information and website tracking.",
+  alternates: {
+    canonical: "/privacy",
+  },
+  openGraph: {
+    title: "Privacy | Collapse Technologies",
+    description:
+      "How Collapse Technologies handles contact information and website tracking.",
+    siteName: "Collapse Technologies",
+    type: "website",
+    url: "/privacy",
+  },
 };
 
 export default function PrivacyPage() {
@@ -22,4 +37,3 @@ export default function PrivacyPage() {
     </main>
   );
 }
-import Link from "next/link";

@@ -18,10 +18,15 @@ export const metadata = {
   description:
     "Independent technology studio building software, games, and long-term platforms.",
   metadataBase: new URL("https://collapsetechnologies.com"),
+  alternates: {
+    canonical: "/",
+  },
   openGraph: {
     title: "Collapse Technologies",
     description: "Software, games, and things still taking shape.",
     siteName: "Collapse Technologies",
+    type: "website",
+    url: "/",
   },
 };
 

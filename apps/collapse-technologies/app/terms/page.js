@@ -1,5 +1,20 @@
+import Link from "next/link";
+
 export const metadata = {
   title: "Terms | Collapse Technologies",
+  description:
+    "Terms for using the Collapse Technologies website and its published material.",
+  alternates: {
+    canonical: "/terms",
+  },
+  openGraph: {
+    title: "Terms | Collapse Technologies",
+    description:
+      "Terms for using the Collapse Technologies website and its published material.",
+    siteName: "Collapse Technologies",
+    type: "website",
+    url: "/terms",
+  },
 };
 
 export default function TermsPage() {
@@ -22,4 +37,3 @@ export default function TermsPage() {
     </main>
   );
 }
-import Link from "next/link";

@@ -150,8 +150,8 @@ h2 { margin-bottom: 0; font-size: clamp(3.4rem, 7vw, 7rem); }
   .site-header { padding: 22px 6vw; }
   .menu-toggle { display: inline-flex; align-items: center; gap: 8px; border: 0; background: transparent; font-family: var(--font-plex-mono), monospace; font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; }
   .menu-toggle i { width: 9px; height: 9px; border-radius: 50%; background: var(--ink); }
-  .site-nav { position: absolute; top: 67px; right: 6vw; left: 6vw; display: grid; gap: 18px; padding: 22px; border: 1px solid var(--line); border-radius: 15px; background: var(--bg); opacity: 0; pointer-events: none; transform: translateY(-8px); transition: .2s ease; }
-  .site-nav.open { opacity: 1; pointer-events: auto; transform: translateY(0); }
+  .site-nav { position: absolute; top: 67px; right: 6vw; left: 6vw; display: grid; gap: 18px; padding: 22px; border: 1px solid var(--line); border-radius: 15px; background: var(--bg); opacity: 0; pointer-events: none; visibility: hidden; transform: translateY(-8px); transition: opacity .2s ease, transform .2s ease, visibility 0s linear .2s; }
+  .site-nav.open { opacity: 1; pointer-events: auto; visibility: visible; transform: translateY(0); transition-delay: 0s; }
   .hero { min-height: auto; padding: 145px 6vw 50px; grid-template-columns: 1fr; }
   .signal-field { min-height: 290px; }
   .section { padding: 82px 6vw; }
