@@ -3,6 +3,7 @@
 // Seeded with a small curated roster so the directory is never empty.
 
 import { randomUUID } from "node:crypto";
+import { nextAssignmentPayoutCents } from "./money.js";
 
 const DEMO_CREATORS = [
   {
@@ -114,6 +115,15 @@ export function createMemoryStore() {
 
     // --- profiles ---
     async createProfile(profile) {
+      const existing = [...profiles.values()].find(
+        (candidate) =>
+          candidate.email.toLowerCase() === String(profile.email).toLowerCase(),
+      );
+      if (existing) {
+        const error = new Error("A profile with that email already exists.");
+        error.code = "23505";
+        throw error;
+      }
       const record = { ...profile, id: profile.id || randomUUID(), created_at: new Date().toISOString() };
       profiles.set(record.id, record);
       return structuredClone(record);
@@ -131,6 +141,13 @@ export function createMemoryStore() {
     async updateProfile(id, patch) {
       const existing = profiles.get(id);
       if (!existing) return null;
+      const updated = { ...existing, ...patch, id };
+      profiles.set(id, updated);
+      return structuredClone(updated);
+    },
+    async claimProfile(id, patch) {
+      const existing = profiles.get(id);
+      if (!existing || existing.password_hash) return null;
       const updated = { ...existing, ...patch, id };
       profiles.set(id, updated);
       return structuredClone(updated);
@@ -307,6 +324,14 @@ export function createMemoryStore() {
     async acceptApplication(result) {
       const currentCampaign = campaigns.get(result.campaign.id);
       const currentApplication = applications.get(result.application.id);
+      const committedPayoutCents = [...assignments.values()]
+        .filter(
+          (assignment) => assignment.campaign_id === result.campaign.id,
+        )
+        .reduce(
+          (sum, assignment) => sum + assignment.payout_cents,
+          0,
+        );
       const duplicateAssignment = [...assignments.values()].some(
         (assignment) =>
           assignment.campaign_id === result.campaign.id &&
@@ -324,6 +349,17 @@ export function createMemoryStore() {
         duplicateAssignment
       ) {
         const error = new Error("Application can no longer be accepted.");
+        error.statusCode = 409;
+        throw error;
+      }
+      const expectedPayoutCents = nextAssignmentPayoutCents(
+        currentCampaign,
+        committedPayoutCents,
+      );
+      if (result.assignment.payout_cents !== expectedPayoutCents) {
+        const error = new Error(
+          "Application can no longer be accepted with its original payout.",
+        );
         error.statusCode = 409;
         throw error;
       }
@@ -369,6 +405,18 @@ export function createMemoryStore() {
     async updateAssignment(id, patch) {
       const existing = assignments.get(id);
       if (!existing) return null;
+      const updated = { ...existing, ...patch, id };
+      assignments.set(id, updated);
+      return structuredClone(updated);
+    },
+    async submitAssignment(id, patch) {
+      const existing = assignments.get(id);
+      if (
+        !existing ||
+        !["instructions_sent", "rejected"].includes(existing.status)
+      ) {
+        return null;
+      }
       const updated = { ...existing, ...patch, id };
       assignments.set(id, updated);
       return structuredClone(updated);

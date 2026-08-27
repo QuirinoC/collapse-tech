@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getStore } from "@/lib/repository";
+import { publicCreatorProfile } from "@/lib/public-profile";
 
 const VALID_PLATFORMS = new Set([
   "instagram", "tiktok", "youtube", "facebook", "x", "twitch",
@@ -19,6 +20,6 @@ export async function GET(request) {
 
   const creators = await getStore().listCreatorDirectory(filters);
   return NextResponse.json({
-    creators: creators.map(({ password_hash, email, ...publicFields }) => publicFields),
+    creators: creators.map(publicCreatorProfile),
   });
 }

@@ -1,5 +1,6 @@
 // Pure campaign escrow state machine. Every transition used by API routes is
 // expressed here so it can be unit-tested without a database or HTTP layer.
+import { assignmentPayoutCents } from "./money.js";
 
 export const CAMPAIGN_STATUSES = ["open", "funded", "completed", "cancelled"];
 export const PAYMENT_STATUSES = ["unpaid", "held", "settled", "refunded"];
@@ -42,6 +43,7 @@ export function canFund(campaign) {
 export function canAcceptApplication(campaign, application) {
   return (
     campaign.status === "open" &&
+    campaign.payment_status === "unpaid" &&
     campaign.slots_remaining > 0 &&
     application.status === "pending"
   );
@@ -50,6 +52,9 @@ export function canAcceptApplication(campaign, application) {
 function acceptanceBlocker(campaign, application) {
   if (campaign.status !== "open") {
     return "Campaign is no longer open.";
+  }
+  if (campaign.payment_status !== "unpaid") {
+    return "Campaign has already been funded.";
   }
   if (campaign.slots_remaining <= 0) {
     return "No slots remaining in this campaign.";
@@ -75,9 +80,11 @@ export function acceptApplication(
   application,
   creatorId,
   now = new Date().toISOString(),
+  payoutCents = null,
 ) {
   const blocker = acceptanceBlocker(campaign, application);
   assert(!blocker, blocker || "Application cannot be accepted.");
+  const assignmentIndex = campaign.slots - campaign.slots_remaining;
   return {
     campaign: { ...campaign, slots_remaining: campaign.slots_remaining - 1 },
     application: { ...application, status: "accepted", decided_at: now },
@@ -85,6 +92,13 @@ export function acceptApplication(
       campaign_id: campaign.id,
       creator_id: creatorId,
       status: "instructions_sent",
+      payout_cents:
+        payoutCents ??
+        assignmentPayoutCents(
+          campaign.budget_cents,
+          campaign.slots,
+          assignmentIndex,
+        ),
       content_url: null,
       submitted_at: null,
       reviewed_at: null,

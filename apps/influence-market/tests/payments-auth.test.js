@@ -9,6 +9,7 @@ import {
 import {
   hashPassword,
   verifyPassword,
+  hashSessionToken,
 } from "../lib/auth.js";
 
 test("sandbox provider charges and returns a ref", async () => {
@@ -57,8 +58,8 @@ test("production payments fail closed unless sandbox is explicitly enabled", () 
     NODE_ENV: "production",
     PAYMENTS_MODE: "sandbox",
   });
-  assert.equal(sandbox.ready, true);
-  assert.equal(sandbox.mode, "sandbox");
+  assert.equal(sandbox.ready, false);
+  assert.equal(sandbox.mode, "disabled");
 });
 
 test("scrypt password round-trips and rejects wrong password", async () => {
@@ -66,4 +67,11 @@ test("scrypt password round-trips and rejects wrong password", async () => {
   assert.match(hash, /^s1:/);
   assert.equal(await verifyPassword("correct horse battery staple", hash), true);
   assert.equal(await verifyPassword("wrong horse", hash), false);
+});
+
+test("session tokens are stored as stable non-replayable hashes", () => {
+  const token = "2b3f2a40-d865-4690-a953-db53caf7385c";
+  assert.equal(hashSessionToken(token), hashSessionToken(token));
+  assert.notEqual(hashSessionToken(token), token);
+  assert.match(hashSessionToken(token), /^[a-f0-9]{64}$/);
 });

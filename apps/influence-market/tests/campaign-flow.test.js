@@ -13,6 +13,7 @@ import {
   declineApplicationPatch,
   isSettled,
 } from "../lib/campaign-flow.js";
+import { nextAssignmentPayoutCents } from "../lib/money.js";
 
 function campaign(overrides = {}) {
   return {
@@ -21,6 +22,7 @@ function campaign(overrides = {}) {
     payment_status: "unpaid",
     slots: 2,
     slots_remaining: 2,
+    budget_cents: 100000,
     ...overrides,
   };
 }
@@ -70,6 +72,7 @@ test("accept decrements slots and issues instructions_sent assignment", () => {
   assert.equal(result.application.status, "accepted");
   assert.equal(result.assignment.status, "instructions_sent");
   assert.equal(result.assignment.creator_id, "creator-1");
+  assert.equal(result.assignment.payout_cents, 41000);
 });
 
 test("accept throws for pending application when full", () => {
@@ -82,6 +85,48 @@ test("accept throws for pending application when full", () => {
       acceptApplication(campaign({ slots_remaining: 0 }), application(), "c-9"),
     /slots/i,
   );
+});
+
+test("accept rejects funded campaigns and assigns deterministic remainder cents", () => {
+  assert.equal(
+    canAcceptApplication(
+      campaign({ payment_status: "held" }),
+      application(),
+    ),
+    false,
+  );
+  assert.throws(
+    () =>
+      acceptApplication(
+        campaign({ payment_status: "held" }),
+        application(),
+        "creator-1",
+      ),
+    /funded/i,
+  );
+
+  const result = acceptApplication(
+    campaign({ slots: 3, slots_remaining: 3, budget_cents: 100005 }),
+    application(),
+    "creator-1",
+  );
+  assert.equal(result.assignment.payout_cents, 27335);
+});
+
+test("accept matches the remaining pool after a legacy floor allocation", () => {
+  const legacyCampaign = campaign({
+    slots: 3,
+    slots_remaining: 2,
+    budget_cents: 100000,
+  });
+  const result = acceptApplication(
+    legacyCampaign,
+    application(),
+    "creator-2",
+    undefined,
+    nextAssignmentPayoutCents(legacyCampaign, 27333),
+  );
+  assert.equal(result.assignment.payout_cents, 27334);
 });
 
 test("fund transitions to funded/held", () => {

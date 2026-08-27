@@ -48,10 +48,11 @@ export default function AuthForm({ mode }) {
     <form className="auth-form" onSubmit={submit}>
       {mode === "signup" && (
         <>
-          <div className="role-toggle" role="radiogroup" aria-label="Account type">
+          <div className="role-toggle" role="group" aria-label="Account type">
             <button
               type="button"
               className={role === "brand" ? "active" : ""}
+              aria-pressed={role === "brand"}
               onClick={() => setRole("brand")}
             >
               I&apos;m a brand
@@ -59,6 +60,7 @@ export default function AuthForm({ mode }) {
             <button
               type="button"
               className={role === "creator" ? "active" : ""}
+              aria-pressed={role === "creator"}
               onClick={() => setRole("creator")}
             >
               I&apos;m a creator

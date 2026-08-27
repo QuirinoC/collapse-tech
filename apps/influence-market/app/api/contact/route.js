@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
-import { contactSchema, firstIssue } from "@/lib/schemas";
+import { contactSchema } from "@/lib/schemas";
 import { getStore } from "@/lib/repository";
+import { parseJsonBody, requestError } from "@/lib/request";
 
 export async function POST(request) {
   let payload;
   try {
-    payload = contactSchema.parse(await request.json());
+    payload = contactSchema.parse(await parseJsonBody(request));
   } catch (error) {
-    return NextResponse.json({ error: firstIssue(error) }, { status: 400 });
+    const failure = requestError(error);
+    return NextResponse.json({ error: failure.message }, { status: failure.status });
   }
   await getStore().insertLead({
     name: payload.name,

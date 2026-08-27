@@ -53,8 +53,8 @@ export default function CampaignsPage() {
         <p className="eyebrow">Live briefs</p>
         <h1>Campaigns</h1>
         <p className="lede">
-          Pre-vetted briefs across TikTok, YouTube, Instagram and more. Apply
-          free — accepted creators work pre-funded campaigns.
+          Browse creator briefs and proposed rates. Funding is not yet available
+          on the production site.
         </p>
       </div>
       <div className="page-body">
@@ -124,7 +124,7 @@ export default function CampaignsPage() {
                   ) : (
                     <StatusPill campaign={campaign} />
                   )}
-                  <span>${(campaign.perCreatorCents / 100).toLocaleString()} / slot</span>
+                  <span>From ${(campaign.perCreatorCents / 100).toLocaleString()} / slot</span>
                   <span>Budget ${(campaign.budgetCents / 100).toLocaleString()}</span>
                 </div>
               </Link>

@@ -197,8 +197,8 @@ function BrandCampaigns({ data, act }) {
           <p>{c.brief}</p>
           <p className="eyebrow" style={{ marginBottom: 0 }}>
             Budget ${(c.budgetCents / 100).toLocaleString()} · fee $
-            {(c.feeCents / 100).toLocaleString()} · ${(c.perCreatorPayoutCents / 100).toLocaleString()}
-            /slot × {c.slots}
+            {(c.feeCents / 100).toLocaleString()} · creator payout pool $
+            {(c.payoutPoolCents / 100).toLocaleString()} across {c.slots} slots
           </p>
 
           {(c.applications || []).length > 0 && (
@@ -497,7 +497,7 @@ function CreatorMarketplace({ data, act }) {
         <article key={c.id} className="panel-card">
           <div style={{ display: "flex", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
             <h3>{c.title}</h3>
-            <span className="status-pill">${(c.perCreatorCents / 100).toLocaleString()} / slot</span>
+            <span className="status-pill">From ${(c.perCreatorCents / 100).toLocaleString()} / slot</span>
           </div>
           <p>
             {c.brandName} · {c.slotsRemaining} slots left
@@ -603,7 +603,11 @@ function AssignmentCard({ asg, act }) {
       {asg.payoutCents > 0 && (
         <p className="eyebrow" style={{ marginTop: 10 }}>
           Payout: ${(asg.payoutCents / 100).toLocaleString()}
-          {asg.status === "paid" ? " · released" : " · held in escrow until approval"}
+          {asg.status === "paid"
+            ? " · released"
+            : campaign.paymentStatus === "held"
+              ? " · held until approval"
+              : " · proposed; funding unavailable"}
         </p>
       )}
       {asg.notes && (
@@ -611,9 +615,17 @@ function AssignmentCard({ asg, act }) {
           <strong>Latest note:</strong> {asg.notes}
         </p>
       )}
-      {["instructions_sent", "rejected"].includes(asg.status) && (
+      {["instructions_sent", "rejected"].includes(asg.status) &&
+        campaign.paymentStatus === "held" && (
         <SubmitInline assignment={asg} act={act} />
       )}
+      {["instructions_sent", "rejected"].includes(asg.status) &&
+        campaign.paymentStatus !== "held" && (
+          <p className="payment-notice">
+            This is a proposed rate. Funding is not available for this campaign,
+            so no content submission is required.
+          </p>
+        )}
     </article>
   );
 }

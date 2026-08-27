@@ -37,11 +37,19 @@ export function getSandboxProvider() {
 
 export function getPaymentsStatus(env = process.env) {
   const explicitMode = env.PAYMENTS_MODE?.trim().toLowerCase();
-  if (explicitMode === "sandbox") {
+  if (explicitMode === "sandbox" && env.NODE_ENV !== "production") {
     return {
       ready: true,
       mode: "sandbox",
       message: "Sandbox payments are enabled for testing.",
+    };
+  }
+  if (explicitMode === "sandbox") {
+    return {
+      ready: false,
+      mode: "disabled",
+      message:
+        "Sandbox payments are blocked in production. Online funding is not enabled yet.",
     };
   }
   if (!explicitMode && env.NODE_ENV !== "production") {

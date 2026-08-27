@@ -19,8 +19,8 @@ export default function PrivacyPage() {
         <p className="legal-copy">
           We do not sell personal data. Creator contact emails are never exposed
           publicly or to other users; brands communicate with creators through
-          campaign instructions on the platform. Payment card data is handled
-          exclusively by our payment processor and never touches our servers.
+          campaign instructions on the platform. The production site does not
+          currently collect payment-card data or process campaign payments.
         </p>
         <p className="legal-copy">
           Session cookies are HTTP-only and used solely for authentication. You

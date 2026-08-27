@@ -67,7 +67,7 @@ export async function GET() {
             contentUrl: a.content_url,
             notes: a.notes ?? null,
             submittedAt: a.submitted_at,
-            payoutCents: campaign.per_creator_cents,
+            payoutCents: a.payout_cents ?? campaign.per_creator_cents,
             creatorName: profilesById[a.creator_id]?.name || "Creator",
           })),
           ledger: ledger.map((entry) => ({
@@ -132,7 +132,10 @@ export async function GET() {
           campaignsByIdRaw[a.campaign_id] != null
             ? buildInstructions(campaignsByIdRaw[a.campaign_id])
             : "",
-        payoutCents: campaignsByIdRaw[a.campaign_id]?.per_creator_cents ?? 0,
+        payoutCents:
+          a.payout_cents ??
+          campaignsByIdRaw[a.campaign_id]?.per_creator_cents ??
+          0,
         campaign: campaignsByIdRaw[a.campaign_id]
           ? mapCampaign(campaignsByIdRaw[a.campaign_id])
           : null,
@@ -141,7 +144,11 @@ export async function GET() {
     earningsCents: assignments
       .filter((a) => a.status === "paid")
       .reduce(
-        (sum, a) => sum + (campaignsByIdRaw[a.campaign_id]?.per_creator_cents ?? 0),
+        (sum, a) =>
+          sum +
+          (a.payout_cents ??
+            campaignsByIdRaw[a.campaign_id]?.per_creator_cents ??
+            0),
         0,
       ),
   });
@@ -158,6 +165,7 @@ function mapCampaign(campaign) {
     niches: campaign.niches,
     budgetCents: campaign.budget_cents,
     feeCents: campaign.fee_cents,
+    payoutPoolCents: campaign.budget_cents - campaign.fee_cents,
     perCreatorPayoutCents: campaign.per_creator_cents,
     perCreatorCents: campaign.per_creator_cents,
     slots: campaign.slots,

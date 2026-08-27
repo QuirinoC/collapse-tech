@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { signupSchema, firstIssue } from "@/lib/schemas";
+import { signupSchema } from "@/lib/schemas";
 import { hashPassword } from "@/lib/auth";
+import { parseJsonBody, requestError } from "@/lib/request";
 import { getStore } from "@/lib/repository";
 import { createSession } from "@/lib/session";
 
@@ -13,9 +14,10 @@ function publicProfile(profile) {
 export async function POST(request) {
   let payload;
   try {
-    payload = signupSchema.parse(await request.json());
+    payload = signupSchema.parse(await parseJsonBody(request));
   } catch (error) {
-    return NextResponse.json({ error: firstIssue(error) }, { status: 400 });
+    const failure = requestError(error);
+    return NextResponse.json({ error: failure.message }, { status: failure.status });
   }
 
   const store = getStore();
@@ -36,13 +38,15 @@ export async function POST(request) {
   }
 
   const passwordHash = await hashPassword(payload.password);
-  const profile = existing
-    ? await store.updateProfile(existing.id, {
+  let profile;
+  try {
+    profile = existing
+      ? await store.claimProfile(existing.id, {
         name: payload.name,
         company: payload.company ?? null,
         ...patchHash(passwordHash),
       })
-    : await store.createProfile({
+      : await store.createProfile({
         role: payload.role,
         email: payload.email.toLowerCase(),
         name: payload.name,
@@ -53,6 +57,21 @@ export async function POST(request) {
         minBudgetCents: null,
         ...patchHash(passwordHash),
       });
+  } catch (error) {
+    if (error?.code === "23505" || /unique constraint/i.test(error?.message)) {
+      return NextResponse.json(
+        { error: "An account with that email already exists." },
+        { status: 409 },
+      );
+    }
+    throw error;
+  }
+  if (!profile) {
+    return NextResponse.json(
+      { error: "An account with that email already exists." },
+      { status: 409 },
+    );
+  }
 
   await createSession(profile.id);
   return NextResponse.json({ profile: publicProfile(profile) });

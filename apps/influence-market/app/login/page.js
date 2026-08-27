@@ -25,7 +25,7 @@ export default function LoginPage() {
           </div>
           <aside className="auth-proof-card">
             <span>One calm workspace</span>
-            <strong>Briefs, creators, approvals and payouts.</strong>
+            <strong>Briefs, creator profiles, and campaign planning.</strong>
             <p>Pick up exactly where your last campaign left off.</p>
           </aside>
         </div>

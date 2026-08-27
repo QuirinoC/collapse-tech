@@ -17,13 +17,13 @@ const playfair = Playfair_Display({
 export const metadata = {
   title: "Influence.Market",
   description:
-    "One brief. Every audience. Fund multi-creator campaigns upfront; we hold the funds and pay creators when deliverables are verified.",
+    "A curated creator-campaign marketplace. Payment funding is not yet available on the production site.",
   metadataBase: new URL("https://influence.collapsetechnologies.com"),
   alternates: { canonical: "/" },
   openGraph: {
     title: "Influence.Market",
     description:
-      "The agency-marketplace hybrid: one contract, many creators, escrowed budgets.",
+      "A curated creator-campaign marketplace. Payment funding is not yet available on the production site.",
     siteName: "Influence.Market",
     url: "/",
   },

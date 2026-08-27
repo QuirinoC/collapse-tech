@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
-import { profileSchema, firstIssue } from "@/lib/schemas";
+import { profileSchema } from "@/lib/schemas";
 import { getStore } from "@/lib/repository";
 import { requireRole } from "@/lib/session";
+import { parseJsonBody, requestError } from "@/lib/request";
 
 // Creators curate their public listing: bio, niches, channels, minimum budget.
 export async function PUT(request) {
   let payload;
   try {
-    payload = profileSchema.parse(await request.json());
+    payload = profileSchema.parse(await parseJsonBody(request));
   } catch (error) {
-    return NextResponse.json({ error: firstIssue(error) }, { status: 400 });
+    const failure = requestError(error);
+    return NextResponse.json({ error: failure.message }, { status: failure.status });
   }
 
   let creator;
