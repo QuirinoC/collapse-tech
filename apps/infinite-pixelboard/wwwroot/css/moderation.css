@@ -42,6 +42,8 @@ button.danger { background: var(--danger); }
     border-bottom: 1px solid var(--line);
 }
 
+.console-actions { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: end; }
+
 h1, h2, p { margin-top: 0; }
 h1 { margin-bottom: 0; font-size: clamp(2rem, 5vw, 4.5rem); letter-spacing: -.06em; }
 h2 { margin-bottom: 0; font-size: 1.5rem; }

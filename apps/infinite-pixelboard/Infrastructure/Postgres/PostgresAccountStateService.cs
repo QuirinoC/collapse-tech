@@ -52,6 +52,15 @@ public sealed class PostgresAccountStateService(NpgsqlDataSource dataSource)
         string version,
         CancellationToken cancellationToken = default)
     {
+        await using var accountOperation =
+            await new PostgresAccountOperationGuard(dataSource).AcquireIfActiveAsync(
+                [accountId],
+                cancellationToken);
+        if (accountOperation is null)
+        {
+            throw new AccountDeletedException();
+        }
+
         const string sql =
             """
             INSERT INTO pixelboard.accounts (
@@ -74,7 +83,10 @@ public sealed class PostgresAccountStateService(NpgsqlDataSource dataSource)
         command.Parameters.AddWithValue(accountId.Value);
         command.Parameters.AddWithValue(version);
         command.Parameters.AddWithValue(AccountHash(accountId));
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw new AccountDeletedException();
+        }
     }
 
     async ValueTask<EntitlementState> IEntitlementService.GetAsync(

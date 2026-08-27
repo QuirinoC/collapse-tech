@@ -1,31 +1,48 @@
 using Npgsql;
+using System.Security.Cryptography;
+using System.Text;
 using PixelBoard.Application;
 using PixelBoard.Contracts.V1;
+using PixelBoard.Infrastructure.Postgres;
 
 namespace PixelBoard.Infrastructure.StoreKit;
 
 public sealed class PostgresStoreKitEntitlementStore(NpgsqlDataSource dataSource)
     : IStoreKitEntitlementStore
 {
-    public async ValueTask<AppAccountToken> GetOrCreateAccountTokenAsync(
+    public async ValueTask<AppAccountToken?> GetOrCreateAccountTokenAsync(
         AccountId accountId,
         CancellationToken cancellationToken = default)
     {
+        var accountHash = AccountHash(accountId);
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await PostgresAccountLock.AcquireAsync(
+            connection,
+            transaction,
+            accountHash,
+            cancellationToken);
         const string sql =
             """
             INSERT INTO pixelboard.storekit_account_tokens (
                 firebase_uid, app_account_token, created_at)
-            VALUES ($1, $2, now())
+            SELECT $1, $2, now()
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM pixelboard.deleted_accounts
+                WHERE account_hash = $3
+            )
             ON CONFLICT (firebase_uid) DO UPDATE
             SET firebase_uid = EXCLUDED.firebase_uid
             RETURNING app_account_token;
             """;
-        await using var command = dataSource.CreateCommand(sql);
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
         command.Parameters.AddWithValue(accountId.Value);
         command.Parameters.AddWithValue(Guid.NewGuid());
-        var token = (Guid)(await command.ExecuteScalarAsync(cancellationToken)
-            ?? throw new InvalidOperationException("StoreKit account token was not returned."));
-        return AppAccountToken.From(token);
+        command.Parameters.AddWithValue(accountHash);
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result is Guid token ? AppAccountToken.From(token) : null;
     }
 
     public async ValueTask<bool> ApplyAsync(
@@ -33,6 +50,15 @@ public sealed class PostgresStoreKitEntitlementStore(NpgsqlDataSource dataSource
         VerifiedStoreKitTransaction transaction,
         CancellationToken cancellationToken = default)
     {
+        var accountHash = AccountHash(accountId);
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var databaseTransaction =
+            await connection.BeginTransactionAsync(cancellationToken);
+        await PostgresAccountLock.AcquireAsync(
+            connection,
+            databaseTransaction,
+            accountHash,
+            cancellationToken);
         const string sql =
             """
             WITH expected_account AS (
@@ -40,6 +66,11 @@ public sealed class PostgresStoreKitEntitlementStore(NpgsqlDataSource dataSource
                 FROM pixelboard.storekit_account_tokens
                 WHERE firebase_uid = $1
                   AND app_account_token = $2
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM pixelboard.deleted_accounts
+                      WHERE account_hash = $10
+                  )
             ),
             claimed_subscription AS (
                 INSERT INTO pixelboard.storekit_subscription_owners (
@@ -73,7 +104,17 @@ public sealed class PostgresStoreKitEntitlementStore(NpgsqlDataSource dataSource
                     received_at)
                 SELECT $4, $3, firebase_uid, $5, $6, $7, $8, $9, now()
                 FROM owned_subscription
-                ON CONFLICT (transaction_id) DO NOTHING
+                ON CONFLICT (transaction_id) DO UPDATE SET
+                    product_id = EXCLUDED.product_id,
+                    environment = EXCLUDED.environment,
+                    signed_at = EXCLUDED.signed_at,
+                    expires_at = EXCLUDED.expires_at,
+                    revoked_at = EXCLUDED.revoked_at,
+                    received_at = EXCLUDED.received_at
+                WHERE pixelboard.storekit_transactions.firebase_uid = EXCLUDED.firebase_uid
+                  AND pixelboard.storekit_transactions.original_transaction_id =
+                      EXCLUDED.original_transaction_id
+                  AND EXCLUDED.signed_at >= pixelboard.storekit_transactions.signed_at
                 RETURNING firebase_uid
             ),
             applied AS (
@@ -102,7 +143,7 @@ public sealed class PostgresStoreKitEntitlementStore(NpgsqlDataSource dataSource
             )
             SELECT EXISTS (SELECT 1 FROM owned_subscription);
             """;
-        await using var command = dataSource.CreateCommand(sql);
+        await using var command = new NpgsqlCommand(sql, connection, databaseTransaction);
         command.Parameters.AddWithValue(accountId.Value);
         command.Parameters.AddWithValue(transaction.AppAccountToken.Value);
         command.Parameters.AddWithValue(transaction.OriginalTransactionId);
@@ -113,7 +154,10 @@ public sealed class PostgresStoreKitEntitlementStore(NpgsqlDataSource dataSource
         command.Parameters.AddWithValue(transaction.ExpiresAt);
         command.Parameters.AddWithValue(
             transaction.RevokedAt.HasValue ? transaction.RevokedAt.Value : DBNull.Value);
-        return (bool)(await command.ExecuteScalarAsync(cancellationToken) ?? false);
+        command.Parameters.AddWithValue(accountHash);
+        var applied = (bool)(await command.ExecuteScalarAsync(cancellationToken) ?? false);
+        await databaseTransaction.CommitAsync(cancellationToken);
+        return applied;
     }
 
     public async ValueTask<bool> ApplyNotificationAsync(
@@ -135,4 +179,7 @@ public sealed class PostgresStoreKitEntitlementStore(NpgsqlDataSource dataSource
                 transaction,
                 cancellationToken);
     }
+
+    private static byte[] AccountHash(AccountId accountId) =>
+        SHA256.HashData(Encoding.UTF8.GetBytes(accountId.Value));
 }

@@ -1,9 +1,11 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Npgsql;
 using Microsoft.Extensions.Options;
 using PixelBoard.Application;
 using PixelBoard.Configuration;
+using PixelBoard.Infrastructure.Ledger;
 using StackExchange.Redis;
 
 namespace PixelBoard.Infrastructure.Postgres;
@@ -13,6 +15,9 @@ public sealed class PostgresAccountDeletionService(
     IConnectionMultiplexer redis,
     IOptions<RedisOptions> redisOptions) : IAccountDeletionService
 {
+    private static readonly JsonSerializerOptions JsonOptions =
+        new(JsonSerializerDefaults.Web);
+
     public async ValueTask<bool> IsDeletedAsync(
         AccountId accountId,
         CancellationToken cancellationToken = default)
@@ -40,7 +45,27 @@ public sealed class PostgresAccountDeletionService(
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        await LockAccountAsync(connection, transaction, accountHash, cancellationToken);
+        await PostgresAccountLock.AcquireAsync(
+            connection,
+            transaction,
+            accountHash,
+            cancellationToken);
+        var pendingOutbox = await FindPendingOutboxEntriesAsync(
+            accountId.Value,
+            cancellationToken);
+        foreach (var entry in pendingOutbox)
+        {
+            if (entry.Placement is not null)
+            {
+                await PostgresPlacementLedger.IngestAsync(
+                    connection,
+                    transaction,
+                    entry.Placement,
+                    entry.Id,
+                    accountHash,
+                    cancellationToken);
+            }
+        }
         anonymizedId = await GetOrCreateTombstoneAsync(
             connection,
             transaction,
@@ -65,6 +90,8 @@ public sealed class PostgresAccountDeletionService(
             cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
+        await DeleteOutboxEntriesAsync(pendingOutbox, cancellationToken);
+        await DrainLateOutboxEntriesAsync(accountId.Value, cancellationToken);
         var redisHash = Convert.ToHexStringLower(accountHash);
         var prefix = redisOptions.Value.InstanceName;
         await redis.GetDatabase().KeyDeleteAsync(
@@ -74,16 +101,118 @@ public sealed class PostgresAccountDeletionService(
         ]);
     }
 
-    private static async Task LockAccountAsync(
-        NpgsqlConnection connection,
-        NpgsqlTransaction transaction,
-        byte[] accountHash,
+    private async Task<IReadOnlyList<PendingOutboxEntry>> FindPendingOutboxEntriesAsync(
+        string firebaseUid,
         CancellationToken cancellationToken)
     {
-        const string sql = "SELECT pg_advisory_xact_lock(hashtextextended(encode($1, 'hex'), 0));";
-        await using var command = new NpgsqlCommand(sql, connection, transaction);
-        command.Parameters.AddWithValue(accountHash);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        const int batchSize = 256;
+        var matches = new List<PendingOutboxEntry>();
+        var database = redis.GetDatabase();
+        var streamKey =
+            $"{redisOptions.Value.InstanceName}{RedisAtomicPlacementStore.OutboxKey}";
+        RedisValue minimumId = "-";
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var entries = await database.StreamRangeAsync(
+                streamKey,
+                minimumId,
+                "+",
+                batchSize,
+                Order.Ascending);
+            if (entries.Length == 0)
+            {
+                break;
+            }
+
+            foreach (var entry in entries)
+            {
+                var payload = entry.Values
+                    .FirstOrDefault(value => value.Name == "payload")
+                    .Value;
+                if (payload.IsNull)
+                {
+                    continue;
+                }
+
+                PlacementLedgerEvent? placement = null;
+                string? payloadUid = null;
+                try
+                {
+                    placement = JsonSerializer.Deserialize<PlacementLedgerEvent>(
+                        payload.ToString(),
+                        JsonOptions);
+                    payloadUid = placement?.FirebaseUid;
+                }
+                catch (JsonException)
+                {
+                    using var document = JsonDocument.Parse(payload.ToString());
+                    if (document.RootElement.TryGetProperty("firebaseUid", out var uid)
+                        && uid.ValueKind == JsonValueKind.String)
+                    {
+                        payloadUid = uid.GetString();
+                    }
+                }
+
+                if (string.Equals(payloadUid, firebaseUid, StringComparison.Ordinal))
+                {
+                    matches.Add(new PendingOutboxEntry(entry.Id!, placement));
+                }
+            }
+
+            if (entries.Length < batchSize)
+            {
+                break;
+            }
+            minimumId = $"({entries[^1].Id}";
+        }
+
+        return matches;
+    }
+
+    private async Task DrainLateOutboxEntriesAsync(
+        string firebaseUid,
+        CancellationToken cancellationToken)
+    {
+        var ledger = new PostgresPlacementLedger(dataSource);
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            var entries = await FindPendingOutboxEntriesAsync(firebaseUid, cancellationToken);
+            if (entries.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var entry in entries)
+            {
+                if (entry.Placement is not null)
+                {
+                    await ledger.IngestAsync(entry.Placement, entry.Id, cancellationToken);
+                }
+            }
+            await DeleteOutboxEntriesAsync(entries, cancellationToken);
+        }
+    }
+
+    private async Task DeleteOutboxEntriesAsync(
+        IReadOnlyList<PendingOutboxEntry> entries,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (entries.Count == 0)
+        {
+            return;
+        }
+
+        var database = redis.GetDatabase();
+        var streamKey =
+            $"{redisOptions.Value.InstanceName}{RedisAtomicPlacementStore.OutboxKey}";
+        foreach (var batch in entries.Chunk(1000))
+        {
+            await database.StreamDeleteAsync(
+                streamKey,
+                batch.Select(entry => (RedisValue)entry.Id).ToArray());
+        }
     }
 
     private static async Task<string> GetOrCreateTombstoneAsync(
@@ -261,4 +390,6 @@ public sealed class PostgresAccountDeletionService(
             await update.ExecuteNonQueryAsync(cancellationToken);
         }
     }
+
+    private sealed record PendingOutboxEntry(string Id, PlacementLedgerEvent? Placement);
 }

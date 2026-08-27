@@ -53,15 +53,15 @@ final class FirebaseAuthAdapter: NSObject, AuthenticationSession, @unchecked Sen
         let providerIDs = Set(user.providerData.map(\.providerID))
         let credential: AuthCredential
         var appleAuthorizationCode: String?
-        if providerIDs.contains("google.com") {
-            credential = try await googleCredential()
-        } else if providerIDs.contains("apple.com") {
+        if providerIDs.contains("apple.com") {
             let result = try await appleCredential()
             credential = result.firebaseCredential
             guard let authorizationCode = result.authorizationCode else {
                 throw ProviderSignInError.missingAppleAuthorizationCode
             }
             appleAuthorizationCode = authorizationCode
+        } else if providerIDs.contains("google.com") {
+            credential = try await googleCredential()
         } else {
             throw AuthenticationError.reauthenticationUnavailable
         }

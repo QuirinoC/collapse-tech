@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using PixelBoard.Application;
 using PixelBoard.Configuration;
 using PixelBoard.Domain;
 using StackExchange.Redis;
@@ -138,6 +139,19 @@ public sealed class RedisAtomicPlacementStore(
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly RedisOptions _options = options.Value;
+
+    public async ValueTask<TimeSpan> GetRemainingCooldownAsync(
+        AccountId accountId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var accountHash = Hash(accountId.Value);
+        var remainingMilliseconds = await redis.GetDatabase().KeyTimeToLiveAsync(
+            GetPhysicalKey($"{CooldownKeyPrefix}:{accountHash}"));
+        return remainingMilliseconds is { } remaining && remaining > TimeSpan.Zero
+            ? remaining
+            : TimeSpan.Zero;
+    }
 
     public async ValueTask<AtomicPlacementResult> PlaceAsync(
         PlacementLedgerEvent placement,

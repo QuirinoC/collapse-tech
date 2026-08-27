@@ -41,4 +41,21 @@ final class APIModelsTests: XCTestCase {
         XCTAssertLessThan(later, sameMillisecondLaterSequence)
         XCTAssertNil(RedisStreamCursor("invalid"))
     }
+
+    func testPlacementResultPreservesAuthoritativeCooldownDate() throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let result = try decoder.decode(
+            PlacementResult.self,
+            from: Data(
+                #"{"outcome":0,"placementId":"placement-1","pixel":null,"cooldown":{"nextPlacementAt":"2026-08-27T00:00:10Z","cooldownSeconds":10},"error":null}"#.utf8
+            )
+        )
+
+        XCTAssertEqual(result.cooldown.cooldownSeconds, 10)
+        XCTAssertEqual(
+            result.cooldown.nextPlacementAt,
+            ISO8601DateFormatter().date(from: "2026-08-27T00:00:10Z")
+        )
+    }
 }

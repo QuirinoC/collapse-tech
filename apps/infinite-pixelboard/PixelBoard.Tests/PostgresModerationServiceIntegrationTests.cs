@@ -87,8 +87,7 @@ public sealed class PostgresModerationServiceIntegrationTests
     [Trait("Category", "Integration")]
     public async Task RollbackRestoresPriorPixelAtNegativeCoordinates()
     {
-        var board = new RecordingBoardStore();
-        await using var fixture = await Fixture.CreateAsync(board);
+        await using var fixture = await Fixture.CreateAsync();
         var priorPlacementId = Guid.NewGuid();
         var currentPlacementId = Guid.NewGuid();
         var row = -Random.Shared.Next(1, 1_000_000);
@@ -117,6 +116,10 @@ public sealed class PostgresModerationServiceIntegrationTests
             now.ToUnixTimeMilliseconds() + 1,
             row,
             column);
+        await fixture.SetRedisPixelAsync(
+            new BoardPosition(row, column),
+            "#AABBCC",
+            currentPlacementId);
         await fixture.ExecuteAsync(
             """
             INSERT INTO pixelboard.current_pixels (
@@ -138,8 +141,9 @@ public sealed class PostgresModerationServiceIntegrationTests
             { PlacementIds = [PlacementId.From(currentPlacementId)] });
 
         Assert.Equal("completed", result.Status);
-        Assert.Equal(new BoardPosition(row, column), board.LastPosition);
-        Assert.Equal("#112233", board.LastColor);
+        Assert.Equal(
+            "#112233",
+            await fixture.GetRedisPixelAsync(new BoardPosition(row, column)));
         Assert.Equal(priorPlacementId, await fixture.ScalarAsync<Guid>(
             """
             SELECT placement_id
@@ -150,6 +154,67 @@ public sealed class PostgresModerationServiceIntegrationTests
             column));
         Assert.Equal(
             priorPlacementId.ToString("N"),
+            await fixture.Redis.GetDatabase().HashGetAsync(
+                $"{fixture.RedisInstanceName}{RedisAtomicPlacementStore.CurrentOwnersKey}",
+                $"{row}:{column}"));
+    }
+
+    [PostgresRedisFact]
+    [Trait("Category", "Integration")]
+    public async Task RollbackDoesNotOverwriteNewerRedisPlacement()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var currentPlacementId = Guid.NewGuid();
+        var newerPlacementId = Guid.NewGuid();
+        var row = Random.Shared.Next(1, 1_000_000);
+        var column = Random.Shared.Next(1, 1_000_000);
+        var now = DateTimeOffset.UtcNow;
+        await fixture.ExecuteAsync(
+            """
+            INSERT INTO pixelboard.placements (
+                placement_id, firebase_uid, board_row, board_column, color, placed_at,
+                client_platform, client_version, idempotency_key, prior_placement_id,
+                prior_color, redis_stream_id, stream_timestamp_ms, stream_sequence)
+            VALUES ($1, 'current-owner', $4, $5, '#AABBCC', $2, 'test', '1', $3,
+                NULL, '#FFFFFF', $6, $7, 0);
+            """,
+            currentPlacementId,
+            now,
+            $"current-{Guid.NewGuid():N}",
+            row,
+            column,
+            $"{now.ToUnixTimeMilliseconds()}-0",
+            now.ToUnixTimeMilliseconds());
+        await fixture.ExecuteAsync(
+            """
+            INSERT INTO pixelboard.current_pixels (
+                board_row, board_column, placement_id, stream_timestamp_ms, stream_sequence)
+            VALUES ($3, $4, $1, $2, 0);
+            """,
+            currentPlacementId,
+            now.ToUnixTimeMilliseconds(),
+            row,
+            column);
+        await fixture.SetRedisPixelAsync(
+            new BoardPosition(row, column),
+            "#D3523C",
+            newerPlacementId);
+
+        await Assert.ThrowsAsync<ModerationConflictException>(
+            async () => await fixture.Service.ExecuteAsync(
+                Command(
+                    new AccountId($"moderator-{Guid.NewGuid():N}"),
+                    "rollback",
+                    $"rollback-{Guid.NewGuid():N}",
+                    "Restore prior pixel")
+                with
+                { PlacementIds = [PlacementId.From(currentPlacementId)] }));
+
+        Assert.Equal(
+            "#D3523C",
+            await fixture.GetRedisPixelAsync(new BoardPosition(row, column)));
+        Assert.Equal(
+            newerPlacementId.ToString("N"),
             await fixture.Redis.GetDatabase().HashGetAsync(
                 $"{fixture.RedisInstanceName}{RedisAtomicPlacementStore.CurrentOwnersKey}",
                 $"{row}:{column}"));
@@ -230,7 +295,9 @@ public sealed class PostgresModerationServiceIntegrationTests
 
         public PostgresModerationService Service { get; }
 
-        public static async Task<Fixture> CreateAsync(IBoardStore? boardStore = null)
+        private readonly HashSet<RedisKey> _testKeys = [];
+
+        public static async Task<Fixture> CreateAsync()
         {
             var dataSource = NpgsqlDataSource.Create(
                 Environment.GetEnvironmentVariable("PIXELBOARD_TEST_POSTGRES")!);
@@ -239,7 +306,6 @@ public sealed class PostgresModerationServiceIntegrationTests
             var redisInstanceName = $"ModerationTests_{Guid.NewGuid():N}_";
             var service = new PostgresModerationService(
                 dataSource,
-                boardStore ?? new RecordingBoardStore(),
                 redis,
                 Options.Create(new RedisOptions
                 {
@@ -248,6 +314,41 @@ public sealed class PostgresModerationServiceIntegrationTests
                     InstanceName = redisInstanceName
                 }));
             return new Fixture(dataSource, redis, redisInstanceName, service);
+        }
+
+        public async Task SetRedisPixelAsync(
+            BoardPosition position,
+            string color,
+            Guid placementId)
+        {
+            var location = BoardGeometry.Locate(position);
+            var tile = BoardTileSerializer.CreateDefault();
+            tile[location.Offset.Row][location.Offset.Column] = color;
+            var tileKey =
+                $"{RedisInstanceName}{BoardGeometry.GetTilePartitionKey(location.Tile)}";
+            var ownersKey =
+                $"{RedisInstanceName}{RedisAtomicPlacementStore.CurrentOwnersKey}";
+            _testKeys.Add(tileKey);
+            _testKeys.Add(ownersKey);
+            var database = Redis.GetDatabase();
+            await database.HashSetAsync(
+                tileKey,
+                "data",
+                BoardTileSerializer.Serialize(tile));
+            await database.HashSetAsync(
+                ownersKey,
+                $"{position.Row}:{position.Column}",
+                placementId.ToString("N"));
+        }
+
+        public async Task<string> GetRedisPixelAsync(BoardPosition position)
+        {
+            var location = BoardGeometry.Locate(position);
+            var serialized = await Redis.GetDatabase().HashGetAsync(
+                $"{RedisInstanceName}{BoardGeometry.GetTilePartitionKey(location.Tile)}",
+                "data");
+            var tile = BoardTileSerializer.Deserialize(serialized!);
+            return tile[location.Offset.Row][location.Offset.Column];
         }
 
         public async Task<T> ScalarAsync<T>(string sql, params object[] values)
@@ -275,37 +376,14 @@ public sealed class PostgresModerationServiceIntegrationTests
 
         public async ValueTask DisposeAsync()
         {
-            await Redis.GetDatabase().KeyDeleteAsync(
-                $"{RedisInstanceName}{RedisAtomicPlacementStore.CurrentOwnersKey}");
+            if (_testKeys.Count > 0)
+            {
+                await Redis.GetDatabase().KeyDeleteAsync([.. _testKeys]);
+            }
             await Redis.CloseAsync();
             Redis.Dispose();
             await DataSource.DisposeAsync();
         }
     }
 
-    private sealed class RecordingBoardStore : IBoardStore
-    {
-        public BoardPosition? LastPosition { get; private set; }
-
-        public string? LastColor { get; private set; }
-
-        public ValueTask<string[][]> GetTileAsync(
-            TileAddress address,
-            CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(BoardTileSerializer.CreateDefault());
-
-        public ValueTask SetPixelAsync(
-            BoardPosition position,
-            string color,
-            CancellationToken cancellationToken = default)
-        {
-            LastPosition = position;
-            LastColor = color;
-            return ValueTask.CompletedTask;
-        }
-
-        public ValueTask CheckHealthAsync(
-            CancellationToken cancellationToken = default) =>
-            ValueTask.CompletedTask;
-    }
 }

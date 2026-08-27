@@ -10,6 +10,7 @@ import GoogleSignIn
 @main
 struct InfinitePixelboardApp: App {
     @StateObject private var model = AppModel()
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         #if canImport(FirebaseCore)
@@ -24,6 +25,9 @@ struct InfinitePixelboardApp: App {
             ContentView()
                 .environmentObject(model)
                 .task { await model.start() }
+                .task(id: scenePhase) {
+                    await model.handleScenePhase(scenePhase)
+                }
                 .onOpenURL { url in
                     #if canImport(GoogleSignIn)
                     GIDSignIn.sharedInstance.handle(url)

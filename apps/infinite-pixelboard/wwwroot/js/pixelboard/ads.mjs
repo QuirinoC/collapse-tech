@@ -11,16 +11,20 @@ export class AdController {
     this.document = documentRef;
     this.window = windowRef;
     this.loaded = false;
+    this.scriptLoaded = false;
+    this.adRequested = false;
+    this.authorized = false;
   }
 
-  update(tier) {
+  update(tier, allowedByPolicy = true) {
     if (!this.container) return;
-    if (isProTier(tier)) {
-      this.container.hidden = true;
+    this.authorized = !isProTier(tier) && allowedByPolicy;
+    this.container.hidden = !this.authorized;
+    if (!this.authorized) return;
+    if (this.scriptLoaded) {
+      this.#requestAd();
       return;
     }
-
-    this.container.hidden = false;
     if (this.loaded) return;
 
     const client = this.container.dataset.adClient;
@@ -37,13 +41,21 @@ export class AdController {
     script.src =
       `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(client)}`;
     script.addEventListener("load", () => {
-      this.window.adsbygoogle = this.window.adsbygoogle || [];
-      this.window.adsbygoogle.push({});
+      this.scriptLoaded = true;
+      this.#requestAd();
     }, { once: true });
     script.addEventListener("error", () => {
+      if (!this.authorized) return;
       const fallback = this.container.querySelector("[data-ad-fallback]");
       if (fallback) fallback.hidden = false;
     }, { once: true });
     this.document.head.append(script);
+  }
+
+  #requestAd() {
+    if (!this.authorized || this.adRequested) return;
+    this.window.adsbygoogle = this.window.adsbygoogle || [];
+    this.window.adsbygoogle.push({});
+    this.adRequested = true;
   }
 }

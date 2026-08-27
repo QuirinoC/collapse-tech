@@ -97,6 +97,29 @@ public sealed class BoardApiReportTests
         Assert.Equal(1, services.Limiter.ReleaseCount);
     }
 
+    [Fact]
+    public async Task ConcurrentDeletionRejectsPersistenceAndReleasesAdmission()
+    {
+        var services = CreateServices(
+            new AccountPolicyState(false, true),
+            storeAccepted: false);
+        await using var provider = services.Provider;
+
+        var result = await BoardApi.ReportAsync(
+            ValidRequest(),
+            new IdentityAccessor(),
+            new ReportValidator(),
+            TimeProvider.System,
+            provider,
+            CancellationToken.None);
+        var response = await ExecuteAsync<ApiError>(result, provider);
+
+        Assert.Equal(StatusCodes.Status410Gone, response.StatusCode);
+        Assert.Equal(ApiErrorCodes.AccountDeleted, response.Body.Code);
+        Assert.Equal(1, services.Limiter.ReleaseCount);
+        Assert.Equal(0, services.Store.SavedCount);
+    }
+
     private static CreateReportRequest ValidRequest() =>
         new(
             new ReportRegion(10, 20, 2, 2),
@@ -107,10 +130,11 @@ public sealed class BoardApiReportTests
     private static TestServices CreateServices(
         AccountPolicyState policy,
         ReportAdmissionOutcome outcome = ReportAdmissionOutcome.Allowed,
-        Exception? storeFailure = null)
+        Exception? storeFailure = null,
+        bool storeAccepted = true)
     {
         var limiter = new RecordingRateLimiter(outcome);
-        var store = new RecordingReportStore(storeFailure);
+        var store = new RecordingReportStore(storeFailure, storeAccepted);
         var provider = new ServiceCollection()
             .AddLogging()
             .AddSingleton<IAccountPolicyService>(new PolicyService(policy))
@@ -196,22 +220,25 @@ public sealed class BoardApiReportTests
             ValueTask.FromResult(new ReportEvidence("{}", [1, 2, 3]));
     }
 
-    private sealed class RecordingReportStore(Exception? failure) : IReportStore
+    private sealed class RecordingReportStore(Exception? failure, bool accepted) : IReportStore
     {
         public int SavedCount { get; private set; }
 
-        public ValueTask SaveAsync(
+        public ValueTask<bool> SaveAsync(
             ReportCommand command,
             ReportEvidence evidence,
             CancellationToken cancellationToken = default)
         {
             if (failure is not null)
             {
-                return ValueTask.FromException(failure);
+                return ValueTask.FromException<bool>(failure);
             }
 
-            SavedCount++;
-            return ValueTask.CompletedTask;
+            if (accepted)
+            {
+                SavedCount++;
+            }
+            return ValueTask.FromResult(accepted);
         }
     }
 }

@@ -36,7 +36,7 @@ public interface IStoreKitTransactionVerifier
 
 public interface IStoreKitEntitlementStore
 {
-    ValueTask<AppAccountToken> GetOrCreateAccountTokenAsync(
+    ValueTask<AppAccountToken?> GetOrCreateAccountTokenAsync(
         AccountId accountId,
         CancellationToken cancellationToken = default);
 
