@@ -1,26 +1,27 @@
-# Collapse Health — Startup Cost Breakdown
+# Collapse Health — Draft planning costs
 
-Medical tourism referral facilitator (US/Canada → Mexico) · Draft Aug 2026 · **Entity formation: DONE (WA)**
+Internal planning draft · August 2026 · **Not an operating plan or external representation**
 
-> Planning estimates, not quotes. Ranges reflect lean vs. comfortable setups.
-> Not legal or financial advice.
+> These are unverified planning assumptions, not quotes, forecasts, legal
+> advice, financial advice, or evidence that a service can or will launch.
+> Revalidate every assumption with qualified advisors before making a commitment.
 
 ## One-time setup costs
 
 | Item | Lean | Comfortable | Notes |
 | --- | ---: | ---: | --- |
 | ~~Entity formation~~ | — | — | ✅ Done |
-| General business attorney: T&Cs, privacy policy, referral disclosures | $500 | $1,500 | Full healthcare-compliance memo is optional; revisit before scaling |
-| Mexican counsel: bilingual referral agreement template only | $1,000 | $2,000 | Providers hold their own COFEPRIS licenses; no separate regulatory review needed |
+| Legal, privacy, and regulatory review | $500 | $1,500 | Scope and cost require qualified advice for the actual model and jurisdictions |
+| Cross-border counsel | $1,000 | $2,000 | Confirm scope, need, and cost before relying on this assumption |
 | Branding (logo, palette, copy) | $0 | $2,000 | DIY acceptable at start |
 | Website (this app) | $0 | $300 | Built; Cloudflare Pages hosting ~$0/mo; domain owned |
 | CRM / forms / e-sign setup | $0 | $500 | Free tiers cover early volume |
-| Provider site-visit trip #1 (Tijuana/Los Algodones) | $1,200 | $3,000 | Flights, hotel, ground transport, meals — doubles as liability-shield vetting documentation |
-| Provider site-visit trip #2 (Guadalajara/Monterrey/CDMX) | $1,500 | $4,000 | Optional in phase 2 |
-| E&O / professional liability insurance (deferred until launch) | $0 now | $4,000/yr | Required by some partner hospital contracts; buy before first booking, not before |
+| Preliminary research trip #1 | $1,200 | $3,000 | Budget assumption only; not evidence of diligence or a liability shield |
+| Preliminary research trip #2 | $1,500 | $4,000 | Optional planning assumption |
+| Insurance and risk review | $0 now | $4,000/yr | Determine coverage and timing with qualified advisors before any service activity |
 | USPTO trademark search for "Collapse Health" | $0 | $500 | Self-search free; attorney opinion optional |
 | Business licenses (WA BLS + city endorsement) | $90 | $300 | Likely partially done with entity |
-| **One-time subtotal** | **~$2,800** | **~$16,000** | |
+| **One-time subtotal (excluding optional trip #2)** | **~$2,800** | **~$14,100** | |
 
 ## Recurring monthly operating costs
 
@@ -33,8 +34,8 @@ Medical tourism referral facilitator (US/Canada → Mexico) · Draft Aug 2026 ·
 | Email/workspace | $0 | $15 | |
 | Accounting software | $0 | $40 | QuickBooks Simple Start tier |
 | Bookkeeping (outsourced, part-time) | $0 | $300 | Can DIY early |
-| E&O insurance (from launch) | — | ~$200–350/mo equivalent | First booking triggers this |
-| **Monthly subtotal (pre-launch)** | **~$0–50/mo** | **~$490/mo** | |
+| Insurance and risk controls | — | ~$200–350/mo equivalent | Illustrative assumption; obtain advice before any service activity |
+| **Monthly subtotal (pre-launch)** | **~$0–50/mo** | **~$690–840/mo** | |
 
 ## Marketing budget (the big variable)
 
@@ -53,17 +54,20 @@ Medical tourism referral facilitator (US/Canada → Mexico) · Draft Aug 2026 ·
 | **Lean recommended** (attorney-drafted contracts, small ad test) | **~$12,000–18,000** |
 | **Comfortable** (two trips, agency branding, 3-month ad runway, bookkeeper, E&O from day one) | **~$35,000–45,000** |
 
-## Revenue context (why these costs are worth it)
+## Draft financial assumptions
 
-- Blended procedure value ~$8,000 × 15% commission ≈ **$1,200 gross revenue per booking**
-- Target CAC ≤ $250/booking → **~$800 contribution per booking**
-- Base-case Year 1: 60–100 bookings ≈ **$90k–130k revenue** → break-even around month 8–12
-- See `medical-tourism-business-plan.md` (session files) for the full projection model
+- Do not publish, rely on, or use the following assumptions for a launch
+  decision without independent legal, financial, and market review.
+- Any compensation, referral, pricing, volume, customer-acquisition, or
+  break-even model requires model-specific counsel and independently sourced
+  evidence before it informs an operating plan.
 
 ## What NOT to spend on yet
 
-- ❌ Healthcare-compliance specialist memo — general attorney covers launch posture; add the specialist before Medicare/Medicaid-adjacent or employer-benefit channels
-- ❌ Separate Mexican regulatory review — provider licensing stays the provider's obligation; verify per-provider during due diligence
+- ❌ Do not defer healthcare, cross-border, privacy, or regulatory advice based
+  on this draft; determine the required review with qualified counsel.
+- ❌ Do not treat provider obligations or preliminary research as a substitute
+  for the company’s own reviewed operational and legal responsibilities.
 - ❌ Office space — remote until >20 bookings/month
 - ❌ Employees — contractors and free tiers first
 - ❌ Paid "accreditations" or directory listings of dubious value — verify legitimacy before paying any Mexico-side intermediary

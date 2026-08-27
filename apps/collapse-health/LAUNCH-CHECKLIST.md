@@ -1,105 +1,67 @@
-# Collapse Health — Launch Checklist
-Everything required before legally and safely operating as a medical tourism
-referral facilitator (US/Canada → Mexico). Companion to [STARTUP-COSTS.md](./STARTUP-COSTS.md).
+# Collapse Health — Pre-launch decision checklist
 
-Status legend: ☐ not started · ◐ in progress · ☑ done
+> **Current status: do not operate.** Collapse Health is a concept preview, not
+> an operating medical-tourism, referral, booking, travel, insurance, or
+> emergency service. This planning document is not legal, medical, financial,
+> regulatory, privacy, or insurance advice. Obtain qualified advice for the
+> actual service model and every applicable jurisdiction before any launch.
 
-## Phase 1 — Legal & Corporate Foundation (weeks 1–3)
+## Public lead capture is unavailable
 
-- ☑ Form US entity — **DONE (Washington)**
-- ☐ Confirm WA Business Licensing Service (BLS) endorsement covers the new business line + city business license where operating
-  - Note: WA has no seller-of-travel or medical-facilitator licensing regime; no special state license needed for pure referral facilitation
-- ☐ Open/confirm business bank account for the entity
-- ☐ General business attorney: Terms of Service, Privacy Policy, referral-commission disclosure language (~$500–1.5k)
-  - Full healthcare-compliance memo is **optional pre-launch**; becomes required before any US-provider partnerships or employer-benefit channels (AKS exposure)
-- ☐ Mexican counsel: bilingual EN/ES referral/commission agreement template enforceable under Mexican commercial law (~$1–2k)
-  - No separate regulatory review needed: COFEPRIS licensing stays each provider's own obligation — we verify per provider in Phase 2
-- ☐ USPTO trademark search on "Collapse Health" (free self-search; attorney opinion optional)
-- ☐ E&O / professional liability insurance — **defer until go-live gate** (Phase 5); some partner hospital contracts will require it
+- ☐ This preview has no public lead-capture activation path. Do not add one by
+  changing environment variables or copy.
+- ☐ Treat a future registration flow as a separately designed and reviewed
+  project; complete every gate below before proposing it.
+- ☐ Obtain written legal, privacy, and security review covering the exact
+  business model, jurisdictions, compensation, marketing, data flow, and
+  consumer disclosures.
+- ☐ Establish a documented minimum-data intake policy that excludes medical
+  records, symptoms, diagnoses, treatments, insurance information, payments,
+  and free-text health questions unless and until an approved program requires
+  them.
+- ☐ Publish reviewed privacy disclosures, consent language, retention periods,
+  a deletion process, and a contact route for privacy requests.
+- ☐ Configure and test a Cloudflare-managed hostname, WAF rate limiting, and
+  server-side human verification before making the endpoint public.
+- ☐ Confirm email ownership (for example, double opt-in) before using an address
+  for marketing communications or describing a registration as verified consent.
+- ☐ Test the normal, duplicate, invalid, abuse, storage-failure, consent
+  withdrawal, and deletion paths without using real health information.
+- ☐ Define an owner, secure access controls, retention schedule, deletion
+  procedure, incident response process, and audit trail for stored data.
 
-## Phase 2 — Provider Network (weeks 3–10, overlaps Phase 1)
+## Legacy Worker data
 
-For each target specialty (start: dental + bariatric):
+- ☐ Before unbinding or deleting the legacy KV namespace, a designated data
+  owner must make and document a retention decision for each existing
+  `lead:` record and its corresponding `email:` index. Export or delete the
+  data only through an approved privacy process; do not read, export, or delete
+  it through this preview-site change.
 
-- ☐ Longlist 5–8 candidate facilities per hub (Tijuana/Los Algodones first)
-- ☐ Verify credentials for each: COFEPRIS license number, physician board certification (cédula), malpractice insurance certificate — request documents, record in provider file
-- ☐ Conduct on-site visits — interview staff, inspect surgical/recovery areas, review infection-control practices
-- ☐ Collect patient references/outcome data where available
-- ☐ Sign bilingual referral agreement per provider (commission rate, responsibilities, data handling, termination terms)
-- ☐ **Mexican providers only** — never sign referral-fee agreements with US-based providers (AKS: commissions on referrals touching Medicare/Medicaid business are a federal crime)
-- ☐ Build provider scorecards; schedule annual re-vetting
-- ☐ Define escalation path: what happens on complication, complaint, or quality drift
+## Before announcing or offering any future service
 
-## Phase 2b — Federal Anti-Kickback (AKS) Safeguards
+- ☐ Obtain counsel-approved terms, privacy notices, marketing review, and
+  jurisdiction-specific regulatory analysis.
+- ☐ Verify that operational, clinical, provider, travel, payment, insurance,
+  and emergency-support statements are accurate before publishing them.
+- ☐ Do not claim or imply provider vetting, licensing verification,
+  certification, accreditation, quality, outcomes, availability, prices,
+  savings, insurance coverage, or emergency support without independently
+  supportable and reviewed evidence.
+- ☐ Establish policies for provider conflicts, compensation disclosures,
+  consumer complaints, safety escalation, record handling, and marketing
+  claims before describing any service publicly.
+- ☐ Complete a production security review, including access control, logging,
+  secret management, rate limiting, human-verification replay handling, and
+  incident response.
+- ☐ Conduct a complete legal, privacy, accessibility, security, and
+  end-to-end deployment review before removing the non-operating banner.
 
-AKS (42 U.S.C. § 1320a-7b(b)) criminalizes paying/receiving anything of value for referrals into care paid by Medicare, Medicaid, TRICARE, or VA. Our model is safe only because Mexican providers cannot bill federal programs and patients pay cash. Keep it that way.
+## Non-negotiable preview-site rules
 
-Background: Medicare pays nothing for elective care outside the US (foreign-hospital coverage exists only for emergencies occurring on US soil near a border); Medicaid generally doesn't cover out-of-state, let alone out-of-country, care. There is no legitimate reimbursement path — any "claim" would be fraud (e.g., forged invoices or a US provider re-billing), which we must never assist or appear to assist:
-
-- ☐ Add a screening question to intake: "Do you intend to seek reimbursement from Medicare/Medicaid for any part of this?" — document the answer per lead
-- ☐ Written policy: commissions accepted only from Mexican providers; never from any US-based provider
-- ☐ Written policy: never assist with any Medicare/Medicaid claim related to a medical travel trip
-- ☐ Revisit compliance attorney review before: partnering with any US clinic, selling employer benefit products, or handling insurance navigation
-- ☐ Insurance posture (documented): US insurance does not cover planned care abroad regardless of referrals — customers are cash-pay by definition. Never suggest or facilitate insurance billing; FAQ answers this plainly. Future exception: employer self-funded plans are a legitimate coverage channel, but require compliance counsel first
-
-## Phase 3 — Operations Setup (weeks 4–8)
-
-- ☐ CRM configured (HubSpot free tier → paid when >50 leads/mo) with lead pipeline stages
-- ☐ Lead capture endpoint live (Formspree or small Worker) wired to `NEXT_PUBLIC_LEAD_ENDPOINT`
-- ☐ Business phone line + email addresses (hello@, care@)
-- ☐ Intake questionnaire template (procedure, records, budget, timeline)
-- ☐ Quote-request workflow documented: intake → match providers → collect quotes → present to patient
-- ☐ Patient record templates: consent-to-facilitate form, disclosure forms, post-op survey
-- ☐ Data-handling policy: minimize PHI collection, secure storage, retention limits
-- ☐ Care-coordinator playbook (scripts, FAQ answers, city safety briefings)
-
-## Phase 4 — Website & Marketing Readiness (weeks 6–12)
-
-- ☑ Static site built (`apps/collapse-health`) with non-operating banner
-- ☑ Compliance-safe copy: illustrative pricing only, facilitator disclosures, waitlist instead of quotes
-- ☐ Remove "not currently operating" banner at actual launch (edit `SiteBanner.jsx`)
-- ☐ Switch CTA copy from waitlist → free quote at launch (`page.js`, `LeadForm.jsx`, nav buttons)
-- ☐ Deploy to Cloudflare Pages (`npx wrangler pages deploy out --project-name collapse-health --branch main`)
-- ☐ Attach custom domain `health.collapsetechnologies.com` to the Pages project
-- ☐ Analytics (privacy-friendly: Plausible/Fathom or GA4) + conversion tracking on lead form
-- ☐ SEO foundation: procedure cost guides ×10, destination guides ×5, FAQ schema
-- ☐ Launch ad tests: Google Search ($1.5–3k/mo) + Meta ($0.5–1.5k/mo), track CPL and booking rate
-
-## Phase 4b — Website legal elements (competitor benchmark)
-
-Researched Aug 2026 against Bookimed, Medical Departures/Dental Departures, and general facilitator practice. What established operators carry:
-
-| Element | Bookimed | Med Departures | Us (current) | Action |
-|---|---|---|---|---|
-| "Informational only / not medical advice" disclaimer | ✅ full page | ✅ in terms | ✅ in copy + terms | Keep |
-| Facilitator role + no liability for provider outcomes | ✅ "no endorsement" | ✅ explicit "no responsibility or liability of any kind", direct relationship with provider | partial | **Add explicit clause at launch** |
-| Prices/quotes are estimates, not final charges | implicit | ✅ "merely quotations and estimates… request an estimate directly from the Provider" | ✅ "illustrative examples" | Strengthen wording |
-| Insurance is patient's responsibility to determine | n/a (cash market) | ✅ explicit | ✅ FAQ answer | Keep |
-| Results may vary / no outcome guarantees | ✅ | implied | ❌ | **Add before testimonials launch** |
-| Emergency notice ("call 911, don't rely on site") | ✅ | — | 1 mention | Keep |
-| International standards differ / verify credentials yourself | ✅ | ✅ "endeavor to locate reputable… no warranties" | partial via due-diligence FAQ | Add line to terms |
-| Cookie consent banner (GDPR/CCPA) if analytics run | ✅ (EU traffic) | ✅ cookie prefs | ❌ none (no analytics yet) | Required only once we add analytics/tracking |
-| FTC testimonial rules: real results, disclosed compensation, not typical-outcome claims | ✅ review platform | ✅ reviews | n/a pre-launch | Apply when reviews added |
-| AI-content disclaimer (emerging trend) | — | ✅ has dedicated page | n/a | Optional |
-
-**Bottom line:** our current WIP posture already exceeds what competitors disclose. Before go-live, add to `app/terms`: explicit facilitator/no-liability clause, "prices are estimates; obtain a written estimate from the provider," results-may-vary, verify-credentials language. Cookie banner deferred until analytics are installed. (do NOT operate until all checked)
-
-- ☑ Entity formed, bank account confirmed
-- ☐ Attorney-reviewed T&Cs, privacy policy, and referral disclosures live on site
-- ☐ ≥3 anchor providers under signed Mexican referral agreements with verified licenses
-- ☐ At least 1 completed on-site visit per anchor provider (documented = liability shield)
-- ☐ E&O insurance bound (first booking is the trigger)
-- ☐ AKS screening question + policies in place (Phase 2b)
-- ☐ Lead pipeline tested end-to-end with a test inquiry
-- ☐ Financial model reviewed: CAC targets, commission collection process (invoicing providers)
-- ☐ Remove non-operating banner; switch site to live mode
-- ☐ Add launch-time legal elements per Phase 4b benchmark: facilitator/no-liability clause, estimates-not-final-prices wording, results-may-vary, verify-credentials language; cookie banner if analytics installed
-
-## Phase 5 — Go-live gates
-
-- ☐ Weekly provider check-ins; monthly quality scorecard updates
-- ☐ Post-return patient surveys after every booking
-- ☐ Track: leads, consults, bookings, revenue/booking, CAC, complication reports
-- ☐ First commission invoices collected from providers
-- ☐ Iterate marketing toward lowest-CPL channel
-- ☐ Phase-2 expansion decision: orthopedic + cosmetic specialties, second-city visits
+- Keep the persistent work-in-progress banner and non-operating disclosures.
+- Do not accept patients, make referrals, arrange bookings or travel, provide
+  clinical or insurance guidance, collect health records, or handle emergencies.
+- Do not publish provider, price, savings, insurance, or outcomes claims.
+- Treat any later launch as a new, reviewed project rather than activating this
+  preview by changing copy alone.
