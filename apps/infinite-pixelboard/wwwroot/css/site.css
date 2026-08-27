@@ -107,6 +107,38 @@ a { color: inherit; }
 }
 
 .board-header .icon-button { justify-self: end; }
+
+.account-button {
+  display: inline-flex;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--ink);
+  align-items: center;
+  gap: 10px;
+  background: var(--paper);
+  box-shadow: 3px 3px 0 var(--ink);
+  transition: background-color .15s ease, box-shadow .15s ease, color .15s ease, transform .15s ease;
+}
+
+.account-button:hover {
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: 1px 1px 0 var(--ink);
+  transform: translate(2px, 2px);
+}
+
+.account-button[aria-expanded="true"] {
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: none;
+  transform: translate(3px, 3px);
+}
+
+.account-button__arrow {
+  font-size: .9rem;
+  line-height: 1;
+}
+
 .board-stage { position: fixed; inset: 0; overflow: hidden; }
 
 .board-canvas {
