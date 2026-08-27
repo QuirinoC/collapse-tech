@@ -1,3 +1,5 @@
+begin;
+
 create extension if not exists "pgcrypto";
 
 create table if not exists winners (
@@ -8,6 +10,8 @@ create table if not exists winners (
   claimed_at timestamptz not null default now()
 );
 
+lock table winners in share row exclusive mode;
+
 do $$
 begin
   if (select count(*) from winners) > 1 then
@@ -16,56 +20,6 @@ begin
   end if;
 end
 $$;
-
-do $$
-declare
-  telemetry_totals_kind "char";
-begin
-  select relkind
-  into telemetry_totals_kind
-  from pg_class
-  where oid = to_regclass('public.telemetry_totals');
-
-  if telemetry_totals_kind = 'v' then
-    execute 'drop view public.telemetry_totals';
-  end if;
-end
-$$;
-
-create table if not exists telemetry_totals (
-  id smallint primary key default 1 check (id = 1),
-  attempts_total bigint not null default 0 check (attempts_total >= 0),
-  attempts_auto bigint not null default 0 check (attempts_auto >= 0),
-  attempts_manual bigint not null default 0 check (attempts_manual >= 0),
-  check (attempts_total = attempts_auto + attempts_manual)
-);
-
-do $$
-begin
-  if to_regclass('public.telemetry_aggregates') is not null then
-    execute $migration$
-      insert into public.telemetry_totals (
-        id,
-        attempts_total,
-        attempts_auto,
-        attempts_manual
-      )
-      select
-        1,
-        coalesce(sum(attempts_total), 0),
-        coalesce(sum(attempts_auto), 0),
-        coalesce(sum(attempts_manual), 0)
-      from public.telemetry_aggregates
-      on conflict (id) do nothing
-    $migration$;
-    execute 'drop table public.telemetry_aggregates';
-  end if;
-end
-$$;
-
-insert into telemetry_totals (id)
-values (1)
-on conflict (id) do nothing;
 
 alter table winners add column if not exists winner_slot smallint;
 update winners set winner_slot = 1 where winner_slot is null;
@@ -112,6 +66,57 @@ begin
 end
 $$;
 
+do $$
+declare
+  telemetry_totals_kind "char";
+begin
+  select relkind
+  into telemetry_totals_kind
+  from pg_class
+  where oid = to_regclass('public.telemetry_totals');
+
+  if telemetry_totals_kind = 'v' then
+    execute 'drop view public.telemetry_totals';
+  end if;
+end
+$$;
+
+create table if not exists telemetry_totals (
+  id smallint primary key default 1 check (id = 1),
+  attempts_total bigint not null default 0 check (attempts_total >= 0),
+  attempts_auto bigint not null default 0 check (attempts_auto >= 0),
+  attempts_manual bigint not null default 0 check (attempts_manual >= 0),
+  check (attempts_total = attempts_auto + attempts_manual)
+);
+
+do $$
+begin
+  if to_regclass('public.telemetry_aggregates') is not null then
+    execute 'lock table public.telemetry_aggregates in share row exclusive mode';
+    execute $migration$
+      insert into public.telemetry_totals (
+        id,
+        attempts_total,
+        attempts_auto,
+        attempts_manual
+      )
+      select
+        1,
+        coalesce(sum(attempts_total), 0),
+        coalesce(sum(attempts_auto), 0),
+        coalesce(sum(attempts_manual), 0)
+      from public.telemetry_aggregates
+      on conflict (id) do nothing
+    $migration$;
+    execute 'drop table public.telemetry_aggregates';
+  end if;
+end
+$$;
+
+insert into telemetry_totals (id)
+values (1)
+on conflict (id) do nothing;
+
 alter table winners enable row level security;
 alter table telemetry_totals enable row level security;
 alter table if exists telemetry_aggregates enable row level security;
@@ -141,3 +146,5 @@ $$;
 
 revoke all on function public.record_telemetry(bigint, bigint, bigint) from public;
 grant execute on function public.record_telemetry(bigint, bigint, bigint) to service_role;
+
+commit;

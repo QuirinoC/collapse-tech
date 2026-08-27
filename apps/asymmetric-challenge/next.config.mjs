@@ -5,15 +5,6 @@ const nextConfig = {
   turbopack: {
     root: "../..",
   },
-  // `pg` conditionally requires `pg-cloudflare` at runtime; the file tracer can't
-  // see through the conditional, so include it explicitly. npm workspaces hoist
-  // pg-cloudflare to the repo root, so the glob must reach up two levels.
-  outputFileTracingIncludes: {
-    "**/*": [
-      "../../node_modules/pg-cloudflare/dist/**",
-      "../../node_modules/pg-cloudflare/esm/**",
-    ],
-  },
   async headers() {
     return [
       {

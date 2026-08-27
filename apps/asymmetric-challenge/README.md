@@ -24,7 +24,10 @@ challenge IDs and invalidates existing guesses — see "Local Secret Rotation" i
 
 ```bash
 npm install --legacy-peer-deps   # adapter peer-wants next >= 16.2.11
-SECRET_KEY_HEX=$(openssl rand -hex 32) DATABASE_URL=... npm run dev
+SECRET_KEY_HEX=$(openssl rand -hex 32) \
+SUPABASE_URL=... \
+SUPABASE_SERVICE_ROLE_KEY=... \
+npm run dev
 ```
 
 From repo root: `npm run dev:challenge`.
@@ -40,5 +43,5 @@ npx wrangler deploy
 ```
 
 Secrets are Worker secrets set via `wrangler secret put`: `SECRET_KEY_HEX`,
-`DATABASE_URL` (or `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`). The custom
-domain `challenge.collapsetechnologies.com` is bound in `wrangler.jsonc`.
+`SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`. The custom domain
+`challenge.collapsetechnologies.com` is bound in `wrangler.jsonc`.
