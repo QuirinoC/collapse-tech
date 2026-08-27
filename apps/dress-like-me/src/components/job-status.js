@@ -23,18 +23,31 @@ const progress = {
 
 export default function JobStatus({ jobId }) {
   const [job, setJob] = useState({ id: jobId, status: "queued" });
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
 
     async function refresh() {
-      const response = await fetch(`/api/jobs/${jobId}`, { cache: "no-store" });
-      if (!response.ok || !active) return;
-      const result = await response.json();
-      setJob(result.job);
+      try {
+        const response = await fetch(`/api/jobs/${jobId}`, { cache: "no-store" });
+        const result = await response.json();
+        if (!response.ok) {
+          if (active) {
+            setError(result.error || "Could not load this import.");
+          }
+          return;
+        }
+        if (!active) return;
 
-      if (!["complete", "failed"].includes(result.job.status)) {
-        window.setTimeout(refresh, 2000);
+        setJob(result.job);
+        if (!["complete", "failed"].includes(result.job.status)) {
+          window.setTimeout(refresh, 2000);
+        }
+      } catch {
+        if (active) {
+          setError("Could not load this import. Try again later.");
+        }
       }
     }
 
@@ -47,15 +60,20 @@ export default function JobStatus({ jobId }) {
   return (
     <div className="status-panel">
       <p className="kicker">Import / {job.id.slice(0, 8)}</p>
-      <h1>{labels[job.status] || "Processing the outfit"}</h1>
+      <h1>{error || labels[job.status] || "Processing the outfit"}</h1>
       <p>
-        This runs in the background. You can leave this page and return with the
-        same link.
+        {error
+          ? "Check the link or try again later."
+          : "This runs in the background. You can leave this page and return with the same link."}
       </p>
-      <div className="status-track" style={{ "--progress": progress[job.status] }}>
-        <span />
-      </div>
-      <span className="status-pill">{job.status}</span>
+      {!error ? (
+        <>
+          <div className="status-track" style={{ "--progress": progress[job.status] }}>
+            <span />
+          </div>
+          <span className="status-pill">{job.status}</span>
+        </>
+      ) : null}
       {job.errorMessage ? <p className="form-message">{job.errorMessage}</p> : null}
       {job.outfitId ? (
         <p>

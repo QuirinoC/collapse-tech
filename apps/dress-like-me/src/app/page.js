@@ -2,9 +2,13 @@ import Link from "next/link";
 import { CreatorCard, OutfitCard } from "@/components/cards";
 import SearchExperience from "@/components/search-experience";
 import { featuredPeople, outfits } from "@/lib/catalog";
+import { hasImportConfiguration } from "@/lib/request";
+
+export const dynamic = "force-dynamic";
 
 export default function Home() {
   const shia = featuredPeople[0];
+  const importsEnabled = hasImportConfiguration();
 
   return (
     <>
@@ -19,10 +23,11 @@ export default function Home() {
           We know the <span>name.</span>
         </h1>
         <p className="hero-copy">
-          Search anyone whose style you rate—or paste a public Instagram post.
-          We identify each piece and find options you can actually buy.
+          {importsEnabled
+            ? "Search anyone whose style you rate—or paste a public Instagram post. We identify each piece and find options you can actually buy."
+            : "Search anyone whose style you rate. Public-post imports are coming soon."}
         </p>
-        <SearchExperience />
+        <SearchExperience importsEnabled={importsEnabled} />
         <div className="search-hints" aria-label="Search examples">
           <span>Try</span>
           {featuredPeople.slice(0, 4).map((person) => (
@@ -103,7 +108,11 @@ export default function Home() {
               <span>01</span>
               <div>
                 <strong>Bring a reference</strong>
-                <p>Search a person or paste a supported public post URL.</p>
+                <p>
+                  {importsEnabled
+                    ? "Search a person or paste a supported public post URL."
+                    : "Search a person today; public-post imports are coming soon."}
+                </p>
               </div>
             </li>
             <li>
