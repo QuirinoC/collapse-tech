@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { reviewSchema, firstIssue } from "@/lib/schemas";
+import { reviewSchema } from "@/lib/schemas";
 import { getStore } from "@/lib/repository";
 import { requireRole } from "@/lib/session";
 import { reviewSubmission, markPaid } from "@/lib/campaign-flow";
 import { getPaymentsProvider } from "@/lib/payments";
+import { parseJsonBody, requestError } from "@/lib/request";
 
 // Brand reviews a submission. Approving releases the reserved per-creator
 // payout from the held balance; rejecting sends it back for revision.
@@ -11,9 +12,10 @@ export async function POST(request, { params }) {
   const { id } = await params;
   let payload;
   try {
-    payload = reviewSchema.parse(await request.json());
+    payload = reviewSchema.parse(await parseJsonBody(request));
   } catch (error) {
-    return NextResponse.json({ error: firstIssue(error) }, { status: 400 });
+    const failure = requestError(error);
+    return NextResponse.json({ error: failure.message }, { status: failure.status });
   }
 
   let brand;
@@ -97,7 +99,7 @@ export async function POST(request, { params }) {
   try {
     transfer = await payments.payout({
       assignmentId: id,
-      amountCents: campaign.per_creator_cents,
+      amountCents: assignment.payout_cents ?? campaign.per_creator_cents,
       idempotencyKey: payoutOperationKey,
     });
   } catch (error) {
@@ -112,7 +114,7 @@ export async function POST(request, { params }) {
     campaign_id: campaign.id,
     assignment_id: id,
     kind: "payout",
-    amount_cents: campaign.per_creator_cents,
+    amount_cents: assignment.payout_cents ?? campaign.per_creator_cents,
     provider_ref: transfer.ref,
     operation_key: payoutOperationKey,
     memo: "Payout released to creator after approval",

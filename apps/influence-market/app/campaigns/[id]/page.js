@@ -106,7 +106,7 @@ export default function CampaignDetailPage() {
             </div>
           </div>
           <div className="stat-band" style={{ gridTemplateColumns: "1fr", marginBottom: 0 }}>
-            <StatCell value={`$${(c.perCreatorCents / 100).toLocaleString()}`} label="Per creator slot" />
+            <StatCell value={`From $${(c.perCreatorCents / 100).toLocaleString()}`} label="Creator slot payout" />
             <StatCell value={`${c.slotsRemaining}`} label="Slots remaining" />
             <StatCell value={c.paymentStatus === "held" ? "Escrowed" : "Pending"} label="Funding status" />
           </div>

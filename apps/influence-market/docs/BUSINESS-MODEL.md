@@ -2,6 +2,10 @@
 
 *Companion to COMPETITIVE-LANDSCAPE.md. All figures USD. Currency of trust: integer cents in the ledger.*
 
+> **Product status (August 2026):** Production payment funding and payouts are
+> disabled. Escrow, processor, payout, revenue, and margin descriptions below
+> are the planned operating model, not currently available product behavior.
+
 ## 1. Revenue model
 
 **Single line item: flat 18% take on every funded campaign.** No subscriptions, no creator fees, no exclusivity contracts.
@@ -101,3 +105,20 @@ Every +1pt of average take (e.g., surge pricing on expedited rosters) adds ~11% 
 ### Deployment note (per repo convention)
 
 Platform runs on **Cloudflare Workers via `@opennextjs/cloudflare`** with a native **D1** binding in production; Supabase remains an optional alternative store. No servers to babysit, so infrastructure stays in the noise floor of the cost table above. Sandbox payments are local/test-only, and stable operation keys make retries idempotent across Worker isolates. Production funding remains explicitly disabled until a Stripe Connect Checkout + webhook flow and creator destination accounts are configured; the platform never represents simulated funds as real escrow.
+
+### Forward-only database rollout
+
+Apply D1 migrations in numeric order (`0001` through `0004`) with
+`wrangler d1 migrations apply influence-market --remote`; do not edit or
+reapply an already-recorded migration. Release `0004` in a maintenance window
+with the application version that writes `assignments.payout_cents`: older
+application code cannot create assignments after the new integrity trigger is
+installed, and newer code requires the new column. The migration invalidates
+all existing sessions so browser tokens are no longer stored replayably.
+
+Supabase deployments require the matching forward-only `003_security_and_payout_integrity.sql`
+after `001` and `002`, in the same maintenance window. It invalidates legacy
+sessions, adds and backfills assignment payouts, replaces the acceptance RPC
+with its six-argument version, and enables deny-by-default RLS for every
+exposed application table. Keep `SUPABASE_SERVICE_ROLE_KEY` server-only; it is
+the only role granted direct application-table access.

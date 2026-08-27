@@ -10,11 +10,10 @@
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 
-let client = null;
-let d1Binding = null;
+let testD1Binding = null;
 
 export function setD1Binding(binding) {
-  d1Binding = binding ?? null;
+  testD1Binding = binding ?? null;
 }
 
 export function hasSupabaseConfig() {
@@ -30,18 +29,18 @@ export function hasSupabaseConfig() {
 
 const d1Mode = () =>
   process.env.PERSISTENCE_DRIVER?.trim().toLowerCase() === "d1" ||
-  Boolean(d1Binding) ||
+  Boolean(testD1Binding) ||
   Boolean(process.env.SUPABASE_QUERY_ENDPOINT);
 
 async function resolveD1Binding() {
-  if (d1Binding) return d1Binding;
+  if (testD1Binding) return testD1Binding;
   try {
     const { getCloudflareContext } = await import("@opennextjs/cloudflare");
-    d1Binding = getCloudflareContext().env?.DB ?? null;
+    return getCloudflareContext().env?.DB ?? null;
   } catch {
     // Not running inside the OpenNext Cloudflare worker (e.g. local Node).
   }
-  return d1Binding;
+  return null;
 }
 
 async function d1(sql, params = []) {
@@ -76,16 +75,13 @@ function db() {
   if (!hasSupabaseConfig()) {
     throw new Error("Supabase credentials are not configured.");
   }
-  if (!client) {
-    const supabaseUrl =
-      process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-    client = createClient(
-      supabaseUrl,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-      { auth: { autoRefreshToken: false, persistSession: false } },
-    );
-  }
-  return client;
+  const supabaseUrl =
+    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  return createClient(
+    supabaseUrl,
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  );
 }
 
 function mapProfile(row) {
@@ -157,6 +153,34 @@ export function createSupabaseStore() {
         })
         .select()
         .single();
+      if (error) throw error;
+      return mapProfile(data);
+    },
+    async claimProfile(id, patch) {
+      const update = {
+        password_hash: patch.password_hash,
+        name: patch.name,
+        company: patch.company ?? null,
+      };
+      if (d1Mode()) {
+        return mapProfile(
+          (
+            await d1(
+              `update profiles
+               set password_hash = ?, name = ?, company = ?
+               where id = ? and password_hash is null
+               returning *`,
+              [update.password_hash, update.name, update.company, id],
+            )
+          )[0] ?? null,
+        );
+      }
+      const { data, error } = await table("profiles")
+        .update(update)
+        .eq("id", id)
+        .is("password_hash", null)
+        .select()
+        .maybeSingle();
       if (error) throw error;
       return mapProfile(data);
     },
@@ -325,6 +349,46 @@ export function createSupabaseStore() {
       const { data, error } = await table("campaigns").insert(campaign).select().single();
       if (error) throw error;
       return data;
+    },
+    async submitAssignment(id, patch) {
+      if (d1Mode()) {
+        return (
+          (
+            await d1(
+              `update assignments
+               set status = ?,
+                   content_url = ?,
+                   submitted_at = ?,
+                   notes = ?,
+                   updated_at = datetime('now')
+               where id = ?
+                 and status in ('instructions_sent', 'rejected')
+               returning *`,
+              [
+                patch.status,
+                patch.content_url,
+                patch.submitted_at,
+                patch.notes ?? null,
+                id,
+              ],
+            )
+          )[0] ?? null
+        );
+      }
+      const { data, error } = await table("assignments")
+        .update({
+          status: patch.status,
+          content_url: patch.content_url,
+          submitted_at: patch.submitted_at,
+          notes: patch.notes ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .in("status", ["instructions_sent", "rejected"])
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      return data || null;
     },
     async getCampaign(id) {
       if (d1Mode()) {
@@ -641,6 +705,7 @@ export function createSupabaseStore() {
         p_creator_id: result.assignment.creator_id,
         p_assignment_id: result.assignment.id || randomUUID(),
         p_decided_at: result.application.decided_at,
+        p_payout_cents: result.assignment.payout_cents,
       });
       if (error) throw error;
       return data;
@@ -650,8 +715,8 @@ export function createSupabaseStore() {
       if (d1Mode()) {
         const out = await d1(
           `insert into assignments (id, campaign_id, creator_id, status, content_url,
-             submitted_at, reviewed_at, paid_at, payout_ref, notes)
-           values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) returning *`,
+             submitted_at, reviewed_at, paid_at, payout_ref, notes, payout_cents)
+           values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) returning *`,
           [
             assignment.id || randomUUID(),
             assignment.campaign_id,
@@ -663,6 +728,7 @@ export function createSupabaseStore() {
             assignment.paid_at ?? null,
             assignment.payout_ref ?? null,
             assignment.notes ?? null,
+            assignment.payout_cents,
           ],
         );
         return out[0];

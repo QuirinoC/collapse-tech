@@ -1,23 +1,20 @@
 import { createMemoryStore } from "./memory-store.js";
 import { createSupabaseStore, hasSupabaseConfig } from "./supabase-store.js";
 
-// Single store instance per server process. Supabase Postgres or D1 when
-// configured (production), seeded in-memory store otherwise (local dev/demo).
-// The D1 binding is resolved lazily inside the store on first query, so no
-// request-context work happens at module init.
-let store;
-
-if (!globalThis.__influenceMarketStore) {
-  globalThis.__influenceMarketStore = hasSupabaseConfig()
-    ? createSupabaseStore()
-    : createMemoryStore();
-}
-store = globalThis.__influenceMarketStore;
+// The production store is created per access so Worker binding changes are
+// observed without a stale, global client. The demo store intentionally lasts
+// for one local process.
+let memoryStore;
 
 export function getStore() {
-  return store;
+  if (hasSupabaseConfig()) return createSupabaseStore();
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Production persistence must be configured.");
+  }
+  memoryStore ??= createMemoryStore();
+  return memoryStore;
 }
 
 export function storeMode() {
-  return store.driver;
+  return getStore().driver;
 }

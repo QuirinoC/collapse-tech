@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { campaignSchema, firstIssue } from "@/lib/schemas";
+import { campaignSchema } from "@/lib/schemas";
 import { getStore } from "@/lib/repository";
 import { currentProfile } from "@/lib/session";
 import {
   campaignFeeCents,
   perCreatorPayoutCents,
 } from "@/lib/money";
+import { parseJsonBody, requestError } from "@/lib/request";
 
 function mapCampaign(c) {
   return {
@@ -68,9 +69,10 @@ export async function GET(request) {
 export async function POST(request) {
   let payload;
   try {
-    payload = campaignSchema.parse(await request.json());
+    payload = campaignSchema.parse(await parseJsonBody(request));
   } catch (error) {
-    return NextResponse.json({ error: firstIssue(error) }, { status: 400 });
+    const failure = requestError(error);
+    return NextResponse.json({ error: failure.message }, { status: failure.status });
   }
 
   const brand = await currentProfile();

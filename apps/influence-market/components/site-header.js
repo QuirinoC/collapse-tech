@@ -21,6 +21,7 @@ export default function SiteHeader({ variant = "absolute" }) {
       </Link>
       <button
         type="button"
+        aria-label={open ? "Close navigation menu" : "Open navigation menu"}
         className="menu-toggle"
         aria-expanded={open}
         aria-controls="site-navigation"

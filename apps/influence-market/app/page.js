@@ -52,23 +52,23 @@ const AUDIENCES = [
 const FAQS = [
   {
     q: "How is this different from an influencer SaaS tool?",
-    a: "Those sell software subscriptions from $500 to $2,500+ per month and leave the work to you. Influence.Market is the agency: we source, vet, contract, escrow and verify — you pay per campaign, never a retainer.",
+    a: "Influence.Market is designed around curated, per-campaign creator work rather than a software subscription. Payment funding is not currently available on the production site.",
   },
   {
     q: "When does my budget leave my account?",
-    a: "Once, upfront — when you approve your creator roster. Funds are held by the platform and only released to creators after their content is approved and verified as published.",
+    a: "The production site does not currently collect campaign payments. Funding will remain unavailable until a processor-backed payment flow is launched.",
   },
   {
     q: "What if a creator underdelivers?",
-    a: "You reject the submission. The creator revises or the funds for that slot stay in escrow — they are never released without your sign-off.",
+    a: "Deliverable and dispute terms will be presented before payment funding is launched. No funds are currently collected or held through this site.",
   },
   {
     q: "Do creators pay or sign exclusivity?",
-    a: "No. Creators join free, keep full independence, and get paid on verified delivery. Guaranteed-paid campaigns mean zero risk for trying us.",
+    a: "Creators can create a profile without a fee or exclusivity commitment. Paid work is not currently available through the production site.",
   },
   {
-    q: "Which platforms do you cover?",
-    a: "TikTok, YouTube, Instagram, Facebook and X today — with channel metrics (followers, engagement, topics) powering curation and search rank.",
+    q: "Which platforms can creators list?",
+    a: "Creators can list TikTok, YouTube, Instagram, Facebook, X, and Twitch channels, along with the topics and follower counts they provide.",
   },
 ];
 
@@ -119,7 +119,8 @@ export default function LandingPage() {
           </h1>
           <p className="lede">
             One brief unlocks a handpicked crew of creators your audience
-            already trusts. We handle the deals, deadlines and payouts.
+            already trusts. We help organize briefs, creator profiles, and
+            proposed campaign terms.
           </p>
           <div className="hero-actions">
             <a href="/signup" className="button">
@@ -130,9 +131,9 @@ export default function LandingPage() {
             </a>
           </div>
           <div className="hero-proof" aria-label="Platform benefits">
-            <span><i>✓</i> Vetted creators</span>
-            <span><i>✓</i> One payment</span>
-            <span><i>✓</i> Verified delivery</span>
+            <span><i>✓</i> Curated briefs</span>
+            <span><i>✓</i> Creator profiles</span>
+            <span><i>✓</i> Payment launch in progress</span>
           </div>
         </div>
         <CampaignPreview />
@@ -153,8 +154,8 @@ export default function LandingPage() {
             <h2>Find your people.</h2>
           </div>
           <p className="section-intro">
-            We match your brief to creators by content, audience, engagement
-            and budget — not just follower count.
+            Shape your brief around the content, channels, audience, and budget
+            you want to reach.
           </p>
         </div>
         <div className="discipline-grid">
@@ -200,22 +201,22 @@ export default function LandingPage() {
           <FlowStep
             mark="Step 02 — Roster"
             title="Curate and approve creators"
-            body="We surface creators matched to follower counts, content topics and your budget. You accept or decline every applicant."
+            body="Build a proposed roster from creator profiles matched to your brief, channels, and budget."
           />
           <FlowStep
-            mark="Step 03 — Escrow"
-            title="Fund once, upfront"
-            body="Your total budget includes our flat 18% fee. The remaining 82% is split across the creator slots and held until work is approved."
+            mark="Step 03 — Funding"
+            title="Payment launch in progress"
+            body="The production site does not currently collect or hold funds. Processor-backed funding will be announced when available."
           />
           <FlowStep
             mark="Step 04 — Ship"
             title="Creators publish"
-            body="Creators receive brief instructions and product (shipped direct, seeded by us, or self-purchased). They submit content links."
+            body="Creator delivery workflows are available only after payment funding launches."
           />
           <FlowStep
             mark="Step 05 — Release"
             title="Verify, then pay"
-            body="Approve each submission and its payout releases instantly. Reject it and that slot's funds stay held until it's right."
+            body="Approval and payout workflows are not available on the production site yet."
           />
         </div>
       </section>
@@ -224,27 +225,26 @@ export default function LandingPage() {
         <div className="split-grid value-grid">
           <div className="value-card brand-card">
             <p className="eyebrow">Why brands switch</p>
-            <h3>No subscriptions. One contract.</h3>
+            <h3>Curated campaign planning.</h3>
             <p>
-              Agencies charge retainers; tools charge seats and still leave you
-              negotiating with fifty creators. Here you deal with one platform,
-              one agreement, one invoice — and reach many accounts at once.
+              Build a campaign brief, explore creator profiles, and prepare a
+              proposed roster without representing unavailable payment services
+              as live.
             </p>
           </div>
           <div className="value-card creator-value-card">
             <p className="eyebrow">Why creators stay</p>
-            <h3>Paid on delivery, guaranteed.</h3>
+            <h3>Profiles without exclusivity.</h3>
             <p>
-              No exclusivity, no upfront cost, no chasing invoices. Campaigns
-              arrive pre-funded: when your content is approved, your payout
-              releases immediately.
+              Creators can maintain a profile without a fee or exclusivity
+              requirement. Payment-backed assignments are not currently live.
             </p>
           </div>
         </div>
         <div className="stat-band">
-          <StatCell value="18%" label="Flat fee per campaign" />
-          <StatCell value="$0" label="Subscriptions or retainers" />
-          <StatCell value="NET-0" label="Creator payouts on approval" />
+          <StatCell value="18%" label="Planned campaign fee" />
+          <StatCell value="$0" label="Profile signup fee" />
+          <StatCell value="Soon" label="Payment funding" />
         </div>
       </section>
 
@@ -254,18 +254,18 @@ export default function LandingPage() {
             <p className="eyebrow">No mystery math</p>
             <h2>Fees, plainly.</h2>
           </div>
-          <p className="section-intro">One line item. No retainers, subscriptions or hidden deductions.</p>
+          <p className="section-intro">Proposed pricing for the future payment launch.</p>
         </div>
         <div className="flow-list fee-list">
           <FlowStep
             mark="You pay"
-            title="One all-in campaign budget"
-            body="A $5,000 campaign allocates $4,100 to creator payouts and $900 to our fee. No additional software subscription or agency retainer."
+            title="A future all-in campaign budget"
+            body="A planned $5,000 campaign would allocate $4,100 to creator payouts and $900 to our fee. The production site does not collect this payment today."
           />
           <FlowStep
             mark="Creators receive"
-            title="100% of the quoted payout"
-            body="Each creator sees their exact slot payout before accepting. Our fee is reserved at campaign funding and never deducted again."
+            title="Quoted rates before acceptance"
+            body="If payment funding launches, creators will see their exact slot payout before accepting. No payout is currently available through this site."
           />
         </div>
       </section>
@@ -385,20 +385,20 @@ function CampaignPreview() {
         <div className="avatar-row">
           <span>LK</span><span>AM</span><span>JR</span><i>+9</i>
         </div>
-        <strong>12 creators ready</strong>
-        <small>Beauty · 18–24 · TikTok</small>
+        <strong>Example roster</strong>
+        <small>Illustrative creator plan</small>
       </aside>
       <aside className="insight-card">
-        <span className="mini-label">Campaign pulse</span>
-        <strong>3.8M</strong>
-        <span>projected reach <i>↗ 24%</i></span>
+        <span className="mini-label">Illustrative campaign preview</span>
+        <strong>Example only</strong>
+        <span>Reach estimates are not live data</span>
         <div className="mini-chart" aria-hidden="true">
           <i /><i /><i /><i /><i /><i /><i />
         </div>
       </aside>
       <aside className="escrow-badge">
         <span aria-hidden="true">✓</span>
-        <p><strong>Budget protected</strong><small>Released on approval</small></p>
+        <p><strong>Payments unavailable</strong><small>Funding launch in progress</small></p>
       </aside>
     </div>
   );

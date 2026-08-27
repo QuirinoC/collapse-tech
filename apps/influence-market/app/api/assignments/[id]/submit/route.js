@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
-import { submissionSchema, firstIssue } from "@/lib/schemas";
+import { submissionSchema } from "@/lib/schemas";
 import { getStore } from "@/lib/repository";
 import { requireRole } from "@/lib/session";
 import { canSubmit, submitContent } from "@/lib/campaign-flow";
+import { parseJsonBody, requestError } from "@/lib/request";
 
 export async function POST(request, { params }) {
   const { id } = await params;
   let payload;
   try {
-    payload = submissionSchema.parse(await request.json());
+    payload = submissionSchema.parse(await parseJsonBody(request));
   } catch (error) {
-    return NextResponse.json({ error: firstIssue(error) }, { status: 400 });
+    const failure = requestError(error);
+    return NextResponse.json({ error: failure.message }, { status: failure.status });
   }
 
   let creator;
@@ -34,9 +36,15 @@ export async function POST(request, { params }) {
   }
 
   const submitted = submitContent(assignment, payload.contentUrl);
-  const updated = await store.updateAssignment(id, {
+  const updated = await store.submitAssignment(id, {
     ...submitted,
     notes: payload.notes ?? null,
   });
+  if (!updated) {
+    return NextResponse.json(
+      { error: "This assignment was already submitted or reviewed." },
+      { status: 409 },
+    );
+  }
   return NextResponse.json({ assignment: updated });
 }

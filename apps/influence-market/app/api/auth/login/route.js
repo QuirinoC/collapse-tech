@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
-import { loginSchema, firstIssue } from "@/lib/schemas";
+import { loginSchema } from "@/lib/schemas";
 import { verifyPassword } from "@/lib/auth";
+import { parseJsonBody, requestError } from "@/lib/request";
 import { getStore } from "@/lib/repository";
 import { createSession } from "@/lib/session";
 
 export async function POST(request) {
   let payload;
   try {
-    payload = loginSchema.parse(await request.json());
+    payload = loginSchema.parse(await parseJsonBody(request));
   } catch (error) {
-    return NextResponse.json({ error: firstIssue(error) }, { status: 400 });
+    const failure = requestError(error);
+    return NextResponse.json({ error: failure.message }, { status: failure.status });
   }
 
   const store = getStore();

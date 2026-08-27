@@ -12,9 +12,9 @@ export default function TermsPage() {
         <h1>Terms</h1>
         <p className="legal-copy">
           Influence.Market operates a curated marketplace connecting brands with
-          independent content creators. Brands fund campaigns upfront; funds are
-          held through the payment processor and released to creators only after
-          the brand approves content that complies with the campaign brief.
+          independent content creators. Payment funding, fund holding, and
+          creator payouts are not currently available through the production
+          site.
         </p>
         <p className="legal-copy">
           Creators are independent contractors, not employees; no exclusivity is
@@ -25,12 +25,10 @@ export default function TermsPage() {
           FTC endorsement guidelines.
         </p>
         <p className="legal-copy">
-          Our fee is a flat 18% of the total campaign budget, charged at funding
-          time. If an accepted slot cannot be filled after funding, the
-          unallocated portion of that slot&apos;s budget is refunded to the brand.
-          Disputed submissions may be escalated for platform review within 14
-          days of rejection. These terms are a summary; the operating agreement
-          presented at first campaign creation governs where they differ.
+          The planned platform fee is a flat 18% of the total campaign budget.
+          Any funding, refunds, disputes, and payout terms will be presented
+          before payment services are launched. These terms are a summary; an
+          operating agreement will govern any paid campaign where it differs.
         </p>
         <SiteFooter />
       </div>

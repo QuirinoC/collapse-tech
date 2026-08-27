@@ -12,6 +12,7 @@ import {
   contactSchema,
 } from "../lib/schemas.js";
 import { createMemoryStore } from "../lib/memory-store.js";
+import { acceptApplication } from "../lib/campaign-flow.js";
 
 test("signup requires strong password and valid role", () => {
   assert.throws(() =>
@@ -55,6 +56,19 @@ test("campaign schema floors at minimum budget and requires platforms/niches", (
       niches: ["food"],
       slots: 2,
       budgetCents: 5000,
+    }),
+  );
+  assert.throws(() =>
+    campaignSchema.parse({
+      title: "Invalid audience range",
+      brandName: "Acme",
+      brief: "This brief is definitely long enough to pass validation checks.",
+      platforms: ["tiktok"],
+      niches: ["food"],
+      followerMin: 20000,
+      followerMax: 10000,
+      slots: 2,
+      budgetCents: 100000,
     }),
   );
   assert.throws(() =>
@@ -154,6 +168,7 @@ test("memory store persists an accepted application as one repository operation"
       campaign_id: campaign.id,
       creator_id: creator.id,
       status: "instructions_sent",
+      payout_cents: 82000,
     },
   };
   const attempts = await Promise.allSettled([
@@ -206,6 +221,7 @@ test("conditional application decline cannot overwrite an acceptance", async () 
     pitch: "A sufficiently detailed pitch for the decision race test.",
     status: "pending",
   });
+
   await store.updateApplication(application.id, { status: "accepted" });
 
   const staleDecline = await store.declineApplication(
@@ -214,6 +230,118 @@ test("conditional application decline cannot overwrite an acceptance", async () 
   );
   assert.equal(staleDecline, null);
   assert.equal((await store.getApplication(application.id)).status, "accepted");
+});
+
+test("memory profile creation and claim are mutually exclusive", async () => {
+  const store = createMemoryStore();
+  const profile = await store.createProfile({
+    role: "creator",
+    email: "claim@example.com",
+    password_hash: null,
+    name: "Claimable Creator",
+  });
+  assert.equal(
+    (await store.claimProfile(profile.id, { password_hash: "first", name: "First" })).name,
+    "First",
+  );
+  assert.equal(
+    await store.claimProfile(profile.id, { password_hash: "second", name: "Second" }),
+    null,
+  );
+  await assert.rejects(
+    () =>
+      store.createProfile({
+        role: "creator",
+        email: "claim@example.com",
+        password_hash: "another",
+        name: "Duplicate",
+      }),
+    /already exists/,
+  );
+});
+
+test("conditional content submission cannot overwrite another submission", async () => {
+  const store = createMemoryStore();
+  const assignment = await store.insertAssignment({
+    campaign_id: "campaign-submit-race",
+    creator_id: "creator-submit-race",
+    status: "instructions_sent",
+  });
+  const first = await store.submitAssignment(assignment.id, {
+    status: "submitted",
+    content_url: "https://example.com/first",
+    submitted_at: "2026-08-27T00:00:00.000Z",
+    notes: null,
+  });
+  assert.equal(first.content_url, "https://example.com/first");
+  assert.equal(
+    await store.submitAssignment(assignment.id, {
+      status: "submitted",
+      content_url: "https://example.com/second",
+      submitted_at: "2026-08-27T00:00:01.000Z",
+      notes: null,
+    }),
+    null,
+  );
+});
+
+test("memory acceptance validates the payout against the claimed roster state", async () => {
+  const store = createMemoryStore();
+  const brand = await store.createProfile({
+    role: "brand",
+    email: "payout-brand@example.com",
+    password_hash: "hash",
+    name: "Payout Brand",
+  });
+  const creators = await store.listCreatorDirectory();
+  const campaign = await store.insertCampaign({
+    brand_id: brand.id,
+    brand_name: brand.name,
+    title: "Remainder-safe campaign",
+    brief: "A sufficiently detailed campaign brief for payout allocation testing.",
+    platforms: ["tiktok"],
+    niches: ["beauty"],
+    slots: 3,
+    slots_remaining: 3,
+    budget_cents: 100000,
+    fee_cents: 18000,
+    per_creator_cents: 27333,
+    status: "open",
+    payment_status: "unpaid",
+  });
+  const firstApplication = await store.insertApplication({
+    campaign_id: campaign.id,
+    creator_id: creators[0].id,
+    pitch: "A sufficiently detailed pitch for the payout allocation test.",
+    status: "pending",
+  });
+  const secondApplication = await store.insertApplication({
+    campaign_id: campaign.id,
+    creator_id: creators[1].id,
+    pitch: "A sufficiently detailed pitch for the payout allocation test.",
+    status: "pending",
+  });
+  const first = acceptApplication(campaign, firstApplication, creators[0].id);
+  await store.acceptApplication(first);
+
+  const staleSecond = acceptApplication(
+    campaign,
+    secondApplication,
+    creators[1].id,
+  );
+  await assert.rejects(
+    () => store.acceptApplication(staleSecond),
+    /original payout/,
+  );
+
+  const currentCampaign = await store.getCampaign(campaign.id);
+  const retry = acceptApplication(
+    currentCampaign,
+    secondApplication,
+    creators[1].id,
+  );
+  assert.equal(retry.assignment.payout_cents, 27333);
+  await store.acceptApplication(retry);
 });
 
 test("approval and rejection claims are mutually exclusive", async () => {

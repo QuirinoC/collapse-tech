@@ -1,4 +1,9 @@
-import { randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
+import {
+  createHash,
+  randomBytes,
+  scrypt as scryptCb,
+  timingSafeEqual,
+} from "node:crypto";
 import { promisify } from "node:util";
 
 const scrypt = promisify(scryptCb);
@@ -19,6 +24,10 @@ export async function verifyPassword(password, stored) {
   } catch {
     return false;
   }
+}
+
+export function hashSessionToken(token) {
+  return createHash("sha256").update(token).digest("hex");
 }
 
 function bytesToHex(bytes) {

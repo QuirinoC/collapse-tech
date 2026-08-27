@@ -2,6 +2,10 @@
 
 *Prepared August 2026. Sources: public pricing pages, G2/Capterra reviews, agency rate cards, FTC endorsement guides.*
 
+> **Product status:** Payment funding and payouts are disabled in production.
+> References to escrow, guaranteed payment, and payment operations in this
+> document describe the planned model, not a currently available service.
+
 ## 1. Market structure
 
 Influencer marketing spend keeps growing double-digits annually, but the **tooling** layer is saturated while the **transaction** layer is not. Incumbents sell software; almost nobody sells the outcome itself with money movement built in.

@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { getStore } from "@/lib/repository";
 import { requireRole } from "@/lib/session";
 import { acceptApplication, declineApplicationPatch } from "@/lib/campaign-flow";
+import { nextAssignmentPayoutCents } from "@/lib/money";
+import { getPaymentsStatus } from "@/lib/payments";
+import { parseJsonBody, requestError } from "@/lib/request";
+import { publicCreatorProfile } from "@/lib/public-profile";
 
 export async function GET(request, { params }) {
   const { id } = await params;
@@ -20,7 +24,7 @@ export async function GET(request, { params }) {
   const withCreators = await Promise.all(
     applications.map(async (application) => ({
       ...application,
-      creator: stripHash(await store.getProfile(application.creator_id)),
+      creator: publicCreatorProfile(await store.getProfile(application.creator_id)),
     })),
   );
   return NextResponse.json({ applications: withCreators });
@@ -30,9 +34,10 @@ export async function POST(request, { params }) {
   const { id } = await params;
   let body;
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    body = await parseJsonBody(request);
+  } catch (error) {
+    const failure = requestError(error);
+    return NextResponse.json({ error: failure.message }, { status: failure.status });
   }
   const { applicationId, decision } = body || {};
   if (!["accept", "decline"].includes(decision)) {
@@ -75,9 +80,31 @@ export async function POST(request, { params }) {
   }
 
   // accept
+  const payments = getPaymentsStatus();
+  if (!payments.ready) {
+    return NextResponse.json(
+      {
+        error:
+          "Creator acceptance is unavailable until payment funding is enabled.",
+      },
+      { status: 503 },
+    );
+  }
   let result;
   try {
-    result = acceptApplication(campaign, application, application.creator_id);
+    const assignments = await store.listAssignments({ campaignId: id });
+    const committedPayoutCents = assignments.reduce(
+      (sum, assignment) =>
+        sum + (assignment.payout_cents ?? campaign.per_creator_cents),
+      0,
+    );
+    result = acceptApplication(
+      campaign,
+      application,
+      application.creator_id,
+      undefined,
+      nextAssignmentPayoutCents(campaign, committedPayoutCents),
+    );
   } catch (error) {
     return NextResponse.json(
       { error: error.message },
@@ -96,10 +123,4 @@ export async function POST(request, { params }) {
       { status: 409 },
     );
   }
-}
-
-function stripHash(profile) {
-  if (!profile) return null;
-  const { password_hash, ...rest } = profile;
-  return rest;
 }

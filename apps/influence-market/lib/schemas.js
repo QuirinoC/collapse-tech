@@ -75,7 +75,16 @@ export const campaignSchema = z.object({
     .int()
     .min(MIN_CAMPAIGN_BUDGET_CENTS)
     .max(MAX_CAMPAIGN_BUDGET_CENTS),
-});
+}).refine(
+  ({ followerMin, followerMax }) =>
+    followerMin === undefined ||
+    followerMax === undefined ||
+    followerMin <= followerMax,
+  {
+    message: "followerMin must not exceed followerMax.",
+    path: ["followerMax"],
+  },
+);
 
 export const applicationSchema = z.object({
   pitch: z.string().min(20).max(1200),
@@ -109,10 +118,3 @@ export const contactSchema = z.object({
   kind: z.enum(["brand", "creator", "other"]),
   message: z.string().min(10).max(4000),
 });
-
-export function firstIssue(error) {
-  const issue = error?.issues?.[0];
-  if (!issue) return "Invalid request.";
-  const path = issue.path?.length ? `${issue.path.join(".")}: ` : "";
-  return `${path}${issue.message}`;
-}

@@ -41,8 +41,8 @@ export default function CreatorsPage() {
         <p className="eyebrow">The roster</p>
         <h1>Creators</h1>
         <p className="lede">
-          Every listing is vetted with live channel metrics. Filter by platform,
-          topic and audience size to preview who your brief reaches.
+          Browse creator-provided channels, topics, and follower counts. Filter
+          by platform, topic, and audience size to explore potential fits.
         </p>
       </div>
       <div className="page-body">
