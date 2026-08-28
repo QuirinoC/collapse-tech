@@ -4,14 +4,16 @@ namespace CoachGG.Services;
 
 public static class RedisConnectionOptions
 {
-    public static ConfigurationOptions Parse(string connection)
+    public static ConfigurationOptions Parse(string connection, bool abortOnConnectFail = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connection);
 
         if (!Uri.TryCreate(connection, UriKind.Absolute, out var uri)
             || (uri.Scheme != "redis" && uri.Scheme != "rediss"))
         {
-            return ConfigurationOptions.Parse(connection);
+            var parsedOptions = ConfigurationOptions.Parse(connection);
+            parsedOptions.AbortOnConnectFail = abortOnConnectFail;
+            return parsedOptions;
         }
 
         if (string.IsNullOrWhiteSpace(uri.Host))
@@ -20,7 +22,7 @@ public static class RedisConnectionOptions
         var usesTls = uri.Scheme == "rediss";
         var options = new ConfigurationOptions
         {
-            AbortOnConnectFail = false,
+            AbortOnConnectFail = abortOnConnectFail,
             Ssl = usesTls
         };
         options.EndPoints.Add(uri.Host, uri.IsDefaultPort ? usesTls ? 6380 : 6379 : uri.Port);

@@ -14,14 +14,24 @@ if (string.IsNullOrWhiteSpace(apiKey))
 
 var redisUrl = Environment.GetEnvironmentVariable("REDIS_URL")
     ?? Environment.GetEnvironmentVariable("REDIS_CONNECTION")
-    ?? builder.Configuration["Redis:ConnectionString"]
-    ?? "localhost:6379";
+    ?? builder.Configuration["Redis:ConnectionString"];
+if (string.IsNullOrWhiteSpace(redisUrl))
+{
+    if (builder.Environment.IsProduction())
+        throw new InvalidOperationException("REDIS_URL or REDIS_CONNECTION must be configured in production.");
 
-var redisOptions = RedisConnectionOptions.Parse(redisUrl);
+    redisUrl = "localhost:6379";
+}
+
+var redisOptions = RedisConnectionOptions.Parse(
+    redisUrl,
+    abortOnConnectFail: builder.Environment.IsProduction());
+var redisMultiplexer = await ConnectionMultiplexer.ConnectAsync(redisOptions);
+if (builder.Environment.IsProduction())
+    await redisMultiplexer.GetDatabase().PingAsync();
 
 // Redis
-builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
-    ConnectionMultiplexer.Connect(redisOptions));
+builder.Services.AddSingleton<IConnectionMultiplexer>(redisMultiplexer);
 builder.Services.AddSingleton<RedisService>();
 
 // HTTP client for start.gg

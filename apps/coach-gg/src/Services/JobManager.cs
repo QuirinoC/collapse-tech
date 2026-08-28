@@ -8,7 +8,10 @@ namespace CoachGG.Services;
 public class JobManager
 {
     private static readonly TimeSpan JobLeaseDuration = TimeSpan.FromMinutes(3);
+    private static readonly TimeSpan JobLeaseRecoveryCheckInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan JobLeaseHeartbeatInterval = TimeSpan.FromMinutes(1);
     private readonly ConcurrentDictionary<string, byte> _running = new();
+    private readonly ConcurrentDictionary<string, byte> _leaseRecoveryScheduled = new();
     private readonly string _ownerId = Guid.NewGuid().ToString("N");
     private readonly IHubContext<AnalysisHub> _hub;
     private readonly StartGGService _startGG;
@@ -60,12 +63,25 @@ public class JobManager
     /// "Running" after a deploy/restart killed the worker — callers must double-check this.</summary>
     public bool IsRunning(string slug) => _running.ContainsKey(slug);
 
+    public void ScheduleLeaseRecovery(string slug)
+    {
+        if (!_leaseRecoveryScheduled.TryAdd(slug, 0))
+            return;
+
+        _ = Task.Run(() => RecoverExpiredLeaseAsync(slug, _applicationLifetime.ApplicationStopping));
+    }
+
     private async Task RunJobAsync(string slug, CancellationToken stoppingToken)
     {
+        using var jobCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        var jobToken = jobCancellation.Token;
+        var heartbeat = MaintainLeaseAsync(slug, jobCancellation);
+
         try
         {
-            stoppingToken.ThrowIfCancellationRequested();
-            await _redis.SetJobStateAsync(slug, new JobState { Status = JobStatus.Running });
+            jobToken.ThrowIfCancellationRequested();
+            await EnsureLeaseOwnershipAsync(slug);
+            await SetJobStateIfLeaseOwnerAsync(slug, new JobState { Status = JobStatus.Running });
 
             var (userId, games) = await _startGG.GetGamesMetadataAsync(
                 slug,
@@ -73,6 +89,8 @@ public class JobManager
                 {
                     await EnsureLeaseOwnershipAsync(slug);
                     var partial = _aggregations.ComputeAll(uid, gamesSoFar);
+                    jobToken.ThrowIfCancellationRequested();
+                    await EnsureLeaseOwnershipAsync(slug);
                     var state = new JobState
                     {
                         Status = JobStatus.Running,
@@ -80,32 +98,34 @@ public class JobManager
                         TotalPages = total,
                         PartialStats = partial
                     };
-                    await _redis.SetJobStateAsync(slug, state);
+                    await SetJobStateIfLeaseOwnerAsync(slug, state);
                     await _hub.Clients.Group(slug).SendAsync("Progress", new
                     {
                         slug,
                         currentPage = page,
                         totalPages = total,
                         partialStats = partial
-                    }, stoppingToken);
+                    }, jobToken);
                 },
-                stoppingToken);
+                jobToken);
 
             await EnsureLeaseOwnershipAsync(slug);
+            jobToken.ThrowIfCancellationRequested();
             if (userId == null)
                 throw new Exception($"User '{slug}' not found on start.gg");
 
             await _redis.SetCachedGamesAsync(slug, userId.Value, games);
-
             var finalStats = _aggregations.ComputeAll(userId.Value, games);
-            await _redis.SetJobStateAsync(slug, new JobState
+            jobToken.ThrowIfCancellationRequested();
+            await EnsureLeaseOwnershipAsync(slug);
+            await SetJobStateIfLeaseOwnerAsync(slug, new JobState
             {
                 Status = JobStatus.Complete,
                 FinalStats = finalStats,
                 StatsVersion = Constants.StatsVersion
             }, TimeSpan.FromHours(24));
 
-            await _hub.Clients.Group(slug).SendAsync("JobComplete", new { slug, stats = finalStats }, stoppingToken);
+            await _hub.Clients.Group(slug).SendAsync("JobComplete", new { slug, stats = finalStats }, jobToken);
             _logger.LogInformation("Job complete for {Slug}", slug);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -116,18 +136,19 @@ public class JobManager
         {
             _logger.LogWarning("Job lease was lost for {Slug}; another replica may resume the analysis", slug);
         }
+        catch (OperationCanceledException) when (jobToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("Job lease renewal failed for {Slug}; stopping this worker", slug);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Job failed for {Slug}", slug);
-            await _redis.SetJobStateAsync(slug, new JobState
-            {
-                Status = JobStatus.Error,
-                Error = ex.Message
-            }, TimeSpan.FromMinutes(5));
-            await _hub.Clients.Group(slug).SendAsync("JobError", new { slug, error = ex.Message });
+            await ReportFailureIfLeaseOwnerAsync(slug, ex);
         }
         finally
         {
+            jobCancellation.Cancel();
+            await heartbeat;
             try
             {
                 await _redis.ReleaseJobLeaseAsync(slug, _ownerId);
@@ -144,6 +165,95 @@ public class JobManager
     {
         if (!await _redis.RenewJobLeaseAsync(slug, _ownerId, JobLeaseDuration))
             throw new JobLeaseLostException();
+    }
+
+    private async Task SetJobStateIfLeaseOwnerAsync(string slug, JobState state, TimeSpan? ttl = null)
+    {
+        if (!await _redis.TrySetJobStateIfLeaseOwnerAsync(slug, _ownerId, state, ttl))
+            throw new JobLeaseLostException();
+    }
+
+    private async Task ReportFailureIfLeaseOwnerAsync(string slug, Exception error)
+    {
+        try
+        {
+            var stored = await _redis.TrySetJobStateIfLeaseOwnerAsync(slug, _ownerId, new JobState
+            {
+                Status = JobStatus.Error,
+                Error = error.Message
+            }, TimeSpan.FromMinutes(5));
+            if (stored)
+                await _hub.Clients.Group(slug).SendAsync("JobError", new { slug, error = error.Message });
+            else
+                _logger.LogWarning("Not reporting a job failure for {Slug} because the lease is no longer owned", slug);
+        }
+        catch (Exception reportException)
+        {
+            _logger.LogError(reportException, "Failed to report job failure for {Slug}", slug);
+        }
+    }
+
+    private async Task RecoverExpiredLeaseAsync(string slug, CancellationToken stoppingToken)
+    {
+        try
+        {
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                var state = await _redis.GetJobStateAsync(slug);
+                if (state is { Status: not JobStatus.Running })
+                    return;
+
+                if (await StartJobAsync(slug))
+                    return;
+
+                await Task.Delay(JobLeaseRecoveryCheckInterval, stoppingToken);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            _logger.LogInformation("Lease recovery cancelled during application shutdown for {Slug}", slug);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Lease recovery failed for {Slug}", slug);
+            await _hub.Clients.Group(slug).SendAsync("JobError", new
+            {
+                slug,
+                error = "Analysis recovery failed. Please try again shortly."
+            });
+        }
+        finally
+        {
+            _leaseRecoveryScheduled.TryRemove(slug, out _);
+        }
+    }
+
+    private async Task MaintainLeaseAsync(string slug, CancellationTokenSource jobCancellation)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(JobLeaseHeartbeatInterval);
+            while (!jobCancellation.IsCancellationRequested)
+            {
+                if (!await _redis.RenewJobLeaseAsync(slug, _ownerId, JobLeaseDuration))
+                {
+                    _logger.LogWarning("Job lease expired for {Slug}; stopping this worker", slug);
+                    jobCancellation.Cancel();
+                    return;
+                }
+
+                if (!await timer.WaitForNextTickAsync(jobCancellation.Token))
+                    return;
+            }
+        }
+        catch (OperationCanceledException) when (jobCancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to renew job lease for {Slug}; stopping this worker", slug);
+            jobCancellation.Cancel();
+        }
     }
 
     private sealed class JobLeaseLostException : Exception;

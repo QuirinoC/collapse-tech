@@ -20,6 +20,14 @@ public class RedisService
         return 0
         """;
 
+    private const string SetJobStateWithLeaseScript = """
+        if redis.call('GET', KEYS[1]) == ARGV[1] then
+          redis.call('SET', KEYS[2], ARGV[2], 'PX', ARGV[3])
+          return 1
+        end
+        return 0
+        """;
+
     private readonly IDatabase _db;
     private readonly ILogger<RedisService> _logger;
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -58,23 +66,15 @@ public class RedisService
 
     public async Task<JobState?> GetJobStateAsync(string slug)
     {
-        try
-        {
-            var val = await _db.StringGetAsync($"job_state:{slug}");
-            return val.HasValue ? JsonSerializer.Deserialize<JobState>(val!, JsonOpts) : null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Redis job-state read failed for {Slug}", slug);
-            return null;
-        }
+        var val = await _db.StringGetAsync(JobStateKey(slug));
+        return val.HasValue ? JsonSerializer.Deserialize<JobState>(val!, JsonOpts) : null;
     }
 
     public async Task SetJobStateAsync(string slug, JobState state, TimeSpan? ttl = null)
     {
         try
         {
-            await _db.StringSetAsync($"job_state:{slug}", JsonSerializer.Serialize(state, JsonOpts), ttl ?? TimeSpan.FromHours(1));
+            await _db.StringSetAsync(JobStateKey(slug), JsonSerializer.Serialize(state, JsonOpts), ttl ?? TimeSpan.FromHours(1));
         }
         catch (Exception ex)
         {
@@ -82,9 +82,27 @@ public class RedisService
         }
     }
 
+    public async Task<bool> TrySetJobStateIfLeaseOwnerAsync(
+        string slug,
+        string ownerId,
+        JobState state,
+        TimeSpan? ttl = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerId);
+        var stateDuration = ttl ?? TimeSpan.FromHours(1);
+        if (stateDuration <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(ttl), "Job state TTL must be positive.");
+
+        var result = await _db.ScriptEvaluateAsync(
+            SetJobStateWithLeaseScript,
+            [JobLeaseKey(slug), JobStateKey(slug)],
+            [ownerId, JsonSerializer.Serialize(state, JsonOpts), checked((long)stateDuration.TotalMilliseconds)]);
+        return (int)result == 1;
+    }
+
     public async Task DeleteJobStateAsync(string slug)
     {
-        try { await _db.KeyDeleteAsync($"job_state:{slug}"); }
+        try { await _db.KeyDeleteAsync(JobStateKey(slug)); }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Redis job-state deletion failed for {Slug}", slug);
@@ -118,7 +136,9 @@ public class RedisService
         return (int)result == 1;
     }
 
-    private static RedisKey JobLeaseKey(string slug) => $"job_lease:{slug}";
+    private static RedisKey JobLeaseKey(string slug) => $"job_lease:{{{slug}}}";
+
+    private static RedisKey JobStateKey(string slug) => $"job_state:{{{slug}}}";
 
     private static void ValidateLease(string ownerId, TimeSpan duration)
     {

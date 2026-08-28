@@ -57,7 +57,8 @@ public class AnalysisHub : Hub
                     if (_jobManager.IsRunning(slug))
                         return;
 
-                    await _jobManager.StartJobAsync(slug);
+                    if (!await _jobManager.StartJobAsync(slug))
+                        _jobManager.ScheduleLeaseRecovery(slug);
                     return;
                 }
             }
@@ -78,6 +79,7 @@ public class AnalysisHub : Hub
             if (!await _jobManager.StartJobAsync(slug))
             {
                 await Clients.Caller.SendAsync("Progress", new { slug, currentPage = 0, totalPages = 0, partialStats = (object?)null });
+                _jobManager.ScheduleLeaseRecovery(slug);
             }
         }
         catch (Exception ex)

@@ -39,6 +39,28 @@ public class RedisConnectionOptionsTests
         AssertEndpoint(options, "cache.example.test", 6379);
     }
 
+    [Fact]
+    public void Parse_ProductionConfiguration_AbortsOnInitialConnectionFailure()
+    {
+        var options = RedisConnectionOptions.Parse(
+            "rediss://:password@cache.example.test",
+            abortOnConnectFail: true);
+
+        Assert.True(options.AbortOnConnectFail);
+        Assert.True(options.Ssl);
+    }
+
+    [Fact]
+    public void Parse_ProductionConnectionString_AbortsOnInitialConnectionFailure()
+    {
+        var options = RedisConnectionOptions.Parse(
+            "cache.example.test:6379,ssl=true",
+            abortOnConnectFail: true);
+
+        Assert.True(options.AbortOnConnectFail);
+        Assert.True(options.Ssl);
+    }
+
     private static void AssertEndpoint(
         StackExchange.Redis.ConfigurationOptions options,
         string expectedHost,

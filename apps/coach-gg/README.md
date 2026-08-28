@@ -224,8 +224,9 @@ CoachGG runs as a Render web service in project **collapse-tech**
 4. Push to `main` to auto-deploy
 
 Redis is required for shared game caching, distributed job leases, and the SignalR
-backplane. A Redis outage is logged explicitly, and an expired lease allows one
-replica to resume work after a crash without duplicating the start.gg request.
+backplane. Production refuses to start unless `REDIS_URL` or `REDIS_CONNECTION`
+is explicitly configured and reachable. An expired lease allows one replica to
+resume work after a crash without duplicating the start.gg request.
 
 ---
 
