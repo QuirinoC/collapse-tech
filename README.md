@@ -73,7 +73,7 @@ npm test
 | Application | Directory | Host | Production URL |
 | --- | --- | --- | --- |
 | Collapse Technologies | `apps/collapse-technologies` | Cloudflare Pages (static export) | `collapsetechnologies.com` ✅ live |
-| Asymmetric Challenge | `apps/asymmetric-challenge` | Cloudflare Workers via `@opennextjs/cloudflare` | `challenge.collapsetechnologies.com` ✅ live (`x-opennext: 1`) |
+| Asymmetric Challenge | `apps/asymmetric-challenge` | Cloudflare Workers via `@opennextjs/cloudflare` + Cloudflare D1 | `challenge.collapsetechnologies.com` ✅ live (`x-opennext: 1`) |
 | Dress Like Me | `apps/dress-like-me` | Cloudflare Workers via `@opennextjs/cloudflare` | `dresslikeme.collapsetechnologies.com` ✅ live (app itself still pre-launch) |
 | Collapse Health | `apps/collapse-health` | Cloudflare Pages (static export) + lead Worker `collapse-health-leads` (KV-backed) | `health.collapsetechnologies.com` ✅ live — WIP/not-operating banner, no prices |
 | Influence.Market | `apps/influence-market` | Cloudflare Workers via `@opennextjs/cloudflare` + Cloudflare D1 (native `DB` binding; Supabase Postgres optional) | `influence.collapsetechnologies.com` ✅ live |

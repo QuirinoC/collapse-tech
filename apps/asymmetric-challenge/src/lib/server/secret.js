@@ -1,8 +1,34 @@
 import crypto from "node:crypto";
 import { isHexString, normalizeHex } from "../shared/hex.js";
 
-export function getSecretHex() {
-  const raw = process.env.SECRET_KEY_HEX;
+const SECRET_ENV_NAME = "SECRET_KEY_HEX";
+
+let hydratePromise;
+
+export async function hydrateWorkerSecrets() {
+  const runningOnWorker = typeof caches !== "undefined";
+  if (!runningOnWorker && process.env[SECRET_ENV_NAME]) return;
+  if (!hydratePromise) {
+    hydratePromise = (async () => {
+      try {
+        const { getCloudflareContext } = await import("@opennextjs/cloudflare");
+        let context = getCloudflareContext();
+        if (typeof context?.then === "function") context = await context;
+        const env = context?.env;
+        if (env?.SECRET_KEY_HEX) {
+          process.env[SECRET_ENV_NAME] = env.SECRET_KEY_HEX;
+        }
+      } catch {
+        // Local Node tests and `next build` have no Worker bindings.
+      }
+    })();
+  }
+  await hydratePromise;
+}
+
+export async function getSecretHex() {
+  await hydrateWorkerSecrets();
+  const raw = process.env[SECRET_ENV_NAME];
   if (!raw) {
     throw new Error("SECRET_KEY_HEX is required");
   }
@@ -13,19 +39,19 @@ export function getSecretHex() {
   return normalized;
 }
 
-export function getCommitmentHash() {
-  const secretHex = getSecretHex();
+export async function getCommitmentHash() {
+  const secretHex = await getSecretHex();
   const secretBytes = Buffer.from(secretHex, "hex");
   return crypto.createHash("sha256").update(secretBytes).digest("hex");
 }
 
-export function getChallengeId() {
-  const hash = getCommitmentHash();
+export async function getChallengeId() {
+  const hash = await getCommitmentHash();
   return hash.slice(0, 12).toUpperCase();
 }
 
-export function guessMatchesSecret(guessHex) {
-  const secretHex = getSecretHex();
+export async function guessMatchesSecret(guessHex) {
+  const secretHex = await getSecretHex();
   const normalizedGuess = normalizeHex(guessHex);
   if (!isHexString(normalizedGuess, 64)) {
     return false;

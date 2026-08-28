@@ -73,9 +73,9 @@ test("parseTelemetryPayload requires bounded, internally consistent counts", () 
 test("getDatabaseErrorMetadata exposes only a provider and error code", () => {
   assert.deepEqual(
     getDatabaseErrorMetadata({
-      provider: "supabase",
-      message: "error code: 1016",
+      provider: "d1",
+      message: "error code: SQLITE_CONSTRAINT",
     }),
-    { provider: "supabase", code: "1016" }
+    { provider: "d1", code: "SQLITE_CONSTRAINT" }
   );
 });

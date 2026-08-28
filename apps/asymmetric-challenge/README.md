@@ -9,7 +9,7 @@ Built to explore proof-of-work style commitments with real money at stake.
 
 A secret 256-bit key (`SECRET_KEY_HEX`) generates public commitment hashes.
 Players submit guesses; the app checks them against the commitment and records
-aggregate attempt totals in Postgres (Supabase). Changing the secret rotates all
+aggregate attempt totals in Cloudflare D1. Changing the secret rotates all
 challenge IDs and invalidates existing guesses — see "Local Secret Rotation" in
 [DEPLOYMENT.md](./DEPLOYMENT.md).
 
@@ -17,31 +17,37 @@ challenge IDs and invalidates existing guesses — see "Local Secret Rotation" i
 
 - Next.js on Cloudflare Workers via `@opennextjs/cloudflare`
   (`open-next.config.ts` + `wrangler.jsonc`, `nodejs_compat` flag)
-- Supabase Postgres (schema in `supabase/schema.sql`)
+- Cloudflare D1 (schema in `d1/migrations/`)
 - Playwright E2E tests (`npm run test:e2e`), node test runner for units
 
 ## Local development
 
 ```bash
 npm install --legacy-peer-deps   # adapter peer-wants next >= 16.2.11
-SECRET_KEY_HEX=$(openssl rand -hex 32) \
-SUPABASE_URL=... \
-SUPABASE_SERVICE_ROLE_KEY=... \
-npm run dev
+SECRET_KEY_HEX=$(openssl rand -hex 32) npm run dev
+```
+
+API routes need the D1 binding, so stats/claim/telemetry against a real database
+use Wrangler:
+
+```bash
+npx wrangler d1 migrations apply asymmetric-challenge --local
+SECRET_KEY_HEX=$(openssl rand -hex 32) npx opennextjs-cloudflare build
+npx wrangler dev
 ```
 
 From repo root: `npm run dev:challenge`.
 
 ## Build & deploy
 
-Deployment details (secrets, Supabase setup, rotation) live in
+Deployment details (D1 migrations, secrets, rotation) live in
 [DEPLOYMENT.md](./DEPLOYMENT.md). Short version:
 
 ```bash
+npx wrangler d1 migrations apply asymmetric-challenge --remote
 SECRET_KEY_HEX=$(openssl rand -hex 32) npx opennextjs-cloudflare build
-npx wrangler deploy
+npx wrangler deploy --keep-vars
 ```
 
-Secrets are Worker secrets set via `wrangler secret put`: `SECRET_KEY_HEX`,
-`SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`. The custom domain
-`challenge.collapsetechnologies.com` is bound in `wrangler.jsonc`.
+The only runtime secret is `SECRET_KEY_HEX` (`wrangler secret put`). The custom
+domain `challenge.collapsetechnologies.com` is bound in `wrangler.jsonc`.
