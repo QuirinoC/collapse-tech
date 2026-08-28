@@ -1,8 +1,8 @@
 import { guessMatchesSecret } from "./secret.js";
 
-export function evaluateClaim({ guessHex, alreadyWon }) {
+export async function evaluateClaim({ guessHex, alreadyWon }) {
   if (alreadyWon) {
     return "already_won";
   }
-  return guessMatchesSecret(guessHex) ? "won" : "nope";
+  return (await guessMatchesSecret(guessHex)) ? "won" : "nope";
 }

@@ -1,26 +1,19 @@
-# Deployment Notes (Cloudflare Workers + Supabase)
+# Deployment Notes (Cloudflare Workers + D1)
 
-## Supabase
-1. Create a new Supabase project.
-2. Open the SQL editor and run `supabase/schema.sql`. Re-run the idempotent
-   script when upgrading an existing deployment: it converts the historical
-   telemetry view to a one-row counter, preserves the accumulated totals, and
-   permanently removes the old per-client telemetry records. Export those
-   records first if a separate legal retention requirement applies.
-3. Copy the Supabase project URL and service-role key. The app uses Supabase's
-   HTTPS API and does not support direct `DATABASE_URL` connections.
+## D1
 
-The schema enables RLS and permits its counter function only to Supabase's
-`service_role`; no direct table access is granted to public or client roles.
+Stats, telemetry, and winner claims persist in the `asymmetric-challenge` D1
+database bound as `DB` in `wrangler.jsonc`. Schema lives in
+`d1/migrations/` — apply it with Wrangler, not a third-party SQL dashboard:
 
-For an upgrade, first quiesce Worker traffic and allow in-flight requests to
-finish. The schema runs as one transaction, locking `winners` through duplicate
-validation and singleton-constraint installation, then locking telemetry while
-it aggregates and removes the old table. Deploy the new Worker only after the
-transaction commits, then resume traffic. If the script reports multiple
-historical winners, it rolls back without changing telemetry or winner data;
-resolve the duplicate claims and retain only the verified earliest winner before
-re-running it.
+```bash
+npx wrangler d1 migrations apply asymmetric-challenge --local
+npx wrangler d1 migrations apply asymmetric-challenge --remote
+```
+
+The migration creates a singleton `telemetry_totals` row (global attempt
+counters) and a single-slot `winners` table. A second winning claim hits the
+unique `winner_slot` constraint and returns `already_won`.
 
 ## Cloudflare Workers (via @opennextjs/cloudflare)
 
@@ -30,28 +23,25 @@ The app runs on a Cloudflare Worker through the OpenNext adapter
 ```bash
 npm install --legacy-peer-deps   # adapter peer-wants next >= 16.2.11
 npx opennextjs-cloudflare build
-npx wrangler deploy
+npx wrangler deploy --keep-vars
 ```
 
-Environment variables (set as Worker secrets via `wrangler secret put`):
+`--keep-vars` preserves dashboard/runtime secrets already on the Worker,
+including `SECRET_KEY_HEX`. Do not rotate that secret unless you intend to
+change the public commitment hash.
 
-- `SECRET_KEY_HEX`
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
+`SECRET_KEY_HEX` must exist at build time so Next can evaluate server modules
+(`SECRET_KEY_HEX=$(openssl rand -hex 32) npx opennextjs-cloudflare build` is
+enough for CI). Production reads the Worker secret at request time so a dummy
+build value does not replace the live challenge key.
 
-Note: `SECRET_KEY_HEX` is read at import time — it must exist even for local
-builds (`SECRET_KEY_HEX=$(openssl rand -hex 32) npx opennextjs-cloudflare build`).
+Keep `SECRET_KEY_HEX` scoped to this app; the Collapse Technologies site does
+not use it.
 
-Keep these variables scoped to this app; the Collapse Technologies site does not use them.
-
-## Restoring a stats outage
-
-If `/api/stats` logs `{"event":"stats_query_failed","provider":"supabase","code":"1016"}`,
-the configured Supabase host has a DNS/origin failure. Restore or verify the
-Supabase project, then update `SUPABASE_URL` with the project's canonical API
-URL from its dashboard. Run `supabase/schema.sql` before deploying the Worker;
-do not replace unavailable totals with a client-side estimate.
-Target domain after deploy: `challenge.collapsetechnologies.com` (custom domain on the Worker).
+Target domain after deploy: `challenge.collapsetechnologies.com` (custom domain
+on the Worker).
 
 ## Local Secret Rotation
-Changing `SECRET_KEY_HEX` will change the public commitment hash and challenge ID. If the secret changes, existing guesses become invalid.
+
+Changing `SECRET_KEY_HEX` will change the public commitment hash and challenge
+ID. If the secret changes, existing guesses become invalid.

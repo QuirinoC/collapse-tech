@@ -8,6 +8,14 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "asymmetric-challenge",
+      "database_id": "eb4bfa02-fdc4-41f5-802e-1a3ca09b07e2",
+      "migrations_dir": "d1/migrations"
+    }
+  ],
   "routes": [{ "pattern": "challenge.collapsetechnologies.com", "custom_domain": true }],
   "observability": {
     "enabled": true
