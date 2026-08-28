@@ -14,26 +14,24 @@ if (string.IsNullOrWhiteSpace(apiKey))
 
 var redisUrl = Environment.GetEnvironmentVariable("REDIS_URL")
     ?? Environment.GetEnvironmentVariable("REDIS_CONNECTION")
-    ?? builder.Configuration["Redis:ConnectionString"]
-    ?? "localhost:6379";
-
-// Parse rediss:// or redis:// URL into StackExchange.Redis connection string
-static string ParseRedisUrl(string url)
+    ?? builder.Configuration["Redis:ConnectionString"];
+if (string.IsNullOrWhiteSpace(redisUrl))
 {
-    if (!url.StartsWith("redis://") && !url.StartsWith("rediss://")) return url;
-    var ssl = url.StartsWith("rediss://");
-    var uri = new Uri(url);
-    var host = uri.Host;
-    var port = uri.Port > 0 ? uri.Port : (ssl ? 6380 : 6379);
-    var password = uri.UserInfo.Contains(':') ? Uri.UnescapeDataString(uri.UserInfo.Split(':', 2)[1]) : "";
-    return $"{host}:{port},password={password},ssl={ssl},abortConnect=False,connectTimeout=5000,syncTimeout=5000";
+    if (builder.Environment.IsProduction())
+        throw new InvalidOperationException("REDIS_URL or REDIS_CONNECTION must be configured in production.");
+
+    redisUrl = "localhost:6379";
 }
 
-var redisConn = ParseRedisUrl(redisUrl);
+var redisOptions = RedisConnectionOptions.Parse(
+    redisUrl,
+    abortOnConnectFail: builder.Environment.IsProduction());
+var redisMultiplexer = await ConnectionMultiplexer.ConnectAsync(redisOptions);
+if (builder.Environment.IsProduction())
+    await redisMultiplexer.GetDatabase().PingAsync();
 
 // Redis
-builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
-    ConnectionMultiplexer.Connect(redisConn));
+builder.Services.AddSingleton<IConnectionMultiplexer>(redisMultiplexer);
 builder.Services.AddSingleton<RedisService>();
 
 // HTTP client for start.gg
@@ -68,6 +66,9 @@ builder.Services.AddSignalR(opts =>
 }).AddJsonProtocol(opts =>
 {
     opts.PayloadSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+}).AddStackExchangeRedis(options =>
+{
+    options.Configuration = redisOptions;
 });
 
 // CORS (allow frontend everywhere)
@@ -85,6 +86,17 @@ builder.Services.AddControllers().AddJsonOptions(opts =>
 var app = builder.Build();
 
 app.UseCors();
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["Content-Security-Policy"] =
+        "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https://ssb.wiki.gallery data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "no-referrer";
+    context.Response.Headers["Permissions-Policy"] = "camera=(), geolocation=(), microphone=()";
+    context.Response.Headers["Strict-Transport-Security"] = "max-age=31536000";
+    await next();
+});
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
@@ -127,17 +139,20 @@ app.MapGet("/search", async (string q, SearchService search, HttpContext ctx) =>
 app.MapHub<AnalysisHub>("/analysishub");
 
 // Legacy REST endpoints
-app.MapGet("/counterpicker/{slug}", async (string slug, RedisService redis, StartGGService startGG, AggregationService agg) =>
+app.MapGet("/counterpicker/{slug}", async (string slug, RedisService redis, StartGGService startGG, AggregationService agg, HttpContext ctx) =>
 {
-    var cached = await redis.GetCachedGamesAsync(slug);
+    if (!PlayerSlug.TryNormalize(slug, out var normalizedSlug))
+        return Results.BadRequest(new { error = "Invalid slug" });
+
+    var cached = await redis.GetCachedGamesAsync(normalizedSlug);
     if (cached.HasValue)
     {
         var (userId, games) = cached.Value;
         return Results.Ok(agg.ComputeAll(userId, games));
     }
-    var (newUserId, newGames) = await startGG.GetGamesMetadataAsync(slug);
+    var (newUserId, newGames) = await startGG.GetGamesMetadataAsync(normalizedSlug, ct: ctx.RequestAborted);
     if (newUserId == null) return Results.NotFound(new { error = "User not found" });
-    await redis.SetCachedGamesAsync(slug, newUserId.Value, newGames);
+    await redis.SetCachedGamesAsync(normalizedSlug, newUserId.Value, newGames);
     return Results.Ok(agg.ComputeAll(newUserId.Value, newGames));
 });
 

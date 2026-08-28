@@ -8,7 +8,7 @@ const SERVER_URL = 'https://coach.collapsetechnologies.com';
 
 export default function App() {
   const [currentSlug, setCurrentSlug] = useState<string | null>(null);
-  const { connected, progress, analyze } = useSignalR(SERVER_URL);
+  const { progress, analyze, reset } = useSignalR(SERVER_URL);
 
   const handleAnalyze = (slug: string) => {
     setCurrentSlug(slug);
@@ -16,6 +16,7 @@ export default function App() {
   };
 
   const handleBack = () => {
+    reset();
     setCurrentSlug(null);
   };
 

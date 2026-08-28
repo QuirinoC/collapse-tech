@@ -107,6 +107,11 @@ jobs:
   coach:
     name: CoachGG
     runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
     defaults:
       run:
         working-directory: apps/coach-gg
@@ -117,8 +122,9 @@ jobs:
           dotnet-version: 8.0.x
           cache: true
           cache-dependency-path: apps/coach-gg/src/CoachGG.csproj
-      - run: dotnet restore src/CoachGG.csproj
+      - run: dotnet restore tests/CoachGG.Tests/CoachGG.Tests.csproj
       - run: dotnet format src/CoachGG.csproj --verify-no-changes --no-restore
+      - run: COACHGG_TEST_REDIS=localhost:6379 dotnet test tests/CoachGG.Tests/CoachGG.Tests.csproj --configuration Release --no-restore
       - run: dotnet build src/CoachGG.csproj --configuration Release --no-restore
       - name: Build production container
         run: docker build --tag coach-gg-ci:${{ github.sha }} .

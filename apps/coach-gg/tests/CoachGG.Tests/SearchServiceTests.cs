@@ -22,7 +22,25 @@ public class SearchServiceTests
         }
     }
 
+    private sealed class BlockingHandler : HttpMessageHandler
+    {
+        public int Calls;
+        public CancellationToken RequestCancellationToken;
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            Interlocked.Increment(ref Calls);
+            RequestCancellationToken = ct;
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            throw new InvalidOperationException("The cancellation token should stop this request.");
+        }
+    }
+
     private static SearchService CreateService(StubHandler handler)
+        => new(new HttpClient(handler) { BaseAddress = new Uri("https://api.start.gg/gql/alpha"), Timeout = TimeSpan.FromSeconds(10) },
+               Microsoft.Extensions.Logging.Abstractions.NullLogger<SearchService>.Instance);
+
+    private static SearchService CreateService(BlockingHandler handler)
         => new(new HttpClient(handler) { BaseAddress = new Uri("https://api.start.gg/gql/alpha"), Timeout = TimeSpan.FromSeconds(10) },
                Microsoft.Extensions.Logging.Abstractions.NullLogger<SearchService>.Instance);
 
@@ -102,5 +120,19 @@ public class SearchServiceTests
 
         var player = Assert.Single(results);
         Assert.Equal("RecoveringPlayer", player.GamerTag);
+    }
+
+    [Fact]
+    public async Task Cancellation_AbortsTheInFlightUpstreamRequest()
+    {
+        var handler = new BlockingHandler();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            CreateService(handler).SearchAsync("bc954a2e", cts.Token));
+
+        Assert.Equal(1, handler.Calls);
+        Assert.True(handler.RequestCancellationToken.CanBeCanceled);
+        Assert.True(handler.RequestCancellationToken.IsCancellationRequested);
     }
 }

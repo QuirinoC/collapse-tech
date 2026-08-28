@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -102,22 +103,36 @@ public class SearchService
     /// degradation to the caller instead of returning a misleading empty list.</summary>
     internal sealed class UpstreamHealth
     {
-        public bool SawAuthFailure;
-        public bool SawRateLimit;
-        public bool SawTransportFailure;
+        private int _sawAuthFailure;
+        private int _sawRateLimit;
+        private int _sawTransportFailure;
         public int Requests;
         public int Successes;
+
+        public bool SawAuthFailure => Volatile.Read(ref _sawAuthFailure) != 0;
+        public bool SawRateLimit => Volatile.Read(ref _sawRateLimit) != 0;
+        public bool SawTransportFailure => Volatile.Read(ref _sawTransportFailure) != 0;
+
+        public void RecordAuthFailure() => Interlocked.Exchange(ref _sawAuthFailure, 1);
+        public void RecordRateLimit() => Interlocked.Exchange(ref _sawRateLimit, 1);
+        public void RecordTransportFailure() => Interlocked.Exchange(ref _sawTransportFailure, 1);
+
         // A transient blip that a later request recovered from is NOT an outage;
         // auth rejection is — every other call would fail identically.
         public bool Outaged => SawAuthFailure || ((SawRateLimit || SawTransportFailure) && Successes == 0);
     }
 
-    private async Task<JsonNode?> ExecuteAsync(string query, object variables, UpstreamHealth? health = null)
+    private async Task<JsonNode?> ExecuteAsync(
+        string query,
+        object variables,
+        UpstreamHealth? health = null,
+        CancellationToken ct = default)
     {
         var body = JsonSerializer.Serialize(new { query, variables });
 
         for (var attempt = 1; attempt <= MaxAttemptsPerRequest; attempt++)
         {
+            ct.ThrowIfCancellationRequested();
             if (health != null && Interlocked.Increment(ref health.Requests) > MaxUpstreamRequestsPerSearch)
             {
                 _logger.LogWarning("start.gg request budget ({Max}) exhausted for this search — skipping further calls", MaxUpstreamRequestsPerSearch);
@@ -132,20 +147,20 @@ public class SearchService
                 {
                     Content = new StringContent(body, Encoding.UTF8, "application/json")
                 };
-                response = await _http.SendAsync(request);
-                var json = await response.Content.ReadAsStringAsync();
+                response = await _http.SendAsync(request, ct);
+                var json = await response.Content.ReadAsStringAsync(ct);
 
                 if ((int)response.StatusCode == 429)
                 {
-                    Mark(health, h => h.SawRateLimit = true);
+                    health?.RecordRateLimit();
                     _logger.LogWarning("start.gg rate limit hit (attempt {Attempt}/{Max})", attempt, MaxAttemptsPerRequest);
-                    if (attempt < MaxAttemptsPerRequest) await Task.Delay(TimeSpan.FromSeconds(2 * attempt));
+                    if (attempt < MaxAttemptsPerRequest) await Task.Delay(TimeSpan.FromSeconds(2 * attempt), ct);
                     continue;
                 }
                 if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden
                     || (int)response.StatusCode == 400 && json.Contains("Invalid authentication token"))
                 {
-                    Mark(health, h => h.SawAuthFailure = true);
+                    health?.RecordAuthFailure();
                     _logger.LogError("start.gg rejected credentials (HTTP {Status}): {Body}. Check STARTGG_APIKEY.", (int)response.StatusCode, Truncate(json));
                     return null;
                 }
@@ -162,9 +177,13 @@ public class SearchService
                 if (health != null) Interlocked.Increment(ref health.Successes);
                 return node?["data"];
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
-                Mark(health, h => h.SawTransportFailure = true);
+                health?.RecordTransportFailure();
                 _logger.LogWarning(ex, "start.gg request failed (attempt {Attempt}/{Max})", attempt, MaxAttemptsPerRequest);
                 if (attempt >= MaxAttemptsPerRequest) return null;
             }
@@ -176,11 +195,6 @@ public class SearchService
         }
 
         return null;
-    }
-
-    private static void Mark(UpstreamHealth? health, Action<UpstreamHealth> set)
-    {
-        if (health != null) set(health);
     }
 
     private static string Truncate(string s) => s.Length <= 300 ? s : s[..300] + "…";
@@ -195,7 +209,7 @@ public class SearchService
             throw new StartGgUnavailableException("could not reach start.gg");
     }
 
-    private List<PlayerSearchResult> ExtractParticipants(JsonArray? nodes, HashSet<string> seen)
+    private List<PlayerSearchResult> ExtractParticipants(JsonArray? nodes, ConcurrentDictionary<string, byte> seen)
     {
         var results = new List<PlayerSearchResult>();
         if (nodes == null) return results;
@@ -204,7 +218,7 @@ public class SearchService
             var user = node?["user"];
             if (user?["id"] == null) continue;
             var slug = user["slug"]?.GetValue<string>()?.Replace("user/", "") ?? "";
-            if (string.IsNullOrEmpty(slug) || !seen.Add(slug)) continue;
+            if (string.IsNullOrEmpty(slug) || !seen.TryAdd(slug, 0)) continue;
             results.Add(new PlayerSearchResult
             {
                 GamerTag = node?["gamerTag"]?.GetValue<string>() ?? "",
@@ -218,13 +232,14 @@ public class SearchService
 
     public async Task<List<PlayerSearchResult>> SearchAsync(string query, CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
         query = query.Trim();
-        var seen = new HashSet<string>();
+        var seen = new ConcurrentDictionary<string, byte>();
         var results = new List<PlayerSearchResult>();
         var health = new UpstreamHealth();
 
         // 1. Direct slug lookup — instant for users who paste their slug
-        var directData = await ExecuteAsync(DirectUserQuery, new { slug = query }, health);
+        var directData = await ExecuteAsync(DirectUserQuery, new { slug = query }, health, ct);
         var directUser = directData?["user"];
         if (directUser?["id"] != null)
         {
@@ -240,7 +255,7 @@ public class SearchService
         }
 
         ThrowIfOutage(health);
-        if (ct.IsCancellationRequested) return results;
+        ct.ThrowIfCancellationRequested();
 
         // 2. Run both searches in parallel: curated majors + recent local events
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -261,13 +276,13 @@ public class SearchService
     }
 
     private async Task<List<PlayerSearchResult>> SearchRecentAsync(
-        string tag, long now, long afterDate, HashSet<string> seen, UpstreamHealth health, CancellationToken ct)
+        string tag, long now, long afterDate, ConcurrentDictionary<string, byte> seen, UpstreamHealth health, CancellationToken ct)
     {
         var results = new List<PlayerSearchResult>();
         for (int page = 1; page <= 5 && !ct.IsCancellationRequested; page++)
         {
             if (health.Outaged) break;
-            var data = await ExecuteAsync(RecentBatchedQuery, new { tag, beforeDate = now, afterDate, page }, health);
+            var data = await ExecuteAsync(RecentBatchedQuery, new { tag, beforeDate = now, afterDate, page }, health, ct);
             var tournaments = data?["tournaments"]?["nodes"]?.AsArray();
             if (tournaments == null || tournaments.Count == 0) break;
 
@@ -282,7 +297,7 @@ public class SearchService
     }
 
     private async Task<List<PlayerSearchResult>> SearchMajorsAsync(
-        string tag, HashSet<string> seen, UpstreamHealth health, CancellationToken ct)
+        string tag, ConcurrentDictionary<string, byte> seen, UpstreamHealth health, CancellationToken ct)
     {
         var results = new List<PlayerSearchResult>();
         foreach (var batch in Majors.Chunk(8))
@@ -290,7 +305,7 @@ public class SearchService
             if (ct.IsCancellationRequested || results.Count >= 5 || health.Outaged) break;
             var tasks = batch.Select(async slug =>
             {
-                var data = await ExecuteAsync(MajorSearchQuery, new { slug, tag }, health);
+                var data = await ExecuteAsync(MajorSearchQuery, new { slug, tag }, health, ct);
                 return data?["tournament"]?["participants"]?["nodes"]?.AsArray();
             });
             foreach (var nodes in await Task.WhenAll(tasks))

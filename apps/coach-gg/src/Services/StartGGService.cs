@@ -60,12 +60,13 @@ query ResultsQuery($slug: String $page: Int $perPage: Int) {
 
     private const int MaxAttemptsPerRequest = 3;
 
-    private async Task<JsonNode?> ExecuteAsync(string query, object variables)
+    private async Task<JsonNode?> ExecuteAsync(string query, object variables, CancellationToken ct)
     {
         var body = JsonSerializer.Serialize(new { query, variables });
 
         for (var attempt = 1; attempt <= MaxAttemptsPerRequest; attempt++)
         {
+            ct.ThrowIfCancellationRequested();
             HttpRequestMessage? request = null;
             HttpResponseMessage response = null!;
             try
@@ -74,15 +75,15 @@ query ResultsQuery($slug: String $page: Int $perPage: Int) {
                 {
                     Content = new StringContent(body, Encoding.UTF8, "application/json")
                 };
-                response = await _http.SendAsync(request);
-                var json = await response.Content.ReadAsStringAsync();
+                response = await _http.SendAsync(request, ct);
+                var json = await response.Content.ReadAsStringAsync(ct);
 
                 if ((int)response.StatusCode == 429 || (int)response.StatusCode == 503)
                 {
                     _logger.LogWarning("Rate limited, retrying in 5s... (attempt {Attempt}/{Max})", attempt, MaxAttemptsPerRequest);
                     if (attempt < MaxAttemptsPerRequest)
                     {
-                        await Task.Delay(5000);
+                        await Task.Delay(5000, ct);
                         continue;
                     }
                     throw new Exception($"start.gg rate limit persisted after {MaxAttemptsPerRequest} attempts — try again in a minute");
@@ -103,6 +104,10 @@ query ResultsQuery($slug: String $page: Int $perPage: Int) {
 
                 return node?["data"];
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && attempt < MaxAttemptsPerRequest)
             {
                 _logger.LogWarning(ex, "start.gg request failed (attempt {Attempt}/{Max})", attempt, MaxAttemptsPerRequest);
@@ -119,10 +124,11 @@ query ResultsQuery($slug: String $page: Int $perPage: Int) {
 
     public async Task<(long? UserId, List<RawGame> Games)> GetGamesMetadataAsync(
         string slug,
-        Func<int, int, List<RawGame>, long, Task>? onProgress = null)
+        Func<int, int, List<RawGame>, long, Task>? onProgress = null,
+        CancellationToken ct = default)
     {
         var countVars = new { slug, page = 1, perPage = 30 };
-        var countData = await ExecuteAsync(GamesCountQuery, countVars);
+        var countData = await ExecuteAsync(GamesCountQuery, countVars, ct);
 
         if (countData?["user"] == null)
         {
@@ -149,8 +155,9 @@ query ResultsQuery($slug: String $page: Int $perPage: Int) {
 
         for (int page = 1; page <= totalPages; page++)
         {
+            ct.ThrowIfCancellationRequested();
             var vars = new { slug, page, perPage = 30 };
-            var data = await ExecuteAsync(GamesMetadataQuery, vars);
+            var data = await ExecuteAsync(GamesMetadataQuery, vars, ct);
             var sets = data?["user"]?["player"]?["sets"]?["nodes"];
 
             if (sets != null)

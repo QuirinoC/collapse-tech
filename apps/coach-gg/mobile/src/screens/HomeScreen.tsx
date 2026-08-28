@@ -38,6 +38,7 @@ export function HomeScreen({ onAnalyze }: Props) {
             placeholderTextColor="#6e7681"
             autoCapitalize="none"
             autoCorrect={false}
+            accessibilityLabel="start.gg player slug"
             onSubmitEditing={handleSubmit}
             returnKeyType="go"
           />

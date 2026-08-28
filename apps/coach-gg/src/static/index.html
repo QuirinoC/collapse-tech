@@ -33,6 +33,7 @@
               placeholder="Search by gamerTag or paste slug…"
               autocomplete="off"
               spellcheck="false"
+              aria-label="start.gg player slug or gamer tag"
             />
             <div class="search-spinner hidden" id="searchSpinner"></div>
           </div>
@@ -75,20 +76,20 @@
 
       <!-- Tab navigation + sort control -->
       <div class="tabs-bar">
-        <div class="tabs" id="tabNav">
-          <button class="tab active" data-tab="stages">
+        <div class="tabs" id="tabNav" role="tablist" aria-label="Analysis categories">
+          <button class="tab active" data-tab="stages" role="tab" aria-selected="true" aria-controls="tab-stages">
             <span class="tab-icon">&#127958;</span>
             Stages
           </button>
-          <button class="tab" data-tab="characters">
+          <button class="tab" data-tab="characters" role="tab" aria-selected="false" aria-controls="tab-characters">
             <span class="tab-icon">&#127918;</span>
             Characters
           </button>
-          <button class="tab" data-tab="matchups">
+          <button class="tab" data-tab="matchups" role="tab" aria-selected="false" aria-controls="tab-matchups">
             <span class="tab-icon">&#9878;</span>
             Stage Counterpick
           </button>
-          <button class="tab" data-tab="vschars">
+          <button class="tab" data-tab="vschars" role="tab" aria-selected="false" aria-controls="tab-vschars">
             <span class="tab-icon">⚔️</span>
             Character Counterpick
           </button>
@@ -101,22 +102,22 @@
       </div>
 
       <!-- Stage cards -->
-      <div class="tab-content active" id="tab-stages">
+      <div class="tab-content active" id="tab-stages" role="tabpanel">
         <div class="stage-grid" id="stageGrid"></div>
       </div>
 
       <!-- Character cards -->
-      <div class="tab-content" id="tab-characters">
+      <div class="tab-content" id="tab-characters" role="tabpanel">
         <div class="char-grid" id="charGrid"></div>
       </div>
 
       <!-- Stage Counterpick -->
-      <div class="tab-content" id="tab-matchups">
+      <div class="tab-content" id="tab-matchups" role="tabpanel">
         <div class="matchup-list" id="matchupList"></div>
       </div>
 
       <!-- Character Counterpick -->
-      <div class="tab-content" id="tab-vschars">
+      <div class="tab-content" id="tab-vschars" role="tabpanel">
         <p class="vschar-subtitle">Your characters — expand each to see your win rate against every opponent character</p>
         <div class="matchup-list" id="vsCharList"></div>
       </div>
@@ -125,10 +126,10 @@
   </main>
 
   <!-- Error Toast -->
-  <div class="error-toast hidden" id="errorToast">
+  <div class="error-toast hidden" id="errorToast" role="alert">
     <span class="error-icon">&#9888;</span>
     <span id="errorText">An error occurred.</span>
-    <button class="error-retry" onclick="retry()">Retry</button>
+    <button class="error-retry" id="retryBtn">Retry</button>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>

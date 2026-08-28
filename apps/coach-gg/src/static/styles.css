@@ -737,9 +737,15 @@ body {
 
 .matchup-header {
   display: flex;
+  width: 100%;
   align-items: center;
   gap: 14px;
   padding: 16px 20px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
   cursor: pointer;
   user-select: none;
   transition: background 0.2s;
@@ -747,6 +753,15 @@ body {
 
 .matchup-header:hover {
   background: rgba(255,255,255,0.02);
+}
+
+.matchup-header:focus-visible,
+.error-retry:focus-visible,
+.tab:focus-visible,
+.sort-btn:focus-visible,
+.btn-analyze:focus-visible {
+  outline: 2px solid var(--accent-purple);
+  outline-offset: 2px;
 }
 
 .matchup-portrait {

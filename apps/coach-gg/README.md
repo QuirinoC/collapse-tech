@@ -206,6 +206,9 @@ JobError({slug, error})             ← failure
 | `REDIS_URL` | Full URL e.g. `rediss://default:token@host:6379` (Upstash format, auto-parsed) |
 | `ASPNETCORE_URLS` | Default `http://+:8080` |
 
+`REDIS_CONNECTION` or `REDIS_URL` is required in production. `REDIS_URL`
+supports standard `redis://` and `rediss://` connection URLs.
+
 ---
 
 ## Deployment (Render)
@@ -214,12 +217,16 @@ CoachGG runs as a Render web service in project **collapse-tech**
 (`srv-da56cr2jobas73dmulv0`), built from the app's `Dockerfile`.
 
 1. Render service root directory: `apps/coach-gg`
-2. Set env vars in the Render dashboard: `STARTGG_APIKEY`,
-   `ASPNETCORE_ENVIRONMENT=Production`, `FORWARDEDHEADERS__TRUSTPLATFORMPROXY=true`
+2. Provision Redis (Render Key Value or another managed Redis service) and set
+   `REDIS_URL`, then set `STARTGG_APIKEY`, `ASPNETCORE_ENVIRONMENT=Production`,
+   and `FORWARDEDHEADERS__TRUSTPLATFORMPROXY=true`
 3. Add `coach.collapsetechnologies.com` as the service's custom domain
 4. Push to `main` to auto-deploy
 
-The app is stateless (no Redis required in production).
+Redis is required for shared game caching, distributed job leases, and the SignalR
+backplane. Production refuses to start unless `REDIS_URL` or `REDIS_CONNECTION`
+is explicitly configured and reachable. An expired lease allows one replica to
+resume work after a crash without duplicating the start.gg request.
 
 ---
 
