@@ -3,33 +3,42 @@
 @{
     ViewData["Title"] = "Privacy Policy";
 }
-<h1>@ViewData["Title"]</h1>
+<article class="legal-page">
+<h1>Privacy Policy</h1>
+<p>Last updated August 28, 2026. This policy covers the Infinite Pixelboard website and the iOS app.</p>
 
-<p>Your privacy is important to us. This privacy policy outlines the types of personal data we collect and how we use
-    it.</p>
+<h2>Who we are</h2>
+<p>Infinite Pixelboard is operated by Collapse Technologies. Contact:
+    <a href="mailto:infinitepixelboard@gmail.com">infinitepixelboard@gmail.com</a>.</p>
 
-<h2>Information We Collect</h2>
-<p>We collect only the information that is essential for establishing and maintaining connections to our backend
-    services. This may include:</p>
+<h2>What we collect</h2>
 <ul>
-    <li>IP address</li>
-    <li>Connection timestamps</li>
-    <li>General location data for telemetry purposes</li>
-    <li>Account information (e.g., email address, account ID) used solely for rate limiting and features that require
-        user identification</li>
+    <li>Account identifiers from Sign in with Apple or Google (via Firebase Authentication), such as a user ID and, when provided, an email address.</li>
+    <li>Pixels you place (color, board coordinates, time) so the public canvas can be shown to everyone.</li>
+    <li>Invite codes you share or redeem, so we can grant a short paint boost to both accounts.</li>
+    <li>Reports you submit about pixels or regions, plus server-captured board state used to review them.</li>
+    <li>Purchase and subscription status for Pixelboard Pro. On the website Stripe processes the payment; on iPhone Apple processes it. We receive an entitlement, not your card number.</li>
+    <li>Technical connection data (IP address, timestamps) used to run the service, apply cooldowns, and limit abuse.</li>
 </ul>
 
-<h2>Information We Do Not Collect</h2>
-<p>We do not collect the following information:</p>
+<h2>What we do not collect</h2>
 <ul>
-    <li>Payment information (e.g., credit card details)</li>
-    <li>Browsing history</li>
-    <li>Any other data not necessary for establishing connections to our backend services</li>
+    <li>Payment card details (Stripe and Apple handle those).</li>
+    <li>Precise device location, contacts, photos, or microphone.</li>
+    <li>Tracking data for advertising. Ads in the iOS app are off.</li>
 </ul>
 
-<h2>How We Use Your Information</h2>
-<p>The information we collect is used exclusively for the purpose of establishing and maintaining connections to our
-    backend services. We do not share, sell, or distribute your personal data to third parties.</p>
+<h2>How we use it</h2>
+<p>We use this data to sign you in, draw the shared board, enforce cooldowns and community standards, process Pro subscriptions, and moderate reports. We do not sell personal data.</p>
 
-<h2>Contact Us</h2>
-<p>If you have any questions about anything, please contact us at infinitepixelboard@gmail.com</p>
+<h2>Public by design</h2>
+<p>Anything you paint is visible to other people on the board. Do not place personal information on the canvas.</p>
+
+<h2>Retention and deletion</h2>
+<p>You can delete your account in the iOS app (Settings → Delete account). That removes server-held account records before the Firebase identity is deleted. Placements that must stay consistent on the public board may remain as unlinkable records.</p>
+
+<h2>Third parties</h2>
+<p>Sign-in is provided by Apple and/or Google through Firebase. Website subscriptions are processed by Stripe. iPhone subscriptions are processed by Apple. Hosting is on Render and Cloudflare. Those companies process data under their own policies when you use their sign-in or payment sheets.</p>
+
+<p><a href="/Terms">Terms of Use</a></p>
+</article>

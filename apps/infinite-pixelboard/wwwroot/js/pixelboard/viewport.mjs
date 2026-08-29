@@ -44,6 +44,47 @@ export function zoomAt(viewport, x, y, factor) {
   };
 }
 
+export function centerOn(viewport, row, column, width, height, cellSize = DEFAULT_CELL_SIZE) {
+  const size = cellSize * viewport.scale;
+  return {
+    ...viewport,
+    offsetX: width / 2 - (column + 0.5) * size,
+    offsetY: height / 2 - (row + 0.5) * size,
+  };
+}
+
+export const SAVED_VIEW_KEY = "pixelboard.savedView";
+
+export function readSavedView(storage) {
+  try {
+    const parsed = JSON.parse(storage.getItem(SAVED_VIEW_KEY) ?? "");
+    if (!Number.isSafeInteger(parsed?.row) || !Number.isSafeInteger(parsed?.column)) {
+      return null;
+    }
+    const scale = Number(parsed.scale);
+    if (!Number.isFinite(scale)) return null;
+    const offsetX = Number(parsed.offsetX);
+    const offsetY = Number(parsed.offsetY);
+    return {
+      row: parsed.row,
+      column: parsed.column,
+      scale: clamp(scale, MIN_SCALE, MAX_SCALE),
+      offsetX: Number.isFinite(offsetX) ? offsetX : 0,
+      offsetY: Number.isFinite(offsetY) ? offsetY : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function writeSavedView(storage, view) {
+  try {
+    storage.setItem(SAVED_VIEW_KEY, JSON.stringify(view));
+  } catch {
+    // Private mode and quota errors must not break the board.
+  }
+}
+
 export function visibleTileRange(viewport, width, height, tileRows, tileColumns, cellSize = DEFAULT_CELL_SIZE) {
   const topLeft = screenToBoard(viewport, 0, 0, cellSize);
   const bottomRight = screenToBoard(viewport, width, height, cellSize);

@@ -45,6 +45,21 @@ public sealed class PlacementOutboxOptions
     public int EmptyPollMilliseconds { get; set; } = 1_000;
 }
 
+public sealed class StripeOptions
+{
+    public const string SectionName = "Stripe";
+
+    public bool Enabled { get; set; }
+
+    public string SecretKey { get; set; } = string.Empty;
+
+    public string WebhookSecret { get; set; } = string.Empty;
+
+    public string MonthlyPriceId { get; set; } = string.Empty;
+
+    public string AnnualPriceId { get; set; } = string.Empty;
+}
+
 public sealed class StoreKitOptions
 {
     public const string SectionName = "StoreKit";
@@ -88,4 +103,24 @@ public sealed class SecurityOptions
     public bool AbuseSignalHashingEnabled { get; set; }
 
     public string AbuseSignalHmacKey { get; set; } = string.Empty;
+}
+
+public sealed class BoardClientOptions
+{
+    public const string SectionName = "Board";
+
+    public string? StatusMessage { get; set; }
+
+    public string? MinimumIosVersion { get; set; }
+}
+
+public sealed class PlacementRateLimitOptions
+{
+    public const string SectionName = "PlacementRateLimit";
+
+    [Range(60, 1_000_000)]
+    public int MaxPlacementsPerIpPerMinute { get; set; } = 12_000;
+
+    [Range(10, 100_000)]
+    public int MaxAccountsPerIpPerMinute { get; set; } = 2_000;
 }

@@ -17,6 +17,21 @@ public sealed record EntitlementState(
     AccountTier Tier,
     DateTimeOffset? ExpiresAt);
 
+public sealed record PaintBoostState(
+    int CooldownSeconds,
+    DateTimeOffset ExpiresAt);
+
+public enum ReferralClaimOutcome
+{
+    Granted,
+    InvalidCode,
+    AlreadyClaimed,
+    OwnCode,
+    LimitReached,
+    CommunityStandardsRequired,
+    AccountDeleted
+}
+
 public sealed record AccountPolicyState(
     bool IsBanned,
     bool CommunityStandardsAccepted);
@@ -109,6 +124,25 @@ public interface IEntitlementService
         CancellationToken cancellationToken = default);
 }
 
+public interface IPaintBoostService
+{
+    ValueTask<PaintBoostState?> GetAsync(
+        AccountId accountId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IReferralService
+{
+    ValueTask<string?> GetOrCreateCodeAsync(
+        AccountId accountId,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<ReferralClaimOutcome> ClaimAsync(
+        AccountId refereeAccountId,
+        string? code,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IAccountPolicyService
 {
     ValueTask<AccountPolicyState> GetAsync(
@@ -182,9 +216,9 @@ public interface IReportStore
 
 public interface IPlacementRateLimiter
 {
-    ValueTask<RateLimitDecision> TryAcquireAsync(
+    ValueTask<bool> TryAcquireAsync(
         AccountId accountId,
-        AccountTier tier,
+        string? clientIp,
         CancellationToken cancellationToken = default);
 }
 

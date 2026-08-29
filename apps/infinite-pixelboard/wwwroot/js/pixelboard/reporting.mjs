@@ -9,6 +9,10 @@ export function boundedReportRegion(position, width, height) {
   };
 }
 
+export function otherReasonRequiresNote(reason, note) {
+  return Number(reason) === 6 && !String(note ?? "").trim();
+}
+
 function boundedDimension(value) {
   const number = Number.parseInt(value, 10);
   if (!Number.isFinite(number)) return 1;

@@ -19,6 +19,10 @@ public static class ApiErrorCodes
     public const string AccountDeleted = "account_deleted";
     public const string BoardReadOnly = "board_read_only";
     public const string CommunityStandardsRequired = "community_standards_required";
+    public const string InvalidReferralCode = "invalid_referral_code";
+    public const string ReferralAlreadyClaimed = "referral_already_claimed";
+    public const string ReferralOwnCode = "referral_own_code";
+    public const string ReferralLimitReached = "referral_limit_reached";
     public const string CooldownActive = "cooldown_active";
     public const string DuplicateRequest = "duplicate_request";
     public const string InvalidColor = "invalid_color";
@@ -29,11 +33,15 @@ public static class ApiErrorCodes
     public const string InvalidReportReason = "invalid_report_reason";
     public const string InvalidReportRegion = "invalid_report_region";
     public const string ReportRateLimited = "report_rate_limited";
+    public const string PlacementRateLimited = "placement_rate_limited";
     public const string ServiceUnavailable = "service_unavailable";
     public const string InvalidStoreKitTransaction = "invalid_storekit_transaction";
     public const string InvalidModerationAction = "invalid_moderation_action";
     public const string ModerationConflict = "moderation_conflict";
     public const string StoreKitAccountMismatch = "storekit_account_mismatch";
+    public const string InvalidStripeInterval = "invalid_stripe_interval";
+    public const string StripeCustomerMissing = "stripe_customer_missing";
+    public const string InvalidStripeWebhook = "invalid_stripe_webhook";
     public const string TileUnavailable = "tile_unavailable";
 }
 
@@ -80,7 +88,9 @@ public sealed record BoardMetadataResponse(
     int TileColumns,
     string DefaultColor,
     string CoordinateConvention,
-    BoardAccessMode AccessMode);
+    BoardAccessMode AccessMode,
+    string? StatusMessage = null,
+    string? MinimumIosVersion = null);
 
 public sealed record TileSnapshotResponse(
     int ApiVersion,
@@ -121,11 +131,20 @@ public sealed record PlacementResult(
     CooldownState Cooldown,
     ApiError? Error);
 
+public sealed record PaintBoostResponse(
+    int CooldownSeconds,
+    DateTimeOffset ExpiresAt);
+
 public sealed record AccountStateResponse(
     AccountTier Tier,
     bool CanPlace,
     bool CommunityStandardsAccepted,
-    CooldownState Cooldown);
+    CooldownState Cooldown,
+    string? ReferralCode,
+    PaintBoostResponse? PaintBoost,
+    bool IsBanned);
+
+public sealed record ClaimReferralRequest(string? Code);
 
 public sealed record ReportRegion(
     int Top,
@@ -172,3 +191,11 @@ public sealed record StoreKitNotificationRequest(string SignedPayload);
 public sealed record StoreKitEntitlementResponse(
     AccountTier Tier,
     DateTimeOffset? ExpiresAt);
+
+public sealed record StripeConfigResponse(bool Enabled);
+
+public sealed record StripeStatusResponse(bool HasCustomer);
+
+public sealed record CreateStripeCheckoutSessionRequest(string? Interval);
+
+public sealed record StripeRedirectResponse(string Url);

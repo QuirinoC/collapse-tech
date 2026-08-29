@@ -10,9 +10,11 @@ namespace PixelBoard.Tests;
 public sealed class BoardApiTests
 {
     [Fact]
-    public void MetadataDescribesFrozenBoardContract()
+    public async Task MetadataDescribesOpenBoardWhenSafetyIsUnset()
     {
-        var response = BoardApi.GetMetadata();
+        using var services = new ServiceCollection().BuildServiceProvider();
+
+        var response = await BoardApi.GetMetadataAsync(services, CancellationToken.None);
 
         Assert.Equal(ApiVersions.V1, response.ApiVersion);
         Assert.Equal(PixelBoardConstants.TileRows, response.TileRows);
@@ -20,6 +22,21 @@ public sealed class BoardApiTests
         Assert.Equal(PixelBoardConstants.DefaultColor, response.DefaultColor);
         Assert.Equal("row-column", response.CoordinateConvention);
         Assert.Equal(BoardAccessMode.Open, response.AccessMode);
+        Assert.Null(response.StatusMessage);
+        Assert.Null(response.MinimumIosVersion);
+    }
+
+    [Fact]
+    public async Task MetadataIsReadOnlyWhenPlacementsAreFrozen()
+    {
+        using var services = new ServiceCollection()
+            .AddSingleton<IPlatformSafetyService>(new FrozenSafetyService())
+            .BuildServiceProvider();
+
+        var response = await BoardApi.GetMetadataAsync(services, CancellationToken.None);
+
+        Assert.Equal(BoardAccessMode.ReadOnly, response.AccessMode);
+        Assert.Equal("Painting is paused.", response.StatusMessage);
     }
 
     [Fact]
@@ -120,5 +137,12 @@ public sealed class BoardApiTests
             DeletedAccount = accountId;
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class FrozenSafetyService : IPlatformSafetyService
+    {
+        public ValueTask<PlatformSafetyState> GetStateAsync(
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(new PlatformSafetyState(true, false));
     }
 }

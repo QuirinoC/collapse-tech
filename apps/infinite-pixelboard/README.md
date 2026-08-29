@@ -52,9 +52,9 @@ The deployed board uses a legacy coordinate convention that must remain stable w
 
 Versioned transport shapes and machine-readable errors for the shared web/iOS API live in `Contracts/V1`. Anonymous board metadata and tile snapshots are available at `/api/v1/board` and `/api/v1/tiles/{tileRow}/{tileColumn}`. Authenticated clients can read account state, accept the current community standards, submit idempotent placements, and report a current position or bounded region through `/api/v1/account`, `/api/v1/account/community-standards`, `/api/v1/placements`, and `/api/v1/reports`.
 
-`DELETE /api/v1/account` removes account, entitlement, and StoreKit binding records before the client deletes the Firebase identity. Placements and moderation evidence that must remain operationally consistent are retained under a random, unlinkable `deleted:` identifier; embedded Firebase UIDs are replaced and evidence hashes are regenerated. A one-way account tombstone prevents still-valid Firebase tokens or delayed Redis outbox events from recreating identifiable records. Clients must not delete the Firebase identity when this server request fails.
+`DELETE /api/v1/account` removes account, entitlement, StoreKit binding, and Stripe customer records before the client deletes the Firebase identity. Placements and moderation evidence that must remain operationally consistent are retained under a random, unlinkable `deleted:` identifier; embedded Firebase UIDs are replaced and evidence hashes are regenerated. A one-way account tombstone prevents still-valid Firebase tokens or delayed Redis outbox events from recreating identifiable records. Clients must not delete the Firebase identity when this server request fails.
 
-Placement is unavailable unless Firebase and PostgreSQL are enabled. Accepted writes atomically update the board, attribution outbox, idempotency record, and account cooldown in Redis. Free accounts receive a ten-second cooldown; active Pro entitlements receive a one-second cooldown.
+Placement is unavailable unless Firebase and PostgreSQL are enabled. Accepted writes atomically update the board, attribution outbox, idempotency record, and account cooldown in Redis. Free accounts receive a five-second cooldown; active Pro entitlements receive a one-second cooldown.
 
 ### Real-time v1 protocol
 
@@ -79,6 +79,20 @@ StoreKit support is disabled by default and requires PostgreSQL. Authenticated i
 Both client submissions and server notifications validate the ES256 signature and complete X.509 chain against explicitly configured Apple trust anchors, then enforce the bundle ID, product ID, environment, App Account Token, and signed timestamp. Subscription ownership is permanent, transaction ingestion is idempotent, and older events cannot overwrite newer entitlement state.
 
 Configure `StoreKit__Enabled=true`, `StoreKit__BundleId`, `StoreKit__MonthlyProductId`, `StoreKit__AnnualProductId`, one or more base64 DER Apple root certificates under `StoreKit__TrustedRootCertificates__0`, and allowed App Store environments under `StoreKit__AllowedEnvironments__0`. Production should allow only `Production`; add `Sandbox` only in non-production/TestFlight environments.
+
+## Pixelboard Pro on the website (Stripe)
+
+Stripe Checkout is disabled by default, website-only, and requires PostgreSQL. It must stay off in the iOS app: native Settings continues to use StoreKit. Both processors write the same `pixelboard.entitlements` row. A Stripe cancellation does not clear an still-valid StoreKit Pro entitlement.
+
+Authenticated web clients read `GET /api/v1/stripe/config` and, after sign-in, `GET /api/v1/stripe/status`. Subscribe posts `{ "interval": "month" | "year" }` to `/api/v1/stripe/checkout-session` and redirects to the returned Checkout URL. Manage/cancel posts to `/api/v1/stripe/portal`. Stripe sends `checkout.session.completed`, `customer.subscription.*`, and invoice paid/failed events to the unauthenticated `/api/v1/stripe/webhook` with `Stripe-Signature`.
+
+Do not commit secret keys. Enable only after applying `009_stripe.sql` (or `--provision-postgres`) and creating a Customer Portal configuration in Stripe. Local forwarding:
+
+```bash
+stripe listen --forward-to http://localhost:5262/api/v1/stripe/webhook
+```
+
+Configure `Stripe__Enabled=true`, `Stripe__SecretKey`, `Stripe__WebhookSecret`, `Stripe__MonthlyPriceId`, and `Stripe__AnnualPriceId`. Production webhook URL: `https://pixelboard.collapsetechnologies.com/api/v1/stripe/webhook`.
 
 ## Advertising safety gate
 
@@ -107,6 +121,10 @@ Build from this directory with the included Dockerfile. The production container
 | `StoreKit__MonthlyProductId` / `StoreKit__AnnualProductId` | Accepted Pro subscription product identifiers |
 | `StoreKit__TrustedRootCertificates__0` | Base64 DER Apple root certificate trust anchor |
 | `StoreKit__AllowedEnvironments__0` | Accepted App Store environment (`Production` in production) |
+| `Stripe__Enabled` | Enables website Stripe Checkout, Customer Portal, and webhooks |
+| `Stripe__SecretKey` | Stripe secret key (`sk_test_...` or `sk_live_...`) |
+| `Stripe__WebhookSecret` | Stripe webhook signing secret (`whsec_...`) |
+| `Stripe__MonthlyPriceId` / `Stripe__AnnualPriceId` | Stripe Price IDs for Pixelboard Pro |
 | `Advertising__ModerationOperationsEnabled` | Operational assertion required before any Google advertising can start |
 | `Advertising__WebEnabled` | Enables the single manual AdSense board unit |
 | `Advertising__AdSensePublisherId` | AdSense publisher ID in `ca-pub-...` format |
