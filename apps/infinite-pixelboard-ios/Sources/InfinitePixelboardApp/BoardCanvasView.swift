@@ -12,7 +12,7 @@ struct BoardCanvasView: View {
             Canvas(opaque: true, colorMode: .nonLinear, rendersAsynchronously: true) { context, size in
                 draw(context: &context, size: size)
             }
-            .background(Color(uiColor: .systemBackground))
+            .background(PixelboardTheme.paper)
             .contentShape(Rectangle())
             .gesture(panGesture)
             .simultaneousGesture(zoomGesture(size: geometry.size))
@@ -65,7 +65,10 @@ struct BoardCanvasView: View {
                 viewport.pan(x: value.translation.width, y: value.translation.height)
                 model.viewport = viewport
             }
-            .onEnded { _ in dragOrigin = nil }
+            .onEnded { _ in
+                dragOrigin = nil
+                model.persistView()
+            }
     }
 
     private func zoomGesture(size: CGSize) -> some Gesture {
@@ -81,7 +84,10 @@ struct BoardCanvasView: View {
                 model.viewport = viewport
                 magnification = value.magnification
             }
-            .onEnded { _ in magnification = 1 }
+            .onEnded { _ in
+                magnification = 1
+                model.persistView()
+            }
     }
 
     private var selectGesture: some Gesture {
@@ -98,6 +104,7 @@ struct BoardCanvasView: View {
                         model.selectedPosition = position
                     }
                 }
+                model.persistView()
             }
     }
 
@@ -114,44 +121,95 @@ struct BoardCanvasView: View {
     }
 
     private func draw(context: inout GraphicsContext, size: CGSize) {
-        context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(.white))
+        context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(PixelboardTheme.paper))
         let cell = model.viewport.cellSize * model.viewport.scale
         guard cell >= 1 else { return }
         let range = model.viewport.visibleTiles(width: size.width, height: size.height)
+        let defaultColor = (model.metadata?.defaultColor ?? "#FFFFFF").uppercased()
+        let tileRows = model.metadata?.tileRows ?? 128
+        let tileColumns = model.metadata?.tileColumns ?? 128
 
         for address in range.addresses {
             guard let pixels = model.tiles[address] else { continue }
             for offsetRow in pixels.indices {
                 for offsetColumn in pixels[offsetRow].indices {
-                    let row = address.row * 128 + offsetRow
-                    let column = address.column * 128 + offsetColumn
+                    let color = pixels[offsetRow][offsetColumn]
+                    if color.uppercased() == defaultColor { continue }
+                    let row = address.row * tileRows + offsetRow
+                    let column = address.column * tileColumns + offsetColumn
                     let origin = model.viewport.boardToScreen(
                         BoardPosition(row: row, column: column)
                     )
                     context.fill(
                         Path(CGRect(x: origin.x, y: origin.y, width: cell + 0.5, height: cell + 0.5)),
-                        with: .color(Color(hex: pixels[offsetRow][offsetColumn]))
+                        with: .color(Color(pixelboardHex: color))
                     )
                 }
             }
         }
 
-        let selected = model.viewport.boardToScreen(model.selectedPosition)
-        context.stroke(
-            Path(CGRect(x: selected.x, y: selected.y, width: cell, height: cell)),
-            with: .color(.primary),
-            lineWidth: max(2, cell / 10)
-        )
-    }
-}
+        drawGrid(context: &context, size: size, cell: cell, tileRows: tileRows, tileColumns: tileColumns)
 
-private extension Color {
-    init(hex: String) {
-        let value = UInt64(hex.dropFirst(), radix: 16) ?? 0
-        self.init(
-            red: Double((value >> 16) & 0xFF) / 255,
-            green: Double((value >> 8) & 0xFF) / 255,
-            blue: Double(value & 0xFF) / 255
+        let selected = model.viewport.boardToScreen(model.selectedPosition)
+        let highlight = CGRect(
+            x: selected.x + 1,
+            y: selected.y + 1,
+            width: max(1, cell - 2),
+            height: max(1, cell - 2)
         )
+        context.stroke(Path(highlight), with: .color(PixelboardTheme.accent), lineWidth: 2)
+    }
+
+    private func drawGrid(
+        context: inout GraphicsContext,
+        size: CGSize,
+        cell: Double,
+        tileRows: Int,
+        tileColumns: Int
+    ) {
+        let offsetX = model.viewport.offsetX
+        let offsetY = model.viewport.offsetY
+        if cell >= 5 {
+            var pixelGrid = Path()
+            let firstColumn = Int(floor(-offsetX / cell))
+            let lastColumn = Int(ceil((size.width - offsetX) / cell))
+            let firstRow = Int(floor(-offsetY / cell))
+            let lastRow = Int(ceil((size.height - offsetY) / cell))
+            if lastColumn >= firstColumn, lastRow >= firstRow {
+                for column in firstColumn...lastColumn {
+                    let x = (offsetX + Double(column) * cell).rounded() + 0.5
+                    pixelGrid.move(to: CGPoint(x: x, y: 0))
+                    pixelGrid.addLine(to: CGPoint(x: x, y: size.height))
+                }
+                for row in firstRow...lastRow {
+                    let y = (offsetY + Double(row) * cell).rounded() + 0.5
+                    pixelGrid.move(to: CGPoint(x: 0, y: y))
+                    pixelGrid.addLine(to: CGPoint(x: size.width, y: y))
+                }
+            }
+            context.stroke(pixelGrid, with: .color(PixelboardTheme.ink.opacity(0.10)), lineWidth: 1)
+        }
+
+        var tileGrid = Path()
+        let tileWidth = cell * Double(tileColumns)
+        let tileHeight = cell * Double(tileRows)
+        guard tileWidth > 0, tileHeight > 0 else { return }
+        var column = Int(floor(-offsetX / tileWidth))
+        while offsetX + Double(column) * tileWidth <= size.width {
+            let x = (offsetX + Double(column) * tileWidth).rounded() + 0.5
+            tileGrid.move(to: CGPoint(x: x, y: 0))
+            tileGrid.addLine(to: CGPoint(x: x, y: size.height))
+            column += 1
+            if column > 10_000 { break }
+        }
+        var row = Int(floor(-offsetY / tileHeight))
+        while offsetY + Double(row) * tileHeight <= size.height {
+            let y = (offsetY + Double(row) * tileHeight).rounded() + 0.5
+            tileGrid.move(to: CGPoint(x: 0, y: y))
+            tileGrid.addLine(to: CGPoint(x: size.width, y: y))
+            row += 1
+            if row > 10_000 { break }
+        }
+        context.stroke(tileGrid, with: .color(PixelboardTheme.ink.opacity(0.32)), lineWidth: 1)
     }
 }

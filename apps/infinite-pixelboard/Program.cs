@@ -98,6 +98,19 @@ app.UseHttpsRedirection();
 app.UseRouting();
 
 app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+    if (HttpMethods.IsGet(context.Request.Method)
+        && context.Request.Path.Equals("/moderation", StringComparison.OrdinalIgnoreCase)
+        && (context.User.Identity?.IsAuthenticated != true
+            || !context.User.HasClaim("moderator", "true")))
+    {
+        context.Response.Redirect("/");
+        return;
+    }
+
+    await next();
+});
 app.UseAuthorization();
 
 app.MapStaticAssets();

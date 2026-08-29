@@ -21,6 +21,24 @@ final class BoardGeometryTests: XCTestCase {
         XCTAssertEqual(viewport.screenToBoard(x: point.x, y: point.y), BoardPosition(row: 3, column: 7))
     }
 
+    func testCenteredReportRegionMatchesWebContract() {
+        XCTAssertEqual(
+            ReportRegion.centered(on: BoardPosition(row: -4, column: 12), width: 8, height: 8),
+            ReportRegion(top: -7, left: 9, width: 8, height: 8)
+        )
+    }
+
+    func testInviteAndPositionLinksRoundTrip() throws {
+        let invite = BoardLinks.invite(code: "ABCD2345")
+        XCTAssertEqual(BoardLinks.referralCode(from: invite), "ABCD2345")
+        XCTAssertEqual(
+            BoardLinks.referralCode(from: URL(string: "pixelboard://invite/ABCD2345")!),
+            "ABCD2345"
+        )
+        let position = BoardLinks.position(row: -4, column: 12)
+        XCTAssertEqual(BoardLinks.position(from: position), BoardPosition(row: -4, column: 12))
+    }
+
     func testZoomKeepsAnchorFixed() {
         var viewport = BoardViewport(width: 400, height: 300)
         let before = viewport.screenToBoard(x: 80, y: 90)

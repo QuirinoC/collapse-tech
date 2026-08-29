@@ -123,43 +123,35 @@ final class StoreManager: ObservableObject {
     func restore() async -> Bool {
         isWorking = true
         defer { isWorking = false }
-        do {
-            try await AppStore.sync()
-            var restored = false
-            for await result in StoreKit.Transaction.currentEntitlements {
-                guard case let .verified(transaction) = result else {
-                    errorMessage = StoreError.failedVerification.localizedDescription
-                    continue
-                }
-                guard productIDs.contains(transaction.productID) else { continue }
-                permanentlyFailedTransactionIDs.remove(transaction.id)
-                let outcome = await deliver(
-                    transaction,
+
+        var restored = false
+        for await result in StoreKit.Transaction.currentEntitlements {
+            guard case let .verified(transaction) = result else {
+                errorMessage = StoreError.failedVerification.localizedDescription
+                continue
+            }
+            guard productIDs.contains(transaction.productID) else { continue }
+            permanentlyFailedTransactionIDs.remove(transaction.id)
+            let outcome = await deliver(
+                transaction,
+                signedTransactionInfo: result.jwsRepresentation
+            )
+            if outcome == .delivered {
+                restored = true
+            } else if outcome == .retryableFailure {
+                scheduleDeliveryRetry(
+                    for: transaction,
                     signedTransactionInfo: result.jwsRepresentation
                 )
-                if outcome == .delivered {
-                    restored = true
-                } else if outcome == .retryableFailure {
-                    scheduleDeliveryRetry(
-                        for: transaction,
-                        signedTransactionInfo: result.jwsRepresentation
-                    )
-                }
             }
-            return restored
-        } catch {
-            errorMessage = error.localizedDescription
-            return false
         }
+        if !restored, errorMessage == nil {
+            errorMessage = "No Pixelboard Pro subscription found for this Apple ID."
+        }
+        return restored
     }
 
-    func manageSubscriptions(in scene: UIWindowScene) async {
-        do {
-            try await AppStore.showManageSubscriptions(in: scene)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
+    static let manageSubscriptionsURL = URL(string: "https://apps.apple.com/account/subscriptions")!
 
     private func verified<T>(_ result: VerificationResult<T>) throws -> T {
         switch result {

@@ -29,6 +29,10 @@ targets:
         buildPhase: resources
         excludes:
           - InfinitePixelboard.storekit
+          - Fonts/OFL-*.txt
+      - path: GoogleService-Info.plist
+        optional: true
+        buildPhase: resources
     dependencies:
       - package: PixelboardCore
         product: PixelboardCore
@@ -36,6 +40,8 @@ targets:
         product: FirebaseAuth
       - package: Firebase
         product: FirebaseCore
+      - package: Firebase
+        product: FirebaseCrashlytics
       - package: GoogleSignIn
         product: GoogleSignIn
     settings:
@@ -50,18 +56,28 @@ targets:
         ENABLE_USER_SCRIPT_SANDBOXING: YES
         SWIFT_STRICT_CONCURRENCY: targeted
         CODE_SIGN_ENTITLEMENTS: InfinitePixelboard.entitlements
+        DEVELOPMENT_TEAM: 3S529795M9
     info:
       path: Info.plist
       properties:
         CFBundleDisplayName: Infinite Pixelboard
         LSApplicationCategoryType: public.app-category.entertainment
         UIApplicationSupportsIndirectInputEvents: true
-        UILaunchScreen: {}
+        UILaunchScreen:
+          UIColorName: Paper
+        UIUserInterfaceStyle: Light
+        UIAppFonts:
+          - SpaceGrotesk-Variable.ttf
+          - IBMPlexMono-Medium.ttf
         PixelboardBaseURL: "$(PIXELBOARD_BASE_URL)"
+        ITSAppUsesNonExemptEncryption: false
         CFBundleURLTypes:
           - CFBundleTypeRole: Editor
             CFBundleURLSchemes:
               - "$(GOOGLE_REVERSED_CLIENT_ID)"
+          - CFBundleTypeRole: Editor
+            CFBundleURLSchemes:
+              - pixelboard
     scheme:
       storeKitConfiguration: Resources/InfinitePixelboard.storekit
       testTargets:

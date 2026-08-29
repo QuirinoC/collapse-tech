@@ -7,6 +7,15 @@ final class APIModelsTests: XCTestCase {
         let account = try JSONDecoder().decode(AccountState.self, from: data)
         XCTAssertEqual(account.tier, .pro)
         XCTAssertTrue(account.canPlace)
+        XCTAssertNil(account.isBanned)
+    }
+
+    func testBoardMetadataDecodesOptionalStatusAndMinimumVersion() throws {
+        let data = Data(#"{"apiVersion":1,"tileRows":128,"tileColumns":128,"defaultColor":"#FFFFFF","coordinateConvention":"row-column","accessMode":1,"statusMessage":"Painting is paused.","minimumIosVersion":"1.1"}"#.utf8)
+        let metadata = try JSONDecoder().decode(BoardMetadata.self, from: data)
+        XCTAssertEqual(metadata.accessMode, .readOnly)
+        XCTAssertEqual(metadata.statusMessage, "Painting is paused.")
+        XCTAssertEqual(metadata.minimumIosVersion, "1.1")
     }
 
     func testPlacementEncodesFrozenRowColumnNames() throws {

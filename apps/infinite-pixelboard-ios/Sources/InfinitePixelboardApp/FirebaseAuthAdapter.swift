@@ -205,6 +205,7 @@ private final class AppleAuthorizationCoordinator: NSObject,
     private let anchor: ASPresentationAnchor
     private let hashedNonce: String
     private var continuation: CheckedContinuation<ASAuthorizationAppleIDCredential, Error>?
+    private var authorizationController: ASAuthorizationController?
 
     init(anchor: ASPresentationAnchor, hashedNonce: String) {
         self.anchor = anchor
@@ -220,6 +221,7 @@ private final class AppleAuthorizationCoordinator: NSObject,
             let controller = ASAuthorizationController(authorizationRequests: [request])
             controller.delegate = self
             controller.presentationContextProvider = self
+            self.authorizationController = controller
             controller.performRequests()
         }
     }
@@ -238,22 +240,41 @@ private final class AppleAuthorizationCoordinator: NSObject,
         }
         continuation?.resume(returning: credential)
         continuation = nil
+        authorizationController = nil
     }
 
     func authorizationController(
         controller: ASAuthorizationController,
         didCompleteWithError error: Error
     ) {
-        finish(throwing: error)
+        finish(throwing: Self.mapAuthorizationError(error))
+    }
+
+    private static func mapAuthorizationError(_ error: Error) -> Error {
+        let nsError = error as NSError
+        guard nsError.domain == ASAuthorizationError.errorDomain,
+              let code = ASAuthorizationError.Code(rawValue: nsError.code) else {
+            return error
+        }
+        switch code {
+        case .canceled:
+            return CancellationError()
+        case .unknown, .failed, .invalidResponse, .notHandled, .notInteractive:
+            return ProviderSignInError.appleAuthorizationFailed
+        @unknown default:
+            return error
+        }
     }
 
     private func finish(throwing error: Error) {
         continuation?.resume(throwing: error)
         continuation = nil
+        authorizationController = nil
     }
 }
 
 private enum ProviderSignInError: LocalizedError {
+    case appleAuthorizationFailed
     case invalidAppleCredential
     case missingAppleAuthorizationCode
     case missingAppleIDToken
@@ -264,6 +285,8 @@ private enum ProviderSignInError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .appleAuthorizationFailed:
+            return "Apple could not complete sign-in. Try again, or use Google."
         case .invalidAppleCredential:
             return "Apple returned an unsupported sign-in credential."
         case .missingAppleAuthorizationCode:
