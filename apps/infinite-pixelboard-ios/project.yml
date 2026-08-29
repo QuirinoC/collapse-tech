@@ -49,7 +49,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.collapsetechnologies.pixelboard
         PRODUCT_NAME: Infinite Pixelboard
         PIXELBOARD_BASE_URL: https://pixelboard.collapsetechnologies.com
-        GOOGLE_REVERSED_CLIENT_ID: com.googleusercontent.apps.241184054384-84u2od6udm9eishc63g7vs1lkq2evb84
+        GOOGLE_REVERSED_CLIENT_ID: com.googleusercontent.apps.241184054384-8342q57a6o5fjlo4cgvhjm5b1vrboc5g
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 1.0

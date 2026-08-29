@@ -3,7 +3,7 @@ import XCTest
 
 final class APIModelsTests: XCTestCase {
     func testServerNumericEnumsDecode() throws {
-        let data = Data(#"{"tier":1,"canPlace":true,"communityStandardsAccepted":true,"cooldown":{"nextPlacementAt":null,"cooldownSeconds":1},"allowedColors":["#D3523C","#123456"]}"#.utf8)
+        let data = Data(##"{"tier":1,"canPlace":true,"communityStandardsAccepted":true,"cooldown":{"nextPlacementAt":null,"cooldownSeconds":1},"allowedColors":["#D3523C","#123456"]}"##.utf8)
         let account = try JSONDecoder().decode(AccountState.self, from: data)
         XCTAssertEqual(account.tier, .pro)
         XCTAssertTrue(account.canPlace)
@@ -12,7 +12,7 @@ final class APIModelsTests: XCTestCase {
     }
 
     func testBoardMetadataDecodesOptionalStatusAndMinimumVersion() throws {
-        let data = Data(#"{"apiVersion":1,"tileRows":128,"tileColumns":128,"defaultColor":"#FFFFFF","coordinateConvention":"row-column","accessMode":1,"statusMessage":"Painting is paused.","minimumIosVersion":"1.1"}"#.utf8)
+        let data = Data(##"{"apiVersion":1,"tileRows":128,"tileColumns":128,"defaultColor":"#FFFFFF","coordinateConvention":"row-column","accessMode":1,"statusMessage":"Painting is paused.","minimumIosVersion":"1.1"}"##.utf8)
         let metadata = try JSONDecoder().decode(BoardMetadata.self, from: data)
         XCTAssertEqual(metadata.accessMode, .readOnly)
         XCTAssertEqual(metadata.statusMessage, "Painting is paused.")

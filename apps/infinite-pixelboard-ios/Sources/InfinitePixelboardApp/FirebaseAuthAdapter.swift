@@ -261,7 +261,7 @@ private final class AppleAuthorizationCoordinator: NSObject,
             return CancellationError()
         case .unknown, .failed, .invalidResponse, .notHandled, .notInteractive:
             return ProviderSignInError.appleAuthorizationFailed
-        @unknown default:
+        default:
             return error
         }
     }
