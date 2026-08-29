@@ -69,6 +69,11 @@ targets:
         UIAppFonts:
           - SpaceGrotesk-Variable.ttf
           - IBMPlexMono-Medium.ttf
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         PixelboardBaseURL: "$(PIXELBOARD_BASE_URL)"
         ITSAppUsesNonExemptEncryption: false
         CFBundleURLTypes:
