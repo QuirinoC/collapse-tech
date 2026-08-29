@@ -9,6 +9,9 @@ struct AccountView: View {
     @State private var confirmingDeletion = false
     @State private var inviteCode = ""
     @State private var showingReport = false
+    @State private var showingInvite = false
+    @State private var showingPro = false
+    @State private var showingMore = false
 
     var body: some View {
         ScrollView {
@@ -19,8 +22,6 @@ struct AccountView: View {
                 ) {
                     dismiss()
                 }
-
-                boardActions
 
                 Text(
                     "The board is open to everyone. Painting requires a verified account so each contribution can be reconciled and the shared 5-second cooldown respected. Pro and invite boosts only speed that cooldown; they do not remove it."
@@ -45,7 +46,7 @@ struct AccountView: View {
 
                 inviteSection
                 subscriptionSections
-                legalFooter
+                moreSection
             }
             .padding(24)
         }
@@ -197,88 +198,66 @@ struct AccountView: View {
     @ViewBuilder
     private var inviteSection: some View {
         if let account = model.account, account.isBanned != true {
-            VStack(alignment: .leading, spacing: 0) {
-                PixelboardEyebrow(text: "Invite a painter")
-                    .padding(.bottom, 12)
-                Text("Share your code. When they sign in and accept the standards, they get 4 hours at a 2-second cooldown. You get 4 hours at 3 seconds. This is not Pro, and it never removes the cooldown.")
-                    .font(PixelboardTheme.sans(14))
-                    .foregroundStyle(PixelboardTheme.muted)
-                    .lineSpacing(4)
-                    .padding(.bottom, 16)
-                if let code = account.referralCode {
-                    Text(code)
-                        .font(PixelboardTheme.mono(14))
-                        .tracking(2.4)
-                        .textCase(.uppercase)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                        .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
-                        .padding(.bottom, 12)
-                    ShareLink(item: BoardLinks.invite(code: code)) {
-                        Text("Copy invite link")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
-                    .padding(.bottom, 10)
-                }
-                PixelboardFieldLabel(title: "Have a code?", hint: nil) {
-                    TextField("", text: $inviteCode)
-                        .textInputAutocapitalization(.characters)
-                        .autocorrectionDisabled()
-                        .font(PixelboardTheme.mono(14))
-                        .foregroundStyle(PixelboardTheme.ink)
-                        .padding(10)
-                        .background(Color.white.opacity(0.25))
-                        .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
-                }
-                .padding(.top, 8)
-                .padding(.bottom, 10)
-                Button("Redeem invite") {
-                    Task { await model.queueReferralCode(inviteCode) }
-                }
-                .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
+            DisclosureGroup(isExpanded: $showingInvite) {
+                inviteContent(account)
+            } label: {
+                sectionLabel("Invite a painter")
             }
-            .padding(.top, 28)
-            .overlay(alignment: .top) { PixelboardTheme.line.frame(height: 1).padding(.top, 18) }
+            .tint(PixelboardTheme.ink)
+            .padding(.top, 24)
         }
     }
 
     @ViewBuilder
     private var subscriptionSections: some View {
         if model.account != nil {
-            VStack(alignment: .leading, spacing: 10) {
-                PixelboardEyebrow(text: "Pixelboard Pro")
-                    .padding(.top, 28)
-                Text("Pro is 1 second between pixels. It does not remove the cooldown, and invite boosts never match Pro.")
-                    .font(PixelboardTheme.sans(14))
-                    .foregroundStyle(PixelboardTheme.muted)
-                    .lineSpacing(4)
-                ForEach(model.store.products) { product in
-                    Button {
-                        Task {
-                            if await model.store.purchase(product) {
-                                await model.refreshAccount()
+            DisclosureGroup(isExpanded: $showingPro) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Pro is 1 second between pixels and unlocks the extended palette plus custom colors. It does not remove the cooldown.")
+                        .font(PixelboardTheme.sans(14))
+                        .foregroundStyle(PixelboardTheme.muted)
+                        .lineSpacing(4)
+                    if model.account?.tier != .pro {
+                        ForEach(model.store.products) { product in
+                            Button {
+                                Task {
+                                    if await model.store.purchase(product) {
+                                        await model.refreshAccount()
+                                    }
+                                }
+                            } label: {
+                                Text("\(product.displayName) · \(product.displayPrice)")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
+                            .disabled(model.store.isWorking)
+                        }
+                        Button("Restore purchases") {
+                            Task {
+                                if await model.store.restore() {
+                                    await model.refreshAccount()
+                                }
                             }
                         }
-                    } label: {
-                        Text("\(product.displayName) · \(product.displayPrice)")
-                            .frame(maxWidth: .infinity)
+                        .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
+                    }
+                    Button("Manage subscription") {
+                        openURL(StoreManager.manageSubscriptionsURL)
                     }
                     .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
-                    .disabled(model.store.isWorking)
                 }
-                Button("Restore purchases") {
-                    Task {
-                        if await model.store.restore() {
-                            await model.refreshAccount()
-                        }
-                    }
-                }
-                .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
-                Button("Manage subscription") {
-                    openURL(StoreManager.manageSubscriptionsURL)
-                }
-                .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
+            } label: {
+                sectionLabel("Pixelboard Pro")
+            }
+            .tint(PixelboardTheme.ink)
+            .padding(.top, 24)
+        }
+    }
+
+    private var moreSection: some View {
+        DisclosureGroup(isExpanded: $showingMore) {
+            VStack(alignment: .leading, spacing: 10) {
+                boardActions
                 Button("Delete account", role: .destructive) {
                     confirmingDeletion = true
                 }
@@ -286,9 +265,64 @@ struct AccountView: View {
                 .tracking(0.9)
                 .textCase(.uppercase)
                 .foregroundStyle(PixelboardTheme.accent)
-                .padding(.top, 18)
+                .padding(.top, 12)
+                legalFooter
             }
+        } label: {
+            sectionLabel("More")
         }
+        .tint(PixelboardTheme.ink)
+        .padding(.top, 24)
+    }
+
+    private func inviteContent(_ account: AccountState) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Share your code. When they sign in and accept the standards, they get 4 hours at a 2-second cooldown. You get 4 hours at 3 seconds. This is not Pro, and it never removes the cooldown.")
+                .font(PixelboardTheme.sans(14))
+                .foregroundStyle(PixelboardTheme.muted)
+                .lineSpacing(4)
+                .padding(.vertical, 16)
+            if let code = account.referralCode {
+                Text(code)
+                    .font(PixelboardTheme.mono(14))
+                    .tracking(2.4)
+                    .textCase(.uppercase)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
+                    .padding(.bottom, 12)
+                ShareLink(item: BoardLinks.invite(code: code)) {
+                    Text("Copy invite link")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
+                .padding(.bottom, 10)
+            }
+            PixelboardFieldLabel(title: "Have a code?", hint: nil) {
+                TextField("", text: $inviteCode)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .font(PixelboardTheme.mono(14))
+                    .foregroundStyle(PixelboardTheme.ink)
+                    .padding(10)
+                    .background(PixelboardTheme.field)
+                    .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 10)
+            Button("Redeem invite") {
+                Task { await model.queueReferralCode(inviteCode) }
+            }
+            .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
+        }
+    }
+
+    private func sectionLabel(_ title: String) -> some View {
+        Text(title)
+            .font(PixelboardTheme.mono(11))
+            .tracking(0.9)
+            .textCase(.uppercase)
+            .foregroundStyle(PixelboardTheme.ink)
     }
 
     private var legalFooter: some View {

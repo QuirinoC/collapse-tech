@@ -10,14 +10,30 @@ public sealed class PlacementValidatorTests
 
     [Theory]
     [InlineData("#000000")]
-    [InlineData("#abcdef")]
     [InlineData("#ABCDEF")]
     public void ValidHexColorsAreAccepted(string color)
     {
-        var result = _validator.Validate(CreateCommand(color: color));
+        var result = _validator.Validate(CreateCommand(color: color), AccountTier.Pro);
 
         Assert.True(result.IsValid);
         Assert.Null(result.Error);
+    }
+
+    [Fact]
+    public void FreeAccountsAreLimitedToTheCuratedPalette()
+    {
+        var result = _validator.Validate(CreateCommand(color: "#ABCDEF"));
+
+        Assert.False(result.IsValid);
+        Assert.Equal(ApiErrorCodes.InvalidColor, result.Error?.Code);
+    }
+
+    [Fact]
+    public void FreeAccountsCanUseTheCuratedPaletteCaseInsensitively()
+    {
+        var result = _validator.Validate(CreateCommand(color: "#d3523c"));
+
+        Assert.True(result.IsValid);
     }
 
     [Theory]
@@ -55,7 +71,7 @@ public sealed class PlacementValidatorTests
     }
 
     private static PlacementCommand CreateCommand(
-        string color = "#123456",
+        string color = "#D3523C",
         string idempotencyKey = "request-1",
         string platform = "web",
         string version = "1.0")

@@ -144,7 +144,8 @@ public static class BoardApi
                 cooldownSeconds),
             referralCode,
             paintBoost,
-            policy.IsBanned));
+            policy.IsBanned,
+            PixelPalette.ForTier(entitlement.Tier)));
     }
 
     public static async Task<IResult> AcceptCommunityStandardsAsync(
@@ -328,13 +329,14 @@ public static class BoardApi
                 statusCode: StatusCodes.Status403Forbidden);
         }
 
+        var entitlement = await entitlementService.GetAsync(account.Id, cancellationToken);
         var command = new PlacementCommand(
             account.Id,
             new BoardPosition(request.Row, request.Column),
             request.Color,
             request.IdempotencyKey,
             request.Client);
-        var validation = validator.Validate(command);
+        var validation = validator.Validate(command, entitlement.Tier);
         if (!validation.IsValid)
         {
             return Results.BadRequest(validation.Error);
@@ -355,7 +357,6 @@ public static class BoardApi
             }
         }
 
-        var entitlement = await entitlementService.GetAsync(account.Id, cancellationToken);
         var (cooldownSeconds, _) = await ResolveCooldownAsync(
             services,
             account.Id,

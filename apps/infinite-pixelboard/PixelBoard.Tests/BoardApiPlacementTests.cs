@@ -44,6 +44,30 @@ public sealed class BoardApiPlacementTests
     }
 
     [Fact]
+    public async Task FreePlacementRejectsAColorOutsideTheCuratedPalette()
+    {
+        var placementStore = new RecordingPlacementStore();
+        await using var services = CreateServices(
+            new StubPolicyService(new AccountPolicyState(false, true)),
+            new StubEntitlementService(AccountTier.Free),
+            placementStore,
+            new RecordingRealtimePublisher());
+
+        var result = await BoardApi.PlaceAsync(
+            ValidRequest() with { Color = "#ABCDEF" },
+            new StubIdentityAccessor(new AccountId("firebase-test-user")),
+            new PlacementValidator(),
+            TimeProvider.System,
+            services,
+            CancellationToken.None);
+        var response = await ExecuteAsync<ApiError>(result, services);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, response.StatusCode);
+        Assert.Equal(ApiErrorCodes.InvalidColor, response.Body.Code);
+        Assert.Equal(0, placementStore.CallCount);
+    }
+
+    [Fact]
     public async Task AcceptedPlacementUsesActivePaintBoostForFreeAccounts()
     {
         var now = new DateTimeOffset(2026, 8, 28, 18, 0, 0, TimeSpan.Zero);
@@ -298,7 +322,7 @@ public sealed class BoardApiPlacementTests
     }
 
     private static PlacementRequest ValidRequest() =>
-        new(10, 20, "#abcdef", "request-1", new ClientContext("web", "1.0"));
+        new(10, 20, "#D3523C", "request-1", new ClientContext("web", "1.0"));
 
     private static ServiceProvider CreateServices(
         IAccountPolicyService policy,

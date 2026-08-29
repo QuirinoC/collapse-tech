@@ -32,6 +32,7 @@ export class AccountState {
       remainingSeconds: Math.ceil(remainingMilliseconds / 1000),
       referralCode: this.account?.referralCode ?? null,
       paintBoost: this.account?.paintBoost ?? null,
+      allowedColors: this.account?.allowedColors ?? null,
       isBanned: Boolean(this.account?.isBanned),
     };
   }

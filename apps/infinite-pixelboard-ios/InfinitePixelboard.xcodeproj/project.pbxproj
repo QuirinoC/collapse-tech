@@ -23,6 +23,7 @@
 		741092F334E613EF6C7D0B0D /* PixelboardTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DE1F12516F4118220261F4A /* PixelboardTheme.swift */; };
 		8612FFB793833B9BDE6C95F9 /* InfinitePixelboardApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26A5EAA50A0866EBAB12941F /* InfinitePixelboardApp.swift */; };
 		8A686428919FFE9E9A4351BE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B24BCDEBEADB8E88850C33 /* ContentView.swift */; };
+		D6E7F8091A2B3C4D5E6F7081 /* GoToPositionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* GoToPositionView.swift */; };
 		9538A9021F8A9FECCDB5F8DB /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 0793F22A4533E488747BFA78 /* FirebaseCrashlytics */; };
 		96F8FBFFDDA294B7C69F6A45 /* TileCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65F2C7887D76C8ECBBE0DF5D /* TileCacheTests.swift */; };
 		B71A06A41DCBDE31307BDB8F /* APIModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D501B653E62F8FBAE71FBDBF /* APIModelsTests.swift */; };
@@ -44,6 +45,7 @@
 		2870F346E7D47B43C3454807 /* BoardRealtimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardRealtimeTests.swift; sourceTree = "<group>"; };
 		3099949C37EEA15601D5A443 /* AdBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdBanner.swift; sourceTree = "<group>"; };
 		44B24BCDEBEADB8E88850C33 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5C /* GoToPositionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoToPositionView.swift; sourceTree = "<group>"; };
 		65F2C7887D76C8ECBBE0DF5D /* TileCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TileCacheTests.swift; sourceTree = "<group>"; };
 		675F212EDE345F53C5350632 /* IBMPlexMono-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "IBMPlexMono-Medium.ttf"; sourceTree = "<group>"; };
 		75915BECB7377347E52E0816 /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
@@ -94,6 +96,7 @@
 				22651EDE0934EF192A615A10 /* AppModel.swift */,
 				C59046AEE5FC0F3B424EF09B /* BoardCanvasView.swift */,
 				44B24BCDEBEADB8E88850C33 /* ContentView.swift */,
+				A1B2C3D4E5F60718293A4B5C /* GoToPositionView.swift */,
 				F79590CCCDA0AEF9A5F38550 /* FirebaseAuthAdapter.swift */,
 				26A5EAA50A0866EBAB12941F /* InfinitePixelboardApp.swift */,
 				7DE1F12516F4118220261F4A /* PixelboardTheme.swift */,
@@ -293,6 +296,7 @@
 				0AA57E1EC3F8695C947CB354 /* AppModel.swift in Sources */,
 				66013A20F8B301283D30E2A1 /* BoardCanvasView.swift in Sources */,
 				8A686428919FFE9E9A4351BE /* ContentView.swift in Sources */,
+				D6E7F8091A2B3C4D5E6F7081 /* GoToPositionView.swift in Sources */,
 				5CF67E80619391698C58A14E /* FirebaseAuthAdapter.swift in Sources */,
 				8612FFB793833B9BDE6C95F9 /* InfinitePixelboardApp.swift in Sources */,
 				741092F334E613EF6C7D0B0D /* PixelboardTheme.swift in Sources */,

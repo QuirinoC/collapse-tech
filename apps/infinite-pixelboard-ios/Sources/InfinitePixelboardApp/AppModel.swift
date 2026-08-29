@@ -78,6 +78,16 @@ final class AppModel: ObservableObject {
         return account.tier == .pro ? .pro : .free
     }
 
+    var availableColors: [String] {
+        guard let account else { return PixelboardPalette.freeColors }
+        return account.allowedColors
+            ?? (account.tier == .pro ? PixelboardPalette.proColors : PixelboardPalette.freeColors)
+    }
+
+    var canUseCustomColors: Bool {
+        account?.tier == .pro
+    }
+
     var remainingCooldown: Int {
         guard let next = account?.cooldown.nextPlacementAt else { return 0 }
         return max(0, Int(ceil(next.timeIntervalSince(now))))
@@ -236,7 +246,8 @@ final class AppModel: ObservableObject {
                     cooldown: result.cooldown,
                     referralCode: current.referralCode,
                     paintBoost: current.paintBoost,
-                    isBanned: current.isBanned
+                    isBanned: current.isBanned,
+                    allowedColors: current.allowedColors
                 )
             }
             statusMessage = "Pixel placed"
@@ -250,7 +261,8 @@ final class AppModel: ObservableObject {
                     cooldown: result.cooldown,
                     referralCode: current.referralCode,
                     paintBoost: current.paintBoost,
-                    isBanned: current.isBanned
+                    isBanned: current.isBanned,
+                    allowedColors: current.allowedColors
                 )
             }
             statusMessage = error.localizedDescription
@@ -279,6 +291,7 @@ final class AppModel: ObservableObject {
             try await authentication.signOut()
             store.authenticationDidChange(isAuthenticated: false)
             account = nil
+            syncPaletteSelection()
             statusMessage = "Signed out; browsing remains available"
         } catch {
             statusMessage = error.localizedDescription
@@ -303,6 +316,7 @@ final class AppModel: ObservableObject {
             try await authentication.deleteAccount()
             store.authenticationDidChange(isAuthenticated: false)
             account = nil
+            syncPaletteSelection()
             statusMessage = "Account deleted"
         } catch {
             statusMessage = error.localizedDescription
@@ -440,6 +454,7 @@ final class AppModel: ObservableObject {
         guard await authentication.isAuthenticated else {
             if generation == authenticationGeneration {
                 account = nil
+                syncPaletteSelection()
             }
             return
         }
@@ -449,10 +464,22 @@ final class AppModel: ObservableObject {
             let isStillAuthenticated = await authentication.isAuthenticated
             guard generation == authenticationGeneration, isStillAuthenticated else { return }
             account = refreshedAccount
+            syncPaletteSelection()
         } catch {
             guard generation == authenticationGeneration else { return }
             statusMessage = error.localizedDescription
         }
+    }
+
+    private func syncPaletteSelection() {
+        guard !canUseCustomColors,
+              !availableColors.contains(where: {
+                  $0.caseInsensitiveCompare(selectedColor) == .orderedSame
+              }),
+              let firstColor = availableColors.first else {
+            return
+        }
+        selectedColor = firstColor
     }
 
     private func reloadBoard() async {

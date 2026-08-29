@@ -24,6 +24,11 @@ import { boundedReportRegion, otherReasonRequiresNote } from "./reporting.mjs";
 import { PixelboardRealtimeClient } from "./realtime.mjs";
 import { TileCache } from "./tile-cache.mjs";
 import {
+  FREE_COLORS,
+  colorsForState,
+  customColorsAllowed,
+} from "./palette.mjs";
+import {
   centerOn,
   createViewport,
   pan,
@@ -33,24 +38,12 @@ import {
   zoomAt,
 } from "./viewport.mjs";
 
-const COLORS = [
-  "#171714",
-  "#f7f3ea",
-  "#d3523c",
-  "#dc9b32",
-  "#e1c94a",
-  "#587554",
-  "#356b76",
-  "#425b8c",
-  "#7e5078",
-];
-
 const root = document.querySelector("[data-pixelboard-app]");
 if (root) start(root);
 
 async function start(app) {
   const elements = collectElements(app);
-  let selectedColor = COLORS[2];
+  let selectedColor = FREE_COLORS[2];
   let viewport = createViewport(elements.canvas.clientWidth, elements.canvas.clientHeight);
   let renderer;
   let cache;
@@ -91,7 +84,7 @@ async function start(app) {
   const deepLink = parseBoardPosition(window.location.search);
   const authReady = initializeAuthentication();
 
-  createPalette(elements.palette, selectedColor, (color) => {
+  createPalette(elements.palette, FREE_COLORS, selectedColor, (color) => {
     selectedColor = color;
     elements.colorPicker.value = color;
   });
@@ -213,6 +206,36 @@ async function start(app) {
     elements.zoomOut.addEventListener("click", () => zoomFromCenter(1 / 1.25));
     elements.resetView.addEventListener("click", () => {
       viewport = createViewport(renderer.width, renderer.height);
+      persistView();
+      scheduleDraw();
+    });
+    elements.locateOpen.addEventListener("click", () => {
+      elements.locateRow.value = String(hoveredPixel.row);
+      elements.locateColumn.value = String(hoveredPixel.column);
+      elements.locateStatus.textContent = "";
+      elements.locateDialog.showModal();
+      elements.locateRow.focus();
+    });
+    elements.locateClose.addEventListener("click", () => elements.locateDialog.close());
+    elements.locateForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const row = Number(elements.locateRow.value);
+      const column = Number(elements.locateColumn.value);
+      if (!Number.isSafeInteger(row) || !Number.isSafeInteger(column)) {
+        elements.locateStatus.textContent = "Enter whole-number coordinates.";
+        return;
+      }
+      viewport = centerOn(
+        viewport,
+        row,
+        column,
+        renderer.width,
+        renderer.height,
+      );
+      hoveredPixel = { row, column };
+      pointerControls.setKeyboardPixel(hoveredPixel);
+      elements.coordinate.textContent = formatCoordinate(hoveredPixel);
+      elements.locateDialog.close();
       persistView();
       scheduleDraw();
     });
@@ -437,6 +460,7 @@ async function start(app) {
   }
 
   function renderAccountState(state) {
+    renderPalette(state);
     refreshAdvertising(state.tier);
     elements.accountState.textContent = !state.authenticated
       ? "Anonymous"
@@ -461,6 +485,28 @@ async function start(app) {
     } else {
       elements.placementStatus.textContent = state.canPlace ? "Ready to place" : "Account action required";
     }
+  }
+
+  function renderPalette(state) {
+    const isPro = customColorsAllowed(state);
+    const colors = colorsForState(state);
+    if (!isPro && !colors.some((color) => color.toLowerCase() === selectedColor.toLowerCase())) {
+      selectedColor = colors[0];
+    }
+    elements.palette.replaceChildren();
+    createPalette(elements.palette, colors, selectedColor, (color) => {
+      selectedColor = color;
+      elements.colorPicker.value = color;
+    });
+    elements.customColor.hidden = !isPro;
+    elements.colorPicker.disabled = !isPro;
+    elements.colorPicker.setAttribute(
+      "aria-label",
+      isPro ? "Choose a custom Pro color" : "Custom colors require Pro",
+    );
+    elements.paletteTier.textContent = isPro
+      ? "Pro palette + custom"
+      : state.authenticated ? "Free palette" : "Free palette · sign in to place";
   }
 
   function invalidateAdvertising() {
@@ -630,6 +676,7 @@ async function start(app) {
     const visible = Boolean(
       state.authenticated && state.communityStandardsAccepted && !state.isBanned,
     );
+    elements.inviteSection.hidden = !visible;
     elements.inviteBlock.hidden = !visible;
     if (state.referralCode) elements.inviteCode.textContent = state.referralCode;
     if (state.paintBoost?.expiresAt) {
@@ -734,6 +781,7 @@ async function start(app) {
         && state.communityStandardsAccepted
         && !state.isBanned,
     );
+    elements.billingSection.hidden = !visible;
     elements.billingBlock.hidden = !visible;
     if (!visible) return;
     const isPro = isProTier(state.tier);
@@ -751,7 +799,9 @@ function collectElements(app) {
   return {
     canvas: app.querySelector("#board-canvas"),
     palette: app.querySelector("[data-palette]"),
+    paletteTier: app.querySelector("[data-palette-tier]"),
     colorPicker: app.querySelector("[data-color-picker]"),
+    customColor: app.querySelector("[data-custom-color]"),
     coordinate: app.querySelector("[data-coordinate]"),
     zoom: app.querySelector("[data-zoom]"),
     zoomIn: app.querySelector("[data-zoom-in]"),
@@ -782,6 +832,13 @@ function collectElements(app) {
     reportStatus: app.querySelector("[data-report-status]"),
     reportSubmit: app.querySelector("[data-report-form] button[type='submit']"),
     reportNoteHint: app.querySelector("[data-report-note-hint]"),
+    locateOpen: app.querySelector("[data-locate-open]"),
+    locateDialog: app.querySelector("[data-locate-dialog]"),
+    locateClose: app.querySelector("[data-locate-close]"),
+    locateForm: app.querySelector("[data-locate-form]"),
+    locateRow: app.querySelector("[data-locate-row]"),
+    locateColumn: app.querySelector("[data-locate-column]"),
+    locateStatus: app.querySelector("[data-locate-status]"),
     sharePosition: app.querySelector("[data-share-position]"),
     inviteBlock: app.querySelector("[data-invite-block]"),
     inviteCode: app.querySelector("[data-invite-code]"),
@@ -790,7 +847,9 @@ function collectElements(app) {
     redeemInvite: app.querySelector("[data-redeem-invite]"),
     inviteStatus: app.querySelector("[data-invite-status]"),
     boostState: app.querySelector("[data-boost-state]"),
+    inviteSection: app.querySelector("[data-invite-section]"),
     billingBlock: app.querySelector("[data-billing-block]"),
+    billingSection: app.querySelector("[data-billing-section]"),
     billingMonth: app.querySelector("[data-billing-month]"),
     billingYear: app.querySelector("[data-billing-year]"),
     billingPortal: app.querySelector("[data-billing-portal]"),
@@ -798,8 +857,8 @@ function collectElements(app) {
   };
 }
 
-function createPalette(container, selectedColor, onSelect) {
-  for (const color of COLORS) {
+function createPalette(container, colors, selectedColor, onSelect) {
+  for (const color of colors) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "swatch";

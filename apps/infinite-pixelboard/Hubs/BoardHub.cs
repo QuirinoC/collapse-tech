@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using PixelBoard.Application;
 using PixelBoard.Configuration;
+using PixelBoard.Contracts.V1;
 using PixelBoard.Domain;
 using PixelBoard.Infrastructure.Board;
 
@@ -18,6 +19,20 @@ public class BoardHub(
         {
             throw new HubException(
                 "Legacy placement is disabled. Use the authenticated v1 placement API.");
+        }
+
+        var validation = (
+            services.GetService<IPlacementValidator>() ?? new PlacementValidator()).Validate(
+            new PlacementCommand(
+                new AccountId($"legacy:{Context.ConnectionId}"),
+                new BoardPosition(x, y),
+                color,
+                $"legacy-{Context.ConnectionId}",
+                new ClientContext("legacy", "1.0")),
+            AccountTier.Free);
+        if (!validation.IsValid)
+        {
+            throw new HubException(validation.Error?.Message ?? "Invalid pixel color.");
         }
 
         await boardStore.SetPixelAsync(

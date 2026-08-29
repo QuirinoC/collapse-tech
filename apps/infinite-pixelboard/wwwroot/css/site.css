@@ -59,19 +59,56 @@ a { color: inherit; }
 .pixelboard-page { overflow: hidden; }
 .pixelboard-app { min-height: 100dvh; }
 
+.legal-shell {
+  min-height: 100dvh;
+  background:
+    linear-gradient(135deg, transparent 0 49.8%, rgba(23, 23, 20, .06) 50% 50.2%, transparent 50.3%),
+    var(--paper);
+}
+
+.legal-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  padding: 24px clamp(20px, 5vw, 64px);
+  border-bottom: 1px solid var(--line);
+}
+
+.legal-wordmark {
+  color: var(--ink);
+  font-size: .76rem;
+  font-weight: 600;
+  letter-spacing: -.055em;
+  line-height: .82;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.legal-wordmark span { font-size: .67em; letter-spacing: .08em; }
+.legal-back { font: 500 .62rem var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+
 .legal-page {
-  max-width: 40rem;
+  max-width: 44rem;
   margin: 0 auto;
-  padding: 48px 24px 80px;
+  padding: 72px 24px 96px;
   line-height: 1.55;
 }
-.legal-page h1 { font-size: 2rem; margin: 0 0 12px; }
+.legal-page h1 { margin: 0 0 18px; font-size: clamp(3.2rem, 9vw, 6rem); font-weight: 500; letter-spacing: -.08em; line-height: .82; text-transform: uppercase; }
 .legal-page h2 { font-size: 1.05rem; margin: 28px 0 8px; }
 .legal-page p,
 .legal-page li { color: var(--muted); }
 .legal-page ul { padding-left: 1.2rem; }
 .legal-page a { text-decoration: underline; }
 .legal-page code { font-family: var(--mono); font-size: .85em; }
+
+.error-page { min-height: 100dvh; background: var(--paper); }
+.error-card { max-width: 44rem; margin: 0 auto; padding: 16vh 24px 96px; }
+.error-card h1 { margin: 0; font-size: clamp(4rem, 12vw, 8rem); font-weight: 500; letter-spacing: -.1em; line-height: .74; text-transform: uppercase; }
+.error-copy { max-width: 25rem; margin: 38px 0 28px; color: var(--muted); line-height: 1.5; }
+.error-request { display: grid; gap: 6px; max-width: 25rem; margin: 0 0 28px; padding: 12px; border: 1px solid var(--line); color: var(--muted); font: .62rem var(--mono); }
+.error-request span { color: var(--ink); letter-spacing: .1em; text-transform: uppercase; }
+.error-request code { overflow-wrap: anywhere; }
+.error-action { display: inline-flex; min-height: 44px; align-items: center; padding: 0 16px; border: 1px solid var(--ink); background: var(--ink); color: var(--paper); font: 600 .68rem var(--mono); letter-spacing: .08em; text-decoration: none; text-transform: uppercase; }
 
 .board-header {
   position: fixed;
@@ -200,6 +237,14 @@ a { color: inherit; }
   transform: translateX(-50%);
 }
 
+.palette-tier {
+  color: var(--muted);
+  font: 500 .5rem var(--mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .palette-label {
   padding-right: 8px;
   color: var(--muted);
@@ -208,7 +253,7 @@ a { color: inherit; }
   text-transform: uppercase;
 }
 
-.swatches { display: flex; gap: 5px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 5px; max-width: min(62vw, 440px); }
 
 .swatch, .custom-color {
   position: relative;
@@ -228,6 +273,31 @@ a { color: inherit; }
 
 .custom-color { overflow: hidden; }
 .custom-color input { width: 42px; height: 42px; margin: -9px; border: 0; cursor: pointer; }
+
+.board-actions {
+  position: fixed;
+  z-index: 8;
+  bottom: 55px;
+  left: 22px;
+  display: flex;
+  gap: 6px;
+}
+
+.board-actions button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--ink);
+  background: var(--panel);
+  cursor: pointer;
+  font: 500 .58rem var(--mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.board-actions button:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
 
 .board-readout, .connection-pill, .placement-status {
   position: fixed;
@@ -351,6 +421,22 @@ a { color: inherit; }
 .account-state { margin: 0; border-top: 1px solid var(--line); }
 .account-state div { display: flex; justify-content: space-between; padding: 13px 0; border-bottom: 1px solid var(--line); font: .67rem var(--mono); text-transform: uppercase; }
 .account-state dd { margin: 0; color: var(--muted); }
+.panel-section { margin-top: 18px; border-top: 1px solid var(--line); }
+.panel-section summary {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 0;
+  cursor: pointer;
+  font: 500 .68rem var(--mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  list-style: none;
+}
+.panel-section summary::-webkit-details-marker { display: none; }
+.panel-section summary span { color: var(--muted); font-size: 1rem; line-height: .6; }
+.panel-section[open] summary span { transform: rotate(45deg); }
+.panel-section__body { padding: 0 0 8px; }
+.panel-section .invite-block { margin: 0; padding: 0 0 16px; border-top: 0; }
 .invite-block { margin: 28px 0 40px; padding-top: 18px; border-top: 1px solid var(--line); }
 .invite-block .panel-copy { margin: 12px 0 16px; }
 .invite-code {
@@ -396,6 +482,21 @@ a { color: inherit; }
 .report-submit { width: 100%; min-height: 48px; border: 1px solid var(--ink); background: var(--ink); color: var(--paper); cursor: pointer; font: 600 .7rem var(--mono); letter-spacing: .1em; text-transform: uppercase; }
 .report-submit:disabled { cursor: wait; opacity: .55; }
 
+.locate-dialog {
+  width: min(420px, calc(100% - 32px));
+  padding: 24px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+}
+.locate-dialog::backdrop { background: rgba(23, 23, 20, .38); }
+.locate-dialog .panel-heading .eyebrow { margin-bottom: 50px; }
+.locate-dialog h2 { margin: 0; font-size: clamp(2.8rem, 8vw, 4.5rem); font-weight: 500; letter-spacing: -.075em; line-height: .82; text-transform: uppercase; }
+.locate-dialog .panel-copy { margin: 28px 0 18px; }
+.locate-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.locate-fields .report-field { margin: 0 0 18px; }
+.locate-fields input { appearance: textfield; }
+
 .panel-scrim {
   position: fixed;
   z-index: 30;
@@ -413,7 +514,10 @@ a { color: inherit; }
   .board-readout [data-zoom] { display: none; }
   .placement-status { top: 58px; left: 16px; max-width: 48vw; }
   .connection-pill { bottom: 62px; left: 16px; }
+  .board-actions { bottom: 98px; left: 16px; }
   .zoom-controls { right: 16px; bottom: 62px; }
+  .palette { gap: 7px; }
+  .palette-tier { display: none; }
   .panel-footnote { position: static; margin-top: 45px; }
 }
 

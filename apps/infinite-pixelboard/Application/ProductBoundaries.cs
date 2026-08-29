@@ -176,7 +176,9 @@ public interface IAccountOperationGuard
 
 public interface IPlacementValidator
 {
-    PlacementValidation Validate(PlacementCommand command);
+    PlacementValidation Validate(
+        PlacementCommand command,
+        AccountTier tier = AccountTier.Free);
 }
 
 public interface IReportValidator

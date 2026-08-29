@@ -142,7 +142,8 @@ public sealed record AccountStateResponse(
     CooldownState Cooldown,
     string? ReferralCode,
     PaintBoostResponse? PaintBoost,
-    bool IsBanned);
+    bool IsBanned,
+    IReadOnlyList<string>? AllowedColors = null);
 
 public sealed record ClaimReferralRequest(string? Code);
 

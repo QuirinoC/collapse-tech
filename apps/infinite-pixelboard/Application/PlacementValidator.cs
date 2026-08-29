@@ -8,13 +8,22 @@ public sealed class PlacementValidator : IPlacementValidator
     public const int MaxClientPlatformLength = 32;
     public const int MaxClientVersionLength = 32;
 
-    public PlacementValidation Validate(PlacementCommand command)
+    public PlacementValidation Validate(
+        PlacementCommand command,
+        AccountTier tier = AccountTier.Free)
     {
-        if (!IsHexColor(command.Color))
+        if (!PixelPalette.IsHexColor(command.Color))
         {
             return Invalid(
                 ApiErrorCodes.InvalidColor,
                 "Color must use the #RRGGBB format.");
+        }
+
+        if (!PixelPalette.Allows(tier, command.Color))
+        {
+            return Invalid(
+                ApiErrorCodes.InvalidColor,
+                "Free accounts can only use the curated palette. Upgrade to Pro or choose an available color.");
         }
 
         if (string.IsNullOrWhiteSpace(command.IdempotencyKey)
@@ -37,24 +46,6 @@ public sealed class PlacementValidator : IPlacementValidator
         }
 
         return new PlacementValidation(true, null);
-    }
-
-    private static bool IsHexColor(string? color)
-    {
-        if (color is null || color.Length != 7 || color[0] != '#')
-        {
-            return false;
-        }
-
-        for (var index = 1; index < color.Length; index++)
-        {
-            if (!Uri.IsHexDigit(color[index]))
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private static PlacementValidation Invalid(string code, string message)

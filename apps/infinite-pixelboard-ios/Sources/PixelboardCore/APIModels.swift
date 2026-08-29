@@ -168,6 +168,7 @@ public struct AccountState: Codable, Equatable, Sendable {
     public let referralCode: String?
     public let paintBoost: PaintBoostState?
     public let isBanned: Bool?
+    public let allowedColors: [String]?
 
     public init(
         tier: AccountTier,
@@ -176,7 +177,8 @@ public struct AccountState: Codable, Equatable, Sendable {
         cooldown: CooldownState,
         referralCode: String? = nil,
         paintBoost: PaintBoostState? = nil,
-        isBanned: Bool? = nil
+        isBanned: Bool? = nil,
+        allowedColors: [String]? = nil
     ) {
         self.tier = tier
         self.canPlace = canPlace
@@ -185,6 +187,7 @@ public struct AccountState: Codable, Equatable, Sendable {
         self.referralCode = referralCode
         self.paintBoost = paintBoost
         self.isBanned = isBanned
+        self.allowedColors = allowedColors
     }
 }
 

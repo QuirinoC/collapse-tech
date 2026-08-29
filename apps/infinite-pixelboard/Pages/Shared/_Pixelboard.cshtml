@@ -28,7 +28,8 @@
         <section class="palette" aria-label="Pixel color">
             <span class="palette-label">Ink</span>
             <div class="swatches" role="radiogroup" aria-label="Choose a pixel color" data-palette></div>
-            <label class="custom-color">
+            <span class="palette-tier" data-palette-tier>Free palette</span>
+            <label class="custom-color" data-custom-color hidden>
                 <span class="sr-only">Custom color</span>
                 <input type="color" value="#d3523c" data-color-picker />
             </label>
@@ -39,10 +40,11 @@
             <span data-zoom>100%</span>
         </div>
 
-        <div class="zoom-controls" aria-label="Canvas zoom">
+        <div class="zoom-controls" aria-label="Canvas controls">
             <button type="button" data-zoom-out aria-label="Zoom out">−</button>
             <button type="button" data-reset-view aria-label="Reset view">⌖</button>
             <button type="button" data-zoom-in aria-label="Zoom in">+</button>
+            <button type="button" data-locate-open aria-label="Go to coordinates">Go</button>
         </div>
 
         <div class="connection-pill" data-connection role="status"
@@ -53,6 +55,11 @@
 
         <div class="placement-status" data-placement-status role="status" aria-live="polite">
             Viewing anonymously
+        </div>
+
+        <div class="board-actions" aria-label="Board actions">
+            <button type="button" data-share-position aria-label="Share this position">Share</button>
+            <button type="button" data-report-open aria-label="Report current position">Report</button>
         </div>
 
         @if (advertising.WebEnabled && advertising.ModerationOperationsEnabled)
@@ -74,16 +81,37 @@
         }
     </main>
 
+    <dialog class="locate-dialog" data-locate-dialog aria-labelledby="locate-title">
+        <form data-locate-form>
+            <div class="panel-heading">
+                <p class="eyebrow">Navigate</p>
+                <button class="icon-button" type="button" data-locate-close aria-label="Close go to coordinates">Close</button>
+            </div>
+            <h2 id="locate-title">Go to<br />coordinates.</h2>
+            <p class="panel-copy">
+                Enter a row and column to center that pixel on the board.
+            </p>
+            <div class="locate-fields">
+                <label class="report-field">
+                    Row
+                    <input type="number" step="1" inputmode="numeric" required data-locate-row />
+                </label>
+                <label class="report-field">
+                    Column
+                    <input type="number" step="1" inputmode="numeric" required data-locate-column />
+                </label>
+            </div>
+            <p class="auth-note" data-locate-status role="status" aria-live="polite"></p>
+            <button class="report-submit" type="submit">Center board</button>
+        </form>
+    </dialog>
+
     <aside class="account-panel" id="account-panel" data-account-panel aria-hidden="true" inert>
         <div class="panel-heading">
             <p class="eyebrow">Settings</p>
             <button class="icon-button" type="button" data-panel-close aria-label="Close settings">Close</button>
         </div>
         <h2 data-account-heading>Sign in<br />to paint.</h2>
-        <div class="settings-actions">
-            <button type="button" data-share-position aria-label="Share this position">Share</button>
-            <button type="button" data-report-open aria-label="Report current position">Report</button>
-        </div>
         <p class="panel-copy">
             The board is open to everyone. Painting requires a verified account so each
             contribution can be reconciled and the shared 5-second cooldown respected.
@@ -111,39 +139,52 @@
             <div><dt>Cooldown</dt><dd data-cooldown>—</dd></div>
             <div><dt>Paint boost</dt><dd data-boost-state>None</dd></div>
         </dl>
-        <div class="invite-block" data-billing-block hidden>
-            <p class="eyebrow">Pixelboard Pro</p>
-            <p class="panel-copy">
-                Pro is one second between pixels. It does not remove the cooldown.
-                On the website you pay through Stripe. The iPhone app uses Apple.
-            </p>
-            <button type="button" data-billing-month>Pro monthly · $2.99</button>
-            <button type="button" data-billing-year>Pro annual · $24.99</button>
-            <button type="button" data-billing-portal hidden>Manage billing</button>
-            <p class="auth-note" data-billing-status role="status" aria-live="polite"></p>
-        </div>
-        <div class="invite-block" data-invite-block hidden>
-            <p class="eyebrow">Invite a painter</p>
-            <p class="panel-copy">
-                Share your code. When they sign in and accept the standards, they get
-                4 hours at a 2-second cooldown. You get 4 hours at 3 seconds. This is
-                not Pro, and it never removes the cooldown.
-            </p>
-            <p class="invite-code" data-invite-code>—</p>
-            <button type="button" data-copy-invite>Copy invite link</button>
-            <label class="report-field">
-                Have a code?
-                <input type="text" maxlength="12" autocomplete="off" spellcheck="false" data-redeem-code />
-            </label>
-            <button type="button" data-redeem-invite>Redeem invite</button>
-            <p class="auth-note" data-invite-status role="status" aria-live="polite"></p>
-        </div>
-        <p class="panel-footnote">
-            Pixels you place are public. Anyone can overwrite them.
-            <a href="/Privacy">Privacy</a>
-            ·
-            <a href="/Terms">Terms</a>
-        </p>
+        <details class="panel-section" data-billing-section hidden>
+            <summary>Pixelboard Pro <span aria-hidden="true">+</span></summary>
+            <div class="panel-section__body">
+                <div class="invite-block" data-billing-block hidden>
+                    <p class="panel-copy">
+                        Pro is one second between pixels and unlocks the extended palette plus custom colors.
+                        On the website you pay through Stripe. The iPhone app uses Apple.
+                    </p>
+                    <button type="button" data-billing-month>Pro monthly · $2.99</button>
+                    <button type="button" data-billing-year>Pro annual · $24.99</button>
+                    <button type="button" data-billing-portal hidden>Manage billing</button>
+                    <p class="auth-note" data-billing-status role="status" aria-live="polite"></p>
+                </div>
+            </div>
+        </details>
+        <details class="panel-section" data-invite-section hidden>
+            <summary>Invite a painter <span aria-hidden="true">+</span></summary>
+            <div class="panel-section__body">
+                <div class="invite-block" data-invite-block hidden>
+                    <p class="panel-copy">
+                        Share your code. When they sign in and accept the standards, they get
+                        4 hours at a 2-second cooldown. You get 4 hours at 3 seconds. This is
+                        not Pro, and it never removes the cooldown.
+                    </p>
+                    <p class="invite-code" data-invite-code>—</p>
+                    <button type="button" data-copy-invite>Copy invite link</button>
+                    <label class="report-field">
+                        Have a code?
+                        <input type="text" maxlength="12" autocomplete="off" spellcheck="false" data-redeem-code />
+                    </label>
+                    <button type="button" data-redeem-invite>Redeem invite</button>
+                    <p class="auth-note" data-invite-status role="status" aria-live="polite"></p>
+                </div>
+            </div>
+        </details>
+        <details class="panel-section">
+            <summary>More <span aria-hidden="true">+</span></summary>
+            <div class="panel-section__body">
+                <p class="panel-copy">Pixels you place are public. Anyone can overwrite them.</p>
+                <p class="panel-footnote">
+                    <a href="/Privacy">Privacy</a>
+                    <span aria-hidden="true">·</span>
+                    <a href="/Terms">Terms</a>
+                </p>
+            </div>
+        </details>
     </aside>
 
     <dialog class="report-dialog" data-report-dialog aria-labelledby="report-title">

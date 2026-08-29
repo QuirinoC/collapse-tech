@@ -3,11 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-
-    private let colors = [
-        "#171714", "#F7F3EA", "#D3523C", "#DC9B32", "#E1C94A",
-        "#587554", "#356B76", "#425B8C", "#7E5078"
-    ]
+    @State private var showingGoTo = false
 
     var body: some View {
         ZStack {
@@ -23,6 +19,14 @@ struct ContentView: View {
                 .environmentObject(model)
                 .presentationBackground(PixelboardTheme.paper)
                 .presentationDragIndicator(.hidden)
+        }
+        .sheet(isPresented: $showingGoTo) {
+            GoToPositionView(initialPosition: model.selectedPosition) { position in
+                model.center(on: position)
+                showingGoTo = false
+            }
+            .presentationBackground(PixelboardTheme.paper)
+            .presentationDragIndicator(.hidden)
         }
     }
 
@@ -126,6 +130,10 @@ struct ContentView: View {
             zoomButton("+", label: "Zoom in") {
                 model.zoomAtCenter(factor: 1.25)
             }
+            PixelboardTheme.line.frame(height: 1)
+            zoomButton("GO", label: "Go to coordinates") {
+                showingGoTo = true
+            }
         }
         .frame(width: 32)
         .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
@@ -135,7 +143,9 @@ struct ContentView: View {
     private func zoomButton(_ title: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(PixelboardTheme.sans(16, weight: .medium))
+                .font(title == "GO"
+                    ? PixelboardTheme.mono(9.5)
+                    : PixelboardTheme.sans(16, weight: .medium))
                 .foregroundStyle(PixelboardTheme.ink)
                 .frame(width: 32, height: 30)
         }
@@ -154,37 +164,55 @@ struct ContentView: View {
                         .foregroundStyle(PixelboardTheme.muted)
                         .padding(.trailing, 4)
                 }
-                HStack(spacing: 5) {
-                    ForEach(colors, id: \.self) { color in
-                        Button {
-                            model.selectedColor = color
-                        } label: {
-                            ZStack {
-                                Rectangle().fill(Color(pixelboardHex: color))
-                                if color.caseInsensitiveCompare(model.selectedColor) == .orderedSame {
-                                    Rectangle()
-                                        .stroke(Color.white.opacity(0.82), lineWidth: 1)
-                                        .padding(4)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 5) {
+                        ForEach(model.availableColors, id: \.self) { color in
+                            Button {
+                                model.selectedColor = color
+                            } label: {
+                                ZStack {
+                                    Rectangle().fill(Color(pixelboardHex: color))
+                                    if color.caseInsensitiveCompare(model.selectedColor) == .orderedSame {
+                                        Rectangle()
+                                            .stroke(Color.white.opacity(0.82), lineWidth: 1)
+                                            .padding(4)
+                                    }
                                 }
+                                .frame(width: 26, height: 26)
+                                .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Select color \(color)")
+                            .accessibilityAddTraits(
+                                color.caseInsensitiveCompare(model.selectedColor) == .orderedSame
+                                    ? .isSelected : []
+                            )
+                        }
+                        if model.canUseCustomColors {
+                            ZStack {
+                                Rectangle().fill(Color(pixelboardHex: model.selectedColor))
+                                ColorPicker("Custom color", selection: customColorBinding, supportsOpacity: false)
+                                    .labelsHidden()
+                                    .opacity(0.02)
                             }
                             .frame(width: 26, height: 26)
                             .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
+                            .accessibilityLabel("Choose a custom Pro color")
+                        } else {
+                            Button {
+                                model.showingAccount = true
+                            } label: {
+                                Text("PRO")
+                                    .font(PixelboardTheme.mono(7.5))
+                                    .tracking(0.4)
+                                    .foregroundStyle(PixelboardTheme.muted)
+                                    .frame(width: 26, height: 26)
+                            }
+                            .buttonStyle(.plain)
+                            .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
+                            .accessibilityLabel("Unlock custom colors with Pro")
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Select color \(color)")
-                        .accessibilityAddTraits(
-                            color.caseInsensitiveCompare(model.selectedColor) == .orderedSame
-                                ? .isSelected : []
-                        )
                     }
-                    ZStack {
-                        Rectangle().fill(Color(pixelboardHex: model.selectedColor))
-                        ColorPicker("Custom color", selection: customColorBinding, supportsOpacity: false)
-                            .labelsHidden()
-                            .opacity(0.02)
-                    }
-                    .frame(width: 26, height: 26)
-                    .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
                 }
             }
             .padding(.vertical, 8)

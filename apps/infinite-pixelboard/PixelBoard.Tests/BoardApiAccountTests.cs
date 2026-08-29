@@ -35,6 +35,7 @@ public sealed class BoardApiAccountTests
         Assert.Equal(now.AddSeconds(7), response.Body.Cooldown.NextPlacementAt);
         Assert.Equal(PlacementCooldown.FreeSeconds, response.Body.Cooldown.CooldownSeconds);
         Assert.False(response.Body.IsBanned);
+        Assert.Equal(PixelPalette.FreeColors, response.Body.AllowedColors);
     }
 
     [Fact]

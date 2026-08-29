@@ -3,11 +3,12 @@ import XCTest
 
 final class APIModelsTests: XCTestCase {
     func testServerNumericEnumsDecode() throws {
-        let data = Data(#"{"tier":1,"canPlace":true,"communityStandardsAccepted":true,"cooldown":{"nextPlacementAt":null,"cooldownSeconds":1}}"#.utf8)
+        let data = Data(#"{"tier":1,"canPlace":true,"communityStandardsAccepted":true,"cooldown":{"nextPlacementAt":null,"cooldownSeconds":1},"allowedColors":["#D3523C","#123456"]}"#.utf8)
         let account = try JSONDecoder().decode(AccountState.self, from: data)
         XCTAssertEqual(account.tier, .pro)
         XCTAssertTrue(account.canPlace)
         XCTAssertNil(account.isBanned)
+        XCTAssertEqual(account.allowedColors, ["#D3523C", "#123456"])
     }
 
     func testBoardMetadataDecodesOptionalStatusAndMinimumVersion() throws {

@@ -32,7 +32,7 @@ struct ReportView: View {
             VStack(alignment: .leading, spacing: 0) {
                 PixelboardPanelHeading(
                     eyebrow: "Community safety",
-                    title: "Report current position."
+                    title: "Report\ncurrent position."
                 ) {
                     dismiss()
                 }
@@ -68,7 +68,7 @@ struct ReportView: View {
                     .pickerStyle(.menu)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
-                    .background(Color.white.opacity(0.25))
+                    .background(PixelboardTheme.field)
                     .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
                     .tint(PixelboardTheme.ink)
                 }
@@ -82,7 +82,7 @@ struct ReportView: View {
                         .font(PixelboardTheme.sans(15))
                         .foregroundStyle(PixelboardTheme.ink)
                         .padding(10)
-                        .background(Color.white.opacity(0.25))
+                        .background(PixelboardTheme.field)
                         .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
                 }
 
@@ -117,6 +117,7 @@ struct ReportView: View {
         }
         .background(PixelboardTheme.paper.ignoresSafeArea())
         .preferredColorScheme(.light)
+        .scrollDismissesKeyboard(.interactively)
     }
 
     private func dimensionField(_ title: String, value: Binding<Int>) -> some View {
@@ -126,7 +127,7 @@ struct ReportView: View {
                 .font(PixelboardTheme.mono(14))
                 .foregroundStyle(PixelboardTheme.ink)
                 .padding(10)
-                .background(Color.white.opacity(0.25))
+                .background(PixelboardTheme.field)
                 .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
                 .onChange(of: value.wrappedValue) { _, next in
                     value.wrappedValue = min(64, max(1, next))

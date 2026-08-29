@@ -23,6 +23,7 @@ test("account state combines authentication, policy, and cooldown", () => {
     remainingSeconds: 2,
     referralCode: null,
     paintBoost: null,
+    allowedColors: null,
     isBanned: false,
   });
   state.dispose();

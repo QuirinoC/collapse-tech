@@ -5,7 +5,7 @@
     --paper: #11110f;
     --panel: #191916;
     --line: #3b3a34;
-    --signal: #d7ff3f;
+    --signal: #e1c94a;
     --danger: #ff6b59;
     font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
 }
@@ -16,6 +16,7 @@ body {
     margin: 0;
     background: var(--paper);
     color: var(--ink);
+    -webkit-font-smoothing: antialiased;
 }
 
 button, input, textarea { font: inherit; }
@@ -40,6 +41,7 @@ button.danger { background: var(--danger); }
     gap: 2rem;
     padding: 2rem clamp(1rem, 4vw, 4rem);
     border-bottom: 1px solid var(--line);
+    background: linear-gradient(135deg, rgba(225, 201, 74, .08), transparent 42%);
 }
 
 .console-actions { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: end; }
@@ -57,7 +59,7 @@ h2 { margin-bottom: 0; font-size: 1.5rem; }
 }
 
 main { padding: 1rem clamp(1rem, 4vw, 4rem) 4rem; }
-.status { min-height: 1.5rem; color: var(--muted); }
+.status { min-height: 1.5rem; color: var(--muted); font: .75rem ui-monospace, monospace; }
 .status[data-error="true"] { color: var(--danger); }
 
 .safety-panel {
@@ -94,6 +96,7 @@ textarea { min-height: 6rem; resize: vertical; }
 .queue, .review { min-width: 0; }
 .queue { border-right: 1px solid var(--line); }
 .section-heading { padding: 1rem; border-bottom: 1px solid var(--line); }
+.section-heading h2 { letter-spacing: -.03em; }
 
 #report-list { margin: 0; padding: 0; list-style: none; }
 #report-list button {

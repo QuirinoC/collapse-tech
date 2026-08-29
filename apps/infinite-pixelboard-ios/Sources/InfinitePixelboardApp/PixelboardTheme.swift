@@ -11,6 +11,7 @@ enum PixelboardTheme {
     static let panel = Color(red: 244 / 255, green: 240 / 255, blue: 232 / 255).opacity(0.94)
     static let live = Color(red: 79 / 255, green: 115 / 255, blue: 85 / 255)
     static let syncing = Color(red: 200 / 255, green: 138 / 255, blue: 42 / 255)
+    static let field = Color.white.opacity(0.25)
 
     static func sans(_ size: CGFloat, weight: Font.Weight = .medium) -> Font {
         Font.custom("Space Grotesk", size: size).weight(weight)
