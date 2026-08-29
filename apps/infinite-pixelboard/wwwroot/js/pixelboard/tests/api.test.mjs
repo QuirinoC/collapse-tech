@@ -86,3 +86,57 @@ test("reports send only bounded coordinates, reason, note, and client context", 
   assert.equal("screenshot" in body, false);
   assert.equal("accountId" in body, false);
 });
+
+test("invite claims post the normalized code to the account referral route", async (context) => {
+  let request;
+  context.mock.method(globalThis, "fetch", async (url, options) => {
+    request = { url, options };
+    return new Response(null, { status: 204 });
+  });
+  const api = new PixelboardApi({ getToken: async () => "firebase-token" });
+
+  await api.claimReferral("ABCD2345");
+
+  assert.equal(request.url, "/api/v1/account/referral");
+  assert.equal(request.options.method, "POST");
+  assert.equal(JSON.parse(request.options.body).code, "ABCD2345");
+});
+
+test("stripe checkout posts month or year and never a card payload", async (context) => {
+  let request;
+  context.mock.method(globalThis, "fetch", async (url, options) => {
+    request = { url, options };
+    return new Response(JSON.stringify({ url: "https://checkout.stripe.test/session" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  });
+  const api = new PixelboardApi({ getToken: async () => "firebase-token" });
+
+  await api.createStripeCheckoutSession("month");
+
+  assert.equal(request.url, "/api/v1/stripe/checkout-session");
+  assert.equal(request.options.method, "POST");
+  assert.deepEqual(JSON.parse(request.options.body), { interval: "month" });
+  assert.equal("card" in JSON.parse(request.options.body), false);
+});
+
+test("stripe config is public and portal requires a session token", async (context) => {
+  const requests = [];
+  context.mock.method(globalThis, "fetch", async (url, options) => {
+    requests.push({ url, options });
+    return new Response(JSON.stringify({ enabled: true, url: "https://billing.stripe.test" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  });
+  const api = new PixelboardApi({ getToken: async () => "firebase-token" });
+
+  await api.stripeConfig();
+  await api.createStripePortalSession();
+
+  assert.equal(requests[0].url, "/api/v1/stripe/config");
+  assert.equal("Authorization" in requests[0].options.headers, false);
+  assert.equal(requests[1].url, "/api/v1/stripe/portal");
+  assert.equal(requests[1].options.headers.Authorization, "Bearer firebase-token");
+});

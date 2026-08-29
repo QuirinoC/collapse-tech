@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using System.Net;
 using PixelBoard.Api;
 using PixelBoard.Api.V1;
@@ -35,6 +37,25 @@ builder.Services.AddFirebaseAuthentication();
 builder.Services.AddBoardStorage();
 builder.Services.AddModerationLedger(builder.Configuration);
 builder.Services.AddStoreKitEntitlements(builder.Configuration);
+builder.Services.AddStripeBilling(builder.Configuration);
+var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
+if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+{
+    builder.Services.AddOpenTelemetry()
+        .WithMetrics(metrics =>
+        {
+            metrics
+                .AddMeter("PixelBoard.PlacementOutbox", "PixelBoard.Realtime")
+                .AddOtlpExporter();
+        })
+        .WithTracing(tracing =>
+        {
+            tracing
+                .AddAspNetCoreInstrumentation()
+                .AddOtlpExporter();
+        });
+}
+
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
@@ -88,6 +109,7 @@ app.MapHub<RealtimeBoardHub>("/api/v1/realtime");
 app.MapBoardApiV1();
 app.MapModerationApiV1();
 app.MapStoreKitApiV1();
+app.MapStripeApiV1();
 app.MapAdvertisingMetadata();
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {

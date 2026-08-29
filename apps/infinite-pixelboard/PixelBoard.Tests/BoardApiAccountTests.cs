@@ -33,7 +33,33 @@ public sealed class BoardApiAccountTests
 
         Assert.Equal(StatusCodes.Status200OK, response.StatusCode);
         Assert.Equal(now.AddSeconds(7), response.Body.Cooldown.NextPlacementAt);
-        Assert.Equal(10, response.Body.Cooldown.CooldownSeconds);
+        Assert.Equal(PlacementCooldown.FreeSeconds, response.Body.Cooldown.CooldownSeconds);
+        Assert.False(response.Body.IsBanned);
+    }
+
+    [Fact]
+    public async Task BannedAccountIsFlaggedAndCannotPlace()
+    {
+        var now = new DateTimeOffset(2026, 8, 27, 6, 0, 0, TimeSpan.Zero);
+        await using var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton<IAccountPolicyService>(
+                new PolicyService(new AccountPolicyState(true, true)))
+            .AddSingleton<IEntitlementService>(
+                new EntitlementService(new EntitlementState(AccountTier.Free, null)))
+            .AddSingleton<IAtomicPlacementStore>(new PlacementStore(TimeSpan.Zero))
+            .BuildServiceProvider();
+
+        var result = await BoardApi.GetAccountAsync(
+            new IdentityAccessor(),
+            new FixedTimeProvider(now),
+            services,
+            CancellationToken.None);
+        var response = await ExecuteAsync<AccountStateResponse>(result, services);
+
+        Assert.Equal(StatusCodes.Status200OK, response.StatusCode);
+        Assert.True(response.Body.IsBanned);
+        Assert.False(response.Body.CanPlace);
     }
 
     private static async Task<(int StatusCode, T Body)> ExecuteAsync<T>(

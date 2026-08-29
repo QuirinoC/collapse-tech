@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { boundedReportRegion } from "../reporting.mjs";
+import { boundedReportRegion, otherReasonRequiresNote } from "../reporting.mjs";
 
 test("report regions remain centered using row then column coordinates", () => {
   assert.deepEqual(boundedReportRegion({ row: -4, column: 12 }, 8, 8), {
@@ -18,4 +18,10 @@ test("report dimensions are integral and bounded to the server contract", () => 
     width: 64,
     height: 1,
   });
+});
+
+test("other reports require a note before submit", () => {
+  assert.equal(otherReasonRequiresNote(6, "   "), true);
+  assert.equal(otherReasonRequiresNote(6, "spam overlay"), false);
+  assert.equal(otherReasonRequiresNote(2, ""), false);
 });

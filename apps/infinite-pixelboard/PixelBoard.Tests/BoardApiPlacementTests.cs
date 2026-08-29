@@ -12,7 +12,7 @@ namespace PixelBoard.Tests;
 public sealed class BoardApiPlacementTests
 {
     [Theory]
-    [InlineData(AccountTier.Free, 10)]
+    [InlineData(AccountTier.Free, 5)]
     [InlineData(AccountTier.Pro, 1)]
     public async Task AcceptedPlacementUsesServerEntitlementCooldown(
         AccountTier tier,
@@ -41,6 +41,32 @@ public sealed class BoardApiPlacementTests
         Assert.Equal(expectedCooldownSeconds, response.Body.Cooldown.CooldownSeconds);
         Assert.Equal(TimeSpan.FromSeconds(expectedCooldownSeconds), placementStore.Cooldown);
         Assert.NotNull(publisher.Published);
+    }
+
+    [Fact]
+    public async Task AcceptedPlacementUsesActivePaintBoostForFreeAccounts()
+    {
+        var now = new DateTimeOffset(2026, 8, 28, 18, 0, 0, TimeSpan.Zero);
+        var placementStore = new RecordingPlacementStore();
+        await using var services = CreateServices(
+            new StubPolicyService(new AccountPolicyState(false, true)),
+            new StubEntitlementService(AccountTier.Free),
+            placementStore,
+            new RecordingRealtimePublisher(),
+            boost: new PaintBoostState(PlacementCooldown.RefereeSeconds, now.AddHours(1)));
+
+        var result = await BoardApi.PlaceAsync(
+            ValidRequest(),
+            new StubIdentityAccessor(new AccountId("firebase-test-user")),
+            new PlacementValidator(),
+            new FixedTimeProvider(now),
+            services,
+            CancellationToken.None);
+        var response = await ExecuteAsync<PlacementResult>(result, services);
+
+        Assert.Equal(StatusCodes.Status200OK, response.StatusCode);
+        Assert.Equal(PlacementCooldown.RefereeSeconds, response.Body.Cooldown.CooldownSeconds);
+        Assert.Equal(TimeSpan.FromSeconds(PlacementCooldown.RefereeSeconds), placementStore.Cooldown);
     }
 
     [Theory]
@@ -246,6 +272,31 @@ public sealed class BoardApiPlacementTests
         Assert.Equal(0, publisher.CallCount);
     }
 
+    [Fact]
+    public async Task NetworkRateLimitRejectsBeforeCallingStore()
+    {
+        var placementStore = new RecordingPlacementStore();
+        await using var services = CreateServices(
+            new StubPolicyService(new AccountPolicyState(false, true)),
+            new StubEntitlementService(AccountTier.Free),
+            placementStore,
+            new RecordingRealtimePublisher(),
+            rateLimiter: new StubPlacementRateLimiter(false));
+
+        var result = await BoardApi.PlaceAsync(
+            ValidRequest(),
+            new StubIdentityAccessor(new AccountId("firebase-test-user")),
+            new PlacementValidator(),
+            TimeProvider.System,
+            services,
+            CancellationToken.None);
+        var response = await ExecuteAsync<ApiError>(result, services);
+
+        Assert.Equal(StatusCodes.Status429TooManyRequests, response.StatusCode);
+        Assert.Equal(ApiErrorCodes.PlacementRateLimited, response.Body.Code);
+        Assert.Equal(0, placementStore.CallCount);
+    }
+
     private static PlacementRequest ValidRequest() =>
         new(10, 20, "#abcdef", "request-1", new ClientContext("web", "1.0"));
 
@@ -255,7 +306,9 @@ public sealed class BoardApiPlacementTests
         IAtomicPlacementStore placementStore,
         IRealtimeEventPublisher publisher,
         bool placementsFrozen = false,
-        bool accountActive = true) =>
+        bool accountActive = true,
+        PaintBoostState? boost = null,
+        IPlacementRateLimiter? rateLimiter = null) =>
         new ServiceCollection()
             .AddLogging()
             .AddOptions()
@@ -265,6 +318,8 @@ public sealed class BoardApiPlacementTests
             .AddSingleton<IAccountOperationGuard>(new StubAccountOperationGuard(accountActive))
             .AddSingleton<IPlatformSafetyService>(new StubSafetyService(placementsFrozen))
             .AddSingleton(publisher)
+            .AddSingleton<IPaintBoostService>(new StubBoostService(boost))
+            .AddSingleton(rateLimiter ?? new StubPlacementRateLimiter(true))
             .BuildServiceProvider();
 
     private static async Task<(int StatusCode, T Body)> ExecuteAsync<T>(
@@ -313,6 +368,28 @@ public sealed class BoardApiPlacementTests
             AccountId accountId,
             CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(new EntitlementState(tier, null));
+    }
+
+    private sealed class StubBoostService(PaintBoostState? state) : IPaintBoostService
+    {
+        public ValueTask<PaintBoostState?> GetAsync(
+            AccountId accountId,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(state);
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    private sealed class StubPlacementRateLimiter(bool allowed) : IPlacementRateLimiter
+    {
+        public ValueTask<bool> TryAcquireAsync(
+            AccountId accountId,
+            string? clientIp,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(allowed);
     }
 
     private sealed class StubSafetyService(bool placementsFrozen) : IPlatformSafetyService

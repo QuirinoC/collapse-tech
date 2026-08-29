@@ -33,7 +33,10 @@ public sealed class PostgresHealthCheck(NpgsqlDataSource dataSource) : IHealthCh
                     'account_warnings',
                     'hidden_regions',
                     'platform_safety_state',
-                    'deleted_accounts'
+                    'deleted_accounts',
+                    'referral_codes',
+                    'referral_attributions',
+                    'paint_boosts'
                 ]) AS required_tables(required_table);
                 """;
             await using var command = dataSource.CreateCommand(sql);

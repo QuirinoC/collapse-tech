@@ -68,6 +68,37 @@ export class PixelboardApi {
     });
   }
 
+  claimReferral(code, signal) {
+    return this.#authorized("/account/referral", {
+      method: "POST",
+      signal,
+      body: { code },
+    });
+  }
+
+  stripeConfig(signal) {
+    return this.#request("/stripe/config", { signal });
+  }
+
+  stripeStatus(signal) {
+    return this.#authorized("/stripe/status", { signal });
+  }
+
+  createStripeCheckoutSession(interval, signal) {
+    return this.#authorized("/stripe/checkout-session", {
+      method: "POST",
+      signal,
+      body: { interval },
+    });
+  }
+
+  createStripePortalSession(signal) {
+    return this.#authorized("/stripe/portal", {
+      method: "POST",
+      signal,
+    });
+  }
+
   async #authorized(path, options) {
     const token = await this.getToken();
     if (!token) {

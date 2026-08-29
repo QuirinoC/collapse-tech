@@ -10,6 +10,7 @@ using PixelBoard.Infrastructure.Moderation;
 using PixelBoard.Infrastructure.Postgres;
 using PixelBoard.Infrastructure.Realtime;
 using PixelBoard.Infrastructure.StoreKit;
+using PixelBoard.Infrastructure.Stripe;
 using StackExchange.Redis;
 
 namespace PixelBoard.Configuration;
@@ -75,6 +76,18 @@ public static class ServiceCollectionExtensions
             .ValidateOnStart();
 
         services
+            .AddOptions<StripeOptions>()
+            .Bind(configuration.GetSection(StripeOptions.SectionName))
+            .Validate(
+                options => !options.Enabled
+                    || (IsStripeSecret(options.SecretKey)
+                        && IsStripeWebhookSecret(options.WebhookSecret)
+                        && IsStripePriceId(options.MonthlyPriceId)
+                        && IsStripePriceId(options.AnnualPriceId)),
+                "Stripe secret, webhook signing secret, and monthly/annual price IDs are required when Stripe is enabled.")
+            .ValidateOnStart();
+
+        services
             .AddOptions<AdvertisingOptions>()
             .Bind(configuration.GetSection(AdvertisingOptions.SectionName))
             .Validate(
@@ -101,6 +114,16 @@ public static class ServiceCollectionExtensions
                 options => !options.AbuseSignalHashingEnabled
                     || options.AbuseSignalHmacKey.Length >= 32,
                 "A Security:AbuseSignalHmacKey of at least 32 characters is required when abuse-signal hashing is enabled.")
+            .ValidateOnStart();
+
+        services
+            .AddOptions<BoardClientOptions>()
+            .Bind(configuration.GetSection(BoardClientOptions.SectionName));
+
+        services
+            .AddOptions<PlacementRateLimitOptions>()
+            .Bind(configuration.GetSection(PlacementRateLimitOptions.SectionName))
+            .ValidateDataAnnotations()
             .ValidateOnStart();
 
         return services;
@@ -154,6 +177,7 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<RedisRealtimeEventSubscriber>();
         services.AddSingleton<IPlacementLedger, PostgresPlacementLedger>();
         services.AddSingleton<IReportRateLimiter, RedisReportRateLimiter>();
+        services.AddSingleton<IPlacementRateLimiter, RedisPlacementRateLimiter>();
         services.AddSingleton<IReportEvidenceCollector, ReportEvidenceCollector>();
         services.AddSingleton<IReportStore, PostgresReportStore>();
         services.AddSingleton<PostgresModerationService>();
@@ -170,6 +194,11 @@ public static class ServiceCollectionExtensions
             provider => provider.GetRequiredService<PostgresAccountStateService>());
         services.AddSingleton<IAccountDeletionService, PostgresAccountDeletionService>();
         services.AddSingleton<IAccountOperationGuard, PostgresAccountOperationGuard>();
+        services.AddSingleton<PostgresReferralService>();
+        services.AddSingleton<IReferralService>(
+            provider => provider.GetRequiredService<PostgresReferralService>());
+        services.AddSingleton<IPaintBoostService>(
+            provider => provider.GetRequiredService<PostgresReferralService>());
         services.AddHostedService<PlacementOutboxWorker>();
         services
             .AddHealthChecks()
@@ -197,6 +226,30 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<PostgresStoreKitEntitlementStore>();
         services.AddSingleton<IStoreKitEntitlementStore>(
             provider => provider.GetRequiredService<PostgresStoreKitEntitlementStore>());
+        return services;
+    }
+
+    public static IServiceCollection AddStripeBilling(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        if (!configuration.GetValue<bool>($"{StripeOptions.SectionName}:Enabled"))
+        {
+            return services;
+        }
+
+        if (!configuration.GetValue<bool>($"{PostgresOptions.SectionName}:Enabled"))
+        {
+            throw new InvalidOperationException(
+                "PostgreSQL must be enabled when Stripe is enabled.");
+        }
+
+        services.AddSingleton<StripeGateway>();
+        services.AddSingleton<IStripeBillingGateway>(
+            provider => provider.GetRequiredService<StripeGateway>());
+        services.AddSingleton<PostgresStripeBillingStore>();
+        services.AddSingleton<IStripeBillingStore>(
+            provider => provider.GetRequiredService<PostgresStripeBillingStore>());
         return services;
     }
 
@@ -232,6 +285,16 @@ public static class ServiceCollectionExtensions
 
     private static bool IsNumericId(string value) =>
         value.Length >= 6 && value.All(char.IsAsciiDigit);
+
+    private static bool IsStripeSecret(string value) =>
+        value.StartsWith("sk_", StringComparison.Ordinal)
+        || value.StartsWith("rk_", StringComparison.Ordinal);
+
+    private static bool IsStripeWebhookSecret(string value) =>
+        value.StartsWith("whsec_", StringComparison.Ordinal);
+
+    private static bool IsStripePriceId(string value) =>
+        value.StartsWith("price_", StringComparison.Ordinal);
 
     private static bool IsSafeAdContentRating(string value) =>
         value is "G" or "PG" or "T";

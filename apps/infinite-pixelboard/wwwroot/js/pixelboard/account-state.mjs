@@ -30,6 +30,9 @@ export class AccountState {
       canPlace: Boolean(this.account?.canPlace) && remainingMilliseconds === 0,
       communityStandardsAccepted: Boolean(this.account?.communityStandardsAccepted),
       remainingSeconds: Math.ceil(remainingMilliseconds / 1000),
+      referralCode: this.account?.referralCode ?? null,
+      paintBoost: this.account?.paintBoost ?? null,
+      isBanned: Boolean(this.account?.isBanned),
     };
   }
 

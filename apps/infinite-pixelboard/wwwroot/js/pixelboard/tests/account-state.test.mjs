@@ -21,6 +21,9 @@ test("account state combines authentication, policy, and cooldown", () => {
     canPlace: false,
     communityStandardsAccepted: true,
     remainingSeconds: 2,
+    referralCode: null,
+    paintBoost: null,
+    isBanned: false,
   });
   state.dispose();
 });

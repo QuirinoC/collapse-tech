@@ -14,8 +14,8 @@
         </a>
         <p class="board-edition">Infinite Pixelboard <span>/ Public field 001</span></p>
         <button class="icon-button account-button" type="button" data-panel-toggle aria-expanded="false"
-                aria-controls="account-panel">
-            <span>Account</span>
+                aria-controls="account-panel" aria-label="Settings">
+            <span>Settings</span>
             <span class="account-button__arrow" aria-hidden="true">↗</span>
         </button>
     </header>
@@ -24,15 +24,6 @@
         <canvas id="board-canvas" class="board-canvas" tabindex="0"
                 aria-label="Infinite collaborative pixel canvas. Drag to pan, use the mouse wheel to zoom, use arrow keys to move the keyboard cursor, Shift plus arrow keys to pan, and Enter to place.">
         </canvas>
-
-        <div class="board-intro" data-intro>
-            <p class="eyebrow">A shared surface without edges</p>
-            <h1>Make<br />your mark.</h1>
-            <p>Explore anonymously. Sign in to place one pixel at a time.</p>
-            <button class="text-button" type="button" data-dismiss-intro>
-                Enter the field <span aria-hidden="true">↘</span>
-            </button>
-        </div>
 
         <section class="palette" aria-label="Pixel color">
             <span class="palette-label">Ink</span>
@@ -46,7 +37,6 @@
         <div class="board-readout" aria-live="polite">
             <span data-coordinate>ROW +0000 / COL +0000</span>
             <span data-zoom>100%</span>
-            <button type="button" data-report-open>Report current position</button>
         </div>
 
         <div class="zoom-controls" aria-label="Canvas zoom">
@@ -55,9 +45,10 @@
             <button type="button" data-zoom-in aria-label="Zoom in">+</button>
         </div>
 
-        <div class="connection-pill" data-connection role="status">
+        <div class="connection-pill" data-connection role="status"
+             title="Live updates. You can still paint.">
             <span aria-hidden="true"></span>
-            <strong>Connecting</strong>
+            <strong>Syncing</strong>
         </div>
 
         <div class="placement-status" data-placement-status role="status" aria-live="polite">
@@ -85,13 +76,18 @@
 
     <aside class="account-panel" id="account-panel" data-account-panel aria-hidden="true" inert>
         <div class="panel-heading">
-            <p class="eyebrow">Identity / placement</p>
-            <button class="icon-button" type="button" data-panel-close aria-label="Close account panel">Close</button>
+            <p class="eyebrow">Settings</p>
+            <button class="icon-button" type="button" data-panel-close aria-label="Close settings">Close</button>
         </div>
-        <h2>Place with<br />intention.</h2>
+        <h2 data-account-heading>Sign in<br />to paint.</h2>
+        <div class="settings-actions">
+            <button type="button" data-share-position aria-label="Share this position">Share</button>
+            <button type="button" data-report-open aria-label="Report current position">Report</button>
+        </div>
         <p class="panel-copy">
             The board is open to everyone. Painting requires a verified account so each
-            contribution can be reconciled and the shared cooldown respected.
+            contribution can be reconciled and the shared 5-second cooldown respected.
+            Pro and invite boosts only speed that cooldown; they do not remove it.
         </p>
         <div class="auth-actions">
             <button type="button" data-login-provider="google">
@@ -113,8 +109,41 @@
         <dl class="account-state">
             <div><dt>State</dt><dd data-account-state>Anonymous</dd></div>
             <div><dt>Cooldown</dt><dd data-cooldown>—</dd></div>
+            <div><dt>Paint boost</dt><dd data-boost-state>None</dd></div>
         </dl>
-        <p class="panel-footnote">One coordinate is one public act. Row comes before column.</p>
+        <div class="invite-block" data-billing-block hidden>
+            <p class="eyebrow">Pixelboard Pro</p>
+            <p class="panel-copy">
+                Pro is one second between pixels. It does not remove the cooldown.
+                On the website you pay through Stripe. The iPhone app uses Apple.
+            </p>
+            <button type="button" data-billing-month>Pro monthly · $2.99</button>
+            <button type="button" data-billing-year>Pro annual · $24.99</button>
+            <button type="button" data-billing-portal hidden>Manage billing</button>
+            <p class="auth-note" data-billing-status role="status" aria-live="polite"></p>
+        </div>
+        <div class="invite-block" data-invite-block hidden>
+            <p class="eyebrow">Invite a painter</p>
+            <p class="panel-copy">
+                Share your code. When they sign in and accept the standards, they get
+                4 hours at a 2-second cooldown. You get 4 hours at 3 seconds. This is
+                not Pro, and it never removes the cooldown.
+            </p>
+            <p class="invite-code" data-invite-code>—</p>
+            <button type="button" data-copy-invite>Copy invite link</button>
+            <label class="report-field">
+                Have a code?
+                <input type="text" maxlength="12" autocomplete="off" spellcheck="false" data-redeem-code />
+            </label>
+            <button type="button" data-redeem-invite>Redeem invite</button>
+            <p class="auth-note" data-invite-status role="status" aria-live="polite"></p>
+        </div>
+        <p class="panel-footnote">
+            Pixels you place are public. Anyone can overwrite them.
+            <a href="/Privacy">Privacy</a>
+            ·
+            <a href="/Terms">Terms</a>
+        </p>
     </aside>
 
     <dialog class="report-dialog" data-report-dialog aria-labelledby="report-title">
@@ -125,8 +154,8 @@
             </div>
             <h2 id="report-title">Report current position.</h2>
             <p class="panel-copy">
-                Mark the affected area. The server captures the current pixels and private
-                placement evidence; you do not need to take a screenshot.
+                Mark the affected area. We capture the pixels and placement history.
+                You do not need a screenshot.
             </p>
             <output class="report-region" data-report-region>ROW +0000 / COL +0000 · 8 × 8</output>
             <div class="report-dimensions">
@@ -147,7 +176,7 @@
                 </select>
             </label>
             <label class="report-field">
-                Note <span>Optional · 500 characters</span>
+                Note <span data-report-note-hint>Optional · 500 characters</span>
                 <textarea maxlength="500" rows="4" data-report-note></textarea>
             </label>
             <p class="auth-note" data-report-status role="status" aria-live="polite"></p>

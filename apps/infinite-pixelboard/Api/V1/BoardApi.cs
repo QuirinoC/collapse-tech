@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Options;
 using PixelBoard.Application;
+using PixelBoard.Configuration;
 using PixelBoard.Contracts.V1;
 using PixelBoard.Domain;
 using PixelBoard.Infrastructure.Board;
@@ -15,7 +17,7 @@ public static class BoardApi
     {
         var api = endpoints.MapGroup("/api/v1");
 
-        api.MapGet("/board", GetMetadata);
+        api.MapGet("/board", GetMetadataAsync);
         api.MapGet("/tiles/{tileRow:int}/{tileColumn:int}", GetTileAsync);
         api.MapGet("/account", GetAccountAsync).RequireAuthorization();
         api.MapDelete("/account", DeleteAccountAsync).RequireAuthorization();
@@ -23,21 +25,42 @@ public static class BoardApi
                 "/account/community-standards",
                 AcceptCommunityStandardsAsync)
             .RequireAuthorization();
+        api.MapPost("/account/referral", ClaimReferralAsync).RequireAuthorization();
         api.MapPost("/placements", PlaceAsync).RequireAuthorization();
         api.MapPost("/reports", ReportAsync).RequireAuthorization();
 
         return endpoints;
     }
 
-    public static BoardMetadataResponse GetMetadata()
+    public static async Task<BoardMetadataResponse> GetMetadataAsync(
+        IServiceProvider services,
+        CancellationToken cancellationToken)
     {
+        var frozen = false;
+        var safety = services.GetService<IPlatformSafetyService>();
+        if (safety is not null)
+        {
+            frozen = (await safety.GetStateAsync(cancellationToken)).PlacementsFrozen;
+        }
+
+        var board = services.GetService<IOptions<BoardClientOptions>>()?.Value;
+        var status = board?.StatusMessage;
+        if (frozen)
+        {
+            status = string.IsNullOrWhiteSpace(status) ? "Painting is paused." : status;
+        }
+
         return new BoardMetadataResponse(
             ApiVersions.V1,
             PixelBoardConstants.TileRows,
             PixelBoardConstants.TileCols,
             PixelBoardConstants.DefaultColor,
             "row-column",
-            BoardAccessMode.Open);
+            frozen ? BoardAccessMode.ReadOnly : BoardAccessMode.Open,
+            status,
+            string.IsNullOrWhiteSpace(board?.MinimumIosVersion)
+                ? null
+                : board.MinimumIosVersion);
     }
 
     public static async ValueTask<TileSnapshotResponse> GetTileAsync(
@@ -94,15 +117,34 @@ public static class BoardApi
         var remainingCooldown = await placementStore.GetRemainingCooldownAsync(
             account.Id,
             cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        var (cooldownSeconds, paintBoost) = await ResolveCooldownAsync(
+            services,
+            account.Id,
+            entitlement.Tier,
+            now,
+            cancellationToken);
+        string? referralCode = null;
+        var referralService = services.GetService<IReferralService>();
+        if (policy.CommunityStandardsAccepted && referralService is not null)
+        {
+            referralCode = await referralService.GetOrCreateCodeAsync(
+                account.Id,
+                cancellationToken);
+        }
+
         return Results.Ok(new AccountStateResponse(
             entitlement.Tier,
             !policy.IsBanned && policy.CommunityStandardsAccepted,
             policy.CommunityStandardsAccepted,
             new CooldownState(
                 remainingCooldown > TimeSpan.Zero
-                    ? timeProvider.GetUtcNow().Add(remainingCooldown)
+                    ? now.Add(remainingCooldown)
                     : null,
-                CooldownSeconds(entitlement.Tier))));
+                cooldownSeconds),
+            referralCode,
+            paintBoost,
+            policy.IsBanned));
     }
 
     public static async Task<IResult> AcceptCommunityStandardsAsync(
@@ -136,6 +178,63 @@ public static class BoardApi
                 statusCode: StatusCodes.Status410Gone);
         }
         return Results.NoContent();
+    }
+
+    public static async Task<IResult> ClaimReferralAsync(
+        ClaimReferralRequest? request,
+        IAccountIdentityAccessor identityAccessor,
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        var account = await identityAccessor.GetCurrentAsync(cancellationToken);
+        if (account is null)
+        {
+            return AuthenticationRequired();
+        }
+
+        var referralService = services.GetService<IReferralService>();
+        if (referralService is null)
+        {
+            return ServiceUnavailable("Invites are not configured.");
+        }
+
+        var outcome = await referralService.ClaimAsync(
+            account.Id,
+            request?.Code,
+            cancellationToken);
+        return outcome switch
+        {
+            ReferralClaimOutcome.Granted => Results.NoContent(),
+            ReferralClaimOutcome.InvalidCode => Results.Json(
+                new ApiError(
+                    ApiErrorCodes.InvalidReferralCode,
+                    "That invite code is not valid."),
+                statusCode: StatusCodes.Status400BadRequest),
+            ReferralClaimOutcome.AlreadyClaimed => Results.Json(
+                new ApiError(
+                    ApiErrorCodes.ReferralAlreadyClaimed,
+                    "This account already used an invite."),
+                statusCode: StatusCodes.Status409Conflict),
+            ReferralClaimOutcome.OwnCode => Results.Json(
+                new ApiError(
+                    ApiErrorCodes.ReferralOwnCode,
+                    "You cannot use your own invite code."),
+                statusCode: StatusCodes.Status400BadRequest),
+            ReferralClaimOutcome.LimitReached => Results.Json(
+                new ApiError(
+                    ApiErrorCodes.ReferralLimitReached,
+                    "This invite has reached its daily limit. Try again tomorrow."),
+                statusCode: StatusCodes.Status429TooManyRequests),
+            ReferralClaimOutcome.CommunityStandardsRequired => Results.Json(
+                new ApiError(
+                    ApiErrorCodes.CommunityStandardsRequired,
+                    "Accept the current community standards before using an invite."),
+                statusCode: StatusCodes.Status403Forbidden),
+            ReferralClaimOutcome.AccountDeleted => Results.Json(
+                new ApiError(ApiErrorCodes.AccountDeleted, "This account has been deleted."),
+                statusCode: StatusCodes.Status410Gone),
+            _ => ServiceUnavailable("Invites are not configured.")
+        };
     }
 
     public static async Task<IResult> DeleteAccountAsync(
@@ -216,7 +315,7 @@ public static class BoardApi
         if (policy.IsBanned)
         {
             return Results.Json(
-                new ApiError(ApiErrorCodes.AccountBanned, "This account cannot place pixels."),
+                new ApiError(ApiErrorCodes.AccountBanned, "This account is banned from placing pixels."),
                 statusCode: StatusCodes.Status403Forbidden);
         }
 
@@ -241,8 +340,28 @@ public static class BoardApi
             return Results.BadRequest(validation.Error);
         }
 
+        var rateLimiter = services.GetService<IPlacementRateLimiter>();
+        if (rateLimiter is not null)
+        {
+            var clientIp = ClientNetwork.RateLimitBucket(
+                services.GetService<IHttpContextAccessor>()?.HttpContext?.Connection.RemoteIpAddress);
+            if (!await rateLimiter.TryAcquireAsync(account.Id, clientIp, cancellationToken))
+            {
+                return Results.Json(
+                    new ApiError(
+                        ApiErrorCodes.PlacementRateLimited,
+                        "Too many pixels from this network. Wait a minute and try again."),
+                    statusCode: StatusCodes.Status429TooManyRequests);
+            }
+        }
+
         var entitlement = await entitlementService.GetAsync(account.Id, cancellationToken);
-        var cooldownSeconds = CooldownSeconds(entitlement.Tier);
+        var (cooldownSeconds, _) = await ResolveCooldownAsync(
+            services,
+            account.Id,
+            entitlement.Tier,
+            timeProvider.GetUtcNow(),
+            cancellationToken);
         var cooldown = TimeSpan.FromSeconds(cooldownSeconds);
         var placedAt = timeProvider.GetUtcNow();
         var placement = new PlacementLedgerEvent(
@@ -348,7 +467,7 @@ public static class BoardApi
             return Results.Json(
                 new ApiError(
                     ApiErrorCodes.AccountBanned,
-                    "This account cannot submit reports."),
+                    "This account is banned from submitting reports."),
                 statusCode: StatusCodes.Status403Forbidden);
         }
 
@@ -407,8 +526,23 @@ public static class BoardApi
             statusCode: StatusCodes.Status201Created);
     }
 
-    private static int CooldownSeconds(AccountTier tier) =>
-        tier == AccountTier.Pro ? 1 : 10;
+    private static async ValueTask<(int Seconds, PaintBoostResponse? Boost)> ResolveCooldownAsync(
+        IServiceProvider services,
+        AccountId accountId,
+        AccountTier tier,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var boostService = services.GetService<IPaintBoostService>();
+        var boost = boostService is null
+            ? null
+            : await boostService.GetAsync(accountId, cancellationToken);
+        return (
+            PlacementCooldown.Resolve(tier, boost, now),
+            boost is { } active
+                ? new PaintBoostResponse(active.CooldownSeconds, active.ExpiresAt)
+                : null);
+    }
 
     private static IResult AuthenticationRequired() =>
         Results.Json(

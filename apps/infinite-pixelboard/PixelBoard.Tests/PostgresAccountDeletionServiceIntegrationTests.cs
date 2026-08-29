@@ -60,6 +60,27 @@ public sealed class PostgresAccountDeletionServiceIntegrationTests
             VALUES ($1, 'pro', 'test', now());
             """,
             accountId.Value);
+        var stripeCustomerId = $"cus_{Guid.NewGuid():N}";
+        await ExecuteAsync(
+            dataSource,
+            """
+            INSERT INTO pixelboard.stripe_customers (
+                firebase_uid, stripe_customer_id, created_at)
+            VALUES ($1, $2, now());
+            """,
+            accountId.Value,
+            stripeCustomerId);
+        await ExecuteAsync(
+            dataSource,
+            """
+            INSERT INTO pixelboard.stripe_subscriptions (
+                stripe_subscription_id, firebase_uid, stripe_customer_id,
+                status, price_id, current_period_end, event_at, updated_at)
+            VALUES ($2, $1, $3, 'active', 'price_test', now() + interval '30 days', now(), now());
+            """,
+            accountId.Value,
+            $"sub_{Guid.NewGuid():N}",
+            stripeCustomerId);
         await ExecuteAsync(
             dataSource,
             """
@@ -134,6 +155,14 @@ public sealed class PostgresAccountDeletionServiceIntegrationTests
         Assert.False(await ExistsAsync(
             dataSource,
             "SELECT EXISTS (SELECT 1 FROM pixelboard.entitlements WHERE firebase_uid = $1);",
+            accountId.Value));
+        Assert.False(await ExistsAsync(
+            dataSource,
+            "SELECT EXISTS (SELECT 1 FROM pixelboard.stripe_customers WHERE firebase_uid = $1);",
+            accountId.Value));
+        Assert.False(await ExistsAsync(
+            dataSource,
+            "SELECT EXISTS (SELECT 1 FROM pixelboard.stripe_subscriptions WHERE firebase_uid = $1);",
             accountId.Value));
         Assert.True((await accountState.GetAsync(
             accountId,
