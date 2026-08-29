@@ -177,7 +177,7 @@ final class AppModel: ObservableObject {
         canvasSize = size
         if let pendingCenter {
             selectedPosition = pendingCenter
-            viewport.center(on: pendingCenter, size: size)
+            viewport.center(on: pendingCenter, width: size.width, height: size.height)
             self.pendingCenter = nil
             didApplyInitialView = true
             persistView()
@@ -193,7 +193,7 @@ final class AppModel: ObservableObject {
         }
         guard previous != .zero, previous != size else { return }
         let focus = viewport.screenToBoard(x: previous.width / 2, y: previous.height / 2)
-        viewport.center(on: focus, size: size)
+        viewport.center(on: focus, width: size.width, height: size.height)
     }
 
     func loadVisible(size: CGSize) async {
@@ -371,7 +371,7 @@ final class AppModel: ObservableObject {
             pendingCenter = position
             return
         }
-        viewport.center(on: position, size: canvasSize)
+        viewport.center(on: position, width: canvasSize.width, height: canvasSize.height)
         pendingCenter = nil
         persistView()
     }
@@ -407,7 +407,7 @@ final class AppModel: ObservableObject {
         let position = BoardPosition(row: saved.row, column: saved.column)
         selectedPosition = position
         viewport.scale = min(BoardViewport.maximumScale, max(BoardViewport.minimumScale, saved.scale))
-        viewport.center(on: position, size: size)
+        viewport.center(on: position, width: size.width, height: size.height)
         return true
     }
 

@@ -85,10 +85,10 @@ public struct BoardViewport: Equatable, Sendable {
         scale = nextScale
     }
 
-    public mutating func center(on position: BoardPosition, size: CGSize) {
+    public mutating func center(on position: BoardPosition, width: Double, height: Double) {
         let renderedCellSize = cellSize * scale
-        offsetX = size.width / 2 - (Double(position.column) + 0.5) * renderedCellSize
-        offsetY = size.height / 2 - (Double(position.row) + 0.5) * renderedCellSize
+        offsetX = width / 2 - (Double(position.column) + 0.5) * renderedCellSize
+        offsetY = height / 2 - (Double(position.row) + 0.5) * renderedCellSize
     }
 
     public func visibleTiles(width: Double, height: Double, tileSize: Int = 128) -> TileRange {

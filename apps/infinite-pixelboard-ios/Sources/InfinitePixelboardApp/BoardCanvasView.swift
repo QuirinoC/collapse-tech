@@ -120,6 +120,7 @@ struct BoardCanvasView: View {
         )
     }
 
+    @_optimize(none)
     private func draw(context: inout GraphicsContext, size: CGSize) {
         context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(PixelboardTheme.paper))
         let cell = model.viewport.cellSize * model.viewport.scale
