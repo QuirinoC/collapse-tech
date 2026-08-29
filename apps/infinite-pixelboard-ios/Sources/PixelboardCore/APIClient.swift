@@ -73,6 +73,15 @@ public struct PixelboardAPIClient: Sendable {
         try await request("reports", method: "POST", body: report, authorized: true)
     }
 
+    public func claimReferral(_ code: String) async throws {
+        try await requestWithoutResponse(
+            "account/referral",
+            method: "POST",
+            body: ClaimReferralRequest(code: code),
+            authorized: true
+        )
+    }
+
     public func storeKitAccountToken() async throws -> UUID {
         let response: StoreKitAccountTokenResponse = try await request(
             "storekit/account-token",
@@ -96,6 +105,20 @@ public struct PixelboardAPIClient: Sendable {
         authorized: Bool = false
     ) async throws -> Response {
         try await perform(path, method: method, body: Optional<EmptyResponse>.none, authorized: authorized)
+    }
+
+    private func requestWithoutResponse<Body: Encodable>(
+        _ path: String,
+        method: String,
+        body: Body,
+        authorized: Bool
+    ) async throws {
+        let _: EmptyResponse = try await perform(
+            path,
+            method: method,
+            body: body,
+            authorized: authorized
+        )
     }
 
     private func requestWithoutResponse(

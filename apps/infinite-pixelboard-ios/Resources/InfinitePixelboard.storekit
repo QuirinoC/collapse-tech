@@ -16,7 +16,7 @@
       "id" : "2147483647",
       "localizations" : [
         {
-          "description" : "Faster placement cooldown and an ad-free board.",
+          "description" : "Places a pixel every 1 second instead of 5. Does not remove the cooldown.",
           "displayName" : "Infinite Pixelboard Pro",
           "locale" : "en_US"
         }

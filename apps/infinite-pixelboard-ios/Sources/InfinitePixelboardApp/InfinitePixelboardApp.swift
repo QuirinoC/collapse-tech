@@ -3,6 +3,9 @@ import SwiftUI
 #if canImport(FirebaseCore)
 import FirebaseCore
 #endif
+#if canImport(FirebaseCrashlytics)
+import FirebaseCrashlytics
+#endif
 #if canImport(GoogleSignIn)
 import GoogleSignIn
 #endif
@@ -16,6 +19,9 @@ struct InfinitePixelboardApp: App {
         #if canImport(FirebaseCore)
         if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
             FirebaseApp.configure()
+            #if canImport(FirebaseCrashlytics)
+            Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+            #endif
         }
         #endif
     }
@@ -24,14 +30,17 @@ struct InfinitePixelboardApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(model)
+                .preferredColorScheme(.light)
+                .tint(PixelboardTheme.ink)
                 .task { await model.start() }
                 .task(id: scenePhase) {
                     await model.handleScenePhase(scenePhase)
                 }
                 .onOpenURL { url in
                     #if canImport(GoogleSignIn)
-                    GIDSignIn.sharedInstance.handle(url)
+                    if GIDSignIn.sharedInstance.handle(url) { return }
                     #endif
+                    model.handleIncomingURL(url)
                 }
         }
     }

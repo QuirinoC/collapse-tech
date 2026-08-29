@@ -34,14 +34,27 @@ public struct BoardMetadata: Codable, Equatable, Sendable {
     public let defaultColor: String
     public let coordinateConvention: String
     public let accessMode: BoardAccessMode
+    public let statusMessage: String?
+    public let minimumIosVersion: String?
 
-    public init(apiVersion: Int, tileRows: Int, tileColumns: Int, defaultColor: String, coordinateConvention: String, accessMode: BoardAccessMode) {
+    public init(
+        apiVersion: Int,
+        tileRows: Int,
+        tileColumns: Int,
+        defaultColor: String,
+        coordinateConvention: String,
+        accessMode: BoardAccessMode,
+        statusMessage: String? = nil,
+        minimumIosVersion: String? = nil
+    ) {
         self.apiVersion = apiVersion
         self.tileRows = tileRows
         self.tileColumns = tileColumns
         self.defaultColor = defaultColor
         self.coordinateConvention = coordinateConvention
         self.accessMode = accessMode
+        self.statusMessage = statusMessage
+        self.minimumIosVersion = minimumIosVersion
     }
 }
 
@@ -137,17 +150,41 @@ public struct PlacementResult: Codable, Equatable, Sendable {
     }
 }
 
+public struct PaintBoostState: Codable, Equatable, Sendable {
+    public let cooldownSeconds: Int
+    public let expiresAt: Date
+
+    public init(cooldownSeconds: Int, expiresAt: Date) {
+        self.cooldownSeconds = cooldownSeconds
+        self.expiresAt = expiresAt
+    }
+}
+
 public struct AccountState: Codable, Equatable, Sendable {
     public let tier: AccountTier
     public let canPlace: Bool
     public let communityStandardsAccepted: Bool
     public let cooldown: CooldownState
+    public let referralCode: String?
+    public let paintBoost: PaintBoostState?
+    public let isBanned: Bool?
 
-    public init(tier: AccountTier, canPlace: Bool, communityStandardsAccepted: Bool, cooldown: CooldownState) {
+    public init(
+        tier: AccountTier,
+        canPlace: Bool,
+        communityStandardsAccepted: Bool,
+        cooldown: CooldownState,
+        referralCode: String? = nil,
+        paintBoost: PaintBoostState? = nil,
+        isBanned: Bool? = nil
+    ) {
         self.tier = tier
         self.canPlace = canPlace
         self.communityStandardsAccepted = communityStandardsAccepted
         self.cooldown = cooldown
+        self.referralCode = referralCode
+        self.paintBoost = paintBoost
+        self.isBanned = isBanned
     }
 }
 
@@ -162,6 +199,14 @@ public struct ReportRegion: Codable, Equatable, Sendable {
         self.left = left
         self.width = width
         self.height = height
+    }
+}
+
+public struct ClaimReferralRequest: Codable, Equatable, Sendable {
+    public let code: String
+
+    public init(code: String) {
+        self.code = code
     }
 }
 

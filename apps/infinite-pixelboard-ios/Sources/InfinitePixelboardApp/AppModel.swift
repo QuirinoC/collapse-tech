@@ -6,7 +6,7 @@ import PixelboardCore
 final class AppModel: ObservableObject {
     enum ConnectionLabel: String {
         case offline = "Offline"
-        case connecting = "Connecting"
+        case connecting = "Syncing"
         case online = "Live"
         case reconnecting = "Reconnecting"
     }
@@ -20,6 +20,8 @@ final class AppModel: ObservableObject {
     @Published var connection: ConnectionLabel = .offline
     @Published var statusMessage = "Loading board"
     @Published var isPlacing = false
+    @Published var showingAccount = false
+    @Published var authNotice: String?
     @Published var now = Date()
     @Published private(set) var boardGeneration = 0
 
@@ -42,6 +44,10 @@ final class AppModel: ObservableObject {
     private var isActive = false
     private var started = false
     private var canvasSize = CGSize.zero
+    private var pendingCenter: BoardPosition?
+    private var didApplyInitialView = false
+    private let pendingReferralKey = "pixelboard.pendingReferralCode"
+    private let savedViewKey = "pixelboard.savedView"
 
     init() {
         let authentication = FirebaseAuthAdapter()
@@ -79,12 +85,26 @@ final class AppModel: ObservableObject {
 
     var canPlace: Bool {
         guard metadata?.accessMode == .open,
+              !needsAppUpdate,
               cache != nil,
               placement != nil else {
             return false
         }
         return account?.canPlace == true && account?.communityStandardsAccepted == true &&
             remainingCooldown == 0 && !isPlacing
+    }
+
+    var isPlaceControlEnabled: Bool {
+        if needsAppUpdate { return false }
+        if let metadata, metadata.accessMode != .open { return false }
+        if account == nil { return true }
+        guard cache != nil else { return false }
+        return canPlace
+    }
+
+    var needsAppUpdate: Bool {
+        guard let minimum = metadata?.minimumIosVersion else { return false }
+        return compareVersions(appVersion, minimum) == .orderedAscending
     }
 
     func start() async {
@@ -114,6 +134,7 @@ final class AppModel: ObservableObject {
             isAuthenticated: await authentication.isAuthenticated
         )
         await refreshAccount()
+        await redeemPendingInvite()
         await store.loadProducts()
         if isActive {
             startPeriodicWork()
@@ -126,6 +147,7 @@ final class AppModel: ObservableObject {
     func handleScenePhase(_ phase: ScenePhase) async {
         isActive = phase == .active
         guard isActive else {
+            persistView()
             timerTask?.cancel()
             timerTask = nil
             visibleRefreshTask?.cancel()
@@ -141,9 +163,27 @@ final class AppModel: ObservableObject {
     }
 
     func resize(to size: CGSize) {
+        let previous = canvasSize
         canvasSize = size
-        guard viewport.offsetX == 0.5, viewport.offsetY == 0.5 else { return }
-        viewport = BoardViewport(width: size.width, height: size.height)
+        if let pendingCenter {
+            selectedPosition = pendingCenter
+            viewport.center(on: pendingCenter, size: size)
+            self.pendingCenter = nil
+            didApplyInitialView = true
+            persistView()
+            return
+        }
+        if !didApplyInitialView {
+            didApplyInitialView = true
+            if restoreSavedView(size: size) {
+                return
+            }
+            viewport = BoardViewport(width: size.width, height: size.height)
+            return
+        }
+        guard previous != .zero, previous != size else { return }
+        let focus = viewport.screenToBoard(x: previous.width / 2, y: previous.height / 2)
+        viewport.center(on: focus, size: size)
     }
 
     func loadVisible(size: CGSize) async {
@@ -154,7 +194,20 @@ final class AppModel: ObservableObject {
 
     func placeSelected() async {
         guard canPlace else {
-            statusMessage = account == nil ? "Sign in to place pixels" : "Placement is not ready"
+            if remainingCooldown > 0 {
+                statusMessage = "Ready in \(remainingCooldown)s"
+            } else if account == nil {
+                statusMessage = "Sign in to place pixels"
+                showingAccount = true
+            } else if account?.isBanned == true {
+                statusMessage = "This account is banned from placing pixels."
+            } else if needsAppUpdate {
+                statusMessage = "Update Infinite Pixelboard to keep painting."
+            } else if metadata?.accessMode != .open {
+                statusMessage = metadata?.statusMessage ?? "Board is read-only"
+            } else {
+                statusMessage = "Placement is not ready"
+            }
             return
         }
         guard let placement, let cache, metadata?.accessMode == .open else {
@@ -180,7 +233,10 @@ final class AppModel: ObservableObject {
                     tier: current.tier,
                     canPlace: current.canPlace,
                     communityStandardsAccepted: current.communityStandardsAccepted,
-                    cooldown: result.cooldown
+                    cooldown: result.cooldown,
+                    referralCode: current.referralCode,
+                    paintBoost: current.paintBoost,
+                    isBanned: current.isBanned
                 )
             }
             statusMessage = "Pixel placed"
@@ -191,7 +247,10 @@ final class AppModel: ObservableObject {
                     tier: current.tier,
                     canPlace: current.canPlace,
                     communityStandardsAccepted: current.communityStandardsAccepted,
-                    cooldown: result.cooldown
+                    cooldown: result.cooldown,
+                    referralCode: current.referralCode,
+                    paintBoost: current.paintBoost,
+                    isBanned: current.isBanned
                 )
             }
             statusMessage = error.localizedDescription
@@ -200,11 +259,16 @@ final class AppModel: ObservableObject {
 
     func signIn(with provider: AuthenticationProvider) async {
         authenticationGeneration &+= 1
+        authNotice = nil
         do {
             try await authentication.signIn(with: provider)
             store.authenticationDidChange(isAuthenticated: true)
             await refreshAccount()
+            await redeemPendingInvite()
+        } catch is CancellationError {
+            return
         } catch {
+            authNotice = error.localizedDescription
             statusMessage = error.localizedDescription
         }
     }
@@ -225,6 +289,7 @@ final class AppModel: ObservableObject {
         do {
             try await api.acceptCommunityStandards()
             await refreshAccount()
+            await redeemPendingInvite()
         } catch {
             statusMessage = error.localizedDescription
         }
@@ -244,19 +309,20 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func submitReport(reason: ReportReason, note: String) async -> Bool {
+    func submitReport(reason: ReportReason?, note: String, region: ReportRegion) async -> Bool {
         guard account != nil else {
             statusMessage = "Sign in to report content"
             return false
         }
+        guard let reason else {
+            statusMessage = "Choose a report reason"
+            return false
+        }
         do {
             _ = try await api.report(CreateReportRequest(
-                region: ReportRegion(
-                    top: selectedPosition.row,
-                    left: selectedPosition.column
-                ),
+                region: region,
                 reason: reason,
-                note: note.isEmpty ? nil : note,
+                note: note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : note,
                 client: ClientContext(appVersion: appVersion)
             ))
             statusMessage = "Report received"
@@ -264,6 +330,89 @@ final class AppModel: ObservableObject {
         } catch {
             statusMessage = error.localizedDescription
             return false
+        }
+    }
+
+    func queueReferralCode(_ raw: String?) async {
+        guard let code = BoardLinks.normalizeReferralCode(raw) else {
+            statusMessage = "Enter an 8-character invite code."
+            return
+        }
+        UserDefaults.standard.set(code, forKey: pendingReferralKey)
+        await redeemPendingInvite()
+    }
+
+    func handleIncomingURL(_ url: URL) {
+        if let code = BoardLinks.referralCode(from: url) {
+            Task { await queueReferralCode(code) }
+        }
+        if let position = BoardLinks.position(from: url) {
+            center(on: position)
+        }
+    }
+
+    func center(on position: BoardPosition) {
+        selectedPosition = position
+        guard canvasSize != .zero else {
+            pendingCenter = position
+            return
+        }
+        viewport.center(on: position, size: canvasSize)
+        pendingCenter = nil
+        persistView()
+    }
+
+    func zoomAtCenter(factor: Double) {
+        guard canvasSize != .zero else { return }
+        viewport.zoom(atX: canvasSize.width / 2, y: canvasSize.height / 2, factor: factor)
+        persistView()
+    }
+
+    func resetView() {
+        guard canvasSize != .zero else { return }
+        viewport = BoardViewport(width: canvasSize.width, height: canvasSize.height)
+        selectedPosition = BoardPosition(row: 0, column: 0)
+        persistView()
+    }
+
+    func persistView() {
+        guard canvasSize != .zero else { return }
+        let focus = viewport.screenToBoard(x: canvasSize.width / 2, y: canvasSize.height / 2)
+        let saved = SavedBoardView(row: focus.row, column: focus.column, scale: viewport.scale)
+        if let data = try? JSONEncoder().encode(saved) {
+            UserDefaults.standard.set(data, forKey: savedViewKey)
+        }
+    }
+
+    @discardableResult
+    private func restoreSavedView(size: CGSize) -> Bool {
+        guard let data = UserDefaults.standard.data(forKey: savedViewKey),
+              let saved = try? JSONDecoder().decode(SavedBoardView.self, from: data) else {
+            return false
+        }
+        let position = BoardPosition(row: saved.row, column: saved.column)
+        selectedPosition = position
+        viewport.scale = min(BoardViewport.maximumScale, max(BoardViewport.minimumScale, saved.scale))
+        viewport.center(on: position, size: size)
+        return true
+    }
+
+    func redeemPendingInvite() async {
+        guard let code = UserDefaults.standard.string(forKey: pendingReferralKey),
+              account?.communityStandardsAccepted == true else {
+            return
+        }
+        do {
+            try await api.claimReferral(code)
+            UserDefaults.standard.removeObject(forKey: pendingReferralKey)
+            await refreshAccount()
+            statusMessage = "Invite applied. Faster painting is on for a few hours."
+        } catch {
+            if case let APIClientError.server(_, payload) = error,
+               payload?.code == "referral_already_claimed" || payload?.code == "referral_own_code" {
+                UserDefaults.standard.removeObject(forKey: pendingReferralKey)
+            }
+            statusMessage = error.localizedDescription
         }
     }
 
@@ -339,7 +488,13 @@ final class AppModel: ObservableObject {
             self.cache = cache
             placement = PlacementCoordinator(api: api, appVersion: appVersion)
             boardGeneration += 1
-            statusMessage = metadata.accessMode == .open ? "Board ready" : "Board is read-only"
+            if needsAppUpdate {
+                statusMessage = "Update Infinite Pixelboard to keep painting."
+            } else if let message = metadata.statusMessage, !message.isEmpty {
+                statusMessage = message
+            } else {
+                statusMessage = metadata.accessMode == .open ? "Board ready" : "Board is read-only"
+            }
         } catch {
             statusMessage = error.localizedDescription
         }
@@ -427,4 +582,23 @@ final class AppModel: ObservableObject {
         guard isActive, !Task.isCancelled else { return }
         await refreshAccount()
     }
+
+    private func compareVersions(_ lhs: String, _ rhs: String) -> ComparisonResult {
+        let left = lhs.split(separator: ".").compactMap { Int($0) }
+        let right = rhs.split(separator: ".").compactMap { Int($0) }
+        let count = max(left.count, right.count)
+        for index in 0..<count {
+            let a = index < left.count ? left[index] : 0
+            let b = index < right.count ? right[index] : 0
+            if a < b { return .orderedAscending }
+            if a > b { return .orderedDescending }
+        }
+        return .orderedSame
+    }
+}
+
+private struct SavedBoardView: Codable {
+    var row: Int
+    var column: Int
+    var scale: Double
 }

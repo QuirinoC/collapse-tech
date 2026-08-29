@@ -85,6 +85,12 @@ public struct BoardViewport: Equatable, Sendable {
         scale = nextScale
     }
 
+    public mutating func center(on position: BoardPosition, size: CGSize) {
+        let renderedCellSize = cellSize * scale
+        offsetX = size.width / 2 - (Double(position.column) + 0.5) * renderedCellSize
+        offsetY = size.height / 2 - (Double(position.row) + 0.5) * renderedCellSize
+    }
+
     public func visibleTiles(width: Double, height: Double, tileSize: Int = 128) -> TileRange {
         let topLeft = screenToBoard(x: 0, y: 0)
         let bottomRight = screenToBoard(x: width, y: height)

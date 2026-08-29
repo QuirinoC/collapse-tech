@@ -11,9 +11,14 @@ struct ReservedAdBanner: View {
     var body: some View {
         if AppConfiguration.adsEnabled, tier != .pro {
             Text("Advertisement")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(PixelboardTheme.mono(8))
+                .tracking(1.1)
+                .textCase(.uppercase)
+                .foregroundStyle(PixelboardTheme.muted)
                 .frame(maxWidth: .infinity, minHeight: 50)
+                .padding(5)
+                .background(PixelboardTheme.paper.opacity(0.88))
+                .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
                 .accessibilityLabel("Advertisement")
         }
     }

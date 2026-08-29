@@ -1,0 +1,19 @@
+name: Pixelboard uptime
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    name: Health and origin tile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ready
+        run: curl -fsS --max-time 20 https://pixelboard.collapsetechnologies.com/health/ready
+      - name: Origin tile
+        run: curl -fsS --max-time 20 https://pixelboard.collapsetechnologies.com/api/v1/tiles/0/0 >/dev/null
