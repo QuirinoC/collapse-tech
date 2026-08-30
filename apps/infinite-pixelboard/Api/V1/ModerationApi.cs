@@ -47,6 +47,7 @@ public static class ModerationApi
         api.MapPost("/actions", ExecuteActionAsync);
         api.MapGet("/safety", GetSafetyStateAsync);
         api.MapPost("/safety", SetSafetyStateAsync);
+        api.MapPost("/pixel-art", PixelArtApi.FillModeratedAsync);
         return endpoints;
     }
 

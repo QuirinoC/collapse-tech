@@ -12,6 +12,7 @@
     "dev:studio": "npm --prefix apps/collapse-technologies run dev",
     "dev:influence": "npm --prefix apps/influence-market run dev",
     "dev:pixelboard": "dotnet watch --project apps/infinite-pixelboard/PixelBoard.csproj run",
+    "pixelboard:local-fill": "node apps/infinite-pixelboard/tools/local-pixel-art.mjs",
     "restore:coach": "dotnet restore apps/coach-gg/src/CoachGG.csproj",
     "restore:pixelboard": "dotnet restore apps/infinite-pixelboard/PixelBoard.sln",
     "restore": "npm run restore:coach && npm run restore:pixelboard",

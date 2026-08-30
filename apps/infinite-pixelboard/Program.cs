@@ -124,6 +124,10 @@ app.MapModerationApiV1();
 app.MapStoreKitApiV1();
 app.MapStripeApiV1();
 app.MapAdvertisingMetadata();
+if (app.Environment.IsDevelopment())
+{
+    app.MapPost("/api/local/pixel-art", PixelArtApi.FillAsync);
+}
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
     Predicate = _ => false
