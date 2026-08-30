@@ -5,6 +5,22 @@ console and every API below require a valid Firebase ID token containing the exa
 custom claim `moderator=true`. Never share moderator tokens, evidence exports, or
 Firebase account identifiers in public tickets or chat.
 
+## Access provisioning
+
+Provisioning is an offline Admin SDK operation, never a web endpoint. The
+maintained command is `npm run provision:pixelboard-moderator`; its exact
+dry-run and apply procedure, credential handling, and safety checks are in the
+[Pixelboard README](../README.md#provisioning-the-moderator-claim).
+
+For the current production project (`collapse-technologies`), the only approved
+operator target is the verified Google account `juanquirinoc@gmail.com`. The
+Apple relay account `59v269rgt7@privaterelay.appleid.com` and the App Review
+account must not receive this claim. The apply invocation requires the UID
+returned by a preceding dry run and an exact email/UID confirmation. If
+credentials are unavailable, access remains unprovisioned until an authorized
+Firebase administrator runs the command; do not use a broad allowlist or
+manually edit production tokens.
+
 ## Launch gate
 
 Do not enable advertising or open authenticated placement until all of these are true:

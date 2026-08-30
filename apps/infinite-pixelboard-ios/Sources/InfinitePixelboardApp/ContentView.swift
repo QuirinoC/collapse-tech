@@ -1,4 +1,5 @@
 import SwiftUI
+import PixelboardCore
 
 struct ContentView: View {
     @EnvironmentObject private var model: AppModel
@@ -33,15 +34,9 @@ struct ContentView: View {
     private var hud: some View {
         VStack(spacing: 0) {
             header
-            HStack(alignment: .top, spacing: 16) {
-                Text(hudStatus)
-                    .font(PixelboardTheme.mono(9.5))
-                    .tracking(0.9)
-                    .textCase(.uppercase)
-                    .foregroundStyle(PixelboardTheme.muted)
-                    .accessibilityAddTraits(.updatesFrequently)
-                Spacer(minLength: 12)
+            HStack {
                 readout
+                Spacer(minLength: 12)
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
@@ -63,13 +58,12 @@ struct ContentView: View {
 
     private var header: some View {
         HStack(alignment: .top) {
-            PixelboardWordmark()
             Spacer(minLength: 8)
             if horizontalSizeClass == .regular {
                 HStack(spacing: 0) {
-                    Text("INFINITE PIXELBOARD ")
+                    Text("\(PixelboardL10n.infinitePixelboardHeader) ")
                         .foregroundStyle(PixelboardTheme.ink)
-                    Text("/ PUBLIC FIELD 001")
+                    Text("/ \(PixelboardL10n.publicFieldHeader)")
                         .foregroundStyle(PixelboardTheme.muted)
                 }
                 .font(PixelboardTheme.mono(10))
@@ -80,12 +74,12 @@ struct ContentView: View {
                 model.showingAccount = true
             } label: {
                 HStack(spacing: 10) {
-                    Text("Settings")
+                    Text(PixelboardL10n.settings)
                     Text("↗").font(PixelboardTheme.sans(14, weight: .medium))
                 }
             }
             .buttonStyle(PixelboardHardButtonStyle())
-            .accessibilityLabel("Settings")
+            .accessibilityLabel(PixelboardL10n.settings)
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)
@@ -119,15 +113,15 @@ struct ContentView: View {
 
     private var zoomControls: some View {
         VStack(spacing: 0) {
-            zoomButton("−", label: "Zoom out") {
+            zoomButton("−", label: PixelboardL10n.zoomOut) {
                 model.zoomAtCenter(factor: 1 / 1.25)
             }
             PixelboardTheme.line.frame(height: 1)
-            zoomButton("+", label: "Zoom in") {
+            zoomButton("+", label: PixelboardL10n.zoomIn) {
                 model.zoomAtCenter(factor: 1.25)
             }
             PixelboardTheme.line.frame(height: 1)
-            zoomButton("GO", label: "Go to coordinates") {
+            zoomButton("GO", label: PixelboardL10n.goToCoordinates) {
                 showingGoTo = true
             }
         }
@@ -153,7 +147,7 @@ struct ContentView: View {
         VStack(spacing: 8) {
             HStack(spacing: 10) {
                 if horizontalSizeClass == .regular {
-                    Text("Ink")
+                    Text(PixelboardL10n.ink)
                         .font(PixelboardTheme.mono(9.5))
                         .tracking(1.1)
                         .textCase(.uppercase)
@@ -178,7 +172,11 @@ struct ContentView: View {
                                 .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("Select color \(color)")
+                            .accessibilityLabel(
+                                PixelboardL10n.selectColor(
+                                    "\(PixelboardPalette.name(for: color)) (\(color))"
+                                )
+                            )
                             .accessibilityAddTraits(
                                 color.caseInsensitiveCompare(model.selectedColor) == .orderedSame
                                     ? .isSelected : []
@@ -187,26 +185,30 @@ struct ContentView: View {
                         if model.canUseCustomColors {
                             ZStack {
                                 Rectangle().fill(Color(pixelboardHex: model.selectedColor))
-                                ColorPicker("Custom color", selection: customColorBinding, supportsOpacity: false)
+                                ColorPicker(PixelboardL10n.customColor, selection: customColorBinding, supportsOpacity: false)
                                     .labelsHidden()
                                     .opacity(0.02)
                             }
                             .frame(width: 26, height: 26)
                             .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
-                            .accessibilityLabel("Choose a custom Pro color")
+                            .accessibilityLabel(PixelboardL10n.chooseCustomProColor)
                         } else {
                             Button {
                                 model.showingAccount = true
                             } label: {
-                                Text("PRO")
-                                    .font(PixelboardTheme.mono(7.5))
-                                    .tracking(0.4)
-                                    .foregroundStyle(PixelboardTheme.muted)
-                                    .frame(width: 26, height: 26)
+                                HStack(spacing: 3) {
+                                    PremiumPixelGrid()
+                                        .frame(width: 26, height: 26)
+                                    Text(PixelboardL10n.pro)
+                                        .font(PixelboardTheme.mono(7.5))
+                                        .tracking(0.4)
+                                        .foregroundStyle(PixelboardTheme.muted)
+                                }
+                                .frame(height: 26)
                             }
                             .buttonStyle(.plain)
                             .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
-                            .accessibilityLabel("Unlock custom colors with Pro")
+                            .accessibilityLabel(PixelboardL10n.unlockCustomColors)
                         }
                     }
                 }
@@ -240,39 +242,9 @@ struct ContentView: View {
 
     private var placeTitle: String {
         if model.remainingCooldown > 0 {
-            return "Ready in \(model.remainingCooldown)s"
+            return PixelboardL10n.readyIn(model.remainingCooldown)
         }
-        return "Place pixel"
-    }
-
-    private var hudStatus: String {
-        if model.needsAppUpdate {
-            return "Update Infinite Pixelboard to keep painting."
-        }
-        if let metadata = model.metadata, metadata.accessMode != .open {
-            return metadata.statusMessage ?? "Painting is paused."
-        }
-        if model.account == nil {
-            return model.statusMessage.lowercased().contains("sign in")
-                ? "Sign in to place a pixel"
-                : "Viewing anonymously"
-        }
-        if model.account?.isBanned == true {
-            return "This account is banned from placing pixels."
-        }
-        if model.remainingCooldown > 0 {
-            return "Cooldown · \(model.remainingCooldown)s"
-        }
-        if model.isPlacing {
-            return "Reconciling placement…"
-        }
-        if model.account?.communityStandardsAccepted == false {
-            return "Accept the community standards first"
-        }
-        if model.statusMessage == "Pixel placed" {
-            return "Pixel placed"
-        }
-        return model.account?.canPlace == true ? "Ready to place" : model.statusMessage
+        return PixelboardL10n.placePixel
     }
 
     private var customColorBinding: Binding<Color> {
@@ -288,10 +260,10 @@ struct ContentView: View {
 
     private var connectionLabel: String {
         switch model.connection {
-        case .online: "Live"
-        case .connecting: "Syncing"
-        case .reconnecting: "Retrying"
-        case .offline: "Offline"
+        case .online: PixelboardL10n.live
+        case .connecting: PixelboardL10n.syncing
+        case .reconnecting: PixelboardL10n.retrying
+        case .offline: PixelboardL10n.offline
         }
     }
 
@@ -306,11 +278,11 @@ struct ContentView: View {
     private var connectionAccessibility: String {
         switch model.connection {
         case .online:
-            "Live updates connected"
+            PixelboardL10n.liveUpdatesConnected
         case .connecting, .reconnecting:
-            "Live updates \(connectionLabel.lowercased()). You can still paint."
+            PixelboardL10n.liveUpdatesStatus(connectionLabel.lowercased())
         case .offline:
-            "Offline. Tiles may be stale."
+            PixelboardL10n.offlineTilesMayBeStale
         }
     }
 }

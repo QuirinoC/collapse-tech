@@ -8,45 +8,62 @@
 
 /* Begin PBXBuildFile section */
 		0282381CC3B8F324AC4B3247 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 79E1B35F87070C7A4B33B9C0 /* GoogleService-Info.plist */; };
+		051250577082F0DCB060D576 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = E5E97778F9EEBDE0081F3FEF /* Localizable.strings */; };
 		0AA57E1EC3F8695C947CB354 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22651EDE0934EF192A615A10 /* AppModel.swift */; };
 		1149DC267F58FD53E2667EE3 /* AdBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3099949C37EEA15601D5A443 /* AdBanner.swift */; };
 		11DC07118C5D003778B12A08 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = CE7205D2650372A6F23F63BD /* FirebaseAuth */; };
 		1430FA6B60A110671ABACBAC /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 0D07065E4A492959FE38274E /* FirebaseCore */; };
 		1CD605DDBD9F1010876B5DB3 /* PixelboardCore in Frameworks */ = {isa = PBXBuildFile; productRef = EE27B760C8D6D8D40F72908E /* PixelboardCore */; };
+		235391FAD1CA42EC2DC3A43A /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 1A15C3306B64E0E241BD919A /* Localizable.strings */; };
 		34C9CAFB806FB41AB21D8829 /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75915BECB7377347E52E0816 /* AppConfiguration.swift */; };
 		4389D60A0CA1BE9A436E89FA /* BoardRealtimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2870F346E7D47B43C3454807 /* BoardRealtimeTests.swift */; };
+		4569F698B306FD4255CB104B /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = F9CECE918ECB774F7C21F20C /* Localizable.strings */; };
 		4D607B2259CE1B249FD956C2 /* ReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 091F90D40D4BBC34464A6EC6 /* ReportView.swift */; };
+		55296E1CCDD5302487DB9509 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 456199BDC8F4243268136767 /* InfoPlist.strings */; };
+		55D41D185F809BDDFB7051BE /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = DC41002AD8FA88CEF0BB2FA2 /* InfoPlist.strings */; };
 		5CF67E80619391698C58A14E /* FirebaseAuthAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F79590CCCDA0AEF9A5F38550 /* FirebaseAuthAdapter.swift */; };
 		66013A20F8B301283D30E2A1 /* BoardCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59046AEE5FC0F3B424EF09B /* BoardCanvasView.swift */; };
 		6A7A5DC38BC68302971CA7DE /* IBMPlexMono-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 675F212EDE345F53C5350632 /* IBMPlexMono-Medium.ttf */; };
+		6EB333A920300B6BB25770A8 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0A92BE0D27B3BEDDD54F606B /* InfoPlist.strings */; };
+		711C6F38DB3F74F5509483C2 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 2DD10FBD4FDDAFB7558299AB /* Localizable.strings */; };
 		740A92401492E0CDF3C1725E /* BoardGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0C02803C95D1D2AF41B25E5 /* BoardGeometryTests.swift */; };
 		741092F334E613EF6C7D0B0D /* PixelboardTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DE1F12516F4118220261F4A /* PixelboardTheme.swift */; };
 		8612FFB793833B9BDE6C95F9 /* InfinitePixelboardApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26A5EAA50A0866EBAB12941F /* InfinitePixelboardApp.swift */; };
 		8A686428919FFE9E9A4351BE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B24BCDEBEADB8E88850C33 /* ContentView.swift */; };
 		9538A9021F8A9FECCDB5F8DB /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 0793F22A4533E488747BFA78 /* FirebaseCrashlytics */; };
 		96F8FBFFDDA294B7C69F6A45 /* TileCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65F2C7887D76C8ECBBE0DF5D /* TileCacheTests.swift */; };
+		AA5C339A49906615028FFB31 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = B2DFD2C8597BBE70F683E491 /* InfoPlist.strings */; };
 		B71A06A41DCBDE31307BDB8F /* APIModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D501B653E62F8FBAE71FBDBF /* APIModelsTests.swift */; };
 		C3824C77A7183B096169DDD3 /* GoToPositionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27549ACE790D51C5F7F58F43 /* GoToPositionView.swift */; };
 		C6262978D7A313BFD855BD0C /* SpaceGrotesk-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 11BC98E09C056642981B9298 /* SpaceGrotesk-Variable.ttf */; };
 		C951E7539BC2B8EFB98EEC3F /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 94C181AD6B5332C017ABF51A /* GoogleSignIn */; };
 		CE96F6287A1CEA244AEBDD74 /* PushNotificationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74CCDF243172A6099D082D8B /* PushNotificationCoordinator.swift */; };
 		D0F8352BDF800CA129242403 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2D4BA2B005A8A60974F33F1 /* AccountView.swift */; };
+		D710BF158C2901B4988D3918 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 45B45CCB335498ED7DE10046 /* Localizable.strings */; };
+		E0AAEBF7FE3A44D214F351DD /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 55DE658D681C15DB97058452 /* InfoPlist.strings */; };
 		E4C3BDE18C537B7CF9521919 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E1E3787C74C05CBC3782AEDE /* Assets.xcassets */; };
 		EF5ADA10BD95B05400D797C1 /* PixelboardCore in Frameworks */ = {isa = PBXBuildFile; productRef = CCD07644DDEBEF0EE4E40866 /* PixelboardCore */; };
 		F4692BFF072D51D69B666233 /* StoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7A641579BC815074945BF1F /* StoreManager.swift */; };
+		F4C80D839B76479E0B19C4B8 /* PixelboardL10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE7192093376E8BABB752083 /* PixelboardL10n.swift */; };
 		F64E737BF7B244318DF60234 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AF6EE8538BA5BB5F4C019F85 /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		091F90D40D4BBC34464A6EC6 /* ReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportView.swift; sourceTree = "<group>"; };
+		0A92BE0D27B3BEDDD54F606B /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = fr.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		11BC98E09C056642981B9298 /* SpaceGrotesk-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceGrotesk-Variable.ttf"; sourceTree = "<group>"; };
+		1A15C3306B64E0E241BD919A /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = de.lproj/Localizable.strings; sourceTree = "<group>"; };
 		22651EDE0934EF192A615A10 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		26A5EAA50A0866EBAB12941F /* InfinitePixelboardApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfinitePixelboardApp.swift; sourceTree = "<group>"; };
 		27549ACE790D51C5F7F58F43 /* GoToPositionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoToPositionView.swift; sourceTree = "<group>"; };
 		277151D067B154F6F1CF192F /* infinite-pixelboard-ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "infinite-pixelboard-ios"; path = .; sourceTree = SOURCE_ROOT; };
 		2870F346E7D47B43C3454807 /* BoardRealtimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardRealtimeTests.swift; sourceTree = "<group>"; };
+		2DD10FBD4FDDAFB7558299AB /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		3099949C37EEA15601D5A443 /* AdBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdBanner.swift; sourceTree = "<group>"; };
 		44B24BCDEBEADB8E88850C33 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		456199BDC8F4243268136767 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = ko.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		45B45CCB335498ED7DE10046 /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = fr.lproj/Localizable.strings; sourceTree = "<group>"; };
+		55DE658D681C15DB97058452 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = de.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		65F2C7887D76C8ECBBE0DF5D /* TileCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TileCacheTests.swift; sourceTree = "<group>"; };
 		675F212EDE345F53C5350632 /* IBMPlexMono-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "IBMPlexMono-Medium.ttf"; sourceTree = "<group>"; };
 		74CCDF243172A6099D082D8B /* PushNotificationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationCoordinator.swift; sourceTree = "<group>"; };
@@ -56,13 +73,18 @@
 		A18BE893282591A519E0EFA8 /* PixelboardCoreTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = PixelboardCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A51D78F9D6764E3C82BD2252 /* InfinitePixelboard.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = InfinitePixelboard.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF6EE8538BA5BB5F4C019F85 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		B2DFD2C8597BBE70F683E491 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		B7A641579BC815074945BF1F /* StoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreManager.swift; sourceTree = "<group>"; };
+		BE7192093376E8BABB752083 /* PixelboardL10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PixelboardL10n.swift; sourceTree = "<group>"; };
 		C59046AEE5FC0F3B424EF09B /* BoardCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardCanvasView.swift; sourceTree = "<group>"; };
 		D501B653E62F8FBAE71FBDBF /* APIModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModelsTests.swift; sourceTree = "<group>"; };
+		DC41002AD8FA88CEF0BB2FA2 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		E0C02803C95D1D2AF41B25E5 /* BoardGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardGeometryTests.swift; sourceTree = "<group>"; };
 		E1E3787C74C05CBC3782AEDE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E2D4BA2B005A8A60974F33F1 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
+		E5E97778F9EEBDE0081F3FEF /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = ko.lproj/Localizable.strings; sourceTree = "<group>"; };
 		F79590CCCDA0AEF9A5F38550 /* FirebaseAuthAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseAuthAdapter.swift; sourceTree = "<group>"; };
+		F9CECE918ECB774F7C21F20C /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = ja.lproj/Localizable.strings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,6 +123,7 @@
 				F79590CCCDA0AEF9A5F38550 /* FirebaseAuthAdapter.swift */,
 				27549ACE790D51C5F7F58F43 /* GoToPositionView.swift */,
 				26A5EAA50A0866EBAB12941F /* InfinitePixelboardApp.swift */,
+				BE7192093376E8BABB752083 /* PixelboardL10n.swift */,
 				7DE1F12516F4118220261F4A /* PixelboardTheme.swift */,
 				74CCDF243172A6099D082D8B /* PushNotificationCoordinator.swift */,
 				091F90D40D4BBC34464A6EC6 /* ReportView.swift */,
@@ -122,6 +145,16 @@
 			isa = PBXGroup;
 			children = (
 				E1E3787C74C05CBC3782AEDE /* Assets.xcassets */,
+				55DE658D681C15DB97058452 /* InfoPlist.strings */,
+				0A92BE0D27B3BEDDD54F606B /* InfoPlist.strings */,
+				B2DFD2C8597BBE70F683E491 /* InfoPlist.strings */,
+				456199BDC8F4243268136767 /* InfoPlist.strings */,
+				DC41002AD8FA88CEF0BB2FA2 /* InfoPlist.strings */,
+				1A15C3306B64E0E241BD919A /* Localizable.strings */,
+				45B45CCB335498ED7DE10046 /* Localizable.strings */,
+				F9CECE918ECB774F7C21F20C /* Localizable.strings */,
+				E5E97778F9EEBDE0081F3FEF /* Localizable.strings */,
+				2DD10FBD4FDDAFB7558299AB /* Localizable.strings */,
 				AF6EE8538BA5BB5F4C019F85 /* PrivacyInfo.xcprivacy */,
 				32F40EF78025E61D7390D100 /* Fonts */,
 			);
@@ -253,7 +286,12 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				Base,
+				de,
 				en,
+				fr,
+				ja,
+				ko,
+				"zh-Hans",
 			);
 			mainGroup = A567C9D500EBB5696C3F1619;
 			minimizedProjectReferenceProxies = 1;
@@ -281,6 +319,16 @@
 				E4C3BDE18C537B7CF9521919 /* Assets.xcassets in Resources */,
 				0282381CC3B8F324AC4B3247 /* GoogleService-Info.plist in Resources */,
 				6A7A5DC38BC68302971CA7DE /* IBMPlexMono-Medium.ttf in Resources */,
+				E0AAEBF7FE3A44D214F351DD /* InfoPlist.strings in Resources */,
+				55D41D185F809BDDFB7051BE /* InfoPlist.strings in Resources */,
+				AA5C339A49906615028FFB31 /* InfoPlist.strings in Resources */,
+				55296E1CCDD5302487DB9509 /* InfoPlist.strings in Resources */,
+				6EB333A920300B6BB25770A8 /* InfoPlist.strings in Resources */,
+				235391FAD1CA42EC2DC3A43A /* Localizable.strings in Resources */,
+				711C6F38DB3F74F5509483C2 /* Localizable.strings in Resources */,
+				4569F698B306FD4255CB104B /* Localizable.strings in Resources */,
+				051250577082F0DCB060D576 /* Localizable.strings in Resources */,
+				D710BF158C2901B4988D3918 /* Localizable.strings in Resources */,
 				F64E737BF7B244318DF60234 /* PrivacyInfo.xcprivacy in Resources */,
 				C6262978D7A313BFD855BD0C /* SpaceGrotesk-Variable.ttf in Resources */,
 			);
@@ -302,6 +350,7 @@
 				5CF67E80619391698C58A14E /* FirebaseAuthAdapter.swift in Sources */,
 				C3824C77A7183B096169DDD3 /* GoToPositionView.swift in Sources */,
 				8612FFB793833B9BDE6C95F9 /* InfinitePixelboardApp.swift in Sources */,
+				F4C80D839B76479E0B19C4B8 /* PixelboardL10n.swift in Sources */,
 				741092F334E613EF6C7D0B0D /* PixelboardTheme.swift in Sources */,
 				CE96F6287A1CEA244AEBDD74 /* PushNotificationCoordinator.swift in Sources */,
 				4D607B2259CE1B249FD956C2 /* ReportView.swift in Sources */,

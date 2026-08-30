@@ -120,7 +120,7 @@ public sealed class PostgresPlacementLedgerIntegrationTests
 
     [PostgresFact]
     [Trait("Category", "Integration")]
-    public async Task OverwriteCreatesOneNotificationForThePriorOwner()
+    public async Task TenOverwritesCreateOneDailyDigestForThePriorOwner()
     {
         var connectionString = Environment.GetEnvironmentVariable(
             "PIXELBOARD_TEST_POSTGRES")!;
@@ -129,16 +129,22 @@ public sealed class PostgresPlacementLedgerIntegrationTests
         var ledger = new PostgresPlacementLedger(dataSource);
         var row = Random.Shared.Next(100_000, int.MaxValue);
         var column = Random.Shared.Next(100_000, int.MaxValue);
-        var first = CreatePlacement(row, column, "#111111");
-        var second = CreatePlacement(row, column, "#222222") with
+        var placements = new List<PlacementLedgerEvent>();
+        var owner = $"firebase-test-owner-{Guid.NewGuid():N}";
+        var actor = $"firebase-test-actor-{Guid.NewGuid():N}";
+        for (var index = 0; index < 10; index++)
         {
-            PriorPlacementId = first.PlacementId,
-            PriorColor = first.Color
-        };
-
-        await ledger.IngestAsync(first, "3000-0");
-        await ledger.IngestAsync(second, "4000-0");
-        await ledger.IngestAsync(second, "4000-0");
+            var original = CreatePlacement(row + index, column, "#111111", owner);
+            var next = CreatePlacement(row + index, column, $"#{index + 2:X2}0000", actor) with
+            {
+                PriorPlacementId = original.PlacementId,
+                PriorColor = original.Color
+            };
+            placements.Add(original);
+            placements.Add(next);
+            await ledger.IngestAsync(original, $"{3000 + index * 2}-0");
+            await ledger.IngestAsync(next, $"{3001 + index * 2}-0");
+        }
 
         await using var notificationCount = dataSource.CreateCommand(
             """
@@ -147,33 +153,51 @@ public sealed class PostgresPlacementLedgerIntegrationTests
             WHERE recipient_firebase_uid = @recipient
               AND category = 'board_activity';
             """);
-        notificationCount.Parameters.AddWithValue("recipient", first.FirebaseUid);
+        notificationCount.Parameters.AddWithValue("recipient", owner);
 
         Assert.Equal(1L, (long)(await notificationCount.ExecuteScalarAsync() ?? 0L));
+
+        await using var counterCommand = dataSource.CreateCommand(
+            """
+            SELECT event_count
+            FROM pixelboard.notification_digest_counters
+            WHERE firebase_uid = @recipient
+              AND event_day = (now() AT TIME ZONE 'UTC')::date;
+            """);
+        counterCommand.Parameters.AddWithValue("recipient", owner);
+        Assert.Equal(10, (int)(await counterCommand.ExecuteScalarAsync() ?? 0));
 
         await using var cleanup = dataSource.CreateCommand(
             """
             DELETE FROM pixelboard.notification_outbox
             WHERE recipient_firebase_uid = @recipient;
+            DELETE FROM pixelboard.notification_digest_counters
+            WHERE firebase_uid = @recipient;
             DELETE FROM pixelboard.current_pixels
-            WHERE board_row = @board_row
+            WHERE board_row >= @board_row
+              AND board_row < @board_row + 10
               AND board_column = @board_column;
             DELETE FROM pixelboard.placements
-            WHERE placement_id IN (@first_id, @second_id);
+            WHERE placement_id = ANY(@placement_ids);
             """);
-        cleanup.Parameters.AddWithValue("recipient", first.FirebaseUid);
+        cleanup.Parameters.AddWithValue("recipient", owner);
         cleanup.Parameters.AddWithValue("board_row", row);
         cleanup.Parameters.AddWithValue("board_column", column);
-        cleanup.Parameters.AddWithValue("first_id", first.PlacementId.Value);
-        cleanup.Parameters.AddWithValue("second_id", second.PlacementId.Value);
+        cleanup.Parameters.AddWithValue(
+            "placement_ids",
+            placements.Select(placement => placement.PlacementId.Value).ToArray());
         await cleanup.ExecuteNonQueryAsync();
     }
 
-    private static PlacementLedgerEvent CreatePlacement(int row, int column, string color)
+    private static PlacementLedgerEvent CreatePlacement(
+        int row,
+        int column,
+        string color,
+        string? firebaseUid = null)
     {
         return new PlacementLedgerEvent(
             PlacementId.New(),
-            $"firebase-test-{Guid.NewGuid():N}",
+            firebaseUid ?? $"firebase-test-{Guid.NewGuid():N}",
             row,
             column,
             color,

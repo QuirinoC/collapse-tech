@@ -27,6 +27,7 @@ export class AccountState {
     return {
       authenticated: Boolean(this.account),
       tier: this.account?.tier ?? null,
+      entitlementSource: this.account?.entitlementSource ?? null,
       canPlace: Boolean(this.account?.canPlace) && remainingMilliseconds === 0,
       communityStandardsAccepted: Boolean(this.account?.communityStandardsAccepted),
       remainingSeconds: Math.ceil(remainingMilliseconds / 1000),

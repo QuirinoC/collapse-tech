@@ -95,7 +95,7 @@ public sealed class PostgresAccountStateService(NpgsqlDataSource dataSource)
     {
         const string sql =
             """
-            SELECT tier, expires_at
+            SELECT tier, source, expires_at
             FROM pixelboard.entitlements
             WHERE firebase_uid = $1
               AND revoked_at IS NULL
@@ -114,7 +114,8 @@ public sealed class PostgresAccountStateService(NpgsqlDataSource dataSource)
             : AccountTier.Free;
         return new EntitlementState(
             tier,
-            reader.IsDBNull(1) ? null : reader.GetFieldValue<DateTimeOffset>(1));
+            reader.IsDBNull(2) ? null : reader.GetFieldValue<DateTimeOffset>(2),
+            reader.IsDBNull(1) ? null : reader.GetString(1));
     }
 
     private static byte[] AccountHash(AccountId accountId) =>

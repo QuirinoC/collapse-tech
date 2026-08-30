@@ -4,8 +4,17 @@ import PixelboardCore
 
 @MainActor
 final class StoreManager: ObservableObject {
+    enum TrialEligibility: Equatable {
+        case unknown
+        case eligible
+        case unavailable
+    }
+
     @Published private(set) var products: [Product] = []
     @Published private(set) var isWorking = false
+    @Published private(set) var trialEligibility: TrialEligibility = .unknown
+    @Published private(set) var activeProductID: String?
+    @Published private(set) var linkedToAnotherAccount = false
     @Published var errorMessage: String?
 
     var onEntitlementChanged: (@MainActor @Sendable () async -> Void)?
@@ -22,8 +31,13 @@ final class StoreManager: ObservableObject {
     private var activeTransactionIDs: Set<UInt64> = []
     private var completedTransactionIDs: Set<UInt64> = []
     private var permanentlyFailedTransactionIDs: Set<UInt64> = []
+    private var pendingTransactions: [UInt64: PendingTransaction] = [:]
     private var accountGeneration: UInt64 = 0
     private var isAuthenticated = false
+    private var expectedAppAccountToken: UUID?
+
+    static let manageSubscriptionsURL = URL(string: "https://apps.apple.com/account/subscriptions")!
+    static let supportURL = URL(string: "mailto:hello@collapsetechnologies.com")!
 
     init(api: PixelboardAPIClient) {
         self.api = api
@@ -61,6 +75,9 @@ final class StoreManager: ObservableObject {
     func authenticationDidChange(isAuthenticated: Bool) {
         accountGeneration &+= 1
         self.isAuthenticated = isAuthenticated
+        expectedAppAccountToken = nil
+        activeProductID = nil
+        linkedToAnotherAccount = false
         reconciliationTask?.cancel()
         reconciliationTask = nil
         deliveryTasks.values.forEach { $0.cancel() }
@@ -68,6 +85,7 @@ final class StoreManager: ObservableObject {
         deliveryTaskGenerations.removeAll()
         completedTransactionIDs.removeAll()
         permanentlyFailedTransactionIDs.removeAll()
+        pendingTransactions.removeAll()
         guard isAuthenticated else { return }
 
         let generation = accountGeneration
@@ -82,23 +100,86 @@ final class StoreManager: ObservableObject {
         }
     }
 
+    func refreshEntitlementState() async {
+        guard isAuthenticated else {
+            activeProductID = nil
+            return
+        }
+        let generation = accountGeneration
+        do {
+            let token = try await api.storeKitAccountToken()
+            guard isAuthenticated, generation == accountGeneration else { return }
+            expectedAppAccountToken = token
+            reconcilePendingTransactions(for: token, generation: generation)
+            await reconcileCurrentEntitlements(for: token, generation: generation)
+            guard isAuthenticated, generation == accountGeneration else { return }
+            await refreshActiveProduct(for: token)
+        } catch {
+            guard generation == accountGeneration else { return }
+            activeProductID = nil
+            expectedAppAccountToken = nil
+        }
+    }
+
     func loadProducts() async {
         do {
-            products = try await Product.products(for: productIDs)
+            let loadedProducts = try await Product.products(for: productIDs)
                 .sorted { $0.price < $1.price }
+            products = loadedProducts
+            guard let subscription = loadedProducts.first?.subscription,
+                  subscription.introductoryOffer != nil else {
+                trialEligibility = .unavailable
+                return
+            }
+            trialEligibility = await subscription.isEligibleForIntroOffer
+                ? .eligible
+                : .unavailable
+        } catch {
+            trialEligibility = .unavailable
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func restorePurchases() async {
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            try await AppStore.sync()
+            await refreshEntitlementState()
+            guard isAuthenticated else { return }
+            await onEntitlementChanged?()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    func stripePortalURL() async -> URL? {
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            return try await api.stripePortalURL()
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
         }
     }
 
     func purchase(_ product: Product) async -> Bool {
         isWorking = true
         defer { isWorking = false }
+        let generation = accountGeneration
         do {
             let token = try await api.storeKitAccountToken()
+            guard isAuthenticated, generation == accountGeneration else { return false }
+            expectedAppAccountToken = token
             let result = try await product.purchase(options: [.appAccountToken(token)])
+            guard isAuthenticated, generation == accountGeneration else { return false }
             guard case let .success(verification) = result else { return false }
             let transaction = try verified(verification)
+            guard transaction.appAccountToken == token else {
+                linkedToAnotherAccount = transaction.appAccountToken != nil
+                return false
+            }
             permanentlyFailedTransactionIDs.remove(transaction.id)
             let outcome = await deliver(
                 transaction,
@@ -120,7 +201,27 @@ final class StoreManager: ObservableObject {
         }
     }
 
-    static let manageSubscriptionsURL = URL(string: "https://apps.apple.com/account/subscriptions")!
+    private func refreshActiveProduct(for appAccountToken: UUID) async {
+        activeProductID = nil
+        linkedToAnotherAccount = false
+        for await result in StoreKit.Transaction.currentEntitlements {
+            guard case let .verified(transaction) = result,
+                  productIDs.contains(transaction.productID),
+                  transaction.revocationDate == nil,
+                  transaction.expirationDate.map({ $0 > Date() }) ?? true else {
+                continue
+            }
+            guard transaction.appAccountToken == appAccountToken else {
+                if transaction.appAccountToken != nil {
+                    linkedToAnotherAccount = true
+                }
+                continue
+            }
+            linkedToAnotherAccount = false
+            activeProductID = transaction.productID
+            return
+        }
+    }
 
     private func verified<T>(_ result: VerificationResult<T>) throws -> T {
         switch result {
@@ -140,6 +241,22 @@ final class StoreManager: ObservableObject {
             return
         }
         guard productIDs.contains(transaction.productID) else { return }
+        guard let expectedAppAccountToken else {
+            pendingTransactions[transaction.id] = PendingTransaction(
+                transaction: transaction,
+                signedTransactionInfo: result.jwsRepresentation)
+            return
+        }
+        guard transaction.appAccountToken == expectedAppAccountToken else {
+            if transaction.appAccountToken != nil {
+                linkedToAnotherAccount = true
+                activeProductID = nil
+            }
+            pendingTransactions.removeValue(forKey: transaction.id)
+            return
+        }
+        pendingTransactions.removeValue(forKey: transaction.id)
+        activeProductID = transaction.productID
         scheduleDeliveryRetry(
             for: transaction,
             signedTransactionInfo: result.jwsRepresentation
@@ -173,7 +290,13 @@ final class StoreManager: ObservableObject {
         } catch is CancellationError {
             return .retryableFailure
         } catch let error as APIClientError {
-            errorMessage = error.localizedDescription
+            if error.isStoreKitAccountMismatch {
+                linkedToAnotherAccount = true
+                activeProductID = nil
+                errorMessage = nil
+            } else {
+                errorMessage = error.localizedDescription
+            }
             if error.isPermanentStoreKitDeliveryFailure {
                 if generation == accountGeneration {
                     permanentlyFailedTransactionIDs.insert(transaction.id)
@@ -257,7 +380,7 @@ final class StoreManager: ObservableObject {
         case failedVerification
 
         var errorDescription: String? {
-            "The App Store transaction could not be verified on this device."
+            PixelboardL10n.storeKitVerificationFailed
         }
     }
 
@@ -266,9 +389,80 @@ final class StoreManager: ObservableObject {
         case retryableFailure
         case permanentFailure
     }
+
+    private struct PendingTransaction {
+        let transaction: StoreKit.Transaction
+        let signedTransactionInfo: String
+    }
+
+    private func reconcilePendingTransactions(
+        for token: UUID,
+        generation: UInt64
+    ) {
+        for pending in Array(pendingTransactions.values) {
+            guard generation == accountGeneration, isAuthenticated else { return }
+            if pending.transaction.appAccountToken == token {
+                pendingTransactions.removeValue(forKey: pending.transaction.id)
+                activeProductID = pending.transaction.productID
+                scheduleDeliveryRetry(
+                    for: pending.transaction,
+                    signedTransactionInfo: pending.signedTransactionInfo)
+            } else if pending.transaction.appAccountToken != nil {
+                pendingTransactions.removeValue(forKey: pending.transaction.id)
+                linkedToAnotherAccount = true
+                activeProductID = nil
+            } else {
+                pendingTransactions.removeValue(forKey: pending.transaction.id)
+            }
+        }
+    }
+
+    private func reconcileCurrentEntitlements(
+        for token: UUID,
+        generation: UInt64
+    ) async {
+        for await result in StoreKit.Transaction.currentEntitlements {
+            guard !Task.isCancelled,
+                  isAuthenticated,
+                  generation == accountGeneration else {
+                return
+            }
+            guard case let .verified(transaction) = result,
+                  productIDs.contains(transaction.productID),
+                  transaction.revocationDate == nil,
+                  transaction.expirationDate.map({ $0 > Date() }) ?? true else {
+                continue
+            }
+            guard transaction.appAccountToken == token else {
+                if transaction.appAccountToken != nil {
+                    linkedToAnotherAccount = true
+                    activeProductID = nil
+                }
+                continue
+            }
+            activeProductID = transaction.productID
+            let outcome = await deliver(
+                transaction,
+                signedTransactionInfo: result.jwsRepresentation)
+            guard generation == accountGeneration, isAuthenticated else { return }
+            if outcome == .permanentFailure {
+                continue
+            }
+            if outcome == .retryableFailure {
+                scheduleDeliveryRetry(
+                    for: transaction,
+                    signedTransactionInfo: result.jwsRepresentation)
+            }
+        }
+    }
 }
 
 private extension APIClientError {
+    var isStoreKitAccountMismatch: Bool {
+        guard case let .server(_, payload) = self else { return false }
+        return payload?.code == "storekit_account_mismatch"
+    }
+
     var isPermanentStoreKitDeliveryFailure: Bool {
         guard case let .server(status, _) = self else { return false }
         return (400..<500).contains(status) && status != 408 && status != 429

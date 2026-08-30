@@ -72,6 +72,51 @@ Set `Firebase__Enabled=true` and `Firebase__ProjectId=<project-id>` to enable be
 
 Firebase configuration is intentionally disabled by default. Protected placement endpoints must not be enabled until Google and Apple providers, authorized domains, and the production project ID are configured.
 
+### Provisioning the moderator claim
+
+The web service never provisions moderator access. Use the repository's one-shot
+Admin SDK tool from an operator workstation with Firebase Admin credentials; do
+not add those credentials to Render or expose this operation as an HTTP route.
+The tool is deliberately restricted to the verified Google account
+`juanquirinoc@gmail.com` in the `collapse-technologies` project. It rejects the
+Apple relay account, every other email, a disabled/unverified account, and an
+account without the Google provider. It preserves existing custom claims when
+adding `moderator: true`.
+
+Keep a Firebase service-account JSON key outside the repository (or use an
+equivalent Application Default Credentials provider). First perform a
+non-mutating lookup:
+
+```bash
+GOOGLE_APPLICATION_CREDENTIALS=/secure/firebase/collapse-technologies-admin.json \
+npm run provision:pixelboard-moderator -- \
+  --project collapse-technologies \
+  --email juanquirinoc@gmail.com \
+  --confirm-email juanquirinoc@gmail.com \
+  --dry-run
+```
+
+Review the reported email, Google provider, and UID. Only then run the explicit
+apply command, replacing both UID placeholders with that exact reported UID:
+
+```bash
+GOOGLE_APPLICATION_CREDENTIALS=/secure/firebase/collapse-technologies-admin.json \
+npm run provision:pixelboard-moderator -- \
+  --project collapse-technologies \
+  --email juanquirinoc@gmail.com \
+  --confirm-email juanquirinoc@gmail.com \
+  --uid <uid-from-dry-run> \
+  --confirm-uid <uid-from-dry-run> \
+  --apply
+```
+
+The command is idempotent and does not revoke tokens or modify the App Review
+account or `59v269rgt7@privaterelay.appleid.com`. Firebase custom claims appear
+in a newly issued ID token, so the operator must sign out and back in (or force
+a token refresh) before opening `/moderation`. If Admin credentials are not
+available, stop after the dry-run setup and have an authorized project
+administrator run the two commands; do not claim that access was provisioned.
+
 ## Pixelboard Pro and StoreKit
 
 StoreKit support is disabled by default and requires PostgreSQL. Authenticated iOS clients first request `/api/v1/storekit/account-token` and pass that opaque server-bound UUID to StoreKit as the purchase's App Account Token. They submit StoreKit's signed transaction JWS to `/api/v1/storekit/transactions` after purchase or restore. App Store Server Notifications V2 posts `{ "signedPayload": "..." }` to the unauthenticated `/api/v1/storekit/notifications` webhook so renewals, expirations, refunds, and revocations are applied while the app is closed.
@@ -82,9 +127,11 @@ Configure `StoreKit__Enabled=true`, `StoreKit__BundleId`, `StoreKit__MonthlyProd
 
 ## Pixelboard Pro on the website (Stripe)
 
-Stripe Checkout is disabled by default, website-only, and requires PostgreSQL. It must stay off in the iOS app: native Settings continues to use StoreKit. Both processors write the same `pixelboard.entitlements` row. A Stripe cancellation does not clear an still-valid StoreKit Pro entitlement.
+Stripe Checkout is disabled by default, website-only, and requires PostgreSQL. It must stay off in the iOS app: native Settings continues to use StoreKit. Both processors write the same `pixelboard.entitlements` row, and an active entitlement from either processor suppresses checkout on the other platform. A Stripe cancellation does not clear a still-valid StoreKit Pro entitlement.
 
-Authenticated web clients read `GET /api/v1/stripe/config` and, after sign-in, `GET /api/v1/stripe/status`. Subscribe posts `{ "interval": "month" | "year" }` to `/api/v1/stripe/checkout-session` and redirects to the returned Checkout URL. Manage/cancel posts to `/api/v1/stripe/portal`. Stripe sends `checkout.session.completed`, `customer.subscription.*`, and invoice paid/failed events to the unauthenticated `/api/v1/stripe/webhook` with `Stripe-Signature`.
+Authenticated web clients read `GET /api/v1/stripe/config` and `GET /api/v1/stripe/status`. Subscribe or an applicable monthly-to-annual switch posts `{ "interval": "month" | "year" }` to `/api/v1/stripe/checkout-session` and redirects to the returned Checkout URL. The board UI has no prominent generic management control; cancellation remains available through Stripe’s customer tools. Stripe sends `checkout.session.completed`, `customer.subscription.*`, and invoice paid/failed events to the unauthenticated `/api/v1/stripe/webhook` with `Stripe-Signature`.
+Account state includes the active entitlement source (`stripe` or `storekit`) so clients can show the platform-appropriate management path. The website exposes a secondary Stripe Customer Portal link only for Stripe-managed subscriptions; Apple-managed subscriptions are directed to Apple subscription settings in the iOS app.
+Apple Restore Purchases only re-syncs the subscription for its current Apple ID; it does not move a subscription between Apple IDs, Google sign-in, or Pixelboard accounts. StoreKit ownership conflicts are rejected without changing either account; any approved transfer must be verified through hello@collapsetechnologies.com and removes Pro access from the previous Pixelboard account. The website repeats this policy when displaying an Apple-managed subscription.
 
 Do not commit secret keys. Enable only after applying `009_stripe.sql` (or `--provision-postgres`) and creating a Customer Portal configuration in Stripe. Local forwarding:
 
@@ -106,7 +153,7 @@ Before launch, block sexual and other unsuitable sensitive categories in AdSense
 
 The iOS client uses direct Apple Push Notification service (APNs), not Firebase Cloud Messaging. Authenticated devices register an installation-scoped token at `/api/v1/notifications/devices`; tokens are never accepted with a client-supplied account ID. The service stores tokens in PostgreSQL, removes them on account deletion, retries transient APNs failures, and disables tokens that Apple reports as invalid.
 
-The first board activity alert is sent when another account overwrites a pixel previously placed by the recipient. The placement ledger creates a durable, hourly deduplicated outbox item in the same transaction as ownership ingestion, so Redis retries cannot create an unbounded alert stream. Users can disable board activity and broadcast alerts independently in the iOS settings.
+Board activity is aggregated by recipient and UTC day. After 10 relevant overwrites, the placement ledger atomically marks one daily digest and queues one durable, deduplicated outbox item in the same transaction as ownership ingestion, so Redis retries cannot create an unbounded per-pixel alert stream. There are no per-category notification toggles; permission remains an OS-level choice.
 
 Moderators can use `/moderation` to send a targeted, audited broadcast to up to 500 explicit account IDs. Campaigns support an expiry timestamp and are fan-out queued through the same delivery worker; there is intentionally no unrestricted blast endpoint.
 

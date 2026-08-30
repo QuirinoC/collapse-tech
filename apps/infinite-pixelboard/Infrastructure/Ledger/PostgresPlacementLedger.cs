@@ -86,6 +86,33 @@ public sealed class PostgresPlacementLedger(NpgsqlDataSource dataSource) : IPlac
         )
         RETURNING placement_id
         )
+        digest_incremented AS (
+            INSERT INTO pixelboard.notification_digest_counters (
+                firebase_uid, event_day, event_count)
+            SELECT
+                prior.firebase_uid,
+                (inserted.placed_at AT TIME ZONE 'UTC')::date,
+                1
+            FROM inserted
+            JOIN updated
+              ON updated.placement_id = inserted.placement_id
+            JOIN pixelboard.placements prior
+              ON prior.placement_id = inserted.prior_placement_id
+            WHERE prior.firebase_uid <> inserted.firebase_uid
+            ON CONFLICT (firebase_uid, event_day) DO UPDATE SET
+                event_count = pixelboard.notification_digest_counters.event_count + 1
+            RETURNING firebase_uid, event_day, event_count
+        ),
+        digest_ready AS (
+            UPDATE pixelboard.notification_digest_counters counters
+            SET digest_sent_at = now()
+            FROM digest_incremented
+            WHERE counters.firebase_uid = digest_incremented.firebase_uid
+              AND counters.event_day = digest_incremented.event_day
+              AND digest_incremented.event_count >= 10
+              AND counters.digest_sent_at IS NULL
+            RETURNING counters.firebase_uid, counters.event_day, counters.event_count
+        )
         INSERT INTO pixelboard.notification_outbox (
             notification_id,
             recipient_firebase_uid,
@@ -97,26 +124,21 @@ public sealed class PostgresPlacementLedger(NpgsqlDataSource dataSource) : IPlac
             available_at,
             created_at)
         SELECT
-            md5(inserted.placement_id::text || ':board_activity')::uuid,
-            prior.firebase_uid,
+            md5(
+                digest_ready.firebase_uid || ':' ||
+                digest_ready.event_day::text || ':board_activity_digest')::uuid,
+            digest_ready.firebase_uid,
             'board_activity',
-            'A pixel you placed was overwritten',
-            'Someone changed your pixel at (' || inserted.board_row || ', ' || inserted.board_column || ').',
+            'Your pixel activity digest',
+            digest_ready.event_count || ' or more of your pixels were overwritten today. Open the board to see what changed.',
             jsonb_build_object(
-                'kind', 'board_activity',
-                'row', inserted.board_row,
-                'column', inserted.board_column),
-            prior.firebase_uid || ':' || inserted.board_row || ':' ||
-                inserted.board_column || ':' ||
-                to_char(date_trunc('hour', inserted.placed_at), 'YYYYMMDDHH24'),
+                'kind', 'board_activity_digest',
+                'eventCount', digest_ready.event_count),
+            digest_ready.firebase_uid || ':' ||
+                digest_ready.event_day::text || ':board_activity_digest',
             now(),
-            inserted.placed_at
-        FROM inserted
-        JOIN updated
-          ON updated.placement_id = inserted.placement_id
-        JOIN pixelboard.placements prior
-          ON prior.placement_id = inserted.prior_placement_id
-        WHERE prior.firebase_uid <> inserted.firebase_uid
+            now()
+        FROM digest_ready
         ON CONFLICT (dedupe_key) DO NOTHING;
         """;
 

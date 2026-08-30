@@ -27,6 +27,13 @@ public sealed record StoreKitNotificationVerificationResult(
     VerifiedStoreKitTransaction? Transaction,
     string? Error);
 
+public enum StoreKitApplyOutcome
+{
+    Applied,
+    LinkedToAnotherAccount,
+    NotApplied
+}
+
 public interface IStoreKitTransactionVerifier
 {
     StoreKitVerificationResult Verify(string signedTransaction);
@@ -40,7 +47,7 @@ public interface IStoreKitEntitlementStore
         AccountId accountId,
         CancellationToken cancellationToken = default);
 
-    ValueTask<bool> ApplyAsync(
+    ValueTask<StoreKitApplyOutcome> ApplyAsync(
         AccountId accountId,
         VerifiedStoreKitTransaction transaction,
         CancellationToken cancellationToken = default);

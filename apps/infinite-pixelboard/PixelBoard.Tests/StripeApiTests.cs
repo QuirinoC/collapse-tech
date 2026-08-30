@@ -28,6 +28,30 @@ public sealed class StripeApiTests
         Assert.False(response.Body.Enabled);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task StatusReportsTrialEligibility(bool trialAvailable)
+    {
+        var store = new RecordingStore
+        {
+            CustomerId = "cus_123",
+            TrialAvailable = trialAvailable
+        };
+        await using var services = CreateServices(new RecordingGateway(), store);
+
+        var result = await StripeApi.GetStatusAsync(
+            new IdentityAccessor(),
+            Options.Create(EnabledOptions()),
+            services,
+            CancellationToken.None);
+        var response = await ExecuteAsync<StripeStatusResponse>(result, services);
+
+        Assert.Equal(StatusCodes.Status200OK, response.StatusCode);
+        Assert.True(response.Body.HasCustomer);
+        Assert.Equal(trialAvailable, response.Body.TrialAvailable);
+    }
+
     [Fact]
     public async Task CheckoutRedirectsSignedInUsersToStripe()
     {
@@ -74,6 +98,30 @@ public sealed class StripeApiTests
         Assert.Equal("cus_new", gateway.CreatedCustomerId);
         Assert.Equal("cus_new", store.SavedCustomerId);
         Assert.Equal("price_year", gateway.LastPriceId);
+    }
+
+    [Theory]
+    [InlineData("stripe")]
+    [InlineData("storekit")]
+    public async Task CheckoutRejectsAccountsWithAnActiveProEntitlement(string source)
+    {
+        await using var services = CreateServices(
+            new RecordingGateway(),
+            new RecordingStore(),
+            new RecordingEntitlementService(
+                new EntitlementState(AccountTier.Pro, null, source)));
+
+        var result = await StripeApi.CreateCheckoutSessionAsync(
+            new CreateStripeCheckoutSessionRequest("month"),
+            CreateHttpRequest(),
+            new IdentityAccessor(),
+            Options.Create(EnabledOptions()),
+            services,
+            CancellationToken.None);
+        var response = await ExecuteAsync<ApiError>(result, services);
+
+        Assert.Equal(StatusCodes.Status409Conflict, response.StatusCode);
+        Assert.Equal(ApiErrorCodes.SubscriptionAlreadyActive, response.Body.Code);
     }
 
     [Fact]
@@ -200,11 +248,16 @@ public sealed class StripeApiTests
 
     private static ServiceProvider CreateServices(
         IStripeBillingGateway gateway,
-        IStripeBillingStore store) =>
+        IStripeBillingStore store,
+        IEntitlementService? entitlements = null) =>
         new ServiceCollection()
             .AddLogging()
             .AddSingleton(gateway)
             .AddSingleton(store)
+            .AddSingleton(
+                entitlements
+                    ?? new RecordingEntitlementService(
+                        new EntitlementState(AccountTier.Free, null)))
             .BuildServiceProvider();
 
     private static HttpRequest CreateHttpRequest()
@@ -257,6 +310,15 @@ public sealed class StripeApiTests
             CancellationToken cancellationToken = default) =>
             ValueTask.FromResult<AuthenticatedAccount?>(
                 new AuthenticatedAccount(new AccountId("account"), false, true));
+    }
+
+    private sealed class RecordingEntitlementService(EntitlementState state)
+        : IEntitlementService
+    {
+        public ValueTask<EntitlementState> GetAsync(
+            AccountId accountId,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(state);
     }
 
     private sealed class RecordingGateway : IStripeBillingGateway
@@ -326,6 +388,16 @@ public sealed class StripeApiTests
             AccountId accountId,
             CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(CustomerId is not null);
+
+        public ValueTask<string?> GetCurrentPriceIdAsync(
+            AccountId accountId,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult<string?>(null);
+
+        public ValueTask<bool> CanClaimStripeTrialAsync(
+            AccountId accountId,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(TrialAvailable);
 
         public ValueTask<bool> TryClaimStripeTrialAsync(
             AccountId accountId,

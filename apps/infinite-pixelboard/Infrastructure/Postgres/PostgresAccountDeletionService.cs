@@ -307,6 +307,20 @@ public sealed class PostgresAccountDeletionService(
             UPDATE pixelboard.platform_safety_state
             SET updated_by = $2
             WHERE updated_by = $1;
+            """,
+            """
+            UPDATE pixelboard.stripe_trial_claims
+            SET firebase_uid = $2
+            WHERE firebase_uid = $1;
+            """,
+            """
+            DELETE FROM pixelboard.notification_digest_counters
+            WHERE firebase_uid = $1;
+            """,
+            """
+            UPDATE pixelboard.notification_campaigns
+            SET created_by = $2
+            WHERE created_by = $1;
             """
         ];
         foreach (var sql in commands)

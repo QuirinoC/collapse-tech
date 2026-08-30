@@ -13,10 +13,6 @@ public sealed record PushDeviceRequest(
     string? Environment,
     string? BundleId);
 
-public sealed record NotificationPreferencesRequest(
-    bool BoardActivityEnabled,
-    bool BroadcastEnabled);
-
 public static class NotificationApi
 {
     private const int MaximumCampaignRecipients = 500;
@@ -29,8 +25,6 @@ public static class NotificationApi
             .RequireAuthorization();
         authenticated.MapPost("/devices", RegisterDeviceAsync);
         authenticated.MapDelete("/devices/{installationId:guid}", RemoveDeviceAsync);
-        authenticated.MapGet("/preferences", GetPreferencesAsync);
-        authenticated.MapPut("/preferences", SavePreferencesAsync);
 
         var moderator = endpoints
             .MapGroup("/api/v1/moderation/notifications")
@@ -94,54 +88,6 @@ public static class NotificationApi
         return Results.NoContent();
     }
 
-    public static async Task<IResult> GetPreferencesAsync(
-        IAccountIdentityAccessor identityAccessor,
-        IServiceProvider services,
-        CancellationToken cancellationToken)
-    {
-        var account = await identityAccessor.GetCurrentAsync(cancellationToken);
-        var store = services.GetService<INotificationStore>();
-        if (account is null)
-        {
-            return AuthenticationRequired();
-        }
-
-        if (store is null)
-        {
-            return ServiceUnavailable();
-        }
-
-        var preferences = await store.GetPreferencesAsync(account.Id, cancellationToken);
-        return Results.Ok(preferences);
-    }
-
-    public static async Task<IResult> SavePreferencesAsync(
-        NotificationPreferencesRequest? request,
-        IAccountIdentityAccessor identityAccessor,
-        IServiceProvider services,
-        CancellationToken cancellationToken)
-    {
-        var account = await identityAccessor.GetCurrentAsync(cancellationToken);
-        var store = services.GetService<INotificationStore>();
-        if (account is null)
-        {
-            return AuthenticationRequired();
-        }
-
-        if (store is null || request is null)
-        {
-            return ServiceUnavailable();
-        }
-
-        await store.SavePreferencesAsync(
-            account.Id,
-            new NotificationPreferences(
-                request.BoardActivityEnabled,
-                request.BroadcastEnabled),
-            cancellationToken);
-        return Results.NoContent();
-    }
-
     public static async Task<IResult> CreateCampaignAsync(
         NotificationCampaignRequest? request,
         IAccountIdentityAccessor identityAccessor,
@@ -156,28 +102,30 @@ public static class NotificationApi
             return AuthenticationRequired();
         }
 
-        if (store is null || request is null)
+        if (store is null)
         {
             return ServiceUnavailable();
         }
+        if (request is null)
+        {
+            return InvalidCampaign();
+        }
 
         var now = timeProvider.GetUtcNow();
-        var title = request.Title.Trim();
-        var body = request.Body.Trim();
-        var recipients = request.RecipientAccountIds
+        var title = request.Title?.Trim();
+        var body = request.Body?.Trim();
+        var recipients = request.RecipientAccountIds?
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => new AccountId(value.Trim()))
             .Distinct()
             .ToArray();
-        if (title.Length is < 1 or > 80
-            || body.Length is < 1 or > 240
-            || recipients.Length is < 1 or > MaximumCampaignRecipients
+        if (title is null or { Length: < 1 or > 80 }
+            || body is null or { Length: < 1 or > 240 }
+            || recipients is null or { Length: < 1 or > MaximumCampaignRecipients }
             || request.ExpiresAt is { } expiresAt
                 && (expiresAt <= now || expiresAt > now.AddDays(7)))
         {
-            return Results.BadRequest(new ApiError(
-                "invalid_notification_campaign",
-                "Provide a title, body, 1-500 recipients, and an expiry within seven days."));
+            return InvalidCampaign();
         }
 
         if (await IsDeletedAsync(moderator.Id, services, cancellationToken))
@@ -187,9 +135,9 @@ public static class NotificationApi
 
         var campaign = await store.CreateCampaignAsync(
             moderator.Id,
-            title,
-            body,
-            recipients,
+            title!,
+            body!,
+            recipients!,
             request.ExpiresAt,
             cancellationToken);
         return Results.Ok(campaign);
@@ -242,6 +190,11 @@ public static class NotificationApi
                 ApiErrorCodes.AccountDeleted,
                 "This account has been deleted."),
             statusCode: StatusCodes.Status410Gone);
+
+    private static IResult InvalidCampaign() =>
+        Results.BadRequest(new ApiError(
+            "invalid_notification_campaign",
+            "Provide a title, body, 1-500 recipients, and an expiry within seven days."));
 
     private static async ValueTask<bool> IsDeletedAsync(
         AccountId accountId,

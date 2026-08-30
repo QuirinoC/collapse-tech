@@ -13,6 +13,7 @@
     "dev:influence": "npm --prefix apps/influence-market run dev",
     "dev:pixelboard": "dotnet watch --project apps/infinite-pixelboard/PixelBoard.csproj run",
     "pixelboard:local-fill": "node apps/infinite-pixelboard/tools/local-pixel-art.mjs",
+    "provision:pixelboard-moderator": "node apps/infinite-pixelboard/tools/provision-moderator.mjs",
     "restore:coach": "dotnet restore apps/coach-gg/src/CoachGG.csproj",
     "restore:pixelboard": "dotnet restore apps/infinite-pixelboard/PixelBoard.sln",
     "restore": "npm run restore:coach && npm run restore:pixelboard",
@@ -38,10 +39,11 @@
     "test:dress": "npm --prefix apps/dress-like-me run test",
     "test:health": "npm --prefix apps/collapse-health run test",
     "test:coach:e2e": "npm --prefix apps/coach-gg run test:e2e",
-    "test:pixelboard:web": "node --test apps/infinite-pixelboard/wwwroot/js/pixelboard/tests/*.test.mjs",
+    "test:pixelboard:web": "node --test apps/infinite-pixelboard/wwwroot/js/pixelboard/tests/*.test.mjs apps/infinite-pixelboard/tools/*.test.mjs",
     "test:pixelboard": "dotnet test apps/infinite-pixelboard/PixelBoard.sln --no-restore"
   },
   "devDependencies": {
+    "firebase-admin": "^14.3.0",
     "typescript": "^5.9.3"
   },
   "overrides": {

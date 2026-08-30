@@ -78,6 +78,18 @@ public sealed class StoreKitTransactionVerifierTests
     }
 
     [Fact]
+    public void VerifyRejectsMalformedCertificateChainWithoutThrowing()
+    {
+        using var certificates = TestCertificates.Create();
+        var verifier = CreateVerifier(certificates);
+
+        var result = verifier.Verify(CreateMalformedCertificateChainJws());
+
+        Assert.False(result.IsValid);
+        Assert.Equal("The signed StoreKit payload has an invalid JWS header.", result.Error);
+    }
+
+    [Fact]
     public void VerifyNotificationAcceptsSignedNestedTransaction()
     {
         using var certificates = TestCertificates.Create();
@@ -183,6 +195,17 @@ public sealed class StoreKitTransactionVerifierTests
             HashAlgorithmName.SHA256,
             DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
         return $"{header}.{payload}.{Encode(signature)}";
+    }
+
+    private static string CreateMalformedCertificateChainJws()
+    {
+        var header = Encode(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            alg = "ES256",
+            x5c = new object[] { 12, "not-a-certificate" }
+        }));
+        var payload = Encode(JsonSerializer.SerializeToUtf8Bytes(new { }));
+        return $"{header}.{payload}.{Encode(new byte[64])}";
     }
 
     private static string Encode(byte[] value) =>

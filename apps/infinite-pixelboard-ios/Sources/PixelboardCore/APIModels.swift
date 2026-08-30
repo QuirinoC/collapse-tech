@@ -169,6 +169,7 @@ public struct AccountState: Codable, Equatable, Sendable {
     public let paintBoost: PaintBoostState?
     public let isBanned: Bool?
     public let allowedColors: [String]?
+    public let entitlementSource: String?
 
     public init(
         tier: AccountTier,
@@ -178,7 +179,8 @@ public struct AccountState: Codable, Equatable, Sendable {
         referralCode: String? = nil,
         paintBoost: PaintBoostState? = nil,
         isBanned: Bool? = nil,
-        allowedColors: [String]? = nil
+        allowedColors: [String]? = nil,
+        entitlementSource: String? = nil
     ) {
         self.tier = tier
         self.canPlace = canPlace
@@ -188,6 +190,7 @@ public struct AccountState: Codable, Equatable, Sendable {
         self.paintBoost = paintBoost
         self.isBanned = isBanned
         self.allowedColors = allowedColors
+        self.entitlementSource = entitlementSource
     }
 }
 
@@ -229,16 +232,6 @@ public struct PushDeviceRequest: Codable, Equatable, Sendable {
         self.token = token
         self.environment = environment
         self.bundleId = bundleId
-    }
-}
-
-public struct NotificationPreferences: Codable, Equatable, Sendable {
-    public let boardActivityEnabled: Bool
-    public let broadcastEnabled: Bool
-
-    public init(boardActivityEnabled: Bool, broadcastEnabled: Bool) {
-        self.boardActivityEnabled = boardActivityEnabled
-        self.broadcastEnabled = broadcastEnabled
     }
 }
 
@@ -337,5 +330,13 @@ public struct StoreKitEntitlement: Codable, Equatable, Sendable {
     public init(tier: AccountTier, expiresAt: Date?) {
         self.tier = tier
         self.expiresAt = expiresAt
+    }
+}
+
+public struct StripeRedirectResponse: Codable, Equatable, Sendable {
+    public let url: URL
+
+    public init(url: URL) {
+        self.url = url
     }
 }

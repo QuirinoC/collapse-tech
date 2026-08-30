@@ -8,10 +8,6 @@
     <a class="skip-link" href="#board-canvas">Skip to canvas</a>
 
     <header class="board-header">
-        <a class="board-wordmark" href="/" aria-label="Collapse Technologies Infinite Pixelboard">
-            <span>Collapse</span>
-            <span>Technologies</span>
-        </a>
         <p class="board-edition">Infinite Pixelboard <span>/ Public field 001</span></p>
         <button class="icon-button account-button" type="button" data-panel-toggle aria-expanded="false"
                 aria-controls="account-panel" aria-label="Settings">
@@ -139,34 +135,39 @@
             <summary>Get Pro <span aria-hidden="true">+</span></summary>
             <div class="panel-section__body">
                 <div class="invite-block" data-billing-block hidden>
-                    <p class="panel-copy">
-                        Try Pro free for 7 days, then choose monthly or annual billing. Pro is one second between pixels and unlocks the extended palette plus custom colors.
-                        On the website you pay through Stripe. The iPhone app uses Apple.
+                    <p class="panel-copy" data-billing-copy>
+                        Subscription options are loading. The available offer will be shown here.
                     </p>
                     <button type="button" data-billing-month>Subscribe monthly · $2.99</button>
-                    <button type="button" data-billing-year>Subscribe annual · $24.99</button>
-                    <button type="button" data-billing-portal hidden>Manage billing</button>
-                    <p class="auth-note" data-billing-status role="status" aria-live="polite"></p>
-                </div>
-            </div>
-        </details>
-        <details class="panel-section" data-invite-section hidden>
-            <summary>Invite a painter <span aria-hidden="true">+</span></summary>
-            <div class="panel-section__body">
-                <div class="invite-block" data-invite-block hidden>
-                    <p class="panel-copy">
-                        Share your code. When they sign in and accept the standards, they get
-                        4 hours at a 2-second cooldown. You get 4 hours at 3 seconds. This is
-                        not Pro, and it never removes the cooldown.
+                    <button type="button" data-billing-year>Switch to annual · $24.99</button>
+                    <button class="billing-management" type="button" data-billing-portal hidden>
+                        Subscription settings
+                    </button>
+                    <a class="billing-management" data-billing-apple
+                       href="https://apps.apple.com/account/subscriptions"
+                       target="_blank" rel="noreferrer" hidden>
+                        Apple subscription settings
+                    </a>
+                    <p class="auth-note billing-policy" data-billing-policy hidden>
+                        Apple subscriptions stay tied to their Apple ID and Pixelboard account.
+                        Restore Purchases in the iOS app only re-syncs the subscription; it does
+                        not move it between Apple IDs, Google sign-in, or Pixelboard accounts.
+                        Approved transfers require verification and remove Pro access from the
+                        previous Pixelboard account.
+                        <a href="mailto:hello@collapsetechnologies.com">Contact support</a>.
                     </p>
-                    <p class="invite-code" data-invite-code>—</p>
-                    <button type="button" data-copy-invite>Copy invite link</button>
-                    <label class="report-field">
-                        Have a code?
-                        <input type="text" maxlength="12" autocomplete="off" spellcheck="false" data-redeem-code />
-                    </label>
-                    <button type="button" data-redeem-invite>Redeem invite</button>
-                    <p class="auth-note" data-invite-status role="status" aria-live="polite"></p>
+                    <p class="auth-note" data-billing-status role="status" aria-live="polite"></p>
+                    <div class="invite-block" data-invite-block hidden>
+                        <p class="panel-copy">Invite a painter</p>
+                        <p class="panel-copy">
+                            Share your code. When they sign in and accept the standards, they get
+                            4 hours at a 2-second cooldown. You get 4 hours at 3 seconds. This is
+                            not Pro, and it never removes the cooldown.
+                        </p>
+                        <p class="invite-code" data-invite-code>—</p>
+                        <button type="button" data-copy-invite>Share invite link</button>
+                        <p class="auth-note" data-invite-status role="status" aria-live="polite"></p>
+                    </div>
                 </div>
             </div>
         </details>
@@ -191,6 +192,11 @@
                 </p>
             </div>
         </details>
+        <a class="board-wordmark settings-wordmark" href="/"
+           aria-label="Collapse Technologies Infinite Pixelboard">
+            <span>Collapse</span>
+            <span>Technologies</span>
+        </a>
     </aside>
 
     <dialog class="report-dialog" data-report-dialog aria-labelledby="report-title">

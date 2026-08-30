@@ -30,6 +30,7 @@ public static class StripeApi
 
     public static async Task<IResult> GetStatusAsync(
         IAccountIdentityAccessor identityAccessor,
+        IOptions<StripeOptions> options,
         IServiceProvider services,
         CancellationToken cancellationToken)
     {
@@ -50,8 +51,17 @@ public static class StripeApi
             return AccountDeleted();
         }
 
+        var currentPriceId = await store.GetCurrentPriceIdAsync(account.Id, cancellationToken);
+        var currentInterval = currentPriceId == options.Value.MonthlyPriceId
+            ? "month"
+            : currentPriceId == options.Value.AnnualPriceId
+                ? "year"
+                : null;
         return Results.Ok(
-            new StripeStatusResponse(await store.HasCustomerAsync(account.Id, cancellationToken)));
+            new StripeStatusResponse(
+                await store.HasCustomerAsync(account.Id, cancellationToken),
+                await store.CanClaimStripeTrialAsync(account.Id, cancellationToken),
+                currentInterval));
     }
 
     public static async Task<IResult> CreateCheckoutSessionAsync(
@@ -70,7 +80,8 @@ public static class StripeApi
 
         var gateway = services.GetService<IStripeBillingGateway>();
         var store = services.GetService<IStripeBillingStore>();
-        if (gateway is null || store is null)
+        var entitlements = services.GetService<IEntitlementService>();
+        if (gateway is null || store is null || entitlements is null)
         {
             return ServiceUnavailable();
         }
@@ -78,6 +89,20 @@ public static class StripeApi
         if (await IsDeletedAsync(account.Id, services, cancellationToken))
         {
             return AccountDeleted();
+        }
+
+        var entitlement = await entitlements.GetAsync(account.Id, cancellationToken);
+        if (entitlement.Tier == AccountTier.Pro)
+        {
+            var managementPath = string.Equals(
+                    entitlement.Source,
+                    "storekit",
+                    StringComparison.OrdinalIgnoreCase)
+                ? "Apple subscriptions"
+                : "Stripe subscription settings";
+            return Results.Conflict(new ApiError(
+                ApiErrorCodes.SubscriptionAlreadyActive,
+                $"Pixelboard Pro is already active through {managementPath}."));
         }
 
         var priceId = StripeBilling.PriceId(request.Interval, options.Value);

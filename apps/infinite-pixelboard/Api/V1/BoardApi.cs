@@ -145,7 +145,8 @@ public static class BoardApi
             referralCode,
             paintBoost,
             policy.IsBanned,
-            PixelPalette.ForTier(entitlement.Tier)));
+            PixelPalette.ForTier(entitlement.Tier),
+            entitlement.Source));
     }
 
     public static async Task<IResult> AcceptCommunityStandardsAsync(

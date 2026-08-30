@@ -23,17 +23,17 @@ struct GoToPositionView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 0) {
-                PixelboardEyebrow(text: "Navigate")
+                PixelboardEyebrow(text: PixelboardL10n.navigate)
                     .padding(.bottom, 18)
 
-                Text("Go to\ncoordinates.")
+                Text(PixelboardL10n.goToCoordinatesHeading)
                     .font(PixelboardTheme.sans(42, weight: .medium))
                     .tracking(-2.2)
                     .textCase(.uppercase)
                     .foregroundStyle(PixelboardTheme.ink)
                     .lineSpacing(-7)
 
-                Text("Enter a row and column to center that pixel on the board.")
+                Text(PixelboardL10n.enterCoordinatesNote)
                     .font(PixelboardTheme.sans(15))
                     .foregroundStyle(PixelboardTheme.muted)
                     .lineSpacing(4)
@@ -41,16 +41,16 @@ struct GoToPositionView: View {
                     .padding(.bottom, 24)
 
                 HStack(spacing: 12) {
-                    coordinateField("Row", text: $rowText)
-                    coordinateField("Column", text: $columnText)
+                    coordinateField(PixelboardL10n.row, text: $rowText)
+                    coordinateField(PixelboardL10n.column, text: $columnText)
                 }
 
                 HStack(spacing: 8) {
-                    Button("Origin (0,0)") {
+                    Button(PixelboardL10n.origin) {
                         go(to: BoardPosition(row: 0, column: 0))
                     }
                     .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
-                    Button("Selected position") {
+                    Button(PixelboardL10n.selectedPosition) {
                         go(to: initialPosition)
                     }
                     .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
@@ -66,7 +66,7 @@ struct GoToPositionView: View {
 
                 Spacer(minLength: 24)
 
-                Button("Center board") {
+                Button(PixelboardL10n.centerBoard) {
                     submit()
                 }
                 .buttonStyle(PixelboardFilledButtonStyle())
@@ -75,7 +75,7 @@ struct GoToPositionView: View {
             .background(PixelboardTheme.paper.ignoresSafeArea())
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                    Button(PixelboardL10n.close) { dismiss() }
                         .buttonStyle(PixelboardTextButtonStyle())
                 }
             }
@@ -104,7 +104,7 @@ struct GoToPositionView: View {
     private func submit() {
         guard let row = Int(rowText.trimmingCharacters(in: .whitespacesAndNewlines)),
               let column = Int(columnText.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-            errorMessage = "Enter whole-number coordinates."
+            errorMessage = PixelboardL10n.wholeNumberCoordinates
             return
         }
 

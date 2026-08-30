@@ -15,10 +15,6 @@ public sealed record PushDeviceRegistration(
     string Environment,
     string BundleId);
 
-public sealed record NotificationPreferences(
-    bool BoardActivityEnabled,
-    bool BroadcastEnabled);
-
 public sealed record NotificationOutboxItem(
     Guid NotificationId,
     string RecipientFirebaseUid,
@@ -38,9 +34,9 @@ public sealed record NotificationCampaign(
     DateTimeOffset CreatedAt);
 
 public sealed record NotificationCampaignRequest(
-    string Title,
-    string Body,
-    IReadOnlyList<string> RecipientAccountIds,
+    string? Title,
+    string? Body,
+    IReadOnlyList<string>? RecipientAccountIds,
     DateTimeOffset? ExpiresAt);
 
 public interface INotificationStore
@@ -53,15 +49,6 @@ public interface INotificationStore
     ValueTask RemoveDeviceAsync(
         AccountId accountId,
         Guid installationId,
-        CancellationToken cancellationToken = default);
-
-    ValueTask<NotificationPreferences> GetPreferencesAsync(
-        AccountId accountId,
-        CancellationToken cancellationToken = default);
-
-    ValueTask SavePreferencesAsync(
-        AccountId accountId,
-        NotificationPreferences preferences,
         CancellationToken cancellationToken = default);
 
     ValueTask<NotificationCampaign> CreateCampaignAsync(

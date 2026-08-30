@@ -18,9 +18,12 @@ struct BoardCanvasView: View {
             .simultaneousGesture(zoomGesture(size: geometry.size))
             .simultaneousGesture(selectGesture)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Infinite pixel board")
+            .accessibilityLabel(PixelboardL10n.infinitePixelBoard)
             .accessibilityValue(
-                "Selected row \(model.selectedPosition.row), column \(model.selectedPosition.column)"
+                PixelboardL10n.selectedPosition(
+                    row: model.selectedPosition.row,
+                    column: model.selectedPosition.column
+                )
             )
             .accessibilityAdjustableAction { direction in
                 switch direction {
@@ -38,16 +41,16 @@ struct BoardCanvasView: View {
                     break
                 }
             }
-            .accessibilityAction(named: "Move up") {
+            .accessibilityAction(named: PixelboardL10n.moveUp) {
                 moveSelection(rowDelta: -1, columnDelta: 0)
             }
-            .accessibilityAction(named: "Move down") {
+            .accessibilityAction(named: PixelboardL10n.moveDown) {
                 moveSelection(rowDelta: 1, columnDelta: 0)
             }
-            .accessibilityAction(named: "Move left") {
+            .accessibilityAction(named: PixelboardL10n.moveLeft) {
                 moveSelection(rowDelta: 0, columnDelta: -1)
             }
-            .accessibilityAction(named: "Move right") {
+            .accessibilityAction(named: PixelboardL10n.moveRight) {
                 moveSelection(rowDelta: 0, columnDelta: 1)
             }
             .task(id: visibleLoadKey(size: geometry.size)) {
@@ -149,7 +152,7 @@ struct BoardCanvasView: View {
             }
         }
 
-        drawGrid(context: &context, size: size, cell: cell, tileRows: tileRows, tileColumns: tileColumns)
+        drawGrid(context: &context, size: size, cell: cell)
 
         let selected = model.viewport.boardToScreen(model.selectedPosition)
         let highlight = CGRect(
@@ -164,9 +167,7 @@ struct BoardCanvasView: View {
     private func drawGrid(
         context: inout GraphicsContext,
         size: CGSize,
-        cell: Double,
-        tileRows: Int,
-        tileColumns: Int
+        cell: Double
     ) {
         let offsetX = model.viewport.offsetX
         let offsetY = model.viewport.offsetY
@@ -190,27 +191,5 @@ struct BoardCanvasView: View {
             }
             context.stroke(pixelGrid, with: .color(PixelboardTheme.ink.opacity(0.10)), lineWidth: 1)
         }
-
-        var tileGrid = Path()
-        let tileWidth = cell * Double(tileColumns)
-        let tileHeight = cell * Double(tileRows)
-        guard tileWidth > 0, tileHeight > 0 else { return }
-        var column = Int(floor(-offsetX / tileWidth))
-        while offsetX + Double(column) * tileWidth <= size.width {
-            let x = (offsetX + Double(column) * tileWidth).rounded() + 0.5
-            tileGrid.move(to: CGPoint(x: x, y: 0))
-            tileGrid.addLine(to: CGPoint(x: x, y: size.height))
-            column += 1
-            if column > 10_000 { break }
-        }
-        var row = Int(floor(-offsetY / tileHeight))
-        while offsetY + Double(row) * tileHeight <= size.height {
-            let y = (offsetY + Double(row) * tileHeight).rounded() + 0.5
-            tileGrid.move(to: CGPoint(x: 0, y: y))
-            tileGrid.addLine(to: CGPoint(x: size.width, y: y))
-            row += 1
-            if row > 10_000 { break }
-        }
-        context.stroke(tileGrid, with: .color(PixelboardTheme.ink.opacity(0.32)), lineWidth: 1)
     }
 }

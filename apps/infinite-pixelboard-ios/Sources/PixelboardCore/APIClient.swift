@@ -106,20 +106,6 @@ public struct PixelboardAPIClient: Sendable {
             authorized: true)
     }
 
-    public func notificationPreferences() async throws -> NotificationPreferences {
-        try await request("notifications/preferences", authorized: true)
-    }
-
-    public func saveNotificationPreferences(
-        _ preferences: NotificationPreferences
-    ) async throws {
-        try await requestWithoutResponse(
-            "notifications/preferences",
-            method: "PUT",
-            body: preferences,
-            authorized: true)
-    }
-
     public func storeKitAccountToken() async throws -> UUID {
         let response: StoreKitAccountTokenResponse = try await request(
             "storekit/account-token",
@@ -135,6 +121,15 @@ public struct PixelboardAPIClient: Sendable {
             body: VerifyStoreKitTransactionRequest(signedTransactionInfo: signedTransactionInfo),
             authorized: true
         )
+    }
+
+    public func stripePortalURL() async throws -> URL {
+        let response: StripeRedirectResponse = try await request(
+            "stripe/portal",
+            method: "POST",
+            authorized: true
+        )
+        return response.url
     }
 
     private func request<Response: Decodable>(

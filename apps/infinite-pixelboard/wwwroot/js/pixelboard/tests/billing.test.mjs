@@ -5,6 +5,7 @@ import {
   parseBillingReturn,
   stripBillingParam,
 } from "../billing.mjs";
+import { subscriptionMessage } from "../subscription.mjs";
 
 test("billing return values are read from the query string", () => {
   assert.equal(parseBillingReturn("?billing=success"), "success");
@@ -34,5 +35,40 @@ test("return copy does not claim the cooldown is gone", () => {
   assert.equal(
     billingStatusMessage("cancel"),
     "Checkout was canceled. You were not charged.",
+  );
+});
+
+test("subscription copy is state-aware", () => {
+  assert.equal(
+    subscriptionMessage({ authenticated: false }),
+    "Log in to get Pro for increased limits.",
+  );
+  assert.match(
+    subscriptionMessage({ isPro: true, trialAvailable: true, currentInterval: "month" }),
+    /Pro is active/,
+  );
+  assert.doesNotMatch(
+    subscriptionMessage({ isPro: true, trialAvailable: true }),
+    /7 days/i,
+  );
+  assert.match(
+    subscriptionMessage({ isPro: false, trialAvailable: false }),
+    /monthly or annual billing/i,
+  );
+  assert.doesNotMatch(
+    subscriptionMessage({ isPro: false, trialAvailable: false }),
+    /7 days/i,
+  );
+  assert.match(
+    subscriptionMessage({ isPro: false, trialAvailable: true }),
+    /7 days/i,
+  );
+  assert.match(
+    subscriptionMessage({ isPro: true, entitlementSource: "storekit" }),
+    /active through Apple/i,
+  );
+  assert.match(
+    subscriptionMessage({ isPro: true, entitlementSource: "stripe" }),
+    /active through Stripe/i,
   );
 });

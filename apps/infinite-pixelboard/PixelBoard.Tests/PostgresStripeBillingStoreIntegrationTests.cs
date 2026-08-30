@@ -33,6 +33,20 @@ public sealed class PostgresStripeBillingStoreIntegrationTests
         Assert.Equal(AccountTier.Pro, (await entitlements.GetAsync(stripeAccount)).Tier);
         Assert.Equal("cus_a", await stripe.GetCustomerIdAsync(stripeAccount));
 
+        var stripeToken = await storeKit.GetOrCreateAccountTokenAsync(stripeAccount);
+        Assert.Equal(StoreKitApplyOutcome.NotApplied, await storeKit.ApplyAsync(
+            stripeAccount,
+            new VerifiedStoreKitTransaction(
+                $"transaction-blocked-{Guid.NewGuid():N}",
+                $"original-blocked-{Guid.NewGuid():N}",
+                "pixelboard.pro.monthly",
+                stripeToken!.Value,
+                "Sandbox",
+                now,
+                now.AddMonths(1),
+                null)));
+        Assert.Equal(AccountTier.Pro, (await entitlements.GetAsync(stripeAccount)).Tier);
+
         Assert.True(await stripe.ApplyAsync(Update(
             stripeAccount,
             "cus_a",
@@ -44,7 +58,7 @@ public sealed class PostgresStripeBillingStoreIntegrationTests
 
         var token = await storeKit.GetOrCreateAccountTokenAsync(storeKitAccount);
         Assert.True(token.HasValue);
-        Assert.True(await storeKit.ApplyAsync(
+        Assert.Equal(StoreKitApplyOutcome.Applied, await storeKit.ApplyAsync(
             storeKitAccount,
             new VerifiedStoreKitTransaction(
                 $"transaction-{Guid.NewGuid():N}",

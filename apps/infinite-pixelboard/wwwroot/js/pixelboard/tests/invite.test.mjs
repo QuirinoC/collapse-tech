@@ -42,6 +42,8 @@ test("share links encode invite codes and board coordinates", () => {
     "https://pixelboard.collapsetechnologies.com/?row=-4&col=12",
   );
   assert.deepEqual(parseBoardPosition("?row=-4&col=12"), { row: -4, column: 12 });
+  assert.equal(parseBoardPosition("?row=12abc&col=4"), null);
+  assert.equal(parseBoardPosition("?row=1e2&col=4"), null);
 });
 
 function memoryStorage() {

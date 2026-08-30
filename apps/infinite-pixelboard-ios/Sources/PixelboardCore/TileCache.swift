@@ -6,7 +6,6 @@ public actor TileCache {
     private struct Entry {
         var pixels: [[String]]
         var lastUsed: UInt64
-        var isComplete: Bool
     }
 
     public let tileRows: Int
@@ -36,7 +35,7 @@ public actor TileCache {
     }
 
     public func ensure(_ addresses: [TileAddress]) async {
-        await load(addresses.filter { entries[$0]?.isComplete != true })
+        await load(addresses.filter { entries[$0] == nil })
     }
 
     public func refresh(_ addresses: [TileAddress]) async {
@@ -58,7 +57,7 @@ public actor TileCache {
                     pixels[offset / tileColumns][offset % tileColumns] = color
                 }
                 clock += 1
-                entries[address] = Entry(pixels: pixels, lastUsed: clock, isComplete: true)
+                entries[address] = Entry(pixels: pixels, lastUsed: clock)
             } catch {
                 // A failed tile remains eligible for a later visible-range retry.
             }
@@ -82,15 +81,12 @@ public actor TileCache {
         guard entries[location.address] != nil || loadingAddresses.contains(location.address) else {
             return
         }
-        var entry = entries[location.address] ?? Entry(
-            pixels: Array(
-                repeating: Array(repeating: defaultColor, count: tileColumns),
-                count: tileRows
-            ),
-            lastUsed: 0,
-            isComplete: false
-        )
-        if !entry.isComplete || loadingAddresses.contains(location.address) {
+        guard var entry = entries[location.address] else {
+            let offset = location.offsetRow * tileColumns + location.offsetColumn
+            pendingOverrides[location.address, default: [:]][offset] = pixel.color
+            return
+        }
+        if loadingAddresses.contains(location.address) {
             let offset = location.offsetRow * tileColumns + location.offsetColumn
             pendingOverrides[location.address, default: [:]][offset] = pixel.color
         }

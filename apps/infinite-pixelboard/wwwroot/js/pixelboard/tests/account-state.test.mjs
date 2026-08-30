@@ -18,6 +18,7 @@ test("account state combines authentication, policy, and cooldown", () => {
   assert.deepEqual(state.snapshot, {
     authenticated: true,
     tier: "Free",
+    entitlementSource: null,
     canPlace: false,
     communityStandardsAccepted: true,
     remainingSeconds: 2,

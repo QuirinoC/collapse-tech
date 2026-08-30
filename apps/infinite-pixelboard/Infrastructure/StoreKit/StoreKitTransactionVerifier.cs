@@ -256,16 +256,50 @@ public sealed class StoreKitTransactionVerifier(
 
         foreach (var encodedCertificate in x5c.EnumerateArray())
         {
-            var encoded = encodedCertificate.GetString();
-            if (string.IsNullOrWhiteSpace(encoded))
+            if (encodedCertificate.ValueKind != JsonValueKind.String)
             {
                 DisposeCertificates(certificates);
                 certificates = [];
                 return false;
             }
 
-            certificates.Add(X509CertificateLoader.LoadCertificate(
-                Convert.FromBase64String(encoded)));
+            try
+            {
+                var encoded = encodedCertificate.GetString();
+                if (string.IsNullOrWhiteSpace(encoded))
+                {
+                    DisposeCertificates(certificates);
+                    certificates = [];
+                    return false;
+                }
+
+                certificates.Add(X509CertificateLoader.LoadCertificate(
+                    Convert.FromBase64String(encoded)));
+            }
+            catch (ArgumentException)
+            {
+                DisposeCertificates(certificates);
+                certificates = [];
+                return false;
+            }
+            catch (FormatException)
+            {
+                DisposeCertificates(certificates);
+                certificates = [];
+                return false;
+            }
+            catch (CryptographicException)
+            {
+                DisposeCertificates(certificates);
+                certificates = [];
+                return false;
+            }
+            catch (InvalidOperationException)
+            {
+                DisposeCertificates(certificates);
+                certificates = [];
+                return false;
+            }
         }
 
         return true;

@@ -286,21 +286,21 @@ private enum ProviderSignInError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .appleAuthorizationFailed:
-            return "Apple could not complete sign-in. Try again, or use Google."
+            return PixelboardL10n.appleSignInFailed
         case .invalidAppleCredential:
-            return "Apple returned an unsupported sign-in credential."
+            return PixelboardL10n.invalidAppleCredential
         case .missingAppleAuthorizationCode:
-            return "Apple did not return the authorization code required to delete this account."
+            return PixelboardL10n.missingAppleAuthorizationCode
         case .missingAppleIDToken:
-            return "Apple did not return an identity token."
+            return PixelboardL10n.missingAppleIDToken
         case .missingGoogleIDToken:
-            return "Google did not return an identity token."
+            return PixelboardL10n.missingGoogleIDToken
         case .nonceGenerationFailed:
-            return "A secure sign-in nonce could not be generated."
+            return PixelboardL10n.nonceGenerationFailed
         case .presentationUnavailable:
-            return "A sign-in window is not available."
+            return PixelboardL10n.presentationUnavailable
         case .signInInProgress:
-            return "Another sign-in request is already in progress."
+            return PixelboardL10n.signInInProgress
         }
     }
 }

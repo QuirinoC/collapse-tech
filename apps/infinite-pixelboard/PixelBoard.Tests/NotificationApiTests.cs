@@ -66,6 +66,28 @@ public sealed class NotificationApiTests
         Assert.Equal(2, store.CampaignRecipients);
     }
 
+    [Fact]
+    public async Task CampaignWithNullFieldsReturnsBadRequest()
+    {
+        var store = new RecordingNotificationStore();
+        await using var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton<INotificationStore>(store)
+            .BuildServiceProvider();
+
+        var result = await NotificationApi.CreateCampaignAsync(
+            new NotificationCampaignRequest(null, null, null, null),
+            new IdentityAccessor(),
+            TimeProvider.System,
+            services,
+            CancellationToken.None);
+        var response = await ExecuteAsync<ApiError>(result, services);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, response.StatusCode);
+        Assert.Equal("invalid_notification_campaign", response.Body.Code);
+        Assert.Equal(0, store.CampaignRecipients);
+    }
+
     private static async Task<(int StatusCode, T Body)> ExecuteAsync<T>(
         IResult result,
         IServiceProvider services)
@@ -75,7 +97,9 @@ public sealed class NotificationApiTests
         context.Response.Body = body;
         await result.ExecuteAsync(context);
         body.Position = 0;
-        var value = await JsonSerializer.DeserializeAsync<T>(body)
+        var value = await JsonSerializer.DeserializeAsync<T>(
+                body,
+                new JsonSerializerOptions(JsonSerializerDefaults.Web))
             ?? throw new InvalidOperationException("The response body was empty.");
         return (context.Response.StatusCode, value);
     }
@@ -105,17 +129,6 @@ public sealed class NotificationApiTests
         public ValueTask RemoveDeviceAsync(
             AccountId accountId,
             Guid installationId,
-            CancellationToken cancellationToken = default) =>
-            ValueTask.CompletedTask;
-
-        public ValueTask<NotificationPreferences> GetPreferencesAsync(
-            AccountId accountId,
-            CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(new NotificationPreferences(true, true));
-
-        public ValueTask SavePreferencesAsync(
-            AccountId accountId,
-            NotificationPreferences preferences,
             CancellationToken cancellationToken = default) =>
             ValueTask.CompletedTask;
 

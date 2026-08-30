@@ -10,35 +10,43 @@ public static partial class PixelPalette
         new ReadOnlyCollection<string>(
         [
             "#171714",
-            "#F7F3EA",
             "#D3523C",
             "#DC9B32",
             "#E1C94A",
             "#587554",
             "#356B76",
             "#425B8C",
-            "#7E5078"
+            "#7E5078",
+            "#F7F3EA"
         ]);
 
     public static IReadOnlyList<string> ProColors { get; } =
         new ReadOnlyCollection<string>(
         [
-            ..FreeColors,
+            "#171714",
+            "#000000",
             "#5B4636",
             "#B94E48",
+            "#D3523C",
             "#F08A6A",
+            "#DC9B32",
+            "#F4A261",
+            "#E1C94A",
             "#F2C14E",
+            "#587554",
             "#9AA66F",
+            "#356B76",
             "#2F8F83",
+            "#425B8C",
             "#6D7FB3",
+            "#7E5078",
             "#A45A9C",
             "#C7A6D8",
             "#D8B4A0",
-            "#E5E5D8",
             "#9B9B93",
-            "#FFFFFF",
-            "#000000",
-            "#F4A261"
+            "#E5E5D8",
+            "#F7F3EA",
+            "#FFFFFF"
         ]);
 
     private static readonly HashSet<string> FreeColorSet =

@@ -52,7 +52,7 @@ export class PixelRenderer {
       }
     }
 
-    drawGrid(context, viewport, this.width, this.height, cell, this.tileRows, this.tileColumns);
+    drawGrid(context, viewport, this.width, this.height, cell);
     if (highlightedPixel) drawHighlight(context, viewport, highlightedPixel, cell, this.cellSize);
     if (reportRegion) drawReportRegion(context, viewport, reportRegion, cell, this.cellSize);
     return range;
@@ -76,7 +76,7 @@ function drawTile(context, pixels, x, y, cell, defaultColor) {
   }
 }
 
-function drawGrid(context, viewport, width, height, cell, tileRows, tileColumns) {
+function drawGrid(context, viewport, width, height, cell) {
   if (cell >= 5) {
     const firstColumn = Math.floor(-viewport.offsetX / cell);
     const lastColumn = Math.ceil((width - viewport.offsetX) / cell);
@@ -97,23 +97,6 @@ function drawGrid(context, viewport, width, height, cell, tileRows, tileColumns)
     }
     context.stroke();
   }
-
-  const tileWidth = cell * tileColumns;
-  const tileHeight = cell * tileRows;
-  context.beginPath();
-  context.strokeStyle = "rgba(23, 23, 20, .32)";
-  context.lineWidth = 1;
-  for (let column = Math.floor(-viewport.offsetX / tileWidth); viewport.offsetX + column * tileWidth <= width; column += 1) {
-    const x = Math.round(viewport.offsetX + column * tileWidth) + .5;
-    context.moveTo(x, 0);
-    context.lineTo(x, height);
-  }
-  for (let row = Math.floor(-viewport.offsetY / tileHeight); viewport.offsetY + row * tileHeight <= height; row += 1) {
-    const y = Math.round(viewport.offsetY + row * tileHeight) + .5;
-    context.moveTo(0, y);
-    context.lineTo(width, y);
-  }
-  context.stroke();
 }
 
 function drawHighlight(context, viewport, pixel, cell, cellSize) {

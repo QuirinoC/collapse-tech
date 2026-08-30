@@ -81,6 +81,34 @@ public sealed class PostgresAccountDeletionServiceIntegrationTests
             accountId.Value,
             $"sub_{Guid.NewGuid():N}",
             stripeCustomerId);
+        var trialClaimedAt = DateTimeOffset.UtcNow;
+        await ExecuteAsync(
+            dataSource,
+            """
+            INSERT INTO pixelboard.stripe_trial_claims (firebase_uid, claimed_at)
+            VALUES ($1, $2);
+            """,
+            accountId.Value,
+            trialClaimedAt);
+        var campaignId = Guid.NewGuid();
+        await ExecuteAsync(
+            dataSource,
+            """
+            INSERT INTO pixelboard.notification_campaigns (
+                campaign_id, created_by, title, body, expires_at,
+                recipient_count, created_at)
+            VALUES ($1, $2, 'Test campaign', 'Test body', NULL, 1, now());
+            """,
+            campaignId,
+            accountId.Value);
+        await ExecuteAsync(
+            dataSource,
+            """
+            INSERT INTO pixelboard.notification_digest_counters (
+                firebase_uid, event_day, event_count)
+            VALUES ($1, CURRENT_DATE, 3);
+            """,
+            accountId.Value);
         await ExecuteAsync(
             dataSource,
             """
@@ -164,6 +192,40 @@ public sealed class PostgresAccountDeletionServiceIntegrationTests
             dataSource,
             "SELECT EXISTS (SELECT 1 FROM pixelboard.stripe_subscriptions WHERE firebase_uid = $1);",
             accountId.Value));
+        string anonymizedId;
+        await using (var trialClaim = await QuerySingleAsync(
+                         dataSource,
+                         """
+                         SELECT firebase_uid
+                         FROM pixelboard.stripe_trial_claims
+                         WHERE claimed_at = $1;
+                         """,
+                         trialClaimedAt))
+        {
+            anonymizedId = trialClaim.GetString(0);
+            Assert.StartsWith("deleted:", anonymizedId, StringComparison.Ordinal);
+        }
+        await using (var campaign = await QuerySingleAsync(
+                         dataSource,
+                         """
+                         SELECT created_by
+                         FROM pixelboard.notification_campaigns
+                         WHERE campaign_id = $1;
+                         """,
+                         campaignId))
+        {
+            Assert.StartsWith("deleted:", campaign.GetString(0), StringComparison.Ordinal);
+            Assert.Equal(anonymizedId, campaign.GetString(0));
+        }
+        Assert.False(await ExistsAsync(
+            dataSource,
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM pixelboard.notification_digest_counters
+                WHERE firebase_uid = $1);
+            """,
+            accountId.Value));
         Assert.True((await accountState.GetAsync(
             accountId,
             "2026-08-21")).IsBanned);
@@ -203,7 +265,7 @@ public sealed class PostgresAccountDeletionServiceIntegrationTests
                 DateTimeOffset.UtcNow),
             new ReportEvidence("{}", SHA256.HashData("{}"u8.ToArray()))));
         Assert.Null(await storeKit.GetOrCreateAccountTokenAsync(accountId));
-        Assert.False(await storeKit.ApplyAsync(
+        Assert.Equal(StoreKitApplyOutcome.NotApplied, await storeKit.ApplyAsync(
             accountId,
             new VerifiedStoreKitTransaction(
                 $"transaction-{Guid.NewGuid():N}",
@@ -281,6 +343,18 @@ public sealed class PostgresAccountDeletionServiceIntegrationTests
             dataSource,
             "DELETE FROM pixelboard.reports WHERE report_id = ANY($1);",
             new[] { reportId, attributedReportId.Value });
+        await ExecuteAsync(
+            dataSource,
+            "DELETE FROM pixelboard.notification_campaigns WHERE campaign_id = $1;",
+            campaignId);
+        await ExecuteAsync(
+            dataSource,
+            """
+            DELETE FROM pixelboard.stripe_trial_claims
+            WHERE firebase_uid = $1;
+            """,
+            anonymizedId);
+
         await ExecuteAsync(
             dataSource,
             "DELETE FROM pixelboard.deleted_accounts WHERE account_hash = $1;",

@@ -20,11 +20,13 @@ import {
   parseBillingReturn,
   stripBillingParam,
 } from "./billing.mjs";
+import { subscriptionMessage } from "./subscription.mjs";
 import { boundedReportRegion, otherReasonRequiresNote } from "./reporting.mjs";
 import { PixelboardRealtimeClient } from "./realtime.mjs";
 import { TileCache } from "./tile-cache.mjs";
 import {
   FREE_COLORS,
+  colorName,
   colorsForState,
   customColorsAllowed,
 } from "./palette.mjs";
@@ -59,6 +61,7 @@ async function start(app) {
   let realtime;
   let advertisingRequest = 0;
   let accountRequest = 0;
+  let billingRequest = 0;
   let advertisingTier = Symbol("uninitialized");
   let advertisingTimer = 0;
 
@@ -81,6 +84,8 @@ async function start(app) {
   let billingReturn = parseBillingReturn(window.location.search);
   let stripeEnabled = false;
   let stripeHasCustomer = false;
+  let stripeTrialAvailable = false;
+  let stripeCurrentInterval = null;
   const deepLink = parseBoardPosition(window.location.search);
   const authReady = initializeAuthentication();
 
@@ -489,7 +494,7 @@ async function start(app) {
     } else if (state.remainingSeconds) {
       elements.placementStatus.textContent = `Cooldown · ${state.remainingSeconds}s`;
     } else {
-      elements.placementStatus.textContent = state.canPlace ? "Ready to place" : "Account action required";
+      elements.placementStatus.textContent = state.canPlace ? "" : "Account action required";
     }
   }
 
@@ -666,23 +671,12 @@ async function start(app) {
         elements.inviteStatus.textContent = inviteUrl(code);
       }
     });
-    elements.redeemInvite.addEventListener("click", async () => {
-      const code = normalizeReferralCode(elements.redeemCode.value);
-      if (!code) {
-        elements.inviteStatus.textContent = "Enter an 8-character invite code.";
-        return;
-      }
-      pendingReferral = code;
-      capturePendingReferral(`?ref=${code}`, inviteStorage);
-      await redeemPendingInvite();
-    });
   }
 
   function renderInvite(state) {
     const visible = Boolean(
       state.authenticated && state.communityStandardsAccepted && !state.isBanned,
     );
-    elements.inviteSection.hidden = !visible;
     elements.inviteBlock.hidden = !visible;
     if (state.referralCode) elements.inviteCode.textContent = state.referralCode;
     if (state.paintBoost?.expiresAt) {
@@ -715,16 +709,25 @@ async function start(app) {
   }
 
   async function refreshBillingStatus() {
+    const request = ++billingRequest;
     if (!stripeEnabled || !accountState.snapshot.authenticated) {
       stripeHasCustomer = false;
+      stripeTrialAvailable = false;
+      stripeCurrentInterval = null;
       renderBilling(accountState.snapshot);
       return;
     }
     try {
       const status = await api.stripeStatus();
+      if (request !== billingRequest || !accountState.snapshot.authenticated) return;
       stripeHasCustomer = status?.hasCustomer === true;
+      stripeTrialAvailable = status?.trialAvailable === true;
+      stripeCurrentInterval = status?.currentInterval ?? null;
     } catch {
+      if (request !== billingRequest) return;
       stripeHasCustomer = false;
+      stripeTrialAvailable = false;
+      stripeCurrentInterval = null;
     }
     renderBilling(accountState.snapshot);
   }
@@ -747,7 +750,7 @@ async function start(app) {
   }
 
   async function startPortal() {
-    elements.billingStatus.textContent = "Opening billing settings…";
+    elements.billingStatus.textContent = "Opening subscription settings…";
     setBillingDisabled(true);
     try {
       const session = await api.createStripePortalSession();
@@ -755,9 +758,10 @@ async function start(app) {
         window.location.assign(session.url);
         return;
       }
-      elements.billingStatus.textContent = "Billing settings could not be opened.";
+      elements.billingStatus.textContent = "Subscription settings could not be opened.";
     } catch (error) {
-      elements.billingStatus.textContent = error.message ?? "Billing settings could not be opened.";
+      elements.billingStatus.textContent =
+        error.message ?? "Subscription settings could not be opened.";
     } finally {
       setBillingDisabled(false);
     }
@@ -782,22 +786,36 @@ async function start(app) {
   function renderBilling(state) {
     if (!elements.billingBlock) return;
     const visible = Boolean(
-      stripeEnabled
-        && state.authenticated
-        && state.communityStandardsAccepted
-        && !state.isBanned,
+      !state.isBanned
+        && (
+          (!state.authenticated && stripeEnabled)
+          || (state.authenticated && (stripeEnabled || state.entitlementSource === "storekit"))
+        ),
     );
     elements.billingSection.hidden = !visible;
     elements.billingBlock.hidden = !visible;
     if (!visible) return;
     const isPro = isProTier(state.tier);
-    elements.billingMonth.hidden = isPro;
-    elements.billingYear.hidden = isPro;
-    elements.billingPortal.hidden = !stripeHasCustomer;
-    if (isPro && !stripeHasCustomer && !elements.billingStatus.textContent) {
-      elements.billingStatus.textContent =
-        "Pro is on through Apple. Manage it in iPhone Settings → Apple ID → Subscriptions.";
-    }
+    elements.billingCopy.textContent = subscriptionMessage({
+      isPro,
+      trialAvailable: stripeTrialAvailable,
+      currentInterval: stripeCurrentInterval,
+      entitlementSource: state.entitlementSource,
+      authenticated: state.authenticated,
+      communityStandardsAccepted: state.communityStandardsAccepted,
+    });
+    const canPurchase = state.authenticated && state.communityStandardsAccepted;
+    elements.billingMonth.hidden = !canPurchase || isPro;
+    elements.billingYear.hidden =
+      !canPurchase || !isPro || stripeCurrentInterval !== "month";
+    elements.billingYear.textContent = isPro
+      ? "Switch to annual · $24.99"
+      : "Subscribe annual · $24.99";
+    elements.billingPortal.hidden =
+      !stripeHasCustomer || state.entitlementSource === "storekit";
+    elements.billingApple.hidden = state.entitlementSource !== "storekit";
+    elements.billingPolicy.hidden = state.entitlementSource !== "storekit";
+    renderInvite(state);
   }
 }
 
@@ -849,17 +867,17 @@ function collectElements(app) {
     inviteBlock: app.querySelector("[data-invite-block]"),
     inviteCode: app.querySelector("[data-invite-code]"),
     copyInvite: app.querySelector("[data-copy-invite]"),
-    redeemCode: app.querySelector("[data-redeem-code]"),
-    redeemInvite: app.querySelector("[data-redeem-invite]"),
     inviteStatus: app.querySelector("[data-invite-status]"),
     boostState: app.querySelector("[data-boost-state]"),
-    inviteSection: app.querySelector("[data-invite-section]"),
     billingBlock: app.querySelector("[data-billing-block]"),
     billingSection: app.querySelector("[data-billing-section]"),
     billingMonth: app.querySelector("[data-billing-month]"),
     billingYear: app.querySelector("[data-billing-year]"),
     billingPortal: app.querySelector("[data-billing-portal]"),
+    billingApple: app.querySelector("[data-billing-apple]"),
+    billingPolicy: app.querySelector("[data-billing-policy]"),
     billingStatus: app.querySelector("[data-billing-status]"),
+    billingCopy: app.querySelector("[data-billing-copy]"),
   };
 }
 
@@ -870,7 +888,7 @@ function createPalette(container, colors, selectedColor, onSelect) {
     button.className = "swatch";
     button.style.backgroundColor = color;
     button.setAttribute("role", "radio");
-    button.setAttribute("aria-label", color);
+    button.setAttribute("aria-label", `${colorName(color)} (${color})`);
     button.setAttribute("aria-checked", String(color === selectedColor));
     button.addEventListener("click", () => {
       for (const swatch of container.querySelectorAll(".swatch")) {

@@ -18,14 +18,11 @@ final class AppModel: ObservableObject {
     @Published var metadata: BoardMetadata?
     @Published var account: AccountState?
     @Published var connection: ConnectionLabel = .offline
-    @Published var statusMessage = "Loading board"
+    @Published var statusMessage = PixelboardL10n.loadingBoard
     @Published var isPlacing = false
     @Published var showingAccount = false
     @Published var authNotice: String?
     @Published var now = Date()
-    @Published var notificationPreferences = NotificationPreferences(
-        boardActivityEnabled: true,
-        broadcastEnabled: true)
     @Published private(set) var boardGeneration = 0
 
     let authentication: any AuthenticationSession
@@ -147,13 +144,14 @@ final class AppModel: ObservableObject {
             await realtime.start()
         }
         await reloadBoard()
-        store.authenticationDidChange(
-            isAuthenticated: await authentication.isAuthenticated
-        )
+        let isAuthenticated = await authentication.isAuthenticated
+        store.authenticationDidChange(isAuthenticated: isAuthenticated)
+        if isAuthenticated {
+            await store.refreshEntitlementState()
+        }
         await refreshAccount()
         if await authentication.isAuthenticated {
             await pushNotifications.prepare(api: api)
-            await refreshNotificationPreferences()
         }
         await redeemPendingInvite()
         await store.loadProducts()
@@ -216,25 +214,26 @@ final class AppModel: ObservableObject {
     func placeSelected() async {
         guard canPlace else {
             if remainingCooldown > 0 {
-                statusMessage = "Ready in \(remainingCooldown)s"
+                statusMessage = PixelboardL10n.readyIn(remainingCooldown)
             } else if account == nil {
-                statusMessage = "Sign in to place pixels"
+                statusMessage = PixelboardL10n.signInToPlacePixel
                 showingAccount = true
             } else if account?.isBanned == true {
-                statusMessage = "This account is banned from placing pixels."
+                statusMessage = PixelboardL10n.bannedFromPlacing
             } else if needsAppUpdate {
-                statusMessage = "Update Infinite Pixelboard to keep painting."
+                statusMessage = PixelboardL10n.updateToKeepPainting
             } else if metadata?.accessMode != .open {
-                statusMessage = metadata?.statusMessage ?? "Board is read-only"
+                statusMessage = metadata?.statusMessage ?? PixelboardL10n.readOnlyBoard
             } else {
-                statusMessage = "Placement is not ready"
+                statusMessage = PixelboardL10n.placementNotReady
             }
             return
         }
         guard let placement, let cache, metadata?.accessMode == .open else {
-            statusMessage = "Placement is not ready"
+            statusMessage = PixelboardL10n.placementNotReady
             return
         }
+        let generation = authenticationGeneration
         isPlacing = true
         defer { isPlacing = false }
         do {
@@ -243,8 +242,9 @@ final class AppModel: ObservableObject {
                 column: selectedPosition.column,
                 color: selectedColor
             )
+            guard generation == authenticationGeneration else { return }
             guard result.outcome == .accepted, let pixel = result.pixel else {
-                statusMessage = result.error?.message ?? "The pixel placement was rejected."
+                statusMessage = result.error?.message ?? PixelboardL10n.placementRejected
                 return
             }
             await cache.apply(pixel)
@@ -258,11 +258,13 @@ final class AppModel: ObservableObject {
                     referralCode: current.referralCode,
                     paintBoost: current.paintBoost,
                     isBanned: current.isBanned,
-                    allowedColors: current.allowedColors
+                    allowedColors: current.allowedColors,
+                    entitlementSource: current.entitlementSource
                 )
             }
-            statusMessage = "Pixel placed"
+            statusMessage = PixelboardL10n.pixelPlaced
         } catch {
+            guard generation == authenticationGeneration else { return }
             if case let APIClientError.placement(_, result) = error,
                let current = account {
                 account = AccountState(
@@ -273,7 +275,8 @@ final class AppModel: ObservableObject {
                     referralCode: current.referralCode,
                     paintBoost: current.paintBoost,
                     isBanned: current.isBanned,
-                    allowedColors: current.allowedColors
+                    allowedColors: current.allowedColors,
+                    entitlementSource: current.entitlementSource
                 )
             }
             statusMessage = error.localizedDescription
@@ -286,7 +289,12 @@ final class AppModel: ObservableObject {
         do {
             try await authentication.signIn(with: provider)
             store.authenticationDidChange(isAuthenticated: true)
+            await store.refreshEntitlementState()
             await refreshAccount()
+            await pushNotifications.prepare(api: api)
+            if !pushNotifications.notificationsEnabled {
+                showingAccount = true
+            }
             await redeemPendingInvite()
         } catch is CancellationError {
             return
@@ -299,12 +307,12 @@ final class AppModel: ObservableObject {
     func signOut() async {
         authenticationGeneration &+= 1
         do {
+            try await pushNotifications.unregister(api: api)
             try await authentication.signOut()
-            await pushNotifications.unregister(api: api)
             store.authenticationDidChange(isAuthenticated: false)
             account = nil
+            authNotice = nil
             syncPaletteSelection()
-            statusMessage = "Signed out; browsing remains available"
         } catch {
             statusMessage = error.localizedDescription
         }
@@ -325,12 +333,12 @@ final class AppModel: ObservableObject {
         do {
             try await authentication.prepareForAccountDeletion()
             try await api.deleteAccount()
-            await pushNotifications.unregister(api: api)
+            await pushNotifications.resetAfterAccountDeletion()
             try await authentication.deleteAccount()
             store.authenticationDidChange(isAuthenticated: false)
             account = nil
             syncPaletteSelection()
-            statusMessage = "Account deleted"
+            statusMessage = PixelboardL10n.accountDeleted
         } catch {
             statusMessage = error.localizedDescription
         }
@@ -338,11 +346,11 @@ final class AppModel: ObservableObject {
 
     func submitReport(reason: ReportReason?, note: String, region: ReportRegion) async -> Bool {
         guard account != nil else {
-            statusMessage = "Sign in to report content"
+            statusMessage = PixelboardL10n.signInToReport
             return false
         }
         guard let reason else {
-            statusMessage = "Choose a report reason"
+            statusMessage = PixelboardL10n.chooseReportReason
             return false
         }
         do {
@@ -352,7 +360,7 @@ final class AppModel: ObservableObject {
                 note: note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : note,
                 client: ClientContext(appVersion: appVersion)
             ))
-            statusMessage = "Report received"
+            statusMessage = PixelboardL10n.reportReceived
             return true
         } catch {
             statusMessage = error.localizedDescription
@@ -362,7 +370,7 @@ final class AppModel: ObservableObject {
 
     func queueReferralCode(_ raw: String?) async {
         guard let code = BoardLinks.normalizeReferralCode(raw) else {
-            statusMessage = "Enter an 8-character invite code."
+            statusMessage = PixelboardL10n.inviteCodeLength
             return
         }
         UserDefaults.standard.set(code, forKey: pendingReferralKey)
@@ -426,7 +434,7 @@ final class AppModel: ObservableObject {
             try await api.claimReferral(code)
             UserDefaults.standard.removeObject(forKey: pendingReferralKey)
             await refreshAccount()
-            statusMessage = "Invite applied. Faster painting is on for a few hours."
+            statusMessage = PixelboardL10n.inviteApplied
         } catch {
             if case let APIClientError.server(_, payload) = error,
                payload?.code == "referral_already_claimed" || payload?.code == "referral_own_code" {
@@ -455,43 +463,10 @@ final class AppModel: ObservableObject {
         await task.value
     }
 
-    func refreshNotificationPreferences() async {
-        guard await authentication.isAuthenticated else { return }
-        do {
-            notificationPreferences = try await api.notificationPreferences()
-        } catch {
-            statusMessage = error.localizedDescription
-        }
-    }
-
-    func setBoardActivityNotifications(_ enabled: Bool) async {
-        if enabled {
-            let granted = await pushNotifications.requestPermission(api: api)
-            guard granted else {
-                authNotice = "Allow notifications in iPhone Settings to receive board alerts."
-                return
-            }
-        }
-        let updated = NotificationPreferences(
-            boardActivityEnabled: enabled,
-            broadcastEnabled: notificationPreferences.broadcastEnabled)
-        do {
-            try await api.saveNotificationPreferences(updated)
-            notificationPreferences = updated
-        } catch {
-            statusMessage = error.localizedDescription
-        }
-    }
-
-    func setBroadcastNotifications(_ enabled: Bool) async {
-        let updated = NotificationPreferences(
-            boardActivityEnabled: notificationPreferences.boardActivityEnabled,
-            broadcastEnabled: enabled)
-        do {
-            try await api.saveNotificationPreferences(updated)
-            notificationPreferences = updated
-        } catch {
-            statusMessage = error.localizedDescription
+    func enableNotifications() async {
+        let granted = await pushNotifications.requestPermission(api: api)
+        if !granted {
+            authNotice = PixelboardL10n.notificationsDeniedNote
         }
     }
 
@@ -547,7 +522,7 @@ final class AppModel: ObservableObject {
             let metadata = try await api.metadata()
             guard metadata.apiVersion == 1,
                   metadata.coordinateConvention == "row-column" else {
-                statusMessage = "This board contract is not supported"
+                statusMessage = PixelboardL10n.boardContractUnsupported
                 return
             }
             self.metadata = metadata
@@ -562,11 +537,13 @@ final class AppModel: ObservableObject {
             placement = PlacementCoordinator(api: api, appVersion: appVersion)
             boardGeneration += 1
             if needsAppUpdate {
-                statusMessage = "Update Infinite Pixelboard to keep painting."
+                statusMessage = PixelboardL10n.updateToKeepPainting
             } else if let message = metadata.statusMessage, !message.isEmpty {
                 statusMessage = message
             } else {
-                statusMessage = metadata.accessMode == .open ? "Board ready" : "Board is read-only"
+                statusMessage = metadata.accessMode == .open
+                    ? PixelboardL10n.boardReady
+                    : PixelboardL10n.boardReadOnly
             }
         } catch {
             statusMessage = error.localizedDescription

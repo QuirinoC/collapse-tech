@@ -73,46 +73,6 @@ public sealed class PostgresNotificationStore(NpgsqlDataSource dataSource) : INo
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async ValueTask<NotificationPreferences> GetPreferencesAsync(
-        AccountId accountId,
-        CancellationToken cancellationToken = default)
-    {
-        const string sql =
-            """
-            SELECT board_activity_enabled, broadcast_enabled
-            FROM pixelboard.notification_preferences
-            WHERE firebase_uid = $1;
-            """;
-        await using var command = dataSource.CreateCommand(sql);
-        command.Parameters.AddWithValue(accountId.Value);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        return await reader.ReadAsync(cancellationToken)
-            ? new NotificationPreferences(reader.GetBoolean(0), reader.GetBoolean(1))
-            : new NotificationPreferences(true, true);
-    }
-
-    public async ValueTask SavePreferencesAsync(
-        AccountId accountId,
-        NotificationPreferences preferences,
-        CancellationToken cancellationToken = default)
-    {
-        const string sql =
-            """
-            INSERT INTO pixelboard.notification_preferences (
-                firebase_uid, board_activity_enabled, broadcast_enabled, updated_at)
-            VALUES ($1, $2, $3, now())
-            ON CONFLICT (firebase_uid) DO UPDATE SET
-                board_activity_enabled = EXCLUDED.board_activity_enabled,
-                broadcast_enabled = EXCLUDED.broadcast_enabled,
-                updated_at = now();
-            """;
-        await using var command = dataSource.CreateCommand(sql);
-        command.Parameters.AddWithValue(accountId.Value);
-        command.Parameters.AddWithValue(preferences.BoardActivityEnabled);
-        command.Parameters.AddWithValue(preferences.BroadcastEnabled);
-        await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
     public async ValueTask<NotificationCampaign> CreateCampaignAsync(
         AccountId moderatorAccountId,
         string title,
@@ -331,8 +291,8 @@ public sealed class PostgresNotificationStore(NpgsqlDataSource dataSource) : INo
         const string sql =
             """
             DELETE FROM pixelboard.push_devices WHERE firebase_uid = $1;
-            DELETE FROM pixelboard.notification_preferences WHERE firebase_uid = $1;
             DELETE FROM pixelboard.notification_outbox WHERE recipient_firebase_uid = $1;
+            DELETE FROM pixelboard.notification_digest_counters WHERE firebase_uid = $1;
             """;
         await using var command = dataSource.CreateCommand(sql);
         command.Parameters.AddWithValue(firebaseUid);

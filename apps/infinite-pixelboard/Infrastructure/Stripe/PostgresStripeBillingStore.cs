@@ -41,6 +41,53 @@ public sealed class PostgresStripeBillingStore(NpgsqlDataSource dataSource) : IS
         return (bool)(await command.ExecuteScalarAsync(cancellationToken) ?? false);
     }
 
+    public async ValueTask<string?> GetCurrentPriceIdAsync(
+        AccountId accountId,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql =
+            """
+            SELECT price_id
+            FROM pixelboard.stripe_subscriptions
+            WHERE firebase_uid = $1
+              AND status IN ('active', 'trialing', 'past_due')
+              AND current_period_end > now()
+            ORDER BY event_at DESC
+            LIMIT 1;
+            """;
+        await using var command = dataSource.CreateCommand(sql);
+        command.Parameters.AddWithValue(accountId.Value);
+        return await command.ExecuteScalarAsync(cancellationToken) as string;
+    }
+
+    public async ValueTask<bool> CanClaimStripeTrialAsync(
+        AccountId accountId,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql =
+            """
+            SELECT NOT EXISTS (
+                SELECT 1
+                FROM pixelboard.deleted_accounts
+                WHERE account_hash = $2
+            )
+            AND NOT EXISTS (
+                SELECT 1
+                FROM pixelboard.stripe_trial_claims
+                WHERE firebase_uid = $1
+            )
+            AND NOT EXISTS (
+                SELECT 1
+                FROM pixelboard.stripe_subscriptions
+                WHERE firebase_uid = $1
+            );
+            """;
+        await using var command = dataSource.CreateCommand(sql);
+        command.Parameters.AddWithValue(accountId.Value);
+        command.Parameters.AddWithValue(AccountHash(accountId));
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken) ?? false);
+    }
+
     public async ValueTask<bool> TryClaimStripeTrialAsync(
         AccountId accountId,
         CancellationToken cancellationToken = default)
@@ -230,7 +277,6 @@ public sealed class PostgresStripeBillingStore(NpgsqlDataSource dataSource) : IS
                         pixelboard.entitlements.expires_at IS NULL
                         OR pixelboard.entitlements.expires_at > now()
                     )
-                    AND EXCLUDED.tier IS DISTINCT FROM 'pro'
                 )
                 RETURNING firebase_uid
             )

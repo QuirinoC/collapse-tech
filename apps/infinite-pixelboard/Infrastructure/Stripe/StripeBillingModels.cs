@@ -50,6 +50,14 @@ public interface IStripeBillingStore
         AccountId accountId,
         CancellationToken cancellationToken = default);
 
+    ValueTask<string?> GetCurrentPriceIdAsync(
+        AccountId accountId,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<bool> CanClaimStripeTrialAsync(
+        AccountId accountId,
+        CancellationToken cancellationToken = default);
+
     ValueTask<bool> TryClaimStripeTrialAsync(
         AccountId accountId,
         CancellationToken cancellationToken = default);

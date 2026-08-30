@@ -15,7 +15,8 @@ public sealed class AccountDeletedException()
 
 public sealed record EntitlementState(
     AccountTier Tier,
-    DateTimeOffset? ExpiresAt);
+    DateTimeOffset? ExpiresAt,
+    string? Source = null);
 
 public sealed record PaintBoostState(
     int CooldownSeconds,

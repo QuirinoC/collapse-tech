@@ -14,10 +14,16 @@ final class PushNotificationCoordinator: NSObject, ObservableObject, UNUserNotif
     private let installationKey = "pixelboard.push.installation-id"
     private var api: PixelboardAPIClient?
     private var registeredToken: String?
+    private var registrationGeneration: UInt64 = 0
+    private var registrationTask: Task<Void, Never>?
 
     override private init() {
         super.init()
         center.delegate = self
+    }
+
+    var notificationsEnabled: Bool {
+        authorizationStatus == .authorized || authorizationStatus == .provisional
     }
 
     func prepare(api: PixelboardAPIClient) async {
@@ -42,25 +48,47 @@ final class PushNotificationCoordinator: NSObject, ObservableObject, UNUserNotif
         }
     }
 
-    func unregister(api: PixelboardAPIClient) async {
-        if let installationId {
-            try? await api.removePushDevice(installationId: installationId)
+    func unregister(api: PixelboardAPIClient) async throws {
+        registrationGeneration &+= 1
+        self.api = nil
+        registrationTask?.cancel()
+        await registrationTask?.value
+        registrationTask = nil
+        if let installationId = existingInstallationId {
+            try await api.removePushDevice(installationId: installationId)
         }
         registeredToken = nil
         self.api = nil
+    }
+
+    func resetAfterAccountDeletion() async {
+        registrationGeneration &+= 1
+        api = nil
+        registrationTask?.cancel()
+        await registrationTask?.value
+        registrationTask = nil
+        registeredToken = nil
+        api = nil
     }
 
     nonisolated func didRegister(deviceToken: Data) {
         let token = deviceToken.map { String(format: "%02x", $0) }.joined()
         Task { @MainActor [weak self] in
             guard let self, let api else { return }
+            let generation = self.registrationGeneration
             registeredToken = token
-            guard let installationId else { return }
-            try? await api.registerPushDevice(
-                installationId: installationId,
-                token: token,
-                environment: "production",
-                bundleId: AppConfiguration.bundleIdentifier)
+            guard generation == self.registrationGeneration,
+                  let installationId = self.installationId else { return }
+            registrationTask = Task { [weak self] in
+                guard let self else { return }
+                try? await api.registerPushDevice(
+                    installationId: installationId,
+                    token: token,
+                    environment: Self.apnsEnvironment,
+                    bundleId: AppConfiguration.bundleIdentifier)
+                guard generation == self.registrationGeneration else { return }
+                self.registrationTask = nil
+            }
         }
     }
 
@@ -97,6 +125,21 @@ final class PushNotificationCoordinator: NSObject, ObservableObject, UNUserNotif
         let id = UUID()
         UserDefaults.standard.set(id.uuidString, forKey: installationKey)
         return id
+    }
+
+    private var existingInstallationId: UUID? {
+        guard let raw = UserDefaults.standard.string(forKey: installationKey) else {
+            return nil
+        }
+        return UUID(uuidString: raw)
+    }
+
+    private static var apnsEnvironment: String {
+        #if DEBUG
+        return "sandbox"
+        #else
+        return "production"
+        #endif
     }
 
     private func refreshAuthorizationStatus() async {

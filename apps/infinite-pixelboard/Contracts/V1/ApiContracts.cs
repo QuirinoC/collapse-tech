@@ -39,7 +39,9 @@ public static class ApiErrorCodes
     public const string InvalidModerationAction = "invalid_moderation_action";
     public const string ModerationConflict = "moderation_conflict";
     public const string StoreKitAccountMismatch = "storekit_account_mismatch";
+    public const string StoreKitTransactionNotLinked = "storekit_transaction_not_linked";
     public const string InvalidStripeInterval = "invalid_stripe_interval";
+    public const string SubscriptionAlreadyActive = "subscription_already_active";
     public const string StripeCustomerMissing = "stripe_customer_missing";
     public const string InvalidStripeWebhook = "invalid_stripe_webhook";
     public const string TileUnavailable = "tile_unavailable";
@@ -143,7 +145,8 @@ public sealed record AccountStateResponse(
     string? ReferralCode,
     PaintBoostResponse? PaintBoost,
     bool IsBanned,
-    IReadOnlyList<string>? AllowedColors = null);
+    IReadOnlyList<string>? AllowedColors = null,
+    string? EntitlementSource = null);
 
 public sealed record ClaimReferralRequest(string? Code);
 
@@ -195,7 +198,10 @@ public sealed record StoreKitEntitlementResponse(
 
 public sealed record StripeConfigResponse(bool Enabled);
 
-public sealed record StripeStatusResponse(bool HasCustomer);
+public sealed record StripeStatusResponse(
+    bool HasCustomer,
+    bool TrialAvailable,
+    string? CurrentInterval = null);
 
 public sealed record CreateStripeCheckoutSessionRequest(string? Interval);
 

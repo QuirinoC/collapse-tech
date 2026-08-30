@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import PixelboardCore
 
 enum PixelboardTheme {
     static let paper = Color(red: 238 / 255, green: 232 / 255, blue: 220 / 255)
@@ -26,7 +27,7 @@ enum PixelboardTheme {
     }
 
     static func coordinate(row: Int, column: Int) -> String {
-        "ROW \(signed(row)) / COL \(signed(column))"
+        PixelboardL10n.coordinate(row: signed(row), column: signed(column))
     }
 }
 
@@ -71,7 +72,29 @@ struct PixelboardWordmark: View {
         }
         .foregroundStyle(PixelboardTheme.ink)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Collapse Technologies Infinite Pixelboard")
+        .accessibilityLabel(PixelboardL10n.collapseTechnologiesInfinitePixelboard)
+    }
+}
+
+struct PremiumPixelGrid: View {
+    private let colors = Array(PixelboardPalette.proColors.prefix(12))
+
+    var body: some View {
+        Grid(horizontalSpacing: 1, verticalSpacing: 1) {
+            ForEach(0..<3, id: \.self) { row in
+                GridRow {
+                    ForEach(0..<4, id: \.self) { column in
+                        let index = row * 4 + column
+                        Rectangle()
+                            .fill(Color(pixelboardHex: colors[index]))
+                            .frame(width: 5, height: 5)
+                    }
+                }
+            }
+        }
+        .padding(2)
+        .background(PixelboardTheme.paper)
+        .accessibilityLabel(PixelboardL10n.unlockCustomColors)
     }
 }
 
@@ -97,7 +120,7 @@ struct PixelboardPanelHeading: View {
             HStack(alignment: .top) {
                 PixelboardEyebrow(text: eyebrow)
                 Spacer()
-                Button("Close", action: close)
+                Button(PixelboardL10n.close, action: close)
                     .buttonStyle(PixelboardTextButtonStyle())
             }
             .padding(.bottom, 56)

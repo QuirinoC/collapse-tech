@@ -2,13 +2,22 @@ import XCTest
 @testable import PixelboardCore
 
 final class APIModelsTests: XCTestCase {
+    func testPaletteDistinguishesNearBlackAndOffWhite() {
+        XCTAssertEqual(PixelboardPalette.proColors.first, "#171714")
+        XCTAssertEqual(PixelboardPalette.proColors[1], "#000000")
+        XCTAssertEqual(PixelboardPalette.name(for: "#171714"), "Near-black")
+        XCTAssertEqual(PixelboardPalette.name(for: "#F7F3EA"), "Off-white")
+        XCTAssertEqual(PixelboardPalette.name(for: "#FFFFFF"), "White")
+    }
+
     func testServerNumericEnumsDecode() throws {
-        let data = Data(##"{"tier":1,"canPlace":true,"communityStandardsAccepted":true,"cooldown":{"nextPlacementAt":null,"cooldownSeconds":1},"allowedColors":["#D3523C","#123456"]}"##.utf8)
+        let data = Data(##"{"tier":1,"canPlace":true,"communityStandardsAccepted":true,"cooldown":{"nextPlacementAt":null,"cooldownSeconds":1},"allowedColors":["#D3523C","#123456"],"entitlementSource":"stripe"}"##.utf8)
         let account = try JSONDecoder().decode(AccountState.self, from: data)
         XCTAssertEqual(account.tier, .pro)
         XCTAssertTrue(account.canPlace)
         XCTAssertNil(account.isBanned)
         XCTAssertEqual(account.allowedColors, ["#D3523C", "#123456"])
+        XCTAssertEqual(account.entitlementSource, "stripe")
     }
 
     func testBoardMetadataDecodesOptionalStatusAndMinimumVersion() throws {
@@ -85,14 +94,4 @@ final class APIModelsTests: XCTestCase {
         XCTAssertEqual(object["bundleId"] as? String, "com.collapsetechnologies.pixelboard")
     }
 
-    func testNotificationPreferencesRoundTrip() throws {
-        let preferences = NotificationPreferences(
-            boardActivityEnabled: false,
-            broadcastEnabled: true)
-        let decoded = try JSONDecoder().decode(
-            NotificationPreferences.self,
-            from: JSONEncoder().encode(preferences))
-
-        XCTAssertEqual(decoded, preferences)
-    }
 }

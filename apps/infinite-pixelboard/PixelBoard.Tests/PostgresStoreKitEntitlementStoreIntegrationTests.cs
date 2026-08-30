@@ -27,7 +27,7 @@ public sealed class PostgresStoreKitEntitlementStoreIntegrationTests
         var now = DateTimeOffset.UtcNow;
 
         Assert.Equal(token, sameToken);
-        Assert.True(await store.ApplyAsync(
+        Assert.Equal(StoreKitApplyOutcome.Applied, await store.ApplyAsync(
             account,
             Transaction(
                 originalTransactionId,
@@ -36,16 +36,17 @@ public sealed class PostgresStoreKitEntitlementStoreIntegrationTests
                 now.AddMonths(1))));
         Assert.Equal(AccountTier.Pro, (await entitlementService.GetAsync(account)).Tier);
 
-        Assert.False(await store.ApplyAsync(
+        Assert.Equal(StoreKitApplyOutcome.LinkedToAnotherAccount, await store.ApplyAsync(
             otherAccount,
             Transaction(
                 originalTransactionId,
                 otherToken,
                 now.AddMinutes(1),
                 now.AddMonths(1))));
+        Assert.Equal(AccountTier.Pro, (await entitlementService.GetAsync(account)).Tier);
         Assert.Equal(AccountTier.Free, (await entitlementService.GetAsync(otherAccount)).Tier);
 
-        Assert.True(await store.ApplyAsync(
+        Assert.Equal(StoreKitApplyOutcome.Applied, await store.ApplyAsync(
             account,
             Transaction(
                 originalTransactionId,
@@ -55,7 +56,7 @@ public sealed class PostgresStoreKitEntitlementStoreIntegrationTests
                 now.AddMinutes(2))));
         Assert.Equal(AccountTier.Free, (await entitlementService.GetAsync(account)).Tier);
 
-        Assert.True(await store.ApplyAsync(
+        Assert.Equal(StoreKitApplyOutcome.Applied, await store.ApplyAsync(
             account,
             Transaction(
                 originalTransactionId,
@@ -83,7 +84,7 @@ public sealed class PostgresStoreKitEntitlementStoreIntegrationTests
         var transactionId = $"transaction-{Guid.NewGuid():N}";
         var now = DateTimeOffset.UtcNow;
 
-        Assert.True(await store.ApplyAsync(
+        Assert.Equal(StoreKitApplyOutcome.Applied, await store.ApplyAsync(
             account,
             Transaction(
                 originalTransactionId,

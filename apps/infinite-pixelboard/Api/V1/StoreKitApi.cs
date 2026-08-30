@@ -80,12 +80,27 @@ public static class StoreKitApi
                 verification.Error ?? "The StoreKit transaction is invalid."));
         }
 
-        if (!await store.ApplyAsync(account.Id, verification.Transaction!, cancellationToken))
+        var outcome = await store.ApplyAsync(
+            account.Id,
+            verification.Transaction!,
+            cancellationToken);
+        if (outcome == StoreKitApplyOutcome.LinkedToAnotherAccount)
         {
             return Results.Json(
                 new ApiError(
                     ApiErrorCodes.StoreKitAccountMismatch,
-                    "This subscription belongs to another account."),
+                    "This Apple subscription is linked to another Pixelboard account. "
+                    + "It was not transferred. An approved transfer would remove Pro access "
+                    + "from the previous Pixelboard account. Contact "
+                    + "hello@collapsetechnologies.com for verification."),
+                statusCode: StatusCodes.Status403Forbidden);
+        }
+        if (outcome != StoreKitApplyOutcome.Applied)
+        {
+            return Results.Json(
+                new ApiError(
+                    ApiErrorCodes.StoreKitTransactionNotLinked,
+                    "This Apple transaction could not be linked to the signed-in Pixelboard account."),
                 statusCode: StatusCodes.Status403Forbidden);
         }
 

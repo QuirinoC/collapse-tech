@@ -139,6 +139,7 @@ a { color: inherit; }
 .board-wordmark span:last-child { font-size: .67em; letter-spacing: .08em; }
 
 .board-edition {
+  grid-column: 2;
   margin: 0;
   font: 500 .62rem var(--mono);
   letter-spacing: .09em;
@@ -158,6 +159,7 @@ a { color: inherit; }
 }
 
 .board-header .icon-button { justify-self: end; }
+.board-header .account-button { grid-column: 3; }
 
 .account-button {
   display: inline-flex;
@@ -309,10 +311,10 @@ a { color: inherit; }
 
 .board-readout {
   top: 62px;
-  right: 22px;
+  left: 24px;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 6px;
 }
 
@@ -320,7 +322,7 @@ a { color: inherit; }
 .connection-pill span { width: 7px; height: 7px; border-radius: 50%; background: #c88a2a; }
 .connection-pill[data-state="online"] span { background: #4f7355; }
 .connection-pill[data-state="offline"] span { background: var(--accent); }
-.placement-status { top: 62px; left: 24px; color: var(--muted); }
+.placement-status { top: 90px; left: 24px; color: var(--muted); }
 
 .board-ad {
   position: fixed;
@@ -378,6 +380,12 @@ a { color: inherit; }
 }
 
 .account-panel.is-open { transform: none; }
+.settings-wordmark {
+  margin-top: 48px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+}
 .panel-heading { display: flex; justify-content: space-between; }
 .panel-heading .eyebrow { margin-bottom: 28px; }
 .account-panel h2 { margin: 0; font-size: clamp(2rem, 7vw, 3.2rem); line-height: .95; }
@@ -458,6 +466,26 @@ a { color: inherit; }
   text-transform: uppercase;
 }
 .invite-block button:hover { background: var(--ink); color: var(--paper); }
+.billing-management {
+  display: block;
+  width: 100%;
+  min-height: auto !important;
+  margin-top: 4px !important;
+  border-color: transparent !important;
+  color: var(--muted);
+  font-size: .58rem !important;
+  font-weight: 500 !important;
+  text-align: left;
+  text-decoration: underline;
+  text-transform: none !important;
+}
+.billing-management:hover { background: transparent !important; color: var(--ink); }
+.billing-policy {
+  margin: 12px 0 16px;
+  padding-left: 10px;
+  border-left: 2px solid var(--accent);
+}
+.billing-policy a { color: var(--ink); text-decoration: underline; }
 .panel-footnote { position: absolute; bottom: 20px; margin: 0; color: var(--muted); font: .58rem var(--mono); text-transform: uppercase; }
 .panel-footnote a { color: var(--accent); text-decoration: underline; text-underline-offset: .2em; }
 
@@ -509,13 +537,14 @@ a { color: inherit; }
 
 @media (max-width: 700px) {
   .board-header { grid-template-columns: 1fr 1fr; padding: 16px; }
+  .board-header .account-button { grid-column: 2; }
   .board-edition { display: none; }
   .palette { bottom: max(14px, env(safe-area-inset-bottom)); max-width: calc(100vw - 28px); }
   .palette-label { display: none; }
   .swatch, .custom-color { width: 27px; height: 27px; }
-  .board-readout { top: 58px; right: 16px; }
+  .board-readout { top: 58px; left: 16px; }
   .board-readout [data-zoom] { display: none; }
-  .placement-status { top: 58px; left: 16px; max-width: 48vw; }
+  .placement-status { top: 84px; left: 16px; max-width: 48vw; }
   .connection-pill { bottom: 62px; left: 16px; }
   .board-actions { bottom: 98px; left: 16px; }
   .zoom-controls { right: 16px; bottom: 62px; }

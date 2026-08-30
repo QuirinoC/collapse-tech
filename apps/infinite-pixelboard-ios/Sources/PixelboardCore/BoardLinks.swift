@@ -9,6 +9,10 @@ public enum BoardLinks {
         return components.url ?? origin
     }
 
+    public static func iosInvite(code: String) -> URL {
+        URL(string: "pixelboard://invite/\(code)")!
+    }
+
     public static func position(row: Int, column: Int) -> URL {
         var components = URLComponents(url: origin, resolvingAgainstBaseURL: false)!
         components.queryItems = [

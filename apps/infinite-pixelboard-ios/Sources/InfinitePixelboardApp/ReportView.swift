@@ -31,13 +31,13 @@ struct ReportView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 PixelboardPanelHeading(
-                    eyebrow: "Community safety",
-                    title: "Report\ncurrent position."
+                    eyebrow: PixelboardL10n.communitySafety,
+                    title: PixelboardL10n.reportCurrentPositionHeading
                 ) {
                     dismiss()
                 }
 
-                Text("Mark the affected area. We capture the pixels and placement history. You do not need a screenshot.")
+                Text(PixelboardL10n.reportAreaNote)
                     .font(PixelboardTheme.sans(15))
                     .foregroundStyle(PixelboardTheme.muted)
                     .lineSpacing(4)
@@ -54,13 +54,13 @@ struct ReportView: View {
                     .padding(.bottom, 10)
 
                 HStack(spacing: 10) {
-                    dimensionField("Width", value: $regionWidth)
-                    dimensionField("Height", value: $regionHeight)
+                    dimensionField(PixelboardL10n.width, value: $regionWidth)
+                    dimensionField(PixelboardL10n.height, value: $regionHeight)
                 }
 
-                PixelboardFieldLabel(title: "Reason", hint: nil) {
-                    Picker("Reason", selection: $reason) {
-                        Text("Select a reason").tag(Optional<ReportReason>.none)
+                PixelboardFieldLabel(title: PixelboardL10n.reason, hint: nil) {
+                    Picker(PixelboardL10n.reason, selection: $reason) {
+                        Text(PixelboardL10n.selectAReason).tag(Optional<ReportReason>.none)
                         ForEach(ReportReason.allCases) { value in
                             Text(value.label).tag(Optional(value))
                         }
@@ -74,8 +74,10 @@ struct ReportView: View {
                 }
 
                 PixelboardFieldLabel(
-                    title: "Note",
-                    hint: reason == .other ? "Required · 500 characters" : "Optional · 500 characters"
+                    title: PixelboardL10n.note,
+                    hint: reason == .other
+                        ? PixelboardL10n.requiredNoteHint
+                        : PixelboardL10n.optionalNoteHint
                 ) {
                     TextField("", text: $note, axis: .vertical)
                         .lineLimit(4...8)
@@ -92,7 +94,7 @@ struct ReportView: View {
                     .padding(.top, 12)
                     .padding(.bottom, 16)
 
-                Button(submitting ? "Submitting…" : "Submit report") {
+                Button(submitting ? PixelboardL10n.submitting : PixelboardL10n.submitReport) {
                     submitting = true
                     errorMessage = nil
                     Task {
@@ -137,8 +139,8 @@ struct ReportView: View {
 
     private var statusText: String {
         if let errorMessage { return errorMessage }
-        if model.account == nil { return "Sign in before submitting a report." }
-        if reason == .other { return "A note is required when the reason is Other." }
+        if model.account == nil { return PixelboardL10n.signInBeforeReport }
+        if reason == .other { return PixelboardL10n.otherReasonNoteRequired }
         return " "
     }
 }
@@ -146,13 +148,13 @@ struct ReportView: View {
 private extension ReportReason {
     var label: String {
         switch self {
-        case .explicitSexualContent: "Explicit sexual content"
-        case .graphicViolence: "Graphic violence"
-        case .hateOrHarassment: "Hate or harassment"
-        case .threat: "Threat"
-        case .illegalContent: "Illegal content"
-        case .copyright: "Copyright"
-        case .other: "Other"
+        case .explicitSexualContent: PixelboardL10n.explicitSexualContent
+        case .graphicViolence: PixelboardL10n.graphicViolence
+        case .hateOrHarassment: PixelboardL10n.hateOrHarassment
+        case .threat: PixelboardL10n.threat
+        case .illegalContent: PixelboardL10n.illegalContent
+        case .copyright: PixelboardL10n.copyright
+        case .other: PixelboardL10n.other
         }
     }
 }

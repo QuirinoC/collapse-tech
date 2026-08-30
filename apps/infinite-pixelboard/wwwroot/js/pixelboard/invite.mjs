@@ -43,8 +43,15 @@ export function positionUrl(row, column) {
 
 export function parseBoardPosition(search) {
   const params = new URLSearchParams(search);
-  const row = Number.parseInt(params.get("row") ?? params.get("r") ?? "", 10);
-  const column = Number.parseInt(params.get("col") ?? params.get("c") ?? "", 10);
+  const row = parseStrictInteger(params.get("row") ?? params.get("r"));
+  const column = parseStrictInteger(params.get("col") ?? params.get("c"));
   if (!Number.isSafeInteger(row) || !Number.isSafeInteger(column)) return null;
   return { row, column };
+}
+
+function parseStrictInteger(value) {
+  if (value === null || value.trim() === "") return NaN;
+  if (!/^[+-]?\d+$/.test(value.trim())) return NaN;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : NaN;
 }

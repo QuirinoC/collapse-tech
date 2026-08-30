@@ -62,21 +62,6 @@ public sealed class NotificationOutboxWorker(
             return;
         }
 
-        var preferences = await store.GetPreferencesAsync(
-            new AccountId(notification.RecipientFirebaseUid),
-            cancellationToken);
-        if (notification.Category == NotificationCategory.BoardActivity
-            && !preferences.BoardActivityEnabled
-            || notification.Category == NotificationCategory.Broadcast
-            && !preferences.BroadcastEnabled)
-        {
-            await store.MarkSentAsync(
-                notification.NotificationId,
-                workerId,
-                cancellationToken);
-            return;
-        }
-
         var devices = await store.GetActiveDevicesAsync(
             notification.RecipientFirebaseUid,
             cancellationToken);

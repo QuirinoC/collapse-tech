@@ -31,6 +31,9 @@ final class BoardGeometryTests: XCTestCase {
     func testInviteAndPositionLinksRoundTrip() throws {
         let invite = BoardLinks.invite(code: "ABCD2345")
         XCTAssertEqual(BoardLinks.referralCode(from: invite), "ABCD2345")
+        let iosInvite = BoardLinks.iosInvite(code: "ABCD2345")
+        XCTAssertEqual(iosInvite.absoluteString, "pixelboard://invite/ABCD2345")
+        XCTAssertEqual(BoardLinks.referralCode(from: iosInvite), "ABCD2345")
         XCTAssertEqual(
             BoardLinks.referralCode(from: URL(string: "pixelboard://invite/ABCD2345")!),
             "ABCD2345"

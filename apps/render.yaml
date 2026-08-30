@@ -22,7 +22,7 @@ services:
       - key: Firebase__Enabled
         value: "true"
       - key: Firebase__ProjectId
-        sync: false
+        sync: false # moderator claims are provisioned offline; never add Admin SDK credentials here
       - key: Postgres__Enabled
         value: "true"
       - key: Postgres__ConnectionString
