@@ -85,7 +85,7 @@ public sealed class PostgresPlacementLedger(NpgsqlDataSource dataSource) : IPlac
             EXCLUDED.stream_sequence
         )
         RETURNING placement_id
-        )
+        ),
         digest_incremented AS (
             INSERT INTO pixelboard.notification_digest_counters (
                 firebase_uid, event_day, event_count)
