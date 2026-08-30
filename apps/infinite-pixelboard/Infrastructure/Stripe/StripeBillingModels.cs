@@ -7,7 +7,8 @@ public sealed record StripeCheckoutSessionRequest(
     string CustomerId,
     string PriceId,
     string SuccessUrl,
-    string CancelUrl);
+    string CancelUrl,
+    int? TrialPeriodDays);
 
 public sealed record StripeWebhookParseResult(
     bool IsValid,
@@ -46,6 +47,10 @@ public interface IStripeBillingStore
         CancellationToken cancellationToken = default);
 
     ValueTask<bool> HasCustomerAsync(
+        AccountId accountId,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<bool> TryClaimStripeTrialAsync(
         AccountId accountId,
         CancellationToken cancellationToken = default);
 

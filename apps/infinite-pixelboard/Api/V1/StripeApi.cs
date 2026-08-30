@@ -103,6 +103,10 @@ public static class StripeApi
                 }
             }
 
+            int? trialPeriodDays = options.Value.TrialPeriodDays > 0
+                && await store.TryClaimStripeTrialAsync(account.Id, cancellationToken)
+                ? options.Value.TrialPeriodDays
+                : null;
             var origin = PublicOrigin(httpRequest);
             var url = await gateway.CreateCheckoutSessionAsync(
                 new StripeCheckoutSessionRequest(
@@ -110,7 +114,8 @@ public static class StripeApi
                     customerId,
                     priceId,
                     $"{origin}/?billing=success",
-                    $"{origin}/?billing=cancel"),
+                    $"{origin}/?billing=cancel",
+                    trialPeriodDays),
                 cancellationToken);
             return Results.Ok(new StripeRedirectResponse(url));
         }

@@ -94,13 +94,15 @@ public sealed class StripeGateway(IOptions<StripeOptions> options) : IStripeBill
             {
                 Mode = "subscription",
                 Customer = request.CustomerId,
+                PaymentMethodCollection = "always",
                 ClientReferenceId = request.AccountId.Value,
                 SuccessUrl = request.SuccessUrl,
                 CancelUrl = request.CancelUrl,
                 Metadata = AccountMetadata(request.AccountId),
                 SubscriptionData = new SessionSubscriptionDataOptions
                 {
-                    Metadata = AccountMetadata(request.AccountId)
+                    Metadata = AccountMetadata(request.AccountId),
+                    TrialPeriodDays = request.TrialPeriodDays
                 },
                 LineItems =
                 [

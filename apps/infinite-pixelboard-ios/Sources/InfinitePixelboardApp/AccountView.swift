@@ -10,7 +10,7 @@ struct AccountView: View {
     @State private var inviteCode = ""
     @State private var showingReport = false
     @State private var showingInvite = false
-    @State private var showingPro = false
+    @State private var showingPro = true
     @State private var showingAccount = false
     @State private var showingMore = false
 
@@ -226,41 +226,50 @@ struct AccountView: View {
 
     @ViewBuilder
     private var subscriptionSections: some View {
-        if model.account != nil {
-            DisclosureGroup(isExpanded: $showingPro) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Pro is 1 second between pixels and unlocks the extended palette plus custom colors. It does not remove the cooldown.")
-                        .font(PixelboardTheme.sans(14))
-                        .foregroundStyle(PixelboardTheme.muted)
-                        .lineSpacing(4)
-                    if model.account?.tier != .pro {
-                        ForEach(model.store.products) { product in
-                            Button {
+        DisclosureGroup(isExpanded: $showingPro) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Try Pro free for 7 days. Then choose monthly or annual billing. Pro is 1 second between pixels and unlocks the extended palette plus custom colors; it does not remove the cooldown.")
+                    .font(PixelboardTheme.sans(14))
+                    .foregroundStyle(PixelboardTheme.muted)
+                    .lineSpacing(4)
+                if model.account?.tier != .pro {
+                    ForEach(model.store.products) { product in
+                        Button {
+                            if model.account == nil {
+                                model.authNotice = "Sign in before subscribing."
+                            } else {
                                 Task {
                                     if await model.store.purchase(product) {
                                         await model.refreshAccount()
                                     }
                                 }
-                            } label: {
-                                Text("\(product.displayName) · \(product.displayPrice)")
-                                    .frame(maxWidth: .infinity)
                             }
-                            .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
-                            .disabled(model.store.isWorking)
-                        }
-                    }
-                    if model.account?.tier == .pro {
-                        Button("Manage subscription") {
-                            openURL(StoreManager.manageSubscriptionsURL)
+                        } label: {
+                            Text("Subscribe \(product.id == AppConfiguration.monthlyProductID ? "monthly" : "annually") · \(product.displayPrice)")
+                                .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
+                        .disabled(model.store.isWorking)
                     }
                 }
-            } label: {
-                sectionLabel(model.account?.tier == .pro ? "Pro" : "Get Pro")
+                if model.account?.tier == .pro {
+                    Button("Manage subscription") {
+                        openURL(StoreManager.manageSubscriptionsURL)
+                    }
+                    .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
+                } else if model.store.products.isEmpty {
+                    Text("Subscription options are still loading. Check your connection and try again.")
+                        .font(PixelboardTheme.mono(10))
+                        .foregroundStyle(PixelboardTheme.muted)
+                }
             }
-            .tint(PixelboardTheme.ink)
-            .padding(.top, 24)
+        } label: {
+            sectionLabel(model.account?.tier == .pro ? "Pro" : "Get Pro")
+        }
+        .tint(PixelboardTheme.ink)
+        .padding(.top, 24)
+        .task {
+            await model.store.loadProducts()
         }
     }
 

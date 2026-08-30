@@ -41,6 +41,33 @@ public sealed class PostgresStripeBillingStore(NpgsqlDataSource dataSource) : IS
         return (bool)(await command.ExecuteScalarAsync(cancellationToken) ?? false);
     }
 
+    public async ValueTask<bool> TryClaimStripeTrialAsync(
+        AccountId accountId,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql =
+            """
+            INSERT INTO pixelboard.stripe_trial_claims (firebase_uid, claimed_at)
+            SELECT $1, now()
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM pixelboard.deleted_accounts
+                WHERE account_hash = $2
+            )
+            AND NOT EXISTS (
+                SELECT 1
+                FROM pixelboard.stripe_subscriptions
+                WHERE firebase_uid = $1
+            )
+            ON CONFLICT (firebase_uid) DO NOTHING
+            RETURNING firebase_uid;
+            """;
+        await using var command = dataSource.CreateCommand(sql);
+        command.Parameters.AddWithValue(accountId.Value);
+        command.Parameters.AddWithValue(AccountHash(accountId));
+        return await command.ExecuteScalarAsync(cancellationToken) is not null;
+    }
+
     public async ValueTask<string?> FindFirebaseUidByCustomerAsync(
         string stripeCustomerId,
         CancellationToken cancellationToken = default)

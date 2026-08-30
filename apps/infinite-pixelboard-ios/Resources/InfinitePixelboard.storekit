@@ -30,7 +30,12 @@
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "1000001",
-          "introductoryOffer" : null,
+          "introductoryOffer" : {
+            "displayPrice" : "0",
+            "paymentMode" : "free",
+            "period" : "P1W",
+            "periodCount" : 1
+          },
           "localizations" : [
             {
               "description" : "Pixelboard Pro monthly",
@@ -51,7 +56,12 @@
           "familyShareable" : false,
           "groupNumber" : 2,
           "internalID" : "1000002",
-          "introductoryOffer" : null,
+          "introductoryOffer" : {
+            "displayPrice" : "0",
+            "paymentMode" : "free",
+            "period" : "P1W",
+            "periodCount" : 1
+          },
           "localizations" : [
             {
               "description" : "Pixelboard Pro annual",

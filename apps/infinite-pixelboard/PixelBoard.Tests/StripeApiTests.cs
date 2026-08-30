@@ -48,6 +48,7 @@ public sealed class StripeApiTests
         Assert.Equal(StatusCodes.Status200OK, response.StatusCode);
         Assert.Equal("https://checkout.stripe.test/session", response.Body.Url);
         Assert.Equal("price_month", gateway.LastPriceId);
+        Assert.Equal(7, gateway.LastTrialPeriodDays);
         Assert.Equal("https://pixelboard.test/?billing=success", gateway.LastSuccessUrl);
         Assert.Equal("cus_123", gateway.LastCustomerId);
         Assert.Null(gateway.CreatedCustomerId);
@@ -73,6 +74,26 @@ public sealed class StripeApiTests
         Assert.Equal("cus_new", gateway.CreatedCustomerId);
         Assert.Equal("cus_new", store.SavedCustomerId);
         Assert.Equal("price_year", gateway.LastPriceId);
+    }
+
+    [Fact]
+    public async Task CheckoutOmitsTrialAfterTheAccountHasClaimedIt()
+    {
+        var gateway = new RecordingGateway();
+        var store = new RecordingStore { CustomerId = "cus_123", TrialAvailable = false };
+        await using var services = CreateServices(gateway, store);
+
+        var result = await StripeApi.CreateCheckoutSessionAsync(
+            new CreateStripeCheckoutSessionRequest("month"),
+            CreateHttpRequest(),
+            new IdentityAccessor(),
+            Options.Create(EnabledOptions()),
+            services,
+            CancellationToken.None);
+        var response = await ExecuteAsync<StripeRedirectResponse>(result, services);
+
+        Assert.Equal(StatusCodes.Status200OK, response.StatusCode);
+        Assert.Null(gateway.LastTrialPeriodDays);
     }
 
     [Fact]
@@ -243,6 +264,7 @@ public sealed class StripeApiTests
         public string? LastPriceId { get; private set; }
         public string? LastSuccessUrl { get; private set; }
         public string? LastCustomerId { get; private set; }
+        public int? LastTrialPeriodDays { get; private set; }
         public string? CreatedCustomerId { get; private set; }
         public string? LastPayload { get; private set; }
         public string? LastSignature { get; private set; }
@@ -272,6 +294,7 @@ public sealed class StripeApiTests
             LastCustomerId = request.CustomerId;
             LastPriceId = request.PriceId;
             LastSuccessUrl = request.SuccessUrl;
+            LastTrialPeriodDays = request.TrialPeriodDays;
             return Task.FromResult("https://checkout.stripe.test/session");
         }
 
@@ -290,6 +313,7 @@ public sealed class StripeApiTests
     private sealed class RecordingStore : IStripeBillingStore
     {
         public string? CustomerId { get; set; }
+        public bool TrialAvailable { get; set; } = true;
         public string? SavedCustomerId { get; private set; }
         public StripeSubscriptionUpdate? Applied { get; private set; }
 
@@ -302,6 +326,11 @@ public sealed class StripeApiTests
             AccountId accountId,
             CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(CustomerId is not null);
+
+        public ValueTask<bool> TryClaimStripeTrialAsync(
+            AccountId accountId,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(TrialAvailable);
 
         public ValueTask<string?> FindFirebaseUidByCustomerAsync(
             string stripeCustomerId,

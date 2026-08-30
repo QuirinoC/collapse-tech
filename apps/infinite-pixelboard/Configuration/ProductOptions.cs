@@ -58,6 +58,9 @@ public sealed class StripeOptions
     public string MonthlyPriceId { get; set; } = string.Empty;
 
     public string AnnualPriceId { get; set; } = string.Empty;
+
+    [Range(0, 365)]
+    public int TrialPeriodDays { get; set; } = 7;
 }
 
 public sealed class StoreKitOptions
