@@ -93,15 +93,6 @@ enum PixelboardL10n {
         "notifications_denied_note",
         defaultValue: "Notifications are off. Turn them on in iPhone Settings to receive limit-lift alerts."
     )
-    static let state = value("state", defaultValue: "State")
-    static let cooldown = value("cooldown", defaultValue: "Cooldown")
-    static let paintBoost = value("paint_boost", defaultValue: "Paint boost")
-    static let anonymous = value("anonymous", defaultValue: "Anonymous")
-    static let banned = value("banned", defaultValue: "Banned")
-    static let proAccount = value("pro_account", defaultValue: "Pro account")
-    static let freeAccount = value("free_account", defaultValue: "Free account")
-    static let ready = value("ready", defaultValue: "Ready")
-    static let none = value("none", defaultValue: "None")
     static let inviteAPainter = value(
         "invite_a_painter",
         defaultValue: "Invite a painter"
@@ -134,10 +125,6 @@ enum PixelboardL10n {
         defaultValue: "Permanently delete this account?"
     )
     static let deleteAccount = value("delete_account", defaultValue: "Delete account")
-    static let signInToPlaceNote = value(
-        "sign_in_to_place_note",
-        defaultValue: "Sign in with Apple or Google to place pixels."
-    )
     static let acceptStandardsNote = value(
         "accept_standards_note",
         defaultValue: "Accept the community standards before placing."
@@ -232,15 +219,10 @@ enum PixelboardL10n {
         "sign_in_to_place_pixel",
         defaultValue: "Sign in to place a pixel"
     )
-    static let viewingAnonymously = value(
-        "viewing_anonymously",
-        defaultValue: "Viewing anonymously"
-    )
     static let bannedFromPlacing = value(
         "banned_from_placing",
         defaultValue: "This account is banned from placing pixels."
     )
-    static let cooldownStatus = value("cooldown_status", defaultValue: "Cooldown")
     static let reconcilingPlacement = value(
         "reconciling_placement",
         defaultValue: "Reconciling placement…"
@@ -375,7 +357,6 @@ enum PixelboardL10n {
         "board_contract_unsupported",
         defaultValue: "This board contract is not supported"
     )
-    static let boardReady = value("board_ready", defaultValue: "Board ready")
     static let boardReadOnly = value("board_read_only", defaultValue: "Board is read-only")
     static let storeKitVerificationFailed = value(
         "storekit_verification_failed",
@@ -451,15 +432,6 @@ enum PixelboardL10n {
             "switch_to_annual",
             defaultValue: "Switch to annual · %@",
             price
-        )
-    }
-
-    static func boostUntil(seconds: Int, date: String) -> String {
-        format(
-            "boost_until",
-            defaultValue: "%llds until %@",
-            seconds,
-            date
         )
     }
 

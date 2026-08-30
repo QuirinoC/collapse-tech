@@ -21,10 +21,10 @@ test("fallback palettes keep the curated rainbow palettes", () => {
 });
 
 test("account contract controls the rendered palette", () => {
-  const serverColors = ["#123456"];
+  const serverColors = ["#123456", "#123456", "#ABCDEF"];
   assert.deepEqual(
     colorsForState({ tier: "Free", allowedColors: serverColors }),
-    serverColors,
+    ["#123456", "#ABCDEF"],
   );
   assert.deepEqual(colorsForState({ tier: "Pro" }), PRO_COLORS);
   assert.deepEqual(colorsForState({ tier: "Free" }), FREE_COLORS);
@@ -41,4 +41,8 @@ test("palette colors have accessible names", () => {
   assert.equal(colorName("#171714"), "Near-black");
   assert.equal(colorName("#F7F3EA"), "Off-white");
   assert.equal(colorName("#unknown"), "#unknown");
+});
+
+test("palette labels remain unique in the curated order", () => {
+  assert.equal(new Set(PRO_COLORS.map(colorName)).size, PRO_COLORS.length);
 });

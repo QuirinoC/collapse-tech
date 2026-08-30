@@ -2,6 +2,7 @@ import { createFirebaseAuthClient } from "./pixelboard/firebase-auth.mjs";
 
 const elements = {
   status: document.querySelector("#status"),
+  console: document.querySelector("#moderator-console"),
   refresh: document.querySelector("#refresh"),
   signIn: document.querySelector("#moderator-sign-in"),
   signOut: document.querySelector("#moderator-sign-out"),
@@ -45,45 +46,65 @@ async function token() {
   return value;
 }
 
+function clearPrivateState() {
+  selectedReport = null;
+  elements.list.replaceChildren();
+  elements.empty.hidden = false;
+  elements.review.hidden = true;
+  elements.metadata.replaceChildren();
+  elements.rawEvidence.textContent = "";
+  elements.target.value = "";
+  elements.reason.value = "";
+  elements.expiry.value = "";
+  elements.placementsFrozen.checked = false;
+  elements.adsDisabled.checked = false;
+  elements.safetyReason.value = "";
+  const context = elements.canvas.getContext("2d");
+  context.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
+}
+
+async function handleAuthorization(client, user) {
+  const generation = ++authorizationGeneration;
+  clearPrivateState();
+  elements.console.hidden = true;
+  elements.signIn.hidden = Boolean(user);
+  elements.signOut.hidden = !user;
+
+  if (!user) {
+    setStatus("Sign in with the approved moderator account to continue.");
+    return;
+  }
+
+  try {
+    const claims = await client.getTokenClaims(true);
+    if (generation !== authorizationGeneration) return;
+    if (claims?.moderator !== true) {
+      setStatus("This account is not authorized to use moderation.", true);
+      return;
+    }
+
+    elements.console.hidden = false;
+    await load();
+  } catch (error) {
+    if (generation !== authorizationGeneration) return;
+    setStatus(error.message, true);
+  }
+}
+
 async function initializeAuthentication() {
   try {
     const client = await createFirebaseAuthClient();
     window.CollapsePixelboardAuth = client;
-    await new Promise((resolve) => {
-      let initialized = false;
-      client.subscribe((user) => {
-        authorizationGeneration += 1;
-        clearPrivateState();
-        elements.signIn.hidden = Boolean(user);
-        elements.signOut.hidden = !user;
-        if (!initialized) {
-          initialized = true;
-          resolve();
-        } else {
-          load();
-        }
-
-        function clearPrivateState() {
-          selectedReport = null;
-          elements.list.replaceChildren();
-          elements.empty.hidden = false;
-          elements.review.hidden = true;
-          elements.metadata.replaceChildren();
-          elements.rawEvidence.textContent = "";
-          elements.target.value = "";
-          elements.reason.value = "";
-          elements.expiry.value = "";
-          elements.placementsFrozen.checked = false;
-          elements.adsDisabled.checked = false;
-          elements.safetyReason.value = "";
-          const context = elements.canvas.getContext("2d");
-          context.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
-        }
-      });
+    client.subscribe((user) => {
+      void handleAuthorization(client, user);
     });
     return client;
   } catch (error) {
     console.error("Moderator authentication failed to initialize.", error);
+    elements.console.hidden = true;
+    elements.signIn.hidden = false;
+    elements.signOut.hidden = true;
+    setStatus("Moderator authentication is temporarily unavailable.", true);
     return null;
   }
 }
@@ -322,5 +343,3 @@ elements.sendBroadcast.addEventListener("click", async () => {
 document.querySelectorAll("[data-action]").forEach((button) => {
   button.addEventListener("click", () => executeAction(button.dataset.action));
 });
-
-load();

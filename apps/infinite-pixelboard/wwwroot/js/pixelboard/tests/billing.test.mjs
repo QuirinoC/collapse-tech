@@ -5,7 +5,7 @@ import {
   parseBillingReturn,
   stripBillingParam,
 } from "../billing.mjs";
-import { subscriptionMessage } from "../subscription.mjs";
+import { canPurchaseStripe, subscriptionMessage } from "../subscription.mjs";
 
 test("billing return values are read from the query string", () => {
   assert.equal(parseBillingReturn("?billing=success"), "success");
@@ -71,4 +71,28 @@ test("subscription copy is state-aware", () => {
     subscriptionMessage({ isPro: true, entitlementSource: "stripe" }),
     /active through Stripe/i,
   );
+});
+
+test("Stripe purchases are suppressed for Apple-managed Pro accounts", () => {
+  assert.equal(canPurchaseStripe({
+    stripeEnabled: true,
+    authenticated: true,
+    communityStandardsAccepted: true,
+    isPro: true,
+    entitlementSource: "storekit",
+  }), false);
+  assert.equal(canPurchaseStripe({
+    stripeEnabled: true,
+    authenticated: true,
+    communityStandardsAccepted: true,
+    isPro: false,
+    entitlementSource: "storekit",
+  }), false);
+  assert.equal(canPurchaseStripe({
+    stripeEnabled: true,
+    authenticated: true,
+    communityStandardsAccepted: true,
+    isPro: false,
+    entitlementSource: null,
+  }), true);
 });

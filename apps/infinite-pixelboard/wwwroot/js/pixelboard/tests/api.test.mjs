@@ -87,6 +87,21 @@ test("reports send only bounded coordinates, reason, note, and client context", 
   assert.equal("accountId" in body, false);
 });
 
+test("account deletion uses the authenticated server route", async (context) => {
+  let request;
+  context.mock.method(globalThis, "fetch", async (url, options) => {
+    request = { url, options };
+    return new Response(null, { status: 204 });
+  });
+  const api = new PixelboardApi({ getToken: async () => "firebase-token" });
+
+  await api.deleteAccount();
+
+  assert.equal(request.url, "/api/v1/account");
+  assert.equal(request.options.method, "DELETE");
+  assert.equal(request.options.headers.Authorization, "Bearer firebase-token");
+});
+
 test("invite claims post the normalized code to the account referral route", async (context) => {
   let request;
   context.mock.method(globalThis, "fetch", async (url, options) => {

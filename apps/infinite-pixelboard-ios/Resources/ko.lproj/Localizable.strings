@@ -17,15 +17,6 @@
 "enable_notifications" = "알림 켜기";
 "open_notification_settings" = "알림 설정 열기";
 "notifications_denied_note" = "알림이 꺼져 있습니다. 제한 해제 알림을 받으려면 iPhone 설정에서 켜세요.";
-"state" = "상태";
-"cooldown" = "대기 시간";
-"paint_boost" = "그리기 부스트";
-"anonymous" = "익명";
-"banned" = "차단됨";
-"pro_account" = "Pro 계정";
-"free_account" = "무료 계정";
-"ready" = "준비됨";
-"none" = "없음";
 "invite_a_painter" = "그리는 사람 초대";
 "pro" = "Pro";
 "get_pro" = "Pro 이용하기";
@@ -40,7 +31,6 @@
 "terms" = "약관";
 "permanently_delete_account" = "이 계정을 영구적으로 삭제할까요?";
 "delete_account" = "계정 삭제";
-"sign_in_to_place_note" = "픽셀을 배치하려면 Apple 또는 Google로 로그인하세요.";
 "accept_standards_note" = "픽셀을 배치하기 전에 커뮤니티 운영 기준에 동의하세요.";
 "try_pro_note" = "Pro를 7일 동안 무료로 사용해 보세요. 이후 월간 또는 연간 결제를 선택할 수 있습니다. Pro는 픽셀 사이의 간격을 1초로 줄이고 확장 팔레트와 사용자 설정 색상을 잠금 해제하지만, 대기 시간을 없애지는 않습니다.";
 "pro_available_note" = "Pro는 월간 또는 연간 결제로 이용할 수 있습니다. 확장 팔레트와 사용자 설정 색상을 잠금 해제하며, 대기 시간은 1초로 유지됩니다.";
@@ -71,9 +61,7 @@
 "update_to_keep_painting" = "계속 그리려면 Infinite Pixelboard를 업데이트하세요.";
 "painting_paused" = "그리기가 일시 중지되었습니다.";
 "sign_in_to_place_pixel" = "로그인하여 픽셀 배치";
-"viewing_anonymously" = "익명으로 보는 중";
 "banned_from_placing" = "이 계정은 픽셀을 배치할 수 없습니다.";
-"cooldown_status" = "대기 시간";
 "reconciling_placement" = "배치 확인 중…";
 "accept_standards_first" = "먼저 커뮤니티 운영 기준에 동의하세요";
 "pixel_placed" = "픽셀이 배치됨";
@@ -127,7 +115,6 @@
 "invite_code_length" = "8자리 초대 코드를 입력하세요.";
 "invite_applied" = "초대가 적용되었습니다. 몇 시간 동안 더 빠르게 그릴 수 있습니다.";
 "board_contract_unsupported" = "이 보드 계약은 지원되지 않습니다";
-"board_ready" = "보드 준비됨";
 "board_read_only" = "보드는 읽기 전용입니다";
 "storekit_verification_failed" = "이 기기에서 App Store 거래를 확인할 수 없습니다.";
 "apple_sign_in_failed" = "Apple 로그인을 완료할 수 없습니다. 다시 시도하거나 Google을 사용하세요.";
@@ -143,7 +130,6 @@
 "subscribe_monthly" = "월간 구독 · %@";
 "subscribe_annually" = "연간 구독 · %@";
 "switch_to_annual" = "연간으로 전환 · %@";
-"boost_until" = "%lld초 동안 %@까지";
 "selected_position_accessibility" = "선택한 행 %lld, 열 %lld";
 "coordinate" = "행 %@ / 열 %@";
 "live_updates_status" = "실시간 업데이트 %@. 계속 그릴 수 있습니다.";

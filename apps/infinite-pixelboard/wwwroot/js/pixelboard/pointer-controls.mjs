@@ -31,7 +31,10 @@ export function attachPointerControls(canvas, handlers) {
 
   canvas.addEventListener("pointerup", (event) => {
     if (!active || active.id !== event.pointerId) return;
-    if (!active.moved) handlers.paint(event.clientX, event.clientY);
+    if (!active.moved) {
+      handlers.hover(event.clientX, event.clientY);
+      handlers.paint(event.clientX, event.clientY);
+    }
     active = null;
     canvas.classList.remove("is-panning");
   });

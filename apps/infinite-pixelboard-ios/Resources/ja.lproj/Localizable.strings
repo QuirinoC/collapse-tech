@@ -17,15 +17,6 @@
 "enable_notifications" = "通知を有効にする";
 "open_notification_settings" = "通知設定を開く";
 "notifications_denied_note" = "通知がオフです。制限解除の通知を受け取るには、iPhoneの設定で有効にしてください。";
-"state" = "状態";
-"cooldown" = "クールダウン";
-"paint_boost" = "ペイントブースト";
-"anonymous" = "匿名";
-"banned" = "利用停止";
-"pro_account" = "Proアカウント";
-"free_account" = "無料アカウント";
-"ready" = "準備完了";
-"none" = "なし";
 "invite_a_painter" = "ペインターを招待";
 "pro" = "Pro";
 "get_pro" = "Proを利用";
@@ -40,7 +31,6 @@
 "terms" = "利用規約";
 "permanently_delete_account" = "このアカウントを完全に削除しますか？";
 "delete_account" = "アカウントを削除";
-"sign_in_to_place_note" = "ピクセルを配置するにはAppleまたはGoogleでサインインしてください。";
 "accept_standards_note" = "配置する前にコミュニティ基準に同意してください。";
 "try_pro_note" = "Proを7日間無料でお試しください。その後、月額または年額を選択できます。Proではピクセル間隔が1秒になり、拡張パレットとカスタムカラーが使えます。クールダウンはなくなりません。";
 "pro_available_note" = "Proは月額または年額で利用できます。拡張パレットとカスタムカラーが使えます。クールダウンは1秒のままです。";
@@ -71,9 +61,7 @@
 "update_to_keep_painting" = "描き続けるにはInfinite Pixelboardをアップデートしてください。";
 "painting_paused" = "描画は一時停止中です。";
 "sign_in_to_place_pixel" = "サインインしてピクセルを配置";
-"viewing_anonymously" = "匿名で閲覧中";
 "banned_from_placing" = "このアカウントはピクセルを配置できません。";
-"cooldown_status" = "クールダウン";
 "reconciling_placement" = "配置を確認中…";
 "accept_standards_first" = "まずコミュニティ基準に同意してください";
 "pixel_placed" = "ピクセルを配置しました";
@@ -127,7 +115,6 @@
 "invite_code_length" = "8文字の招待コードを入力してください。";
 "invite_applied" = "招待を適用しました。数時間、より速く描けます。";
 "board_contract_unsupported" = "このボード契約はサポートされていません";
-"board_ready" = "ボードの準備完了";
 "board_read_only" = "ボードは読み取り専用です";
 "storekit_verification_failed" = "このデバイスでApp Storeのトランザクションを検証できませんでした。";
 "apple_sign_in_failed" = "Appleでサインインを完了できませんでした。もう一度お試しいただくか、Googleを使用してください。";
@@ -143,7 +130,6 @@
 "subscribe_monthly" = "月額で購読 · %@";
 "subscribe_annually" = "年額で購読 · %@";
 "switch_to_annual" = "年額に変更 · %@";
-"boost_until" = "%lld秒間、%@まで";
 "selected_position_accessibility" = "選択した行%lld、列%lld";
 "coordinate" = "行 %@ / 列 %@";
 "live_updates_status" = "ライブ更新%@。引き続き描画できます。";

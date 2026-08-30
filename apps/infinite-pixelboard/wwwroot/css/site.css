@@ -266,6 +266,32 @@ a { color: inherit; }
   cursor: pointer;
 }
 
+.pro-color-button {
+  display: inline-flex;
+  width: auto;
+  height: 24px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  background: transparent;
+  cursor: pointer;
+  font: 500 .5rem var(--mono);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.pro-color-button[hidden] { display: none; }
+.pro-color-button:hover { background: var(--ink); color: var(--paper); }
+.pro-color-grid {
+  width: 14px;
+  height: 14px;
+  border: 1px solid currentColor;
+  background:
+    linear-gradient(90deg, transparent 45%, currentColor 46% 54%, transparent 55%),
+    linear-gradient(0deg, transparent 45%, currentColor 46% 54%, transparent 55%);
+}
+
 .swatch[aria-checked="true"]::after {
   position: absolute;
   inset: 4px;
@@ -301,7 +327,7 @@ a { color: inherit; }
   color: var(--paper);
 }
 
-.board-readout, .connection-pill, .placement-status {
+.board-readout, .connection-pill {
   position: fixed;
   z-index: 8;
   font: 500 .58rem var(--mono);
@@ -322,7 +348,6 @@ a { color: inherit; }
 .connection-pill span { width: 7px; height: 7px; border-radius: 50%; background: #c88a2a; }
 .connection-pill[data-state="online"] span { background: #4f7355; }
 .connection-pill[data-state="offline"] span { background: var(--accent); }
-.placement-status { top: 90px; left: 24px; color: var(--muted); }
 
 .board-ad {
   position: fixed;
@@ -425,10 +450,9 @@ a { color: inherit; }
 .auth-actions button:hover { background: var(--ink); color: var(--paper); }
 .auth-actions button[hidden] { display: none; }
 .auth-actions span { width: 20px; font-family: var(--mono); text-align: center; }
+.auth-actions [data-delete-account] { color: var(--accent); }
+.auth-actions [data-delete-account]:hover { color: var(--paper); }
 .auth-note { min-height: 2.5em; margin: 12px 0 18px; color: var(--muted); font: .62rem/1.45 var(--mono); }
-.account-state { margin: 0; border-top: 1px solid var(--line); }
-.account-state div { display: flex; justify-content: space-between; padding: 13px 0; border-bottom: 1px solid var(--line); font: .67rem var(--mono); text-transform: uppercase; }
-.account-state dd { margin: 0; color: var(--muted); }
 .panel-section { margin-top: 18px; border-top: 1px solid var(--line); }
 .panel-section summary {
   display: flex;
@@ -544,7 +568,6 @@ a { color: inherit; }
   .swatch, .custom-color { width: 27px; height: 27px; }
   .board-readout { top: 58px; left: 16px; }
   .board-readout [data-zoom] { display: none; }
-  .placement-status { top: 84px; left: 16px; max-width: 48vw; }
   .connection-pill { bottom: 62px; left: 16px; }
   .board-actions { bottom: 98px; left: 16px; }
   .zoom-controls { right: 16px; bottom: 62px; }

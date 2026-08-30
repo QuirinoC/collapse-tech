@@ -17,15 +17,6 @@
 "enable_notifications" = "开启通知";
 "open_notification_settings" = "打开通知设置";
 "notifications_denied_note" = "通知已关闭。请在 iPhone 设置中开启，以接收限制解除提醒。";
-"state" = "状态";
-"cooldown" = "冷却时间";
-"paint_boost" = "绘制加速";
-"anonymous" = "匿名";
-"banned" = "已封禁";
-"pro_account" = "Pro 账户";
-"free_account" = "免费账户";
-"ready" = "准备就绪";
-"none" = "无";
 "invite_a_painter" = "邀请绘制者";
 "pro" = "Pro";
 "get_pro" = "获取 Pro";
@@ -40,7 +31,6 @@
 "terms" = "条款";
 "permanently_delete_account" = "永久删除此账户？";
 "delete_account" = "删除账户";
-"sign_in_to_place_note" = "使用 Apple 或 Google 登录后即可放置像素。";
 "accept_standards_note" = "放置前请接受社区准则。";
 "try_pro_note" = "Pro 现在可免费试用 7 天。之后可选择按月或按年计费。Pro 可将像素间隔缩短至 1 秒，并解锁扩展调色板和自定义颜色；不会移除冷却时间。";
 "pro_available_note" = "Pro 提供按月或按年计费。它会解锁扩展调色板和自定义颜色；冷却时间仍为 1 秒。";
@@ -71,9 +61,7 @@
 "update_to_keep_painting" = "请更新 Infinite Pixelboard 以继续绘制。";
 "painting_paused" = "绘制已暂停。";
 "sign_in_to_place_pixel" = "登录后放置像素";
-"viewing_anonymously" = "匿名浏览";
 "banned_from_placing" = "此账户无法放置像素。";
-"cooldown_status" = "冷却时间";
 "reconciling_placement" = "正在确认放置…";
 "accept_standards_first" = "请先接受社区准则";
 "pixel_placed" = "像素已放置";
@@ -127,7 +115,6 @@
 "invite_code_length" = "请输入 8 位邀请码。";
 "invite_applied" = "邀请码已应用。接下来几小时内可更快绘制。";
 "board_contract_unsupported" = "不支持此画板协议";
-"board_ready" = "画板已准备就绪";
 "board_read_only" = "画板为只读状态";
 "storekit_verification_failed" = "无法在此设备上验证 App Store 交易。";
 "apple_sign_in_failed" = "Apple 无法完成登录。请重试，或使用 Google。";
@@ -143,7 +130,6 @@
 "subscribe_monthly" = "按月订阅 · %@";
 "subscribe_annually" = "按年订阅 · %@";
 "switch_to_annual" = "切换为按年 · %@";
-"boost_until" = "%lld 秒后到期（%@）";
 "selected_position_accessibility" = "选定行 %lld，列 %lld";
 "coordinate" = "行 %@ / 列 %@";
 "live_updates_status" = "实时更新%@。你仍可绘制。";

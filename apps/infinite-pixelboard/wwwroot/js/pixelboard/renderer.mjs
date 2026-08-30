@@ -83,8 +83,8 @@ function drawGrid(context, viewport, width, height, cell) {
     const firstRow = Math.floor(-viewport.offsetY / cell);
     const lastRow = Math.ceil((height - viewport.offsetY) / cell);
     context.beginPath();
-    context.strokeStyle = "rgba(23, 23, 20, .10)";
-    context.lineWidth = 1;
+    context.strokeStyle = "rgba(23, 23, 20, .06)";
+    context.lineWidth = 0.5;
     for (let column = firstColumn; column <= lastColumn; column += 1) {
       const x = Math.round(viewport.offsetX + column * cell) + .5;
       context.moveTo(x, 0);

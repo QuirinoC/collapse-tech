@@ -1,9 +1,10 @@
 # Pixelboard moderation runbook
 
 This runbook is for authorized Collapse Technologies operators. The `/moderation`
-console and every API below require a valid Firebase ID token containing the exact
-custom claim `moderator=true`. Never share moderator tokens, evidence exports, or
-Firebase account identifiers in public tickets or chat.
+page is an authentication-gated client shell, and every API below requires a valid
+Firebase ID token containing the exact custom claim `moderator=true`. Never share
+moderator tokens, evidence exports, or Firebase account identifiers in public
+tickets or chat.
 
 ## Access provisioning
 

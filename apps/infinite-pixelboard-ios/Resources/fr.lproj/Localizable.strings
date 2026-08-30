@@ -17,15 +17,6 @@
 "enable_notifications" = "Activer les notifications";
 "open_notification_settings" = "Ouvrir les réglages des notifications";
 "notifications_denied_note" = "Les notifications sont désactivées. Activez-les dans les réglages de l’iPhone pour recevoir les alertes de levée de limite.";
-"state" = "État";
-"cooldown" = "Délai";
-"paint_boost" = "Boost de dessin";
-"anonymous" = "Anonyme";
-"banned" = "Banni";
-"pro_account" = "Compte Pro";
-"free_account" = "Compte gratuit";
-"ready" = "Prêt";
-"none" = "Aucun";
 "invite_a_painter" = "Inviter une personne à dessiner";
 "pro" = "Pro";
 "get_pro" = "Obtenir Pro";
@@ -40,7 +31,6 @@
 "terms" = "Conditions";
 "permanently_delete_account" = "Supprimer définitivement ce compte ?";
 "delete_account" = "Supprimer le compte";
-"sign_in_to_place_note" = "Connectez-vous avec Apple ou Google pour placer des pixels.";
 "accept_standards_note" = "Acceptez les règles de la communauté avant de placer un pixel.";
 "try_pro_note" = "Essayez Pro gratuitement pendant 7 jours. Choisissez ensuite une facturation mensuelle ou annuelle. Pro réduit l’intervalle entre les pixels à 1 seconde et déverrouille la palette étendue ainsi que les couleurs personnalisées ; le délai n’est pas supprimé.";
 "pro_available_note" = "Pro est disponible avec une facturation mensuelle ou annuelle. Il déverrouille la palette étendue et les couleurs personnalisées ; le délai reste d’une seconde.";
@@ -71,9 +61,7 @@
 "update_to_keep_painting" = "Mettez à jour Infinite Pixelboard pour continuer à dessiner.";
 "painting_paused" = "Le dessin est en pause.";
 "sign_in_to_place_pixel" = "Connectez-vous pour placer un pixel";
-"viewing_anonymously" = "Consultation anonyme";
 "banned_from_placing" = "Ce compte ne peut pas placer de pixels.";
-"cooldown_status" = "Délai";
 "reconciling_placement" = "Vérification du placement…";
 "accept_standards_first" = "Acceptez d’abord les règles de la communauté";
 "pixel_placed" = "Pixel placé";
@@ -127,7 +115,6 @@
 "invite_code_length" = "Saisissez un code d’invitation de 8 caractères.";
 "invite_applied" = "Invitation appliquée. Vous pouvez dessiner plus rapidement pendant quelques heures.";
 "board_contract_unsupported" = "Ce contrat de tableau n’est pas pris en charge";
-"board_ready" = "Tableau prêt";
 "board_read_only" = "Le tableau est en lecture seule";
 "storekit_verification_failed" = "La transaction App Store n’a pas pu être vérifiée sur cet appareil.";
 "apple_sign_in_failed" = "Apple n’a pas pu terminer la connexion. Réessayez ou utilisez Google.";
@@ -143,7 +130,6 @@
 "subscribe_monthly" = "S’abonner au mois · %@";
 "subscribe_annually" = "S’abonner à l’année · %@";
 "switch_to_annual" = "Passer à l’annuel · %@";
-"boost_until" = "%lld s jusqu’à %@";
 "selected_position_accessibility" = "Ligne sélectionnée %lld, colonne %lld";
 "coordinate" = "LIGNE %@ / COLONNE %@";
 "live_updates_status" = "Mises à jour en direct %@. Vous pouvez continuer à dessiner.";

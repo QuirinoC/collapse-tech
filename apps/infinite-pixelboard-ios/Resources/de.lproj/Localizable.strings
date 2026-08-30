@@ -17,15 +17,6 @@
 "enable_notifications" = "Mitteilungen aktivieren";
 "open_notification_settings" = "Mitteilungseinstellungen öffnen";
 "notifications_denied_note" = "Mitteilungen sind deaktiviert. Aktiviere sie in den iPhone-Einstellungen, um Hinweise auf aufgehobene Limits zu erhalten.";
-"state" = "Status";
-"cooldown" = "Abklingzeit";
-"paint_boost" = "Malbonus";
-"anonymous" = "Anonym";
-"banned" = "Gesperrt";
-"pro_account" = "Pro-Konto";
-"free_account" = "Kostenloses Konto";
-"ready" = "Bereit";
-"none" = "Keine";
 "invite_a_painter" = "Eine zeichnende Person einladen";
 "pro" = "Pro";
 "get_pro" = "Pro holen";
@@ -40,7 +31,6 @@
 "terms" = "Bedingungen";
 "permanently_delete_account" = "Dieses Konto dauerhaft löschen?";
 "delete_account" = "Konto löschen";
-"sign_in_to_place_note" = "Melde dich mit Apple oder Google an, um Pixel zu setzen.";
 "accept_standards_note" = "Akzeptiere die Community-Richtlinien, bevor du Pixel setzt.";
 "try_pro_note" = "Teste Pro 7 Tage kostenlos. Wähle danach ein monatliches oder jährliches Abo. Pro ermöglicht 1 Sekunde zwischen Pixeln und schaltet die erweiterte Palette sowie eigene Farben frei; die Abklingzeit wird dadurch nicht entfernt.";
 "pro_available_note" = "Pro ist mit monatlicher oder jährlicher Abrechnung verfügbar. Es schaltet die erweiterte Palette und eigene Farben frei; die Abklingzeit bleibt bei einer Sekunde.";
@@ -71,9 +61,7 @@
 "update_to_keep_painting" = "Aktualisiere Infinite Pixelboard, um weiter zu malen.";
 "painting_paused" = "Das Malen ist pausiert.";
 "sign_in_to_place_pixel" = "Anmelden, um ein Pixel zu setzen";
-"viewing_anonymously" = "Anonymes Ansehen";
 "banned_from_placing" = "Dieses Konto darf keine Pixel setzen.";
-"cooldown_status" = "Abklingzeit";
 "reconciling_placement" = "Setzen wird abgeglichen…";
 "accept_standards_first" = "Akzeptiere zuerst die Community-Richtlinien";
 "pixel_placed" = "Pixel gesetzt";
@@ -127,7 +115,6 @@
 "invite_code_length" = "Gib einen 8-stelligen Einladungscode ein.";
 "invite_applied" = "Einladung angewendet. Für einige Stunden ist schnelleres Malen aktiv.";
 "board_contract_unsupported" = "Dieser Board-Vertrag wird nicht unterstützt";
-"board_ready" = "Board bereit";
 "board_read_only" = "Board ist schreibgeschützt";
 "storekit_verification_failed" = "Die App-Store-Transaktion konnte auf diesem Gerät nicht verifiziert werden.";
 "apple_sign_in_failed" = "Apple konnte die Anmeldung nicht abschließen. Versuche es erneut oder nutze Google.";
@@ -143,7 +130,6 @@
 "subscribe_monthly" = "Monatlich abonnieren · %@";
 "subscribe_annually" = "Jährlich abonnieren · %@";
 "switch_to_annual" = "Auf jährlich wechseln · %@";
-"boost_until" = "%lld Sek. bis %@";
 "selected_position_accessibility" = "Ausgewählte Zeile %lld, Spalte %lld";
 "coordinate" = "ZEILE %@ / SPALTE %@";
 "live_updates_status" = "Live-Aktualisierungen %@. Du kannst weiter malen.";

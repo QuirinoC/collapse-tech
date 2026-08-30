@@ -189,7 +189,7 @@ struct BoardCanvasView: View {
                     pixelGrid.addLine(to: CGPoint(x: size.width, y: y))
                 }
             }
-            context.stroke(pixelGrid, with: .color(PixelboardTheme.ink.opacity(0.10)), lineWidth: 1)
+            context.stroke(pixelGrid, with: .color(PixelboardTheme.ink.opacity(0.06)), lineWidth: 0.5)
         }
     }
 }

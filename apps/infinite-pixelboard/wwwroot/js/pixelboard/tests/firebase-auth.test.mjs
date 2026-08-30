@@ -41,12 +41,16 @@ function sdkFixture() {
       },
       setPersistence: async (...arguments_) => calls.push(["persistence", ...arguments_]),
       browserLocalPersistence: "local",
+      getIdTokenResult: async (_user, forceRefresh) => ({
+        claims: { moderator: forceRefresh },
+      }),
       GoogleAuthProvider: GoogleProvider,
       OAuthProvider: AppleProvider,
       signInWithPopup: async (...arguments_) => calls.push(["sign-in", ...arguments_]),
       signInWithRedirect: async (...arguments_) => calls.push(["redirect", ...arguments_]),
       signOut: async (...arguments_) => calls.push(["sign-out", ...arguments_]),
-      onAuthStateChanged: (_auth, listener) => {
+      deleteUser: async (...arguments_) => calls.push(["delete-user", ...arguments_]),
+      onIdTokenChanged: (_auth, listener) => {
         listener(user);
         return "unsubscribe";
       },
@@ -63,6 +67,8 @@ test("initializes Firebase once and returns ID tokens", async () => {
 
   assert.equal(await client.getToken(), "token:false");
   assert.equal(await client.getToken(true), "token:true");
+  assert.deepEqual(await client.getTokenClaims(), { moderator: false });
+  assert.deepEqual(await client.getTokenClaims(true), { moderator: true });
   assert.deepEqual(fixture.calls.slice(0, 3), [
     ["initialize", { projectId: "test" }],
     ["auth", "app"],
@@ -103,6 +109,15 @@ test("publishes auth changes and signs out", async () => {
 
   assert.equal(observedUser, fixture.user);
   assert.ok(fixture.calls.some(([name]) => name === "sign-out"));
+});
+
+test("deletes the current Firebase user only after the server operation", async () => {
+  const fixture = sdkFixture();
+  const client = await createFirebaseAuthClient({ loadSdk: async () => fixture.sdk });
+
+  await client.deleteAccount();
+
+  assert.ok(fixture.calls.some(([name, value]) => name === "delete-user" && value === fixture.user));
 });
 
 test("returns actionable Firebase errors without exposing provider details", () => {

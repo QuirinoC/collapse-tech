@@ -10,7 +10,6 @@ struct AccountView: View {
     @State private var confirmingDeletion = false
     @State private var showingReport = false
     @State private var showingPro = true
-    @State private var showingAccount = false
     @State private var showingMore = false
 
     var body: some View {
@@ -30,7 +29,6 @@ struct AccountView: View {
                 }
 
                 subscriptionSections
-                accountSection
                 notificationsPrompt
                 boardActions
                 moreSection
@@ -134,6 +132,12 @@ struct AccountView: View {
                     labeledAction("↗", PixelboardL10n.signOut)
                 }
                 .buttonStyle(PixelboardOutlineButtonStyle())
+                Button {
+                    confirmingDeletion = true
+                } label: {
+                    labeledAction("×", PixelboardL10n.deleteAccount)
+                }
+                .buttonStyle(PixelboardOutlineButtonStyle())
             }
         }
     }
@@ -152,9 +156,6 @@ struct AccountView: View {
         if let notice = model.authNotice, !notice.isEmpty {
             return notice
         }
-        if model.account == nil {
-            return PixelboardL10n.signInToPlaceNote
-        }
         if let error = model.store.errorMessage, !error.isEmpty {
             return error
         }
@@ -162,25 +163,6 @@ struct AccountView: View {
             return PixelboardL10n.acceptStandardsNote
         }
         return nil
-    }
-
-    private var accountStateList: some View {
-        VStack(spacing: 0) {
-            stateRow(PixelboardL10n.state, stateValue)
-            stateRow(PixelboardL10n.cooldown, cooldownValue)
-            stateRow(PixelboardL10n.paintBoost, boostValue)
-        }
-        .overlay(alignment: .top) { PixelboardTheme.line.frame(height: 1) }
-    }
-
-    private var accountSection: some View {
-        DisclosureGroup(isExpanded: $showingAccount) {
-            accountStateList
-        } label: {
-            sectionLabel(PixelboardL10n.account)
-        }
-        .tint(PixelboardTheme.ink)
-        .padding(.top, 24)
     }
 
     @ViewBuilder
@@ -209,39 +191,6 @@ struct AccountView: View {
             }
             .padding(.top, 24)
         }
-    }
-
-    private func stateRow(_ title: String, _ value: String) -> some View {
-        HStack {
-            Text(title)
-            Spacer()
-            Text(value).foregroundStyle(PixelboardTheme.muted)
-        }
-        .font(PixelboardTheme.mono(11))
-        .textCase(.uppercase)
-        .foregroundStyle(PixelboardTheme.ink)
-        .padding(.vertical, 13)
-        .overlay(alignment: .bottom) { PixelboardTheme.line.frame(height: 1) }
-    }
-
-    private var stateValue: String {
-        guard let account = model.account else { return PixelboardL10n.anonymous }
-        if account.isBanned == true { return PixelboardL10n.banned }
-        return account.tier == .pro ? PixelboardL10n.proAccount : PixelboardL10n.freeAccount
-    }
-
-    private var cooldownValue: String {
-        if model.account == nil { return "—" }
-        if model.remainingCooldown > 0 { return "\(model.remainingCooldown)s" }
-        return PixelboardL10n.ready
-    }
-
-    private var boostValue: String {
-        guard let boost = model.account?.paintBoost else { return PixelboardL10n.none }
-        return PixelboardL10n.boostUntil(
-            seconds: boost.cooldownSeconds,
-            date: boost.expiresAt.formatted(date: .omitted, time: .shortened)
-        )
     }
 
     @ViewBuilder
@@ -390,14 +339,6 @@ struct AccountView: View {
     private var moreSection: some View {
         DisclosureGroup(isExpanded: $showingMore) {
             VStack(alignment: .leading, spacing: 10) {
-                Button(PixelboardL10n.deleteAccount, role: .destructive) {
-                    confirmingDeletion = true
-                }
-                .font(PixelboardTheme.mono(11))
-                .tracking(0.9)
-                .textCase(.uppercase)
-                .foregroundStyle(PixelboardTheme.accent)
-                .padding(.top, 12)
                 legalFooter
             }
         } label: {

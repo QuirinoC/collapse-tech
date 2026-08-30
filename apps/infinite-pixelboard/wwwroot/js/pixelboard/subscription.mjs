@@ -28,3 +28,19 @@ export function subscriptionMessage({
   }
   return "Pro is available with monthly or annual billing. It unlocks the extended palette and custom colors; the cooldown remains one second.";
 }
+
+export function canPurchaseStripe({
+  stripeEnabled = false,
+  authenticated = false,
+  communityStandardsAccepted = false,
+  isPro = false,
+  entitlementSource = null,
+} = {}) {
+  return Boolean(
+    stripeEnabled &&
+      authenticated &&
+      communityStandardsAccepted &&
+      !isPro &&
+      entitlementSource !== "storekit",
+  );
+}

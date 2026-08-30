@@ -83,9 +83,15 @@ final class AppModel: ObservableObject {
     }
 
     var availableColors: [String] {
-        guard let account else { return PixelboardPalette.freeColors }
-        return account.allowedColors
-            ?? (account.tier == .pro ? PixelboardPalette.proColors : PixelboardPalette.freeColors)
+        let colors: [String]
+        if let account {
+            colors = account.allowedColors
+                ?? (account.tier == .pro ? PixelboardPalette.proColors : PixelboardPalette.freeColors)
+        } else {
+            colors = PixelboardPalette.freeColors
+        }
+        var seen = Set<String>()
+        return colors.filter { seen.insert($0.uppercased()).inserted }
     }
 
     var canUseCustomColors: Bool {
@@ -542,7 +548,7 @@ final class AppModel: ObservableObject {
                 statusMessage = message
             } else {
                 statusMessage = metadata.accessMode == .open
-                    ? PixelboardL10n.boardReady
+                    ? ""
                     : PixelboardL10n.boardReadOnly
             }
         } catch {

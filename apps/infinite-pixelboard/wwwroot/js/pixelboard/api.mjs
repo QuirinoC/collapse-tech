@@ -41,6 +41,13 @@ export class PixelboardApi {
     });
   }
 
+  deleteAccount(signal) {
+    return this.#authorized("/account", {
+      method: "DELETE",
+      signal,
+    });
+  }
+
   place({ row, column, color, idempotencyKey }, signal) {
     return this.#authorized("/placements", {
       method: "POST",

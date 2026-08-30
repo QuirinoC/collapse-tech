@@ -20,7 +20,7 @@ import {
   parseBillingReturn,
   stripBillingParam,
 } from "./billing.mjs";
-import { subscriptionMessage } from "./subscription.mjs";
+import { canPurchaseStripe, subscriptionMessage } from "./subscription.mjs";
 import { boundedReportRegion, otherReasonRequiresNote } from "./reporting.mjs";
 import { PixelboardRealtimeClient } from "./realtime.mjs";
 import { TileCache } from "./tile-cache.mjs";
@@ -45,7 +45,7 @@ if (root) start(root);
 
 async function start(app) {
   const elements = collectElements(app);
-  let selectedColor = FREE_COLORS[2];
+  let selectedColor = FREE_COLORS[1];
   let viewport = createViewport(elements.canvas.clientWidth, elements.canvas.clientHeight);
   let renderer;
   let cache;
@@ -93,6 +93,9 @@ async function start(app) {
     selectedColor = color;
     elements.colorPicker.value = color;
   });
+  elements.proColor.addEventListener("click", () => {
+    openPanel(elements);
+  });
   elements.colorPicker.addEventListener("input", () => {
     selectedColor = elements.colorPicker.value;
     markCustomColor(elements.palette);
@@ -109,7 +112,7 @@ async function start(app) {
     const metadata = await api.metadata();
     boardMetadata = metadata;
     if (!isBoardOpen(metadata)) {
-      elements.placementStatus.textContent = metadata.statusMessage || "Painting is paused.";
+      elements.authNote.textContent = metadata.statusMessage || "Painting is paused.";
     }
     cache = new TileCache({
       loadTile: (row, column, signal) => api.tile(row, column, signal),
@@ -206,6 +209,7 @@ async function start(app) {
         paint(pixel);
       },
     });
+    pointerControls.setKeyboardPixel(hoveredPixel);
 
     elements.zoomIn.addEventListener("click", () => zoomFromCenter(1.25));
     elements.zoomOut.addEventListener("click", () => zoomFromCenter(1 / 1.25));
@@ -260,7 +264,7 @@ async function start(app) {
     scheduleDraw();
   } catch (error) {
     realtime?.stop();
-    elements.placementStatus.textContent = "Board service unavailable";
+    elements.authNote.textContent = "Board service unavailable";
     console.error("Pixelboard failed to initialize.", error);
   }
 
@@ -342,32 +346,27 @@ async function start(app) {
 
   async function paint(pixel) {
     if (!isBoardOpen(boardMetadata)) {
-      elements.placementStatus.textContent =
+      elements.authNote.textContent =
         boardMetadata?.statusMessage || "Painting is paused.";
       return;
     }
     const state = accountState.snapshot;
     if (!state.authenticated) {
-      elements.placementStatus.textContent = "Sign in to place a pixel";
       openPanel(elements, { focus: elements.loginButtons[0] });
       return;
     }
     if (placementPending) {
-      elements.placementStatus.textContent = "Placement already in progress";
       return;
     }
     if (!state.communityStandardsAccepted) {
-      elements.placementStatus.textContent = "Accept the community standards first";
       openPanel(elements);
       return;
     }
     if (state.isBanned) {
-      elements.placementStatus.textContent = "This account is banned from placing pixels.";
       openPanel(elements);
       return;
     }
     if (!state.canPlace) {
-      elements.placementStatus.textContent = `Cooldown · ${state.remainingSeconds}s`;
       return;
     }
     try {
@@ -382,14 +381,12 @@ async function start(app) {
   function handlePlacementChange(event) {
     if (event.state === "pending") {
       placementPending = true;
-      elements.placementStatus.textContent = "Reconciling placement…";
     } else if (event.state === "accepted") {
       placementPending = false;
-      elements.placementStatus.textContent = "Pixel placed";
       accountState.setCooldown(event.result.cooldown);
     } else {
       placementPending = false;
-      elements.placementStatus.textContent = event.error?.message ?? "Placement rejected";
+      elements.authNote.textContent = event.error?.message ?? "Placement rejected";
     }
     scheduleDraw();
   }
@@ -459,18 +456,30 @@ async function start(app) {
         setAuthControlsDisabled(false);
       }
     });
+    elements.deleteAccount.addEventListener("click", async () => {
+      if (!window.confirm("Permanently delete this account?")) return;
+      setAuthControlsDisabled(true);
+      elements.authNote.textContent = "Deleting account…";
+      try {
+        const client = await authReady;
+        await api.deleteAccount();
+        await client?.deleteAccount();
+      } catch (error) {
+        elements.authNote.textContent = error.message ?? "Account deletion could not be completed.";
+        setAuthControlsDisabled(false);
+      }
+    });
   }
 
   function renderAuthentication() {
     for (const button of elements.loginButtons) button.hidden = Boolean(authUser);
     elements.signOut.hidden = !authUser;
-    elements.authNote.textContent = authUser
-      ? `Signed in as ${authUser.email ?? "a verified account"}.`
-      : "Sign in with Google or Apple to place pixels.";
+    elements.deleteAccount.hidden = !authUser;
+    elements.authNote.textContent = "";
   }
 
   function setAuthControlsDisabled(disabled) {
-    for (const button of [...elements.loginButtons, elements.signOut]) {
+    for (const button of [...elements.loginButtons, elements.signOut, elements.deleteAccount]) {
       button.disabled = disabled;
     }
   }
@@ -478,24 +487,9 @@ async function start(app) {
   function renderAccountState(state) {
     renderPalette(state);
     refreshAdvertising(state.tier);
-    elements.accountState.textContent = !state.authenticated
-      ? "Anonymous"
-      : state.isBanned
-        ? "Banned"
-        : `${state.tier ?? "Free"} account`;
-    elements.cooldown.textContent = state.remainingSeconds ? `${state.remainingSeconds}s` : "Ready";
     elements.acceptStandards.hidden = !state.authenticated || state.communityStandardsAccepted;
     renderInvite(state);
     renderBilling(state);
-    if (!state.authenticated) {
-      elements.placementStatus.textContent = "Viewing anonymously";
-    } else if (state.isBanned) {
-      elements.placementStatus.textContent = "This account is banned from placing pixels.";
-    } else if (state.remainingSeconds) {
-      elements.placementStatus.textContent = `Cooldown · ${state.remainingSeconds}s`;
-    } else {
-      elements.placementStatus.textContent = state.canPlace ? "" : "Account action required";
-    }
   }
 
   function renderPalette(state) {
@@ -510,6 +504,7 @@ async function start(app) {
       elements.colorPicker.value = color;
     });
     elements.customColor.hidden = !isPro;
+    elements.proColor.hidden = isPro;
     elements.colorPicker.disabled = !isPro;
     elements.colorPicker.setAttribute(
       "aria-label",
@@ -517,7 +512,7 @@ async function start(app) {
     );
     elements.paletteTier.textContent = isPro
       ? "Pro palette + custom"
-      : state.authenticated ? "Free palette" : "Free palette · sign in to place";
+      : "Free palette";
   }
 
   function invalidateAdvertising() {
@@ -554,7 +549,6 @@ async function start(app) {
   function attachReporting() {
     elements.reportOpen.addEventListener("click", () => {
       if (!accountState.snapshot.authenticated) {
-        elements.placementStatus.textContent = "Sign in to report this position";
         elements.authNote.textContent = "Sign in to report this position";
         return;
       }
@@ -651,10 +645,8 @@ async function start(app) {
       const url = positionUrl(hoveredPixel.row, hoveredPixel.column);
       try {
         await navigator.clipboard.writeText(url);
-        elements.placementStatus.textContent = "Position link copied";
         elements.authNote.textContent = "Position link copied.";
       } catch {
-        elements.placementStatus.textContent = url;
         elements.authNote.textContent = url;
       }
     });
@@ -679,14 +671,6 @@ async function start(app) {
     );
     elements.inviteBlock.hidden = !visible;
     if (state.referralCode) elements.inviteCode.textContent = state.referralCode;
-    if (state.paintBoost?.expiresAt) {
-      const remaining = Math.max(0, Date.parse(state.paintBoost.expiresAt) - Date.now());
-      const hours = Math.ceil(remaining / 3_600_000);
-      elements.boostState.textContent =
-        `${state.paintBoost.cooldownSeconds}s cooldown · ${hours}h left`;
-    } else {
-      elements.boostState.textContent = "None";
-    }
   }
 
   function attachBilling() {
@@ -804,17 +788,25 @@ async function start(app) {
       authenticated: state.authenticated,
       communityStandardsAccepted: state.communityStandardsAccepted,
     });
-    const canPurchase = state.authenticated && state.communityStandardsAccepted;
-    elements.billingMonth.hidden = !canPurchase || isPro;
+    const canPurchase = canPurchaseStripe({
+      stripeEnabled,
+      authenticated: state.authenticated,
+      communityStandardsAccepted: state.communityStandardsAccepted,
+      isPro,
+      entitlementSource: state.entitlementSource,
+    });
+    const stripeManaged = state.entitlementSource === "stripe";
+    const appleManaged = state.entitlementSource === "storekit";
+    elements.billingMonth.hidden = !canPurchase;
     elements.billingYear.hidden =
-      !canPurchase || !isPro || stripeCurrentInterval !== "month";
+      !stripeManaged || !isPro || stripeCurrentInterval !== "month";
     elements.billingYear.textContent = isPro
       ? "Switch to annual · $24.99"
       : "Subscribe annual · $24.99";
     elements.billingPortal.hidden =
-      !stripeHasCustomer || state.entitlementSource === "storekit";
-    elements.billingApple.hidden = state.entitlementSource !== "storekit";
-    elements.billingPolicy.hidden = state.entitlementSource !== "storekit";
+      !stripeHasCustomer || !stripeManaged;
+    elements.billingApple.hidden = !appleManaged;
+    elements.billingPolicy.hidden = !appleManaged;
     renderInvite(state);
   }
 }
@@ -824,6 +816,7 @@ function collectElements(app) {
     canvas: app.querySelector("#board-canvas"),
     palette: app.querySelector("[data-palette]"),
     paletteTier: app.querySelector("[data-palette-tier]"),
+    proColor: app.querySelector("[data-pro-color]"),
     colorPicker: app.querySelector("[data-color-picker]"),
     customColor: app.querySelector("[data-custom-color]"),
     coordinate: app.querySelector("[data-coordinate]"),
@@ -831,13 +824,10 @@ function collectElements(app) {
     zoomIn: app.querySelector("[data-zoom-in]"),
     zoomOut: app.querySelector("[data-zoom-out]"),
     connection: app.querySelector("[data-connection]"),
-    placementStatus: app.querySelector("[data-placement-status]"),
     panel: app.querySelector("[data-account-panel]"),
     panelToggle: app.querySelector("[data-panel-toggle]"),
     panelClose: app.querySelector("[data-panel-close]"),
     panelScrim: app.querySelector("[data-panel-scrim]"),
-    accountState: app.querySelector("[data-account-state]"),
-    cooldown: app.querySelector("[data-cooldown]"),
     authNote: app.querySelector("[data-auth-note]"),
     loginButtons: [...app.querySelectorAll("[data-login-provider]")],
     signOut: app.querySelector("[data-sign-out]"),
@@ -868,7 +858,6 @@ function collectElements(app) {
     inviteCode: app.querySelector("[data-invite-code]"),
     copyInvite: app.querySelector("[data-copy-invite]"),
     inviteStatus: app.querySelector("[data-invite-status]"),
-    boostState: app.querySelector("[data-boost-state]"),
     billingBlock: app.querySelector("[data-billing-block]"),
     billingSection: app.querySelector("[data-billing-section]"),
     billingMonth: app.querySelector("[data-billing-month]"),

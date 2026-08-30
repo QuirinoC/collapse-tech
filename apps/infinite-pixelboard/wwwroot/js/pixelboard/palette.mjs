@@ -71,10 +71,16 @@ export function colorName(color) {
 }
 
 export function colorsForState(state) {
-  if (Array.isArray(state?.allowedColors) && state.allowedColors.length > 0) {
-    return state.allowedColors;
-  }
-  return isProTier(state?.tier) ? PRO_COLORS : FREE_COLORS;
+  const colors = Array.isArray(state?.allowedColors) && state.allowedColors.length > 0
+    ? state.allowedColors
+    : isProTier(state?.tier) ? PRO_COLORS : FREE_COLORS;
+  const seen = new Set();
+  return colors.filter((color) => {
+    const normalized = color.toLowerCase();
+    if (seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
 }
 
 export function customColorsAllowed(state) {

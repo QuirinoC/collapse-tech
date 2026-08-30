@@ -29,6 +29,11 @@
                 <span class="sr-only">Custom color</span>
                 <input type="color" value="#d3523c" data-color-picker />
             </label>
+            <button class="pro-color-button" type="button" data-pro-color hidden
+                    aria-label="Unlock custom colors with Pro">
+                <span class="pro-color-grid" aria-hidden="true"></span>
+                <span>Pro</span>
+            </button>
         </section>
 
         <div class="board-readout" aria-live="polite">
@@ -46,10 +51,6 @@
              title="Live updates. You can still paint.">
             <span aria-hidden="true"></span>
             <strong>Syncing</strong>
-        </div>
-
-        <div class="placement-status" data-placement-status role="status" aria-live="polite">
-            Viewing anonymously
         </div>
 
         <div class="board-actions" aria-label="Board actions">
@@ -127,10 +128,11 @@
             <button type="button" data-accept-standards hidden>
                 Accept community standards
             </button>
+            <button type="button" data-delete-account hidden>
+                <span aria-hidden="true">×</span> Delete account
+            </button>
         </div>
-        <p class="auth-note" data-auth-note>
-            Connecting secure sign-in…
-        </p>
+        <p class="auth-note" data-auth-note></p>
         <details class="panel-section" data-billing-section hidden>
             <summary>Get Pro <span aria-hidden="true">+</span></summary>
             <div class="panel-section__body">
@@ -149,12 +151,13 @@
                         Apple subscription settings
                     </a>
                     <p class="auth-note billing-policy" data-billing-policy hidden>
-                        Apple subscriptions stay tied to their Apple ID and Pixelboard account.
-                        Restore Purchases in the iOS app only re-syncs the subscription; it does
-                        not move it between Apple IDs, Google sign-in, or Pixelboard accounts.
-                        Approved transfers require verification and remove Pro access from the
-                        previous Pixelboard account.
-                        <a href="mailto:hello@collapsetechnologies.com">Contact support</a>.
+                        Apple subscription needs support review if it is linked to another
+                        Pixelboard account. Restore Purchases in the iOS app only re-syncs the
+                        Apple subscription; it does not move it between Apple IDs, Google
+                        sign-in, or Pixelboard accounts. An approved transfer removes Pro
+                        access from the previous Pixelboard account.
+                        <a href="mailto:hello@collapsetechnologies.com">Contact support</a>
+                        for verification.
                     </p>
                     <p class="auth-note" data-billing-status role="status" aria-live="polite"></p>
                     <div class="invite-block" data-invite-block hidden>
@@ -169,16 +172,6 @@
                         <p class="auth-note" data-invite-status role="status" aria-live="polite"></p>
                     </div>
                 </div>
-            </div>
-        </details>
-        <details class="panel-section" data-account-section>
-            <summary>Account <span aria-hidden="true">+</span></summary>
-            <div class="panel-section__body">
-                <dl class="account-state">
-                    <div><dt>State</dt><dd data-account-state>Anonymous</dd></div>
-                    <div><dt>Cooldown</dt><dd data-cooldown>—</dd></div>
-                    <div><dt>Paint boost</dt><dd data-boost-state>None</dd></div>
-                </dl>
             </div>
         </details>
         <details class="panel-section">

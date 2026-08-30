@@ -31,8 +31,15 @@ export class FirebaseAuthClient {
     return this.#auth.currentUser?.getIdToken(forceRefresh) ?? null;
   }
 
+  async getTokenClaims(forceRefresh = false) {
+    const user = this.#auth.currentUser;
+    if (!user) return null;
+    const result = await this.#sdk.getIdTokenResult(user, forceRefresh);
+    return result.claims;
+  }
+
   subscribe(listener) {
-    return this.#sdk.onAuthStateChanged(this.#auth, listener);
+    return this.#sdk.onIdTokenChanged(this.#auth, listener);
   }
 
   async signIn(providerName) {
@@ -54,6 +61,12 @@ export class FirebaseAuthClient {
 
   signOut() {
     return this.#sdk.signOut(this.#auth);
+  }
+
+  deleteAccount() {
+    const user = this.#auth.currentUser;
+    if (!user) throw new Error("Sign in before deleting this account.");
+    return this.#sdk.deleteUser(user);
   }
 }
 
