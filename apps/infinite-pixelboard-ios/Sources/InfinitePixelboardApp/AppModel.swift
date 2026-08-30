@@ -23,12 +23,16 @@ final class AppModel: ObservableObject {
     @Published var showingAccount = false
     @Published var authNotice: String?
     @Published var now = Date()
+    @Published var notificationPreferences = NotificationPreferences(
+        boardActivityEnabled: true,
+        broadcastEnabled: true)
     @Published private(set) var boardGeneration = 0
 
     let authentication: any AuthenticationSession
     let api: PixelboardAPIClient
     let realtime: BoardRealtimeClient
     let store: StoreManager
+    let pushNotifications = PushNotificationCoordinator.shared
 
     private var cache: TileCache?
     private var placement: PlacementCoordinator?
@@ -62,6 +66,9 @@ final class AppModel: ObservableObject {
         store.onEntitlementChanged = { @MainActor [weak self] in
             guard let self else { return }
             await self.refreshAccount()
+        }
+        pushNotifications.onOpenPosition = { [weak self] position in
+            self?.center(on: position)
         }
     }
 
@@ -144,6 +151,10 @@ final class AppModel: ObservableObject {
             isAuthenticated: await authentication.isAuthenticated
         )
         await refreshAccount()
+        if await authentication.isAuthenticated {
+            await pushNotifications.prepare(api: api)
+            await refreshNotificationPreferences()
+        }
         await redeemPendingInvite()
         await store.loadProducts()
         if isActive {
@@ -289,6 +300,7 @@ final class AppModel: ObservableObject {
         authenticationGeneration &+= 1
         do {
             try await authentication.signOut()
+            await pushNotifications.unregister(api: api)
             store.authenticationDidChange(isAuthenticated: false)
             account = nil
             syncPaletteSelection()
@@ -313,6 +325,7 @@ final class AppModel: ObservableObject {
         do {
             try await authentication.prepareForAccountDeletion()
             try await api.deleteAccount()
+            await pushNotifications.unregister(api: api)
             try await authentication.deleteAccount()
             store.authenticationDidChange(isAuthenticated: false)
             account = nil
@@ -440,6 +453,46 @@ final class AppModel: ObservableObject {
         }
         accountRefreshTask = task
         await task.value
+    }
+
+    func refreshNotificationPreferences() async {
+        guard await authentication.isAuthenticated else { return }
+        do {
+            notificationPreferences = try await api.notificationPreferences()
+        } catch {
+            statusMessage = error.localizedDescription
+        }
+    }
+
+    func setBoardActivityNotifications(_ enabled: Bool) async {
+        if enabled {
+            let granted = await pushNotifications.requestPermission(api: api)
+            guard granted else {
+                authNotice = "Allow notifications in iPhone Settings to receive board alerts."
+                return
+            }
+        }
+        let updated = NotificationPreferences(
+            boardActivityEnabled: enabled,
+            broadcastEnabled: notificationPreferences.broadcastEnabled)
+        do {
+            try await api.saveNotificationPreferences(updated)
+            notificationPreferences = updated
+        } catch {
+            statusMessage = error.localizedDescription
+        }
+    }
+
+    func setBroadcastNotifications(_ enabled: Bool) async {
+        let updated = NotificationPreferences(
+            boardActivityEnabled: notificationPreferences.boardActivityEnabled,
+            broadcastEnabled: enabled)
+        do {
+            try await api.saveNotificationPreferences(updated)
+            notificationPreferences = updated
+        } catch {
+            statusMessage = error.localizedDescription
+        }
     }
 
     private func performAccountRefresh() async {

@@ -32,6 +32,7 @@ struct AccountView: View {
                 subscriptionSections
                 inviteSection
                 accountSection
+                notificationsSection
                 boardActions
                 moreSection
             }
@@ -179,6 +180,37 @@ struct AccountView: View {
         }
         .tint(PixelboardTheme.ink)
         .padding(.top, 24)
+    }
+
+    @ViewBuilder
+    private var notificationsSection: some View {
+        if model.account != nil {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionLabel("Notifications")
+                Toggle(
+                    "Pixel overwritten",
+                    isOn: Binding(
+                        get: { model.notificationPreferences.boardActivityEnabled },
+                        set: { enabled in
+                            Task { await model.setBoardActivityNotifications(enabled) }
+                        }))
+                Toggle(
+                    "Announcements",
+                    isOn: Binding(
+                        get: { model.notificationPreferences.broadcastEnabled },
+                        set: { enabled in
+                            Task { await model.setBroadcastNotifications(enabled) }
+                        }))
+                Text("Optional alerts appear only after you allow notifications in iPhone Settings.")
+                    .font(PixelboardTheme.mono(10))
+                    .foregroundStyle(PixelboardTheme.muted)
+                    .lineSpacing(3)
+            }
+            .font(PixelboardTheme.mono(11))
+            .textCase(.uppercase)
+            .foregroundStyle(PixelboardTheme.ink)
+            .padding(.top, 24)
+        }
     }
 
     private func stateRow(_ title: String, _ value: String) -> some View {

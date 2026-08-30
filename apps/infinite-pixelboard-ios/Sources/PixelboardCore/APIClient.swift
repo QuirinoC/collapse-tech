@@ -82,6 +82,44 @@ public struct PixelboardAPIClient: Sendable {
         )
     }
 
+    public func registerPushDevice(
+        installationId: UUID,
+        token: String,
+        environment: String,
+        bundleId: String
+    ) async throws {
+        try await requestWithoutResponse(
+            "notifications/devices",
+            method: "POST",
+            body: PushDeviceRequest(
+                installationId: installationId,
+                token: token,
+                environment: environment,
+                bundleId: bundleId),
+            authorized: true)
+    }
+
+    public func removePushDevice(installationId: UUID) async throws {
+        try await requestWithoutResponse(
+            "notifications/devices/\(installationId.uuidString)",
+            method: "DELETE",
+            authorized: true)
+    }
+
+    public func notificationPreferences() async throws -> NotificationPreferences {
+        try await request("notifications/preferences", authorized: true)
+    }
+
+    public func saveNotificationPreferences(
+        _ preferences: NotificationPreferences
+    ) async throws {
+        try await requestWithoutResponse(
+            "notifications/preferences",
+            method: "PUT",
+            body: preferences,
+            authorized: true)
+    }
+
     public func storeKitAccountToken() async throws -> UUID {
         let response: StoreKitAccountTokenResponse = try await request(
             "storekit/account-token",

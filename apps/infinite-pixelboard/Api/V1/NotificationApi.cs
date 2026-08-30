@@ -1,0 +1,255 @@
+using Microsoft.Extensions.Options;
+using PixelBoard.Application;
+using PixelBoard.Configuration;
+using PixelBoard.Contracts.V1;
+using PixelBoard.Infrastructure.Identity;
+using PixelBoard.Infrastructure.Notifications;
+
+namespace PixelBoard.Api.V1;
+
+public sealed record PushDeviceRequest(
+    string? InstallationId,
+    string? Token,
+    string? Environment,
+    string? BundleId);
+
+public sealed record NotificationPreferencesRequest(
+    bool BoardActivityEnabled,
+    bool BroadcastEnabled);
+
+public static class NotificationApi
+{
+    private const int MaximumCampaignRecipients = 500;
+
+    public static IEndpointRouteBuilder MapNotificationApiV1(
+        this IEndpointRouteBuilder endpoints)
+    {
+        var authenticated = endpoints
+            .MapGroup("/api/v1/notifications")
+            .RequireAuthorization();
+        authenticated.MapPost("/devices", RegisterDeviceAsync);
+        authenticated.MapDelete("/devices/{installationId:guid}", RemoveDeviceAsync);
+        authenticated.MapGet("/preferences", GetPreferencesAsync);
+        authenticated.MapPut("/preferences", SavePreferencesAsync);
+
+        var moderator = endpoints
+            .MapGroup("/api/v1/moderation/notifications")
+            .RequireAuthorization(FirebaseAuthenticationExtensions.ModeratorPolicy);
+        moderator.MapPost("/campaigns", CreateCampaignAsync);
+        return endpoints;
+    }
+
+    public static async Task<IResult> RegisterDeviceAsync(
+        PushDeviceRequest? request,
+        IAccountIdentityAccessor identityAccessor,
+        IOptions<ApnsOptions> options,
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        var account = await identityAccessor.GetCurrentAsync(cancellationToken);
+        var store = services.GetService<INotificationStore>();
+        if (account is null)
+        {
+            return AuthenticationRequired();
+        }
+
+        if (store is null || !options.Value.Enabled)
+        {
+            return ServiceUnavailable();
+        }
+
+        if (!TryParseDevice(request, options.Value, out var registration, out var error))
+        {
+            return Results.BadRequest(new ApiError("invalid_notification_device", error!));
+        }
+
+        if (await IsDeletedAsync(account.Id, services, cancellationToken))
+        {
+            return AccountDeleted();
+        }
+
+        await store.RegisterDeviceAsync(account.Id, registration!, cancellationToken);
+        return Results.NoContent();
+    }
+
+    public static async Task<IResult> RemoveDeviceAsync(
+        Guid installationId,
+        IAccountIdentityAccessor identityAccessor,
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        var account = await identityAccessor.GetCurrentAsync(cancellationToken);
+        var store = services.GetService<INotificationStore>();
+        if (account is null)
+        {
+            return AuthenticationRequired();
+        }
+
+        if (store is null)
+        {
+            return ServiceUnavailable();
+        }
+
+        await store.RemoveDeviceAsync(account.Id, installationId, cancellationToken);
+        return Results.NoContent();
+    }
+
+    public static async Task<IResult> GetPreferencesAsync(
+        IAccountIdentityAccessor identityAccessor,
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        var account = await identityAccessor.GetCurrentAsync(cancellationToken);
+        var store = services.GetService<INotificationStore>();
+        if (account is null)
+        {
+            return AuthenticationRequired();
+        }
+
+        if (store is null)
+        {
+            return ServiceUnavailable();
+        }
+
+        var preferences = await store.GetPreferencesAsync(account.Id, cancellationToken);
+        return Results.Ok(preferences);
+    }
+
+    public static async Task<IResult> SavePreferencesAsync(
+        NotificationPreferencesRequest? request,
+        IAccountIdentityAccessor identityAccessor,
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        var account = await identityAccessor.GetCurrentAsync(cancellationToken);
+        var store = services.GetService<INotificationStore>();
+        if (account is null)
+        {
+            return AuthenticationRequired();
+        }
+
+        if (store is null || request is null)
+        {
+            return ServiceUnavailable();
+        }
+
+        await store.SavePreferencesAsync(
+            account.Id,
+            new NotificationPreferences(
+                request.BoardActivityEnabled,
+                request.BroadcastEnabled),
+            cancellationToken);
+        return Results.NoContent();
+    }
+
+    public static async Task<IResult> CreateCampaignAsync(
+        NotificationCampaignRequest? request,
+        IAccountIdentityAccessor identityAccessor,
+        TimeProvider timeProvider,
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        var moderator = await identityAccessor.GetCurrentAsync(cancellationToken);
+        var store = services.GetService<INotificationStore>();
+        if (moderator is null)
+        {
+            return AuthenticationRequired();
+        }
+
+        if (store is null || request is null)
+        {
+            return ServiceUnavailable();
+        }
+
+        var now = timeProvider.GetUtcNow();
+        var title = request.Title.Trim();
+        var body = request.Body.Trim();
+        var recipients = request.RecipientAccountIds
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => new AccountId(value.Trim()))
+            .Distinct()
+            .ToArray();
+        if (title.Length is < 1 or > 80
+            || body.Length is < 1 or > 240
+            || recipients.Length is < 1 or > MaximumCampaignRecipients
+            || request.ExpiresAt is { } expiresAt
+                && (expiresAt <= now || expiresAt > now.AddDays(7)))
+        {
+            return Results.BadRequest(new ApiError(
+                "invalid_notification_campaign",
+                "Provide a title, body, 1-500 recipients, and an expiry within seven days."));
+        }
+
+        if (await IsDeletedAsync(moderator.Id, services, cancellationToken))
+        {
+            return AccountDeleted();
+        }
+
+        var campaign = await store.CreateCampaignAsync(
+            moderator.Id,
+            title,
+            body,
+            recipients,
+            request.ExpiresAt,
+            cancellationToken);
+        return Results.Ok(campaign);
+    }
+
+    private static bool TryParseDevice(
+        PushDeviceRequest? request,
+        ApnsOptions options,
+        out PushDeviceRegistration? registration,
+        out string? error)
+    {
+        registration = null;
+        error = null;
+        if (request is null
+            || !Guid.TryParse(request.InstallationId, out var installationId)
+            || string.IsNullOrWhiteSpace(request.Token)
+            || request.Token.Length > 2048
+            || request.Environment is not ("production" or "sandbox")
+            || !string.Equals(request.BundleId, options.BundleId, StringComparison.Ordinal))
+        {
+            error = "A valid installation ID, APNs token, environment, and bundle ID are required.";
+            return false;
+        }
+
+        registration = new PushDeviceRegistration(
+            installationId,
+            request.Token,
+            request.Environment,
+            request.BundleId!);
+        return true;
+    }
+
+    private static IResult AuthenticationRequired() =>
+        Results.Json(
+            new ApiError(
+                ApiErrorCodes.AuthenticationRequired,
+                "Authenticate before managing notifications."),
+            statusCode: StatusCodes.Status401Unauthorized);
+
+    private static IResult ServiceUnavailable() =>
+        Results.Json(
+            new ApiError(
+                ApiErrorCodes.ServiceUnavailable,
+                "Notifications are not configured."),
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+
+    private static IResult AccountDeleted() =>
+        Results.Json(
+            new ApiError(
+                ApiErrorCodes.AccountDeleted,
+                "This account has been deleted."),
+            statusCode: StatusCodes.Status410Gone);
+
+    private static async ValueTask<bool> IsDeletedAsync(
+        AccountId accountId,
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        var deletion = services.GetService<IAccountDeletionService>();
+        return deletion is not null
+            && await deletion.IsDeletedAsync(accountId, cancellationToken);
+    }
+}

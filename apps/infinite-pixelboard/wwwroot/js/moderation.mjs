@@ -18,6 +18,11 @@ const elements = {
   adsDisabled: document.querySelector("#ads-disabled"),
   safetyReason: document.querySelector("#safety-reason"),
   saveSafety: document.querySelector("#save-safety"),
+  broadcastTitle: document.querySelector("#broadcast-title"),
+  broadcastBody: document.querySelector("#broadcast-body"),
+  broadcastRecipients: document.querySelector("#broadcast-recipients"),
+  broadcastExpiry: document.querySelector("#broadcast-expiry"),
+  sendBroadcast: document.querySelector("#send-broadcast"),
 };
 
 let selectedReport = null;
@@ -276,6 +281,44 @@ elements.saveSafety.addEventListener("click", async () => {
     setStatus(error.message, true);
   }
 });
+
+elements.sendBroadcast.addEventListener("click", async () => {
+  const title = elements.broadcastTitle.value.trim();
+  const body = elements.broadcastBody.value.trim();
+  const recipients = [...new Set(elements.broadcastRecipients.value
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .filter(Boolean))];
+  if (!title || !body || recipients.length === 0) {
+    setStatus("Broadcast title, message, and at least one account UID are required.", true);
+    return;
+  }
+  if (!confirm(`Send this announcement to ${recipients.length} selected account${recipients.length === 1 ? "" : "s"}?`)) {
+    return;
+  }
+  setStatus(`Queuing broadcast for ${recipients.length} account${recipients.length === 1 ? "" : "s"}...`);
+  try {
+    const campaign = await request("/api/v1/moderation/notifications/campaigns", {
+      method: "POST",
+      body: JSON.stringify({
+        title,
+        body,
+        recipientAccountIds: recipients,
+        expiresAt: elements.broadcastExpiry.value
+          ? new Date(elements.broadcastExpiry.value).toISOString()
+          : null,
+      }),
+    });
+    elements.broadcastTitle.value = "";
+    elements.broadcastBody.value = "";
+    elements.broadcastRecipients.value = "";
+    elements.broadcastExpiry.value = "";
+    setStatus(`Broadcast queued for ${campaign.recipientCount} selected account${campaign.recipientCount === 1 ? "" : "s"} and audited.`);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+});
+
 document.querySelectorAll("[data-action]").forEach((button) => {
   button.addEventListener("click", () => executeAction(button.dataset.action));
 });

@@ -15,6 +15,7 @@ enum AppConfiguration {
 
     static let monthlyProductID = "com.collapsetechnologies.pixelboard.pro.monthly"
     static let annualProductID = "com.collapsetechnologies.pixelboard.pro.annual"
+    static let bundleIdentifier = "com.collapsetechnologies.pixelboard"
 
     // Ads require an explicit code change plus an app-local AdMob unit ID.
     static let adsEnabled = false

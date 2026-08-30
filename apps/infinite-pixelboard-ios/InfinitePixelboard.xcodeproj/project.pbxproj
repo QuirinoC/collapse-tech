@@ -29,6 +29,7 @@
 		C3824C77A7183B096169DDD3 /* GoToPositionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27549ACE790D51C5F7F58F43 /* GoToPositionView.swift */; };
 		C6262978D7A313BFD855BD0C /* SpaceGrotesk-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 11BC98E09C056642981B9298 /* SpaceGrotesk-Variable.ttf */; };
 		C951E7539BC2B8EFB98EEC3F /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 94C181AD6B5332C017ABF51A /* GoogleSignIn */; };
+		CE96F6287A1CEA244AEBDD74 /* PushNotificationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74CCDF243172A6099D082D8B /* PushNotificationCoordinator.swift */; };
 		D0F8352BDF800CA129242403 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2D4BA2B005A8A60974F33F1 /* AccountView.swift */; };
 		E4C3BDE18C537B7CF9521919 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E1E3787C74C05CBC3782AEDE /* Assets.xcassets */; };
 		EF5ADA10BD95B05400D797C1 /* PixelboardCore in Frameworks */ = {isa = PBXBuildFile; productRef = CCD07644DDEBEF0EE4E40866 /* PixelboardCore */; };
@@ -48,6 +49,7 @@
 		44B24BCDEBEADB8E88850C33 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		65F2C7887D76C8ECBBE0DF5D /* TileCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TileCacheTests.swift; sourceTree = "<group>"; };
 		675F212EDE345F53C5350632 /* IBMPlexMono-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "IBMPlexMono-Medium.ttf"; sourceTree = "<group>"; };
+		74CCDF243172A6099D082D8B /* PushNotificationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationCoordinator.swift; sourceTree = "<group>"; };
 		75915BECB7377347E52E0816 /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
 		79E1B35F87070C7A4B33B9C0 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		7DE1F12516F4118220261F4A /* PixelboardTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PixelboardTheme.swift; sourceTree = "<group>"; };
@@ -100,6 +102,7 @@
 				27549ACE790D51C5F7F58F43 /* GoToPositionView.swift */,
 				26A5EAA50A0866EBAB12941F /* InfinitePixelboardApp.swift */,
 				7DE1F12516F4118220261F4A /* PixelboardTheme.swift */,
+				74CCDF243172A6099D082D8B /* PushNotificationCoordinator.swift */,
 				091F90D40D4BBC34464A6EC6 /* ReportView.swift */,
 				B7A641579BC815074945BF1F /* StoreManager.swift */,
 			);
@@ -300,6 +303,7 @@
 				C3824C77A7183B096169DDD3 /* GoToPositionView.swift in Sources */,
 				8612FFB793833B9BDE6C95F9 /* InfinitePixelboardApp.swift in Sources */,
 				741092F334E613EF6C7D0B0D /* PixelboardTheme.swift in Sources */,
+				CE96F6287A1CEA244AEBDD74 /* PushNotificationCoordinator.swift in Sources */,
 				4D607B2259CE1B249FD956C2 /* ReportView.swift in Sources */,
 				F4692BFF072D51D69B666233 /* StoreManager.swift in Sources */,
 			);
@@ -325,7 +329,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = InfinitePixelboard.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 3S529795M9;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.241184054384-8342q57a6o5fjlo4cgvhjm5b1vrboc5g";
@@ -350,7 +354,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = InfinitePixelboard.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 3S529795M9;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.241184054384-8342q57a6o5fjlo4cgvhjm5b1vrboc5g";

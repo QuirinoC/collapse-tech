@@ -72,6 +72,31 @@ main { padding: 1rem clamp(1rem, 4vw, 4rem) 4rem; }
     background: var(--panel);
 }
 
+.broadcast-panel {
+    display: grid;
+    grid-template-columns: minmax(18rem, .7fr) minmax(25rem, 1.3fr);
+    gap: 1rem;
+    margin-top: 1rem;
+    border: 1px solid var(--line);
+    background: var(--panel);
+}
+
+.broadcast-panel .section-heading {
+    border-bottom: 0;
+}
+
+.broadcast-panel .section-heading p:last-child {
+    margin-top: .75rem;
+    color: var(--muted);
+    font-size: .82rem;
+}
+
+.broadcast-form {
+    display: grid;
+    gap: 1rem;
+    padding: 1rem;
+}
+
 label { display: grid; gap: .4rem; color: var(--muted); font-size: .82rem; }
 .safety-panel > label:has(input[type="checkbox"]) { display: flex; align-items: center; min-height: 2.75rem; }
 
@@ -138,7 +163,7 @@ pre { overflow: auto; max-height: 20rem; padding: 1rem; background: #090908; }
 .action-buttons { display: flex; flex-wrap: wrap; gap: .5rem; }
 
 @media (max-width: 900px) {
-    .safety-panel, .console-grid { grid-template-columns: 1fr; }
+    .safety-panel, .broadcast-panel, .console-grid { grid-template-columns: 1fr; }
     .queue { border-right: 0; border-bottom: 1px solid var(--line); }
 }
 

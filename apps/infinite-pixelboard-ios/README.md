@@ -18,6 +18,8 @@ Account deletion reauthenticates the user, calls authenticated `DELETE /api/v1/a
 
 The realtime client negotiates SignalR at `/api/v1/realtime`, consumes version 1 `AcceptedPixelV1` envelopes, and retains `UpdateBoard` only as a legacy fallback. It force-refreshes visible HTTP tiles on connect, reconnect, foreground recovery, and duplicate or reordered Redis stream cursors, with a bounded 30-second refresh while active, so live state converges to the server snapshot.
 
+Push notifications use direct APNs. After sign-in, the app can request permission from the Notifications section in Settings, register its installation-scoped token with the server, and deep-link an overwrite alert back to the affected coordinate. The app does not request permission on first launch, and denying permission never blocks browsing or painting. Broadcast alerts and pixel-overwrite alerts have separate server preferences.
+
 ## Ship to TestFlight / App Store
 
 The app code is ready to archive. These are the remaining console steps (I cannot click them for you).
@@ -48,7 +50,14 @@ The app code is ready to archive. These are the remaining console steps (I canno
 4. App Store Server Notifications V2 URL: `https://pixelboard.collapsetechnologies.com/api/v1/storekit/notifications`
 5. On Render set `StoreKit__Enabled=true`, `StoreKit__BundleId`, the two product IDs, `StoreKit__AllowedEnvironments__0=Production` (add `Sandbox` only while TestFlight-testing), and `StoreKit__TrustedRootCertificates__0` (Apple Root CA G3, base64 DER). See `apps/infinite-pixelboard/README.md`.
 
-**3. Archive**
+**3. Push notifications**
+
+1. Enable Push Notifications for `com.collapsetechnologies.pixelboard` in Apple Developer.
+2. Create an APNs Auth Key and add its Team ID, Key ID, and `.p8` contents to Render as `Apns__TeamId`, `Apns__KeyId`, and `Apns__PrivateKey`. Set `Apns__Enabled=true`, `Apns__BundleId=com.collapsetechnologies.pixelboard`, and `Apns__Environment=production`.
+3. Keep the `.p8` file out of the repository. Build the app with the checked-in `aps-environment` entitlement, sign in on a physical device, enable notifications, and confirm the device appears as an active registration.
+4. For an overwrite test, place a pixel from one account, overwrite it from a second account, and verify one alert arrives and opens the affected coordinate. Test permission denial, logout, token rotation, invalid tokens, and account deletion.
+
+**4. Archive**
 
 ```bash
 cd apps/infinite-pixelboard-ios

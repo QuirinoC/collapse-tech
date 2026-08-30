@@ -13,6 +13,8 @@ import GoogleSignIn
 @main
 struct InfinitePixelboardApp: App {
     @StateObject private var model = AppModel()
+    @UIApplicationDelegateAdaptor(PushNotificationAppDelegate.self)
+    private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
 
     init() {

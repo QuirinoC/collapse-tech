@@ -347,6 +347,18 @@ public sealed class PostgresAccountDeletionService(
             WHERE firebase_uid = $1;
             """,
             """
+            DELETE FROM pixelboard.push_devices
+            WHERE firebase_uid = $1;
+            """,
+            """
+            DELETE FROM pixelboard.notification_preferences
+            WHERE firebase_uid = $1;
+            """,
+            """
+            DELETE FROM pixelboard.notification_outbox
+            WHERE recipient_firebase_uid = $1;
+            """,
+            """
             DELETE FROM pixelboard.entitlements
             WHERE firebase_uid = $1;
             """,

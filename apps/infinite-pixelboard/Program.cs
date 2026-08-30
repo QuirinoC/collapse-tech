@@ -123,6 +123,7 @@ app.MapBoardApiV1();
 app.MapModerationApiV1();
 app.MapStoreKitApiV1();
 app.MapStripeApiV1();
+app.MapNotificationApiV1();
 app.MapAdvertisingMetadata();
 if (app.Environment.IsDevelopment())
 {

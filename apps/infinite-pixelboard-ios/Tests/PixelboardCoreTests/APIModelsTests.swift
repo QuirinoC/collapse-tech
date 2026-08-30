@@ -68,4 +68,31 @@ final class APIModelsTests: XCTestCase {
             ISO8601DateFormatter().date(from: "2026-08-27T00:00:10Z")
         )
     }
+
+    func testPushDeviceRequestEncodesRegistrationFields() throws {
+        let installationId = UUID(uuidString: "00112233-4455-6677-8899-aabbccddeeff")!
+        let request = PushDeviceRequest(
+            installationId: installationId,
+            token: "aabbcc",
+            environment: "production",
+            bundleId: "com.collapsetechnologies.pixelboard")
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any]
+        )
+
+        XCTAssertEqual(object["installationId"] as? String, installationId.uuidString)
+        XCTAssertEqual(object["environment"] as? String, "production")
+        XCTAssertEqual(object["bundleId"] as? String, "com.collapsetechnologies.pixelboard")
+    }
+
+    func testNotificationPreferencesRoundTrip() throws {
+        let preferences = NotificationPreferences(
+            boardActivityEnabled: false,
+            broadcastEnabled: true)
+        let decoded = try JSONDecoder().decode(
+            NotificationPreferences.self,
+            from: JSONEncoder().encode(preferences))
+
+        XCTAssertEqual(decoded, preferences)
+    }
 }

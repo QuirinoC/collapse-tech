@@ -118,6 +118,57 @@ public sealed class PostgresPlacementLedgerIntegrationTests
         await cleanup.ExecuteNonQueryAsync();
     }
 
+    [PostgresFact]
+    [Trait("Category", "Integration")]
+    public async Task OverwriteCreatesOneNotificationForThePriorOwner()
+    {
+        var connectionString = Environment.GetEnvironmentVariable(
+            "PIXELBOARD_TEST_POSTGRES")!;
+
+        await using var dataSource = NpgsqlDataSource.Create(connectionString);
+        var ledger = new PostgresPlacementLedger(dataSource);
+        var row = Random.Shared.Next(100_000, int.MaxValue);
+        var column = Random.Shared.Next(100_000, int.MaxValue);
+        var first = CreatePlacement(row, column, "#111111");
+        var second = CreatePlacement(row, column, "#222222") with
+        {
+            PriorPlacementId = first.PlacementId,
+            PriorColor = first.Color
+        };
+
+        await ledger.IngestAsync(first, "3000-0");
+        await ledger.IngestAsync(second, "4000-0");
+        await ledger.IngestAsync(second, "4000-0");
+
+        await using var notificationCount = dataSource.CreateCommand(
+            """
+            SELECT count(*)
+            FROM pixelboard.notification_outbox
+            WHERE recipient_firebase_uid = @recipient
+              AND category = 'board_activity';
+            """);
+        notificationCount.Parameters.AddWithValue("recipient", first.FirebaseUid);
+
+        Assert.Equal(1L, (long)(await notificationCount.ExecuteScalarAsync() ?? 0L));
+
+        await using var cleanup = dataSource.CreateCommand(
+            """
+            DELETE FROM pixelboard.notification_outbox
+            WHERE recipient_firebase_uid = @recipient;
+            DELETE FROM pixelboard.current_pixels
+            WHERE board_row = @board_row
+              AND board_column = @board_column;
+            DELETE FROM pixelboard.placements
+            WHERE placement_id IN (@first_id, @second_id);
+            """);
+        cleanup.Parameters.AddWithValue("recipient", first.FirebaseUid);
+        cleanup.Parameters.AddWithValue("board_row", row);
+        cleanup.Parameters.AddWithValue("board_column", column);
+        cleanup.Parameters.AddWithValue("first_id", first.PlacementId.Value);
+        cleanup.Parameters.AddWithValue("second_id", second.PlacementId.Value);
+        await cleanup.ExecuteNonQueryAsync();
+    }
+
     private static PlacementLedgerEvent CreatePlacement(int row, int column, string color)
     {
         return new PlacementLedgerEvent(

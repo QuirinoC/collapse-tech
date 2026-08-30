@@ -102,6 +102,16 @@ Production startup rejects advertising unless `Advertising__ModerationOperations
 
 Before launch, block sexual and other unsuitable sensitive categories in AdSense and AdMob, use Ad Review Center, and complete Google consent/CMP configuration. When the respective ad platform is safely enabled, the service publishes the configured authorized-seller record at `/ads.txt` or `/app-ads.txt`; otherwise those routes return 404. Do not use production ad identifiers outside production. Mobile ads remain configuration-only until the native client implements a reserved banner with the configured maximum content rating; `MA` is intentionally rejected.
 
+## Push notifications
+
+The iOS client uses direct Apple Push Notification service (APNs), not Firebase Cloud Messaging. Authenticated devices register an installation-scoped token at `/api/v1/notifications/devices`; tokens are never accepted with a client-supplied account ID. The service stores tokens in PostgreSQL, removes them on account deletion, retries transient APNs failures, and disables tokens that Apple reports as invalid.
+
+The first board activity alert is sent when another account overwrites a pixel previously placed by the recipient. The placement ledger creates a durable, hourly deduplicated outbox item in the same transaction as ownership ingestion, so Redis retries cannot create an unbounded alert stream. Users can disable board activity and broadcast alerts independently in the iOS settings.
+
+Moderators can use `/moderation` to send a targeted, audited broadcast to up to 500 explicit account IDs. Campaigns support an expiry timestamp and are fan-out queued through the same delivery worker; there is intentionally no unrestricted blast endpoint.
+
+When enabling production APNs, set `Apns__Enabled=true`, `Apns__TeamId`, `Apns__KeyId`, `Apns__PrivateKey`, `Apns__BundleId=com.collapsetechnologies.pixelboard`, and `Apns__Environment=production` in Render. Keep the Apple `.p8` private key only in Render secrets. PostgreSQL must be enabled before APNs.
+
 ## Deployment
 
 The application requires a persistent ASP.NET Core process for SignalR and Redis-backed shared state. Production runs as a Render web service (auto-deploy on push to `main`) with Render Key Value providing Redis.
@@ -125,6 +135,10 @@ Build from this directory with the included Dockerfile. The production container
 | `Stripe__SecretKey` | Stripe secret key (`sk_test_...` or `sk_live_...`) |
 | `Stripe__WebhookSecret` | Stripe webhook signing secret (`whsec_...`) |
 | `Stripe__MonthlyPriceId` / `Stripe__AnnualPriceId` | Stripe Price IDs for Pixelboard Pro |
+| `Apns__Enabled` | Enables APNs device registration and notification delivery |
+| `Apns__TeamId` / `Apns__KeyId` | Apple Developer team and APNs key identifiers |
+| `Apns__PrivateKey` | APNs `.p8` private key; store only as a Render secret |
+| `Apns__BundleId` / `Apns__Environment` | iOS bundle ID and APNs host (`production` or `sandbox`) |
 | `Advertising__ModerationOperationsEnabled` | Operational assertion required before any Google advertising can start |
 | `Advertising__WebEnabled` | Enables the single manual AdSense board unit |
 | `Advertising__AdSensePublisherId` | AdSense publisher ID in `ca-pub-...` format |

@@ -108,6 +108,29 @@ public sealed class SecurityOptions
     public string AbuseSignalHmacKey { get; set; } = string.Empty;
 }
 
+public sealed class ApnsOptions
+{
+    public const string SectionName = "Apns";
+
+    public bool Enabled { get; set; }
+
+    public string TeamId { get; set; } = string.Empty;
+
+    public string KeyId { get; set; } = string.Empty;
+
+    public string PrivateKey { get; set; } = string.Empty;
+
+    public string BundleId { get; set; } = string.Empty;
+
+    public string Environment { get; set; } = "production";
+
+    [Range(1, 100)]
+    public int WorkerBatchSize { get; set; } = 25;
+
+    [Range(1, 300)]
+    public int PollSeconds { get; set; } = 5;
+}
+
 public sealed class BoardClientOptions
 {
     public const string SectionName = "Board";

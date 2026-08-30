@@ -7,6 +7,7 @@ using PixelBoard.Application;
 using PixelBoard.Infrastructure.Board;
 using PixelBoard.Infrastructure.Ledger;
 using PixelBoard.Infrastructure.Moderation;
+using PixelBoard.Infrastructure.Notifications;
 using PixelBoard.Infrastructure.Postgres;
 using PixelBoard.Infrastructure.Realtime;
 using PixelBoard.Infrastructure.StoreKit;
@@ -126,6 +127,20 @@ public static class ServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services
+            .AddOptions<ApnsOptions>()
+            .Bind(configuration.GetSection(ApnsOptions.SectionName))
+            .Validate(
+                options => !options.Enabled
+                    || (IsAppleTeamId(options.TeamId)
+                        && IsAppleKeyId(options.KeyId)
+                        && IsPemPrivateKey(options.PrivateKey)
+                        && IsBundleId(options.BundleId)
+                        && options.Environment is "production" or "sandbox"),
+                "APNs TeamId, KeyId, private key, bundle ID, and environment are required when APNs is enabled.")
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         return services;
     }
 
@@ -156,6 +171,11 @@ public static class ServiceCollectionExtensions
     {
         if (!configuration.GetValue<bool>($"{PostgresOptions.SectionName}:Enabled"))
         {
+            if (configuration.GetValue<bool>($"{ApnsOptions.SectionName}:Enabled"))
+            {
+                throw new InvalidOperationException(
+                    "PostgreSQL must be enabled when APNs notifications are enabled.");
+            }
             return services;
         }
 
@@ -200,6 +220,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPaintBoostService>(
             provider => provider.GetRequiredService<PostgresReferralService>());
         services.AddHostedService<PlacementOutboxWorker>();
+        services.AddSingleton<INotificationStore, PostgresNotificationStore>();
+        services.AddHttpClient<ApnsClient>();
+        services.AddHostedService<NotificationOutboxWorker>();
         services
             .AddHealthChecks()
             .AddCheck<PostgresHealthCheck>("postgres-ledger", tags: ["ready"]);
@@ -298,6 +321,19 @@ public static class ServiceCollectionExtensions
 
     private static bool IsSafeAdContentRating(string value) =>
         value is "G" or "PG" or "T";
+
+    private static bool IsAppleTeamId(string value) =>
+        value.Length == 10 && value.All(char.IsLetterOrDigit);
+
+    private static bool IsAppleKeyId(string value) =>
+        value.Length == 10 && value.All(char.IsLetterOrDigit);
+
+    private static bool IsPemPrivateKey(string value) =>
+        value.Contains("BEGIN PRIVATE KEY", StringComparison.Ordinal);
+
+    private static bool IsBundleId(string value) =>
+        value.Length is > 2 and < 256
+        && value.Split('.').All(part => part.Length > 0);
 
     // StackExchange.Redis does not support the redis:// URI scheme; it would treat the
     // whole URI (including "redis://" and the port) as a hostname and fail to connect.

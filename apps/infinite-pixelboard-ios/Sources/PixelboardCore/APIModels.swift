@@ -213,6 +213,35 @@ public struct ClaimReferralRequest: Codable, Equatable, Sendable {
     }
 }
 
+public struct PushDeviceRequest: Codable, Equatable, Sendable {
+    public let installationId: UUID
+    public let token: String
+    public let environment: String
+    public let bundleId: String
+
+    public init(
+        installationId: UUID,
+        token: String,
+        environment: String,
+        bundleId: String
+    ) {
+        self.installationId = installationId
+        self.token = token
+        self.environment = environment
+        self.bundleId = bundleId
+    }
+}
+
+public struct NotificationPreferences: Codable, Equatable, Sendable {
+    public let boardActivityEnabled: Bool
+    public let broadcastEnabled: Bool
+
+    public init(boardActivityEnabled: Bool, broadcastEnabled: Bool) {
+        self.boardActivityEnabled = boardActivityEnabled
+        self.broadcastEnabled = broadcastEnabled
+    }
+}
+
 public struct CreateReportRequest: Codable, Equatable, Sendable {
     public let region: ReportRegion?
     public let reason: ReportReason?

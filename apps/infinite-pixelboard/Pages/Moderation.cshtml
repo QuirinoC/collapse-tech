@@ -45,6 +45,36 @@
             <button id="save-safety" type="button">Apply safety state</button>
         </section>
 
+        <section class="broadcast-panel" aria-labelledby="broadcast-heading">
+            <div class="section-heading">
+                <p class="eyebrow">Targeted message</p>
+                <h2 id="broadcast-heading">Broadcast announcement</h2>
+                <p>Send an audited push notification to selected accounts. Use expiry to describe a temporary event.</p>
+            </div>
+            <div class="broadcast-form">
+                <label>
+                    Title
+                    <input id="broadcast-title" type="text" maxlength="80"
+                           placeholder="Limits lifted" />
+                </label>
+                <label>
+                    Message
+                    <textarea id="broadcast-body" maxlength="240"
+                              placeholder="Psssttt — limits are lifted for selected users for 6 hours."></textarea>
+                </label>
+                <label>
+                    Account UIDs, one per line
+                    <textarea id="broadcast-recipients" maxlength="18000"
+                              placeholder="Paste Firebase account IDs here"></textarea>
+                </label>
+                <label>
+                    Announcement expires
+                    <input id="broadcast-expiry" type="datetime-local" />
+                </label>
+                <button id="send-broadcast" type="button">Preview and send</button>
+            </div>
+        </section>
+
         <div class="console-grid">
             <section class="queue" aria-labelledby="queue-heading">
                 <div class="section-heading">
