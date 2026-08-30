@@ -123,10 +123,6 @@ struct ContentView: View {
                 model.zoomAtCenter(factor: 1 / 1.25)
             }
             PixelboardTheme.line.frame(height: 1)
-            zoomButton("⌖", label: "Reset view") {
-                model.resetView()
-            }
-            PixelboardTheme.line.frame(height: 1)
             zoomButton("+", label: "Zoom in") {
                 model.zoomAtCenter(factor: 1.25)
             }

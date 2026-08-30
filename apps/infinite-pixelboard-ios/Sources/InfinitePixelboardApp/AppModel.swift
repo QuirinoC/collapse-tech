@@ -382,13 +382,6 @@ final class AppModel: ObservableObject {
         persistView()
     }
 
-    func resetView() {
-        guard canvasSize != .zero else { return }
-        viewport = BoardViewport(width: canvasSize.width, height: canvasSize.height)
-        selectedPosition = BoardPosition(row: 0, column: 0)
-        persistView()
-    }
-
     func persistView() {
         guard canvasSize != .zero else { return }
         let focus = viewport.screenToBoard(x: canvasSize.width / 2, y: canvasSize.height / 2)

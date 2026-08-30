@@ -26,7 +26,7 @@ The app code is ready to archive. These are the remaining console steps (I canno
 
 - Privacy: `https://pixelboard.collapsetechnologies.com/Privacy`
 - Terms: `https://pixelboard.collapsetechnologies.com/Terms`
-- Support: `mailto:infinitepixelboard@gmail.com`
+- Support: `mailto:hello@collapsetechnologies.com`
 - Bundle ID: `com.collapsetechnologies.pixelboard`
 
 **App Store listing copy (do not copy Everyone Draw):** never write “no limits”, “unlimited”, “draw freely”, or “private space far from the center.” Subtitle: `Shared mural. 5s per pixel.` Description must say 5 seconds free / 1 second Pro, that anyone can overwrite a pixel, and that Syncing is live updates — painting still works.

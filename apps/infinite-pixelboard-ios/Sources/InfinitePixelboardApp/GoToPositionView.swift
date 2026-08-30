@@ -45,6 +45,18 @@ struct GoToPositionView: View {
                     coordinateField("Column", text: $columnText)
                 }
 
+                HStack(spacing: 8) {
+                    Button("Origin (0,0)") {
+                        go(to: BoardPosition(row: 0, column: 0))
+                    }
+                    .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
+                    Button("Selected position") {
+                        go(to: initialPosition)
+                    }
+                    .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
+                }
+                .padding(.top, 12)
+
                 if let errorMessage {
                     Text(errorMessage)
                         .font(PixelboardTheme.mono(10))
@@ -96,7 +108,11 @@ struct GoToPositionView: View {
             return
         }
 
-        onGo(BoardPosition(row: row, column: column))
+        go(to: BoardPosition(row: row, column: column))
+    }
+
+    private func go(to position: BoardPosition) {
+        onGo(position)
         dismiss()
     }
 }

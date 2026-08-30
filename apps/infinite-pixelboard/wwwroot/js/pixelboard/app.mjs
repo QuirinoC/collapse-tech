@@ -204,17 +204,16 @@ async function start(app) {
 
     elements.zoomIn.addEventListener("click", () => zoomFromCenter(1.25));
     elements.zoomOut.addEventListener("click", () => zoomFromCenter(1 / 1.25));
-    elements.resetView.addEventListener("click", () => {
-      viewport = createViewport(renderer.width, renderer.height);
-      persistView();
-      scheduleDraw();
-    });
     elements.locateOpen.addEventListener("click", () => {
-      elements.locateRow.value = String(hoveredPixel.row);
-      elements.locateColumn.value = String(hoveredPixel.column);
-      elements.locateStatus.textContent = "";
-      elements.locateDialog.showModal();
-      elements.locateRow.focus();
+      openLocateDialog(hoveredPixel);
+    });
+    elements.locateOrigin.addEventListener("click", () => {
+      centerBoardAt(0, 0);
+      elements.locateDialog.close();
+    });
+    elements.locateSelected.addEventListener("click", () => {
+      centerBoardAt(hoveredPixel.row, hoveredPixel.column);
+      elements.locateDialog.close();
     });
     elements.locateClose.addEventListener("click", () => elements.locateDialog.close());
     elements.locateForm.addEventListener("submit", (event) => {
@@ -225,19 +224,8 @@ async function start(app) {
         elements.locateStatus.textContent = "Enter whole-number coordinates.";
         return;
       }
-      viewport = centerOn(
-        viewport,
-        row,
-        column,
-        renderer.width,
-        renderer.height,
-      );
-      hoveredPixel = { row, column };
-      pointerControls.setKeyboardPixel(hoveredPixel);
-      elements.coordinate.textContent = formatCoordinate(hoveredPixel);
+      centerBoardAt(row, column);
       elements.locateDialog.close();
-      persistView();
-      scheduleDraw();
     });
     window.addEventListener("resize", () => {
       const previousWidth = renderer.width;
@@ -309,6 +297,29 @@ async function start(app) {
 
   function zoomFromCenter(factor) {
     viewport = zoomAt(viewport, renderer.width / 2, renderer.height / 2, factor);
+    scheduleDraw();
+  }
+
+  function openLocateDialog(position) {
+    elements.locateRow.value = String(position.row);
+    elements.locateColumn.value = String(position.column);
+    elements.locateStatus.textContent = "";
+    elements.locateDialog.showModal();
+    elements.locateRow.focus();
+  }
+
+  function centerBoardAt(row, column) {
+    viewport = centerOn(
+      viewport,
+      row,
+      column,
+      renderer.width,
+      renderer.height,
+    );
+    hoveredPixel = { row, column };
+    pointerControls.setKeyboardPixel(hoveredPixel);
+    elements.coordinate.textContent = formatCoordinate(hoveredPixel);
+    persistView();
     scheduleDraw();
   }
 
@@ -471,11 +482,6 @@ async function start(app) {
     elements.acceptStandards.hidden = !state.authenticated || state.communityStandardsAccepted;
     renderInvite(state);
     renderBilling(state);
-    if (elements.accountHeading) {
-      elements.accountHeading.innerHTML = state.authenticated
-        ? "Your<br />account."
-        : "Sign in<br />to paint.";
-    }
     if (!state.authenticated) {
       elements.placementStatus.textContent = "Viewing anonymously";
     } else if (state.isBanned) {
@@ -806,7 +812,6 @@ function collectElements(app) {
     zoom: app.querySelector("[data-zoom]"),
     zoomIn: app.querySelector("[data-zoom-in]"),
     zoomOut: app.querySelector("[data-zoom-out]"),
-    resetView: app.querySelector("[data-reset-view]"),
     connection: app.querySelector("[data-connection]"),
     placementStatus: app.querySelector("[data-placement-status]"),
     panel: app.querySelector("[data-account-panel]"),
@@ -816,7 +821,6 @@ function collectElements(app) {
     accountState: app.querySelector("[data-account-state]"),
     cooldown: app.querySelector("[data-cooldown]"),
     authNote: app.querySelector("[data-auth-note]"),
-    accountHeading: app.querySelector("[data-account-heading]"),
     loginButtons: [...app.querySelectorAll("[data-login-provider]")],
     signOut: app.querySelector("[data-sign-out]"),
     acceptStandards: app.querySelector("[data-accept-standards]"),
@@ -836,6 +840,8 @@ function collectElements(app) {
     locateDialog: app.querySelector("[data-locate-dialog]"),
     locateClose: app.querySelector("[data-locate-close]"),
     locateForm: app.querySelector("[data-locate-form]"),
+    locateOrigin: app.querySelector("[data-locate-origin]"),
+    locateSelected: app.querySelector("[data-locate-selected]"),
     locateRow: app.querySelector("[data-locate-row]"),
     locateColumn: app.querySelector("[data-locate-column]"),
     locateStatus: app.querySelector("[data-locate-status]"),

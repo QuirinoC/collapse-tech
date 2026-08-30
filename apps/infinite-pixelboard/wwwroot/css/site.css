@@ -379,8 +379,8 @@ a { color: inherit; }
 
 .account-panel.is-open { transform: none; }
 .panel-heading { display: flex; justify-content: space-between; }
-.panel-heading .eyebrow { margin-bottom: 80px; }
-.account-panel h2 { font-size: clamp(3.8rem, 8vw, 6rem); }
+.panel-heading .eyebrow { margin-bottom: 28px; }
+.account-panel h2 { margin: 0; font-size: clamp(2rem, 7vw, 3.2rem); line-height: .95; }
 .settings-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -398,7 +398,7 @@ a { color: inherit; }
   text-transform: uppercase;
 }
 .settings-actions button:hover { background: var(--ink); color: var(--paper); }
-.panel-copy { max-width: 350px; margin: 35px 0; color: var(--muted); line-height: 1.5; }
+.panel-copy { max-width: 350px; margin: 18px 0; color: var(--muted); line-height: 1.5; }
 .auth-actions { display: grid; gap: 8px; }
 
 .auth-actions button {
@@ -417,7 +417,7 @@ a { color: inherit; }
 .auth-actions button:hover { background: var(--ink); color: var(--paper); }
 .auth-actions button[hidden] { display: none; }
 .auth-actions span { width: 20px; font-family: var(--mono); text-align: center; }
-.auth-note { min-height: 2.5em; margin: 12px 0 35px; color: var(--muted); font: .62rem/1.45 var(--mono); }
+.auth-note { min-height: 2.5em; margin: 12px 0 18px; color: var(--muted); font: .62rem/1.45 var(--mono); }
 .account-state { margin: 0; border-top: 1px solid var(--line); }
 .account-state div { display: flex; justify-content: space-between; padding: 13px 0; border-bottom: 1px solid var(--line); font: .67rem var(--mono); text-transform: uppercase; }
 .account-state dd { margin: 0; color: var(--muted); }
@@ -459,7 +459,7 @@ a { color: inherit; }
 }
 .invite-block button:hover { background: var(--ink); color: var(--paper); }
 .panel-footnote { position: absolute; bottom: 20px; margin: 0; color: var(--muted); font: .58rem var(--mono); text-transform: uppercase; }
-.panel-footnote a { color: inherit; }
+.panel-footnote a { color: var(--accent); text-decoration: underline; text-underline-offset: .2em; }
 
 .report-dialog {
   width: min(560px, calc(100% - 32px));
@@ -496,6 +496,9 @@ a { color: inherit; }
 .locate-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .locate-fields .report-field { margin: 0 0 18px; }
 .locate-fields input { appearance: textfield; }
+.locate-quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 18px; }
+.locate-quick-actions button { min-height: 40px; border: 1px solid var(--ink); background: transparent; cursor: pointer; font: 600 .62rem var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+.locate-quick-actions button:hover { background: var(--ink); color: var(--paper); }
 
 .panel-scrim {
   position: fixed;

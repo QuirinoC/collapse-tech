@@ -120,37 +120,6 @@ final class StoreManager: ObservableObject {
         }
     }
 
-    func restore() async -> Bool {
-        isWorking = true
-        defer { isWorking = false }
-
-        var restored = false
-        for await result in StoreKit.Transaction.currentEntitlements {
-            guard case let .verified(transaction) = result else {
-                errorMessage = StoreError.failedVerification.localizedDescription
-                continue
-            }
-            guard productIDs.contains(transaction.productID) else { continue }
-            permanentlyFailedTransactionIDs.remove(transaction.id)
-            let outcome = await deliver(
-                transaction,
-                signedTransactionInfo: result.jwsRepresentation
-            )
-            if outcome == .delivered {
-                restored = true
-            } else if outcome == .retryableFailure {
-                scheduleDeliveryRetry(
-                    for: transaction,
-                    signedTransactionInfo: result.jwsRepresentation
-                )
-            }
-        }
-        if !restored, errorMessage == nil {
-            errorMessage = "No Pixelboard Pro subscription found for this Apple ID."
-        }
-        return restored
-    }
-
     static let manageSubscriptionsURL = URL(string: "https://apps.apple.com/account/subscriptions")!
 
     private func verified<T>(_ result: VerificationResult<T>) throws -> T {

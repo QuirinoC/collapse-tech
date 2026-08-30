@@ -11,26 +11,13 @@ struct AccountView: View {
     @State private var showingReport = false
     @State private var showingInvite = false
     @State private var showingPro = false
+    @State private var showingAccount = false
     @State private var showingMore = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                PixelboardPanelHeading(
-                    eyebrow: "Settings",
-                    title: model.account == nil ? "Sign in\nto paint." : "Your\naccount."
-                ) {
-                    dismiss()
-                }
-
-                Text(
-                    "The board is open to everyone. Painting requires a verified account so each contribution can be reconciled and the shared 5-second cooldown respected. Pro and invite boosts only speed that cooldown; they do not remove it."
-                )
-                .font(PixelboardTheme.sans(15))
-                .foregroundStyle(PixelboardTheme.muted)
-                .lineSpacing(4)
-                .padding(.top, 28)
-                .padding(.bottom, 28)
+                settingsHeading
 
                 authActions
                     .padding(.bottom, 12)
@@ -40,12 +27,12 @@ struct AccountView: View {
                     .foregroundStyle(PixelboardTheme.muted)
                     .lineSpacing(3)
                     .frame(minHeight: 36, alignment: .topLeading)
-                    .padding(.bottom, 28)
+                    .padding(.bottom, 16)
 
-                accountStateList
-
-                inviteSection
                 subscriptionSections
+                inviteSection
+                accountSection
+                boardActions
                 moreSection
             }
             .padding(24)
@@ -67,6 +54,25 @@ struct AccountView: View {
                 Task { await model.deleteAccount() }
             }
         }
+    }
+
+    private var settingsHeading: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top) {
+                PixelboardEyebrow(text: "Settings")
+                Spacer()
+                Button("Close") { dismiss() }
+                    .buttonStyle(PixelboardTextButtonStyle())
+            }
+            .padding(.bottom, 20)
+
+            Text("Account")
+                .font(PixelboardTheme.sans(26, weight: .medium))
+                .tracking(-0.8)
+                .textCase(.uppercase)
+                .foregroundStyle(PixelboardTheme.ink)
+        }
+        .padding(.bottom, 22)
     }
 
     private var boardActions: some View {
@@ -92,7 +98,7 @@ struct AccountView: View {
             .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
             .accessibilityLabel("Report current position")
         }
-        .padding(.top, 24)
+        .padding(.top, 4)
     }
 
     @ViewBuilder
@@ -165,6 +171,16 @@ struct AccountView: View {
         .overlay(alignment: .top) { PixelboardTheme.line.frame(height: 1) }
     }
 
+    private var accountSection: some View {
+        DisclosureGroup(isExpanded: $showingAccount) {
+            accountStateList
+        } label: {
+            sectionLabel("Account")
+        }
+        .tint(PixelboardTheme.ink)
+        .padding(.top, 24)
+    }
+
     private func stateRow(_ title: String, _ value: String) -> some View {
         HStack {
             Text(title)
@@ -232,22 +248,16 @@ struct AccountView: View {
                             .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
                             .disabled(model.store.isWorking)
                         }
-                        Button("Restore purchases") {
-                            Task {
-                                if await model.store.restore() {
-                                    await model.refreshAccount()
-                                }
-                            }
+                    }
+                    if model.account?.tier == .pro {
+                        Button("Manage subscription") {
+                            openURL(StoreManager.manageSubscriptionsURL)
                         }
                         .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
                     }
-                    Button("Manage subscription") {
-                        openURL(StoreManager.manageSubscriptionsURL)
-                    }
-                    .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
                 }
             } label: {
-                sectionLabel("Pixelboard Pro")
+                sectionLabel(model.account?.tier == .pro ? "Pro" : "Get Pro")
             }
             .tint(PixelboardTheme.ink)
             .padding(.top, 24)
@@ -257,7 +267,6 @@ struct AccountView: View {
     private var moreSection: some View {
         DisclosureGroup(isExpanded: $showingMore) {
             VStack(alignment: .leading, spacing: 10) {
-                boardActions
                 Button("Delete account", role: .destructive) {
                     confirmingDeletion = true
                 }
@@ -335,8 +344,8 @@ struct AccountView: View {
             }
         }
         .font(PixelboardTheme.mono(9.5))
-        .textCase(.uppercase)
-        .foregroundStyle(PixelboardTheme.muted)
+        .foregroundStyle(PixelboardTheme.accent)
+        .underline()
         .padding(.top, 45)
     }
 }
