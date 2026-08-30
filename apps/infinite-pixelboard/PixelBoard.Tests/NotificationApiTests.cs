@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using PixelBoard.Api.V1;
 using PixelBoard.Application;
 using PixelBoard.Configuration;
@@ -88,6 +89,61 @@ public sealed class NotificationApiTests
         Assert.Equal(0, store.CampaignRecipients);
     }
 
+    [Fact]
+    public async Task CampaignWithBlankRecipientReturnsBadRequest()
+    {
+        var store = new RecordingNotificationStore();
+        await using var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton<INotificationStore>(store)
+            .BuildServiceProvider();
+
+        var result = await NotificationApi.CreateCampaignAsync(
+            new NotificationCampaignRequest(
+                "Limits lifted",
+                "Psssttt — limits are lifted.",
+                ["", "  "],
+                null),
+            new IdentityAccessor(),
+            TimeProvider.System,
+            services,
+            CancellationToken.None);
+        var response = await ExecuteAsync<ApiError>(result, services);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, response.StatusCode);
+        Assert.Equal("invalid_notification_campaign", response.Body.Code);
+        Assert.Equal(0, store.CampaignRecipients);
+    }
+
+    [Fact]
+    public async Task CampaignStoreFailureReturnsServiceUnavailable()
+    {
+        var store = new RecordingNotificationStore
+        {
+            CampaignFailure = new NpgsqlException("notification schema unavailable")
+        };
+        await using var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton<INotificationStore>(store)
+            .BuildServiceProvider();
+
+        var result = await NotificationApi.CreateCampaignAsync(
+            new NotificationCampaignRequest(
+                "Limits lifted",
+                "Psssttt — limits are lifted.",
+                ["user-a"],
+                null),
+            new IdentityAccessor(),
+            TimeProvider.System,
+            services,
+            CancellationToken.None);
+        var response = await ExecuteAsync<ApiError>(result, services);
+
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, response.StatusCode);
+        Assert.Equal(ApiErrorCodes.ServiceUnavailable, response.Body.Code);
+        Assert.DoesNotContain("schema", response.Body.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static async Task<(int StatusCode, T Body)> ExecuteAsync<T>(
         IResult result,
         IServiceProvider services)
@@ -116,6 +172,7 @@ public sealed class NotificationApiTests
     {
         public int RegisteredDevices { get; private set; }
         public int CampaignRecipients { get; private set; }
+        public Exception? CampaignFailure { get; init; }
 
         public ValueTask RegisterDeviceAsync(
             AccountId accountId,
@@ -140,6 +197,10 @@ public sealed class NotificationApiTests
             DateTimeOffset? expiresAt,
             CancellationToken cancellationToken = default)
         {
+            if (CampaignFailure is { } exception)
+            {
+                throw exception;
+            }
             CampaignRecipients = recipients.Count;
             return ValueTask.FromResult(new NotificationCampaign(
                 Guid.NewGuid(),

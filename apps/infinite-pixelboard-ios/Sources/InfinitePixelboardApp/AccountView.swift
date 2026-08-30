@@ -20,14 +20,6 @@ struct AccountView: View {
                 authActions
                     .padding(.bottom, 12)
 
-                if let authNote {
-                    Text(authNote)
-                        .font(PixelboardTheme.mono(10))
-                        .foregroundStyle(PixelboardTheme.muted)
-                        .lineSpacing(3)
-                        .padding(.bottom, 16)
-                }
-
                 subscriptionSections
                 notificationsPrompt
                 boardActions
@@ -150,19 +142,6 @@ struct AccountView: View {
             Text(title)
             Spacer(minLength: 0)
         }
-    }
-
-    private var authNote: String? {
-        if let notice = model.authNotice, !notice.isEmpty {
-            return notice
-        }
-        if let error = model.store.errorMessage, !error.isEmpty {
-            return error
-        }
-        if model.account?.communityStandardsAccepted == false {
-            return PixelboardL10n.acceptStandardsNote
-        }
-        return nil
     }
 
     @ViewBuilder

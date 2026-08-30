@@ -111,9 +111,6 @@ async function start(app) {
   try {
     const metadata = await api.metadata();
     boardMetadata = metadata;
-    if (!isBoardOpen(metadata)) {
-      elements.authNote.textContent = metadata.statusMessage || "Painting is paused.";
-    }
     cache = new TileCache({
       loadTile: (row, column, signal) => api.tile(row, column, signal),
       tileRows: metadata.tileRows,
@@ -264,19 +261,16 @@ async function start(app) {
     scheduleDraw();
   } catch (error) {
     realtime?.stop();
-    elements.authNote.textContent = "Board service unavailable";
     console.error("Pixelboard failed to initialize.", error);
   }
 
   elements.acceptStandards.addEventListener("click", async () => {
-    elements.authNote.textContent = "Recording your acceptance…";
     try {
       await api.acceptCommunityStandards();
       await refreshAccount();
       await redeemPendingInvite();
-      elements.authNote.textContent = "Community standards accepted. You can place pixels.";
     } catch (error) {
-      elements.authNote.textContent = error.message;
+      console.error("Community standards could not be accepted.", error);
     }
   });
 
@@ -346,8 +340,6 @@ async function start(app) {
 
   async function paint(pixel) {
     if (!isBoardOpen(boardMetadata)) {
-      elements.authNote.textContent =
-        boardMetadata?.statusMessage || "Painting is paused.";
       return;
     }
     const state = accountState.snapshot;
@@ -386,7 +378,7 @@ async function start(app) {
       accountState.setCooldown(event.result.cooldown);
     } else {
       placementPending = false;
-      elements.authNote.textContent = event.error?.message ?? "Placement rejected";
+      console.warn("Placement rejected.", event.error);
     }
     scheduleDraw();
   }
@@ -399,7 +391,7 @@ async function start(app) {
     } catch (error) {
       if (request !== accountRequest) return;
       if (error.status === 401) accountState.setAccount(null);
-      else elements.authNote.textContent = "Account state is temporarily unavailable.";
+      else console.warn("Account state is temporarily unavailable.", error);
     }
   }
 
@@ -420,8 +412,6 @@ async function start(app) {
       return client;
     } catch (error) {
       console.error("Firebase Authentication failed to initialize.", error);
-      elements.authNote.textContent =
-        "Secure sign-in is temporarily unavailable. The board remains open for viewing.";
       return null;
     }
   }
@@ -430,15 +420,16 @@ async function start(app) {
     for (const button of elements.loginButtons) {
       button.addEventListener("click", async () => {
         setAuthControlsDisabled(true);
-        elements.authNote.textContent = "Opening secure sign-in…";
         try {
           const client = await authReady;
           if (!client) throw new Error("authentication_unavailable");
           await client.signIn(button.dataset.loginProvider);
         } catch (error) {
-          elements.authNote.textContent = error.message === "authentication_unavailable"
-            ? "Secure sign-in is temporarily unavailable."
-            : authErrorMessage(error);
+          console.warn(
+            error.message === "authentication_unavailable"
+              ? "Secure sign-in is temporarily unavailable."
+              : authErrorMessage(error),
+          );
         } finally {
           setAuthControlsDisabled(false);
         }
@@ -446,12 +437,11 @@ async function start(app) {
     }
     elements.signOut.addEventListener("click", async () => {
       setAuthControlsDisabled(true);
-      elements.authNote.textContent = "Signing out…";
       try {
         const client = await authReady;
         await client?.signOut();
       } catch (error) {
-        elements.authNote.textContent = "Sign-out could not be completed.";
+        console.warn("Sign-out could not be completed.", error);
       } finally {
         setAuthControlsDisabled(false);
       }
@@ -459,13 +449,12 @@ async function start(app) {
     elements.deleteAccount.addEventListener("click", async () => {
       if (!window.confirm("Permanently delete this account?")) return;
       setAuthControlsDisabled(true);
-      elements.authNote.textContent = "Deleting account…";
       try {
         const client = await authReady;
         await api.deleteAccount();
         await client?.deleteAccount();
       } catch (error) {
-        elements.authNote.textContent = error.message ?? "Account deletion could not be completed.";
+        console.warn("Account deletion could not be completed.", error);
         setAuthControlsDisabled(false);
       }
     });
@@ -475,7 +464,6 @@ async function start(app) {
     for (const button of elements.loginButtons) button.hidden = Boolean(authUser);
     elements.signOut.hidden = !authUser;
     elements.deleteAccount.hidden = !authUser;
-    elements.authNote.textContent = "";
   }
 
   function setAuthControlsDisabled(disabled) {
@@ -549,7 +537,6 @@ async function start(app) {
   function attachReporting() {
     elements.reportOpen.addEventListener("click", () => {
       if (!accountState.snapshot.authenticated) {
-        elements.authNote.textContent = "Sign in to report this position";
         return;
       }
       closePanel(elements, { restoreFocus: false });
@@ -645,9 +632,8 @@ async function start(app) {
       const url = positionUrl(hoveredPixel.row, hoveredPixel.column);
       try {
         await navigator.clipboard.writeText(url);
-        elements.authNote.textContent = "Position link copied.";
       } catch {
-        elements.authNote.textContent = url;
+        console.warn("Position link could not be copied.", url);
       }
     });
   }
@@ -828,7 +814,6 @@ function collectElements(app) {
     panelToggle: app.querySelector("[data-panel-toggle]"),
     panelClose: app.querySelector("[data-panel-close]"),
     panelScrim: app.querySelector("[data-panel-scrim]"),
-    authNote: app.querySelector("[data-auth-note]"),
     loginButtons: [...app.querySelectorAll("[data-login-provider]")],
     signOut: app.querySelector("[data-sign-out]"),
     acceptStandards: app.querySelector("[data-accept-standards]"),

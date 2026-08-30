@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using Npgsql;
 using PixelBoard.Application;
 using PixelBoard.Configuration;
 using PixelBoard.Contracts.V1;
@@ -114,33 +115,47 @@ public static class NotificationApi
         var now = timeProvider.GetUtcNow();
         var title = request.Title?.Trim();
         var body = request.Body?.Trim();
-        var recipients = request.RecipientAccountIds?
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(value => new AccountId(value.Trim()))
-            .Distinct()
+        var recipientValues = request.RecipientAccountIds?
+            .Select(value => value?.Trim())
             .ToArray();
         if (title is null or { Length: < 1 or > 80 }
             || body is null or { Length: < 1 or > 240 }
-            || recipients is null or { Length: < 1 or > MaximumCampaignRecipients }
+            || recipientValues is null or { Length: < 1 or > MaximumCampaignRecipients }
+            || recipientValues.Any(string.IsNullOrWhiteSpace)
             || request.ExpiresAt is { } expiresAt
                 && (expiresAt <= now || expiresAt > now.AddDays(7)))
         {
             return InvalidCampaign();
         }
+        var recipients = recipientValues
+            .Select(value => new AccountId(value!))
+            .Distinct()
+            .ToArray();
 
         if (await IsDeletedAsync(moderator.Id, services, cancellationToken))
         {
             return AccountDeleted();
         }
 
-        var campaign = await store.CreateCampaignAsync(
-            moderator.Id,
-            title!,
-            body!,
-            recipients!,
-            request.ExpiresAt,
-            cancellationToken);
-        return Results.Ok(campaign);
+        try
+        {
+            var campaign = await store.CreateCampaignAsync(
+                moderator.Id,
+                title!,
+                body!,
+                recipients,
+                request.ExpiresAt,
+                cancellationToken);
+            return Results.Ok(campaign);
+        }
+        catch (NpgsqlException exception)
+        {
+            services.GetService<ILoggerFactory>()?.CreateLogger(nameof(NotificationApi)).LogError(
+                exception,
+                "Notification campaign persistence failed for moderator {ModeratorId}.",
+                moderator.Id.Value);
+            return ServiceUnavailable();
+        }
     }
 
     private static bool TryParseDevice(
@@ -181,7 +196,7 @@ public static class NotificationApi
         Results.Json(
             new ApiError(
                 ApiErrorCodes.ServiceUnavailable,
-                "Notifications are not configured."),
+                "Notification service is temporarily unavailable."),
             statusCode: StatusCodes.Status503ServiceUnavailable);
 
     private static IResult AccountDeleted() =>

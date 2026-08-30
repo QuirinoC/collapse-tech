@@ -21,7 +21,6 @@ final class AppModel: ObservableObject {
     @Published var statusMessage = PixelboardL10n.loadingBoard
     @Published var isPlacing = false
     @Published var showingAccount = false
-    @Published var authNotice: String?
     @Published var now = Date()
     @Published private(set) var boardGeneration = 0
 
@@ -291,7 +290,6 @@ final class AppModel: ObservableObject {
 
     func signIn(with provider: AuthenticationProvider) async {
         authenticationGeneration &+= 1
-        authNotice = nil
         do {
             try await authentication.signIn(with: provider)
             store.authenticationDidChange(isAuthenticated: true)
@@ -305,7 +303,6 @@ final class AppModel: ObservableObject {
         } catch is CancellationError {
             return
         } catch {
-            authNotice = error.localizedDescription
             statusMessage = error.localizedDescription
         }
     }
@@ -317,7 +314,6 @@ final class AppModel: ObservableObject {
             try await authentication.signOut()
             store.authenticationDidChange(isAuthenticated: false)
             account = nil
-            authNotice = nil
             syncPaletteSelection()
         } catch {
             statusMessage = error.localizedDescription
@@ -470,10 +466,7 @@ final class AppModel: ObservableObject {
     }
 
     func enableNotifications() async {
-        let granted = await pushNotifications.requestPermission(api: api)
-        if !granted {
-            authNotice = PixelboardL10n.notificationsDeniedNote
-        }
+        _ = await pushNotifications.requestPermission(api: api)
     }
 
     private func performAccountRefresh() async {

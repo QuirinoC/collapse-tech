@@ -16,7 +16,6 @@
 "enable_notifications_note" = "制限が解除されたら無料で通知を受け取れます。重要な活動があった場合のみ、静かな日次ダイジェストを送信します。";
 "enable_notifications" = "通知を有効にする";
 "open_notification_settings" = "通知設定を開く";
-"notifications_denied_note" = "通知がオフです。制限解除の通知を受け取るには、iPhoneの設定で有効にしてください。";
 "invite_a_painter" = "ペインターを招待";
 "pro" = "Pro";
 "get_pro" = "Proを利用";
@@ -31,7 +30,6 @@
 "terms" = "利用規約";
 "permanently_delete_account" = "このアカウントを完全に削除しますか？";
 "delete_account" = "アカウントを削除";
-"accept_standards_note" = "配置する前にコミュニティ基準に同意してください。";
 "try_pro_note" = "Proを7日間無料でお試しください。その後、月額または年額を選択できます。Proではピクセル間隔が1秒になり、拡張パレットとカスタムカラーが使えます。クールダウンはなくなりません。";
 "pro_available_note" = "Proは月額または年額で利用できます。拡張パレットとカスタムカラーが使えます。クールダウンは1秒のままです。";
 "pro_active_note" = "Proは有効です。利用可能な場合は、下で月額から年額に変更できます。";

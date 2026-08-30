@@ -16,7 +16,6 @@
 "enable_notifications_note" = "限制解除时免费接收通知。仅在有意义的活动后发送每日摘要，避免打扰。";
 "enable_notifications" = "开启通知";
 "open_notification_settings" = "打开通知设置";
-"notifications_denied_note" = "通知已关闭。请在 iPhone 设置中开启，以接收限制解除提醒。";
 "invite_a_painter" = "邀请绘制者";
 "pro" = "Pro";
 "get_pro" = "获取 Pro";
@@ -31,7 +30,6 @@
 "terms" = "条款";
 "permanently_delete_account" = "永久删除此账户？";
 "delete_account" = "删除账户";
-"accept_standards_note" = "放置前请接受社区准则。";
 "try_pro_note" = "Pro 现在可免费试用 7 天。之后可选择按月或按年计费。Pro 可将像素间隔缩短至 1 秒，并解锁扩展调色板和自定义颜色；不会移除冷却时间。";
 "pro_available_note" = "Pro 提供按月或按年计费。它会解锁扩展调色板和自定义颜色；冷却时间仍为 1 秒。";
 "pro_active_note" = "Pro 已启用。可用时，你可以在下方从按月计费切换为按年计费。";

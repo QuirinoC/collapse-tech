@@ -16,7 +16,6 @@
 "enable_notifications_note" = "Erhalte kostenlos eine Mitteilung, wenn Limits aufgehoben werden. Wir senden nur nach relevanter Aktivität eine ruhige tägliche Zusammenfassung.";
 "enable_notifications" = "Mitteilungen aktivieren";
 "open_notification_settings" = "Mitteilungseinstellungen öffnen";
-"notifications_denied_note" = "Mitteilungen sind deaktiviert. Aktiviere sie in den iPhone-Einstellungen, um Hinweise auf aufgehobene Limits zu erhalten.";
 "invite_a_painter" = "Eine zeichnende Person einladen";
 "pro" = "Pro";
 "get_pro" = "Pro holen";
@@ -31,7 +30,6 @@
 "terms" = "Bedingungen";
 "permanently_delete_account" = "Dieses Konto dauerhaft löschen?";
 "delete_account" = "Konto löschen";
-"accept_standards_note" = "Akzeptiere die Community-Richtlinien, bevor du Pixel setzt.";
 "try_pro_note" = "Teste Pro 7 Tage kostenlos. Wähle danach ein monatliches oder jährliches Abo. Pro ermöglicht 1 Sekunde zwischen Pixeln und schaltet die erweiterte Palette sowie eigene Farben frei; die Abklingzeit wird dadurch nicht entfernt.";
 "pro_available_note" = "Pro ist mit monatlicher oder jährlicher Abrechnung verfügbar. Es schaltet die erweiterte Palette und eigene Farben frei; die Abklingzeit bleibt bei einer Sekunde.";
 "pro_active_note" = "Pro ist aktiv. Wenn verfügbar, kannst du unten von monatlicher auf jährliche Abrechnung wechseln.";

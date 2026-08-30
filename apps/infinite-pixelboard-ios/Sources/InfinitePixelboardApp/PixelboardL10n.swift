@@ -89,10 +89,6 @@ enum PixelboardL10n {
         "open_notification_settings",
         defaultValue: "Open notification settings"
     )
-    static let notificationsDeniedNote = value(
-        "notifications_denied_note",
-        defaultValue: "Notifications are off. Turn them on in iPhone Settings to receive limit-lift alerts."
-    )
     static let inviteAPainter = value(
         "invite_a_painter",
         defaultValue: "Invite a painter"
@@ -125,10 +121,6 @@ enum PixelboardL10n {
         defaultValue: "Permanently delete this account?"
     )
     static let deleteAccount = value("delete_account", defaultValue: "Delete account")
-    static let acceptStandardsNote = value(
-        "accept_standards_note",
-        defaultValue: "Accept the community standards before placing."
-    )
     static let tryProNote = value(
         "try_pro_note",
         defaultValue: "Try Pro free for 7 days. Then choose monthly or annual billing. Pro is 1 second between pixels and unlocks the extended palette plus custom colors; it does not remove the cooldown."
