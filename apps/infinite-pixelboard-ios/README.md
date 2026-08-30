@@ -67,6 +67,10 @@ The app code is ready to archive. These are the remaining console steps (I canno
 3. Keep the `.p8` file out of the repository. Build the app with the checked-in `aps-environment` entitlement, sign in on a physical device, enable notifications, and confirm the device appears as an active registration.
 4. For an overwrite test, create 10 relevant overwrites of pixels owned by one account in one UTC day and verify one daily digest arrives. Test permission denial, logout, token rotation, invalid tokens, and account deletion.
 
+**Production notification incident evidence (2026-08-30):** the failing request is the authenticated `POST /api/v1/moderation/notifications/campaigns`. Production returned `401` without moderator credentials, proving the route is deployed and authorization is enforced. `/health/ready` returned `Healthy`, but the readiness check previously omitted all notification tables; a valid campaign request can therefore reach PostgreSQL and return `503 service_unavailable` (`Notification service is temporarily unavailable.`) when migrations `011_push_notifications.sql` or `012_notification_digests.sql` have not been applied. No valid production campaign request was sent during diagnosis.
+
+**Remaining production gate:** run the image's `--provision-postgres` one-off with the migration-owner connection, confirm `011_push_notifications.sql` and `012_notification_digests.sql` are recorded in `pixelboard.schema_migrations`, then redeploy/recheck `/health/ready`. A moderator must perform one targeted test with a test account only; physical-device APNs registration and delivery still require a signed build and cannot be verified from this environment.
+
 **4. Archive**
 
 ```bash

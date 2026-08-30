@@ -144,6 +144,29 @@ public sealed class NotificationApiTests
         Assert.DoesNotContain("schema", response.Body.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task CampaignWithoutNotificationStoreReturnsServiceUnavailable()
+    {
+        await using var services = new ServiceCollection()
+            .AddLogging()
+            .BuildServiceProvider();
+
+        var result = await NotificationApi.CreateCampaignAsync(
+            new NotificationCampaignRequest(
+                "Limits lifted",
+                "Psssttt — limits are lifted.",
+                ["user-a"],
+                null),
+            new IdentityAccessor(),
+            TimeProvider.System,
+            services,
+            CancellationToken.None);
+        var response = await ExecuteAsync<ApiError>(result, services);
+
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, response.StatusCode);
+        Assert.Equal(ApiErrorCodes.ServiceUnavailable, response.Body.Code);
+    }
+
     private static async Task<(int StatusCode, T Body)> ExecuteAsync<T>(
         IResult result,
         IServiceProvider services)
