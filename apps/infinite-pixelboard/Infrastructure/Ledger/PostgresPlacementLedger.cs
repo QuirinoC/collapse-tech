@@ -139,7 +139,7 @@ public sealed class PostgresPlacementLedger(NpgsqlDataSource dataSource) : IPlac
             now(),
             now()
         FROM digest_ready
-        ON CONFLICT (dedupe_key) DO NOTHING;
+        ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING;
         """;
 
     public async ValueTask IngestAsync(

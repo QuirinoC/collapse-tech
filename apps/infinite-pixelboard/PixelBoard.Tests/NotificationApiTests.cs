@@ -43,6 +43,36 @@ public sealed class NotificationApiTests
     }
 
     [Fact]
+    public async Task RegisterDeviceRejectsAnotherApnsEnvironment()
+    {
+        var store = new RecordingNotificationStore();
+        await using var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton<INotificationStore>(store)
+            .BuildServiceProvider();
+
+        var result = await NotificationApi.RegisterDeviceAsync(
+            new PushDeviceRequest(
+                Guid.NewGuid().ToString(),
+                "apns-token",
+                "sandbox",
+                "com.collapsetechnologies.pixelboard"),
+            new IdentityAccessor(),
+            Options.Create(new ApnsOptions
+            {
+                Enabled = true,
+                BundleId = "com.collapsetechnologies.pixelboard",
+                Environment = "production"
+            }),
+            services,
+            CancellationToken.None);
+        var response = await ExecuteAsync<ApiError>(result, services);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, response.StatusCode);
+        Assert.Equal(0, store.RegisteredDevices);
+    }
+
+    [Fact]
     public async Task CampaignIsQueuedForSelectedRecipients()
     {
         var store = new RecordingNotificationStore();
