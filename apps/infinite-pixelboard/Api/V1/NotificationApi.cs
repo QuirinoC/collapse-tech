@@ -171,6 +171,7 @@ public static class NotificationApi
             || string.IsNullOrWhiteSpace(request.Token)
             || request.Token.Length > 2048
             || request.Environment is not ("production" or "sandbox")
+            || !string.Equals(request.Environment, options.Environment, StringComparison.Ordinal)
             || !string.Equals(request.BundleId, options.BundleId, StringComparison.Ordinal))
         {
             error = "A valid installation ID, APNs token, environment, and bundle ID are required.";

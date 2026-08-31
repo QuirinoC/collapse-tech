@@ -111,7 +111,7 @@ public sealed class PostgresNotificationStore(NpgsqlDataSource dataSource) : INo
                 notification_id, recipient_firebase_uid, category, title, body,
                 payload, campaign_id, expires_at, dedupe_key, available_at, created_at)
             VALUES ($1, $2, 'broadcast', $3, $4, $5, $6, $7, $8, now(), $9)
-            ON CONFLICT (dedupe_key) DO NOTHING;
+            ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING;
             """;
         foreach (var recipient in recipients)
         {
