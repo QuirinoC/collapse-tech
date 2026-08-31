@@ -13,6 +13,9 @@ The workspace behind [collapsetechnologies.com](https://collapsetechnologies.com
 | Influence.Market | `apps/influence-market` | Influencer marketing agency-marketplace: escrowed multi-creator campaigns |
 | CoachGG | `apps/coach-gg` | Super Smash Bros. Ultimate player analysis with live SignalR updates |
 | Infinite Pixelboard | `apps/infinite-pixelboard` | Collaborative, infinite canvas built with ASP.NET Core SignalR |
+| iPhone Rover | `apps/iphone-rover-ios` + `apps/iphone-rover-firmware` | iPhone-powered indoor rover prototype with ESP32 motion control |
+| Trust Circle iOS | `apps/trust-ios` | Adult-peer location escrow: MapKit home, hidden until they look, quiet receipts, Circle sponsor |
+| Trust API | `apps/trust-api` | ASP.NET Core + Postgres for Trust Circle (auth, escrow, looks, Circle) |
 
 ## Local development
 
@@ -58,6 +61,16 @@ npm run restore:pixelboard
 npm run dev:pixelboard
 ```
 
+Trust Circle (MapKit iOS + this API):
+
+```bash
+cd apps/trust-api
+docker compose up postgres -d
+dotnet run --launch-profile TrustApi
+```
+
+Then `cd apps/trust-ios && xcodegen generate` and run the Trust scheme. Simulator Debug talks to `http://127.0.0.1:5088`. A physical iPhone in Debug remaps loopback to production (or use `TRUST_BASE_URL=http://<mac-lan-ip>:5088`). Release uses `https://trust.collapsetechnologies.com`. Home Screen name is **Trust Circle**.
+
 Root scripts run the relevant command in each app:
 
 ```bash
@@ -80,6 +93,8 @@ npm test
 | CoachGG | `apps/coach-gg` | Render web service (`srv-da56cr2jobas73dmulv0`) | `coachgg-api.onrender.com`, custom domain `coach.collapsetechnologies.com` ✅ live |
 | Infinite Pixelboard | `apps/infinite-pixelboard` | Render web service (`srv-da55t78u01pc73e3rlu0`) + Render Key Value (Redis) | `infinite-pixelboard.onrender.com`, custom domain `pixelboard.collapsetechnologies.com` ✅ live |
 | Infinite Pixelboard iOS | `apps/infinite-pixelboard-ios` | Native SwiftUI app (TestFlight/App Store) — no server deploys; talks to the pixelboard API + Firebase Auth | n/a |
+| Trust API | `apps/trust-api` | Render (`trust-api` in `apps/render.yaml`) + custom domain | `trust.collapsetechnologies.com` (provision) |
+| Trust Circle iOS | `apps/trust-ios` | Native SwiftUI + MapKit — Release talks to Trust API; StoreKit Circle | App Store |
 
 ### Cloudflare Pages / Workers
 
@@ -114,11 +129,12 @@ Each application owns its environment variables; do not share the challenge or D
 
 ### Render (backends)
 
-Render services live in project **collapse-tech**; `apps/render.yaml` documents the blueprint (currently covers the pixelboard service; CoachGG is managed directly in the Render dashboard). Both backends are Docker builds from their app directories and auto-deploy on push to `main`:
+Render services live in project **collapse-tech**; `apps/render.yaml` documents the blueprint (Pixelboard + Trust API; CoachGG is managed directly in the Render dashboard). Backends are Docker builds from their app directories and auto-deploy on push to `main`:
 
-- **Pixelboard** — root dir `apps/infinite-pixelboard`, env: `ASPNETCORE_ENVIRONMENT=Production`, `REDISCONNECTIONSTRING` (Render KV internal URL), `Firebase__Enabled=true`, `Firebase__ProjectId`, `Postgres__Enabled=true`, `Postgres__ConnectionString` (restricted `pixelboard_runtime` role), `FORWARDEDHEADERS__TRUSTPLATFORMPROXY=true`.
+- **Pixelboard** — root dir `apps/infinite-pixelboard`, env: `ASPNETCORE_ENVIRONMENT=Production`, `REDISCONNECTIONSTRING` (Render KV internal URL), `Firebase__Enabled=true`, `Firebase__ProjectId`, `Postgres__Enabled=true`, `Postgres__ConnectionString` (restricted `pixelboard_runtime` role), `FORWARDEDHEADERS__TRUSTPLATFORMPROXY=true`. Firebase Admin credentials are never deployed to Render; provision the sole moderator through the offline [Admin SDK runbook](apps/infinite-pixelboard/README.md#provisioning-the-moderator-claim).
 - **CoachGG** — root dir `apps/coach-gg`, env: `STARTGG_APIKEY`, `ASPNETCORE_ENVIRONMENT=Production`, `FORWARDEDHEADERS__TRUSTPLATFORMPROXY=true`.
+- **Trust API** — root dir `apps/trust-api`, env: `ASPNETCORE_ENVIRONMENT=Production`, `ConnectionStrings__Postgres` (Render Postgres `trust-postgres`), `Auth__SigningKey` (generated), `Auth__AllowDevelopmentSignIn=false`, StoreKit + Apple bundle IDs. Keep `Apns__PrivateKey` and Twilio credentials as Render secrets only. Custom domain `trust.collapsetechnologies.com` after first deploy.
 
-Custom domains (`pixelboard.collapsetechnologies.com`, `coach.collapsetechnologies.com`) are attached to the Render services.
+Custom domains (`pixelboard.collapsetechnologies.com`, `coach.collapsetechnologies.com`, `trust.collapsetechnologies.com`) are attached to the Render services.
 
 The legacy Azure Container Apps template (`apps/infinite-pixelboard/Infrastructure/Cloud/ContainerApp.json`) is retained for historical reference only. Render deploys Pixelboard automatically from `main`; no GitHub Actions deployment workflow is involved.

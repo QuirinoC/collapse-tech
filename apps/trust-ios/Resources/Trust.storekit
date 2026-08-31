@@ -1,0 +1,85 @@
+{
+  "identifier" : "9C4E2B71-6A18-4F0D-9E33-B7D1A0C5E812",
+  "nonRenewingSubscriptions" : [],
+  "products" : [],
+  "settings" : {
+    "_applicationInternalID" : "0",
+    "_developerTeamID" : "",
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "2147483647",
+      "localizations" : [
+        {
+          "description" : "Circle covers two people. One paid seat sponsors the unpaid partner. Extra people, 24-hour history, place pings, full look-log retention. We do not sell location. No ads.",
+          "displayName" : "Trust Circle",
+          "locale" : "en_US"
+        }
+      ],
+      "name" : "Trust Circle",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "7.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "2000001",
+          "introductoryOffer" : {
+            "displayPrice" : "0",
+            "paymentMode" : "free",
+            "period" : "P1W",
+            "periodCount" : 1
+          },
+          "localizations" : [
+            {
+              "description" : "Trust Circle monthly. One subscription covers two people.",
+              "displayName" : "Circle Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.collapsetechnologies.trust.circle.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Circle Monthly",
+          "subscriptionGroupID" : "2147483647",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "69.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "2000002",
+          "introductoryOffer" : {
+            "displayPrice" : "0",
+            "paymentMode" : "free",
+            "period" : "P1W",
+            "periodCount" : 1
+          },
+          "localizations" : [
+            {
+              "description" : "Trust Circle annual. One subscription covers two people.",
+              "displayName" : "Circle Annual",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.collapsetechnologies.trust.circle.annual",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Circle Annual",
+          "subscriptionGroupID" : "2147483647",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

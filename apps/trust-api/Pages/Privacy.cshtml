@@ -1,0 +1,34 @@
+@page
+@model PrivacyModel
+@{
+    ViewData["Title"] = "Privacy";
+}
+<main class="sheet">
+    <div class="brand">Collapse<br />Technologies</div>
+    <h1>Privacy</h1>
+    <div class="rule"></div>
+    <p class="muted">Last updated 30 August 2026. This policy covers the Trust iOS app and this API.</p>
+    <h2>Who we are</h2>
+    <p>Trust is operated by Collapse Technologies. Contact <a href="mailto:hello@collapsetechnologies.com">hello@collapsetechnologies.com</a>.</p>
+    <h2>What we collect</h2>
+    <ul>
+        <li>Account identifiers from Sign in with Apple or Google (subject, and a display name when you provide one).</li>
+        <li>A phone number you verify with a one-time text, stored in E.164, so we know it is yours. Verification codes are hashed and expire; we do not log the codes.</li>
+        <li>Location points you send while sharing is on (Until they look, Always, or For a while), held in escrow for a short window so a trusted adult peer can look if they confirm. While you are only using Trust — map, settings, looking at someone else — the app does not store coordinates.</li>
+        <li>Presence without coordinates: last active, battery, got-home, check-in.</li>
+        <li>Look events (who looked, when, history window). Neither side can erase a row.</li>
+        <li>Share settings per person (Until they look, Always, For a while).</li>
+        <li>Circle subscription status from StoreKit or Stripe. We receive an entitlement, not your card number.</li>
+    </ul>
+    <h2>What we do not do</h2>
+    <ul>
+        <li>We do not sell location. There are no ads and no data brokerage.</li>
+        <li>We do not show sealed people’s coordinates to anyone who has not been granted Always / For a while or confirmed a Look.</li>
+        <li>Looking is never silent. The other person gets a receipt.</li>
+    </ul>
+    <h2>Retention</h2>
+    <p>Location history is kept long enough for a two-hour look (24 hours if Circle covers the pair), then pruned. Until end-to-end encryption exists, those coordinates are stored in plaintext on our servers. We do not sell them. Look logs are kept 30 days on Free and one year on Circle.</p>
+    <h2>Account deletion</h2>
+    <p>In the Trust iOS app, Settings → Delete account removes your Sign in with Apple identity mapping, location, presence, circle membership, look history, push tokens, and Circle entitlement on this server. This is required so you can leave. Remaining members keep their own accounts.</p>
+    <p><a href="/Terms">Terms of Use</a> · <a href="/Support">Support</a></p>
+</main>
