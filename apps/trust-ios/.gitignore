@@ -5,3 +5,5 @@ xcuserdata/
 build/
 *.p8
 AuthKey_*.p8
+
+.swiftpm/

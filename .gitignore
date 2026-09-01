@@ -18,3 +18,6 @@ playwright-report/
 # Apple private keys — never commit Auth Key / Sign in with Apple .p8 files
 *.p8
 AuthKey_*.p8
+
+# Swift Package Manager / Xcode workspace metadata
+.swiftpm/
