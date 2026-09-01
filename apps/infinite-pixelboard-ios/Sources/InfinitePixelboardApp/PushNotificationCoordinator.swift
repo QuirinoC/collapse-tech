@@ -29,7 +29,7 @@ final class PushNotificationCoordinator: NSObject, ObservableObject, UNUserNotif
     func prepare(api: PixelboardAPIClient) async {
         self.api = api
         await refreshAuthorizationStatus()
-        if authorizationStatus == .authorized {
+        if authorizationStatus == .authorized || authorizationStatus == .provisional {
             UIApplication.shared.registerForRemoteNotifications()
         }
     }

@@ -376,7 +376,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = InfinitePixelboard.entitlements;
+				CODE_SIGN_ENTITLEMENTS = InfinitePixelboard.Debug.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 3S529795M9;

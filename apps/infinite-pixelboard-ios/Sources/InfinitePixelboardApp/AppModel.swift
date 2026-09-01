@@ -182,6 +182,9 @@ final class AppModel: ObservableObject {
             return
         }
         guard started else { return }
+        if await authentication.isAuthenticated {
+            await pushNotifications.prepare(api: api)
+        }
         startPeriodicWork()
         scheduleForegroundRecovery()
     }
