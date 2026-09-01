@@ -18,10 +18,10 @@ struct LoginAtlasBackground: View {
         .overlay {
             ZStack {
                 RadialGradient(
-                    colors: [palette.paper.opacity(0.78), palette.paper.opacity(0)],
+                    colors: [palette.paper.opacity(0.90), palette.paper.opacity(0)],
                     center: UnitPoint(x: 0.5, y: 0.42),
-                    startRadius: 24,
-                    endRadius: 220
+                    startRadius: 40,
+                    endRadius: 280
                 )
                 VStack(spacing: 0) {
                     LinearGradient(
@@ -29,18 +29,18 @@ struct LoginAtlasBackground: View {
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: 96)
+                    .frame(height: 128)
                     Spacer()
                     LinearGradient(
                         colors: [
                             palette.paper.opacity(0),
-                            palette.paper.opacity(0.55),
+                            palette.paper.opacity(0.80),
                             palette.paper
                         ],
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: 240)
+                    .frame(height: 280)
                 }
             }
             .allowsHitTesting(false)
@@ -72,7 +72,7 @@ struct LoginAtlasBackground: View {
         ink: Color
     ) {
         var grid = Path()
-        let count = 6
+        let count = 4
         for i in 0...count {
             let base = size.width * (CGFloat(i) / CGFloat(count))
             let drift = CGFloat(sin(phase + Double(i) * 0.55)) * 5
@@ -84,7 +84,7 @@ struct LoginAtlasBackground: View {
             )
             grid.addPath(meridian)
         }
-        context.stroke(grid, with: .color(ink.opacity(0.065)), lineWidth: 0.6)
+        context.stroke(grid, with: .color(ink.opacity(0.034)), lineWidth: 0.45)
     }
 
     private func drawParallels(
@@ -95,7 +95,7 @@ struct LoginAtlasBackground: View {
         ink: Color
     ) {
         var grid = Path()
-        let count = 8
+        let count = 5
         for j in 0...count {
             let y = size.height * (CGFloat(j) / CGFloat(count))
             let bulge = (y - cy) * 0.035 + CGFloat(sin(phase * 0.8 + Double(j) * 0.35)) * 2.5
@@ -107,7 +107,7 @@ struct LoginAtlasBackground: View {
             )
             grid.addPath(parallel)
         }
-        context.stroke(grid, with: .color(ink.opacity(0.055)), lineWidth: 0.5)
+        context.stroke(grid, with: .color(ink.opacity(0.028)), lineWidth: 0.4)
     }
 
     private func drawGlobe(
@@ -127,15 +127,15 @@ struct LoginAtlasBackground: View {
         )
         context.stroke(
             Path(ellipseIn: rect),
-            with: .color(ink.opacity(0.09)),
-            style: StrokeStyle(lineWidth: 0.7, dash: [2.5, 8], dashPhase: CGFloat(phase) * 12)
+            with: .color(ink.opacity(0.045)),
+            style: StrokeStyle(lineWidth: 0.5, dash: [2.5, 8], dashPhase: CGFloat(phase) * 12)
         )
 
-        for k in -2...2 where k != 0 {
+        for k in -1...1 where k != 0 {
             var arc = Path()
             let inset = abs(CGFloat(k)) * w * 0.08
             arc.addEllipse(in: rect.insetBy(dx: inset, dy: -h * 0.01 * CGFloat(k)))
-            context.stroke(arc, with: .color(ink.opacity(0.05)), lineWidth: 0.5)
+            context.stroke(arc, with: .color(ink.opacity(0.024)), lineWidth: 0.4)
         }
     }
 
@@ -150,12 +150,11 @@ struct LoginAtlasBackground: View {
     ) {
         let bands: [(CGFloat, CGFloat, Double)] = [
             (0.20, 0.11, 0.0),
-            (0.30, 0.16, 1.1),
-            (0.14, 0.08, 2.3)
+            (0.30, 0.16, 1.1)
         ]
         for (index, band) in bands.enumerated() {
             var contour = Path()
-            let steps = 56
+            let steps = 48
             let ox = cx + CGFloat(sin(phase * 0.65 + band.2)) * 16
             let oy = cy + CGFloat(cos(phase * 0.45 + band.2)) * 9
             for step in 0...steps {
@@ -172,7 +171,7 @@ struct LoginAtlasBackground: View {
                 }
             }
             contour.closeSubpath()
-            context.stroke(contour, with: .color(ink.opacity(0.10)), lineWidth: 0.75)
+            context.stroke(contour, with: .color(ink.opacity(0.042)), lineWidth: 0.5)
         }
     }
 
@@ -191,15 +190,15 @@ struct LoginAtlasBackground: View {
         cross.addLine(to: CGPoint(x: fix.x + arm, y: fix.y))
         cross.move(to: CGPoint(x: fix.x, y: fix.y - arm))
         cross.addLine(to: CGPoint(x: fix.x, y: fix.y + arm))
-        context.stroke(cross, with: .color(accent.opacity(0.22 + 0.28 * pulse)), lineWidth: 1)
+        context.stroke(cross, with: .color(accent.opacity(0.12 + 0.14 * pulse)), lineWidth: 0.75)
         context.stroke(
             Path(ellipseIn: CGRect(x: fix.x - 13, y: fix.y - 13, width: 26, height: 26)),
-            with: .color(ink.opacity(0.11)),
-            lineWidth: 0.55
+            with: .color(ink.opacity(0.048)),
+            lineWidth: 0.45
         )
         context.fill(
             Path(CGRect(x: fix.x - 1.5, y: fix.y - 1.5, width: 3, height: 3)),
-            with: .color(accent.opacity(0.40 + 0.25 * pulse))
+            with: .color(accent.opacity(0.22 + 0.12 * pulse))
         )
     }
 
@@ -214,7 +213,7 @@ struct LoginAtlasBackground: View {
                 Text(text)
                     .font(TrustTheme.mono(8))
                     .tracking(0.8)
-                    .foregroundColor(ink.opacity(0.26)),
+                    .foregroundColor(ink.opacity(0.12)),
                 at: point,
                 anchor: anchor
             )
