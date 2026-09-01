@@ -816,6 +816,7 @@ function collectElements(app) {
     panelScrim: app.querySelector("[data-panel-scrim]"),
     loginButtons: [...app.querySelectorAll("[data-login-provider]")],
     signOut: app.querySelector("[data-sign-out]"),
+    deleteAccount: app.querySelector("[data-delete-account]"),
     acceptStandards: app.querySelector("[data-accept-standards]"),
     reportOpen: app.querySelector("[data-report-open]"),
     reportDialog: app.querySelector("[data-report-dialog]"),
