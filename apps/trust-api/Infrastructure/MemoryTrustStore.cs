@@ -334,6 +334,42 @@ public sealed class MemoryTrustStore : ITrustStore
         return Task.CompletedTask;
     }
 
+    public Task<Account?> FindByHandleAsync(string handle, CancellationToken cancellationToken)
+    {
+        var match = _accounts.Values.FirstOrDefault(account =>
+            account.HasHandle
+            && string.Equals(account.Handle, handle, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(match);
+    }
+
+    public Task SetHandleAsync(
+        Guid accountId,
+        string handle,
+        string displayName,
+        CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            if (!_accounts.TryGetValue(accountId, out var account))
+            {
+                return Task.CompletedTask;
+            }
+
+            var taken = _accounts.Values.Any(other =>
+                other.Id != accountId
+                && other.HasHandle
+                && string.Equals(other.Handle, handle, StringComparison.OrdinalIgnoreCase));
+            if (taken)
+            {
+                throw TrustException.HandleInUse();
+            }
+
+            _accounts[accountId] = account with { Handle = handle, DisplayName = displayName };
+        }
+
+        return Task.CompletedTask;
+    }
+
     public Task<PhoneChallenge?> GetPhoneChallengeAsync(Guid accountId, CancellationToken cancellationToken)
     {
         _phoneChallenges.TryGetValue(accountId, out var challenge);

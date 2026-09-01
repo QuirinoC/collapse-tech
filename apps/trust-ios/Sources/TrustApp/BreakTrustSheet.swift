@@ -7,7 +7,7 @@ struct LookSheet: View {
 
     var body: some View {
         let copy = model.confirmCopy(for: model.lookSubject?.id)
-        let name = model.lookSubject?.displayName ?? "them"
+        let name = model.lookSubject?.identity ?? TrustCopy.them
 
         VStack(alignment: .leading, spacing: 0) {
             Capsule()
@@ -22,16 +22,16 @@ struct LookSheet: View {
                 .foregroundStyle(palette.ink)
                 .padding(.bottom, 8)
 
-            Text("Live location, the last 2 hours, and a receipt to \(name). This cannot be undone.")
+            Text(TrustCopy.lookSheetSummary(name: name))
                 .font(TrustTheme.ui(15))
                 .foregroundStyle(palette.muted)
                 .padding(.bottom, 20)
 
-            fact("Live location")
-            fact("Last 2 hours of movement")
-            fact("\(name) is notified immediately")
+            fact(TrustCopy.factLiveLocation)
+            fact(TrustCopy.factLastHours)
+            fact(TrustCopy.factNotifiedImmediately(name: name))
 
-            Text("A quiet notification — not an alarm. There is no “don’t ask again.”")
+            Text(TrustCopy.quietNotAlarm)
                 .font(TrustTheme.ui(13))
                 .foregroundStyle(palette.muted)
                 .padding(.top, 16)

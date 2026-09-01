@@ -16,10 +16,10 @@ struct LookMapView: View {
                 hud(session)
             } else {
                 VStack(spacing: 16) {
-                    Text("Look closed.")
+                    Text(TrustCopy.lookClosed)
                         .font(TrustTheme.display(22))
                         .foregroundStyle(palette.ink)
-                    Button("Done") { model.closeMap() }
+                    Button(TrustCopy.done) { model.closeMap() }
                         .buttonStyle(TrustFilledButtonStyle())
                         .padding(.horizontal, 24)
                 }
@@ -41,10 +41,10 @@ struct LookMapView: View {
         Map(position: $position) {
             MapPolyline(coordinates: session.trail.map(\.coordinate))
                 .stroke(palette.ink, lineWidth: 2.5)
-            Annotation("Live", coordinate: session.live.coordinate) {
+            Annotation(TrustCopy.live, coordinate: session.live.coordinate) {
                 TrustLivePin(
                     initials: session.event.subjectName.trustInitials,
-                    caption: "Live"
+                    caption: TrustCopy.live
                 )
             }
         }
@@ -71,7 +71,7 @@ struct LookMapView: View {
                     .foregroundStyle(palette.ink)
                     .accessibilityLabel(TrustCopy.appName)
                 Spacer()
-                Button("Close") { model.closeMap() }
+                Button(TrustCopy.close) { model.closeMap() }
                     .buttonStyle(TrustHardButtonStyle())
             }
             .padding(.horizontal, 16)
@@ -84,19 +84,19 @@ struct LookMapView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    TrustFolio(text: "Watching now", color: palette.accent, size: 10)
+                    TrustFolio(text: TrustCopy.watchingNow, color: palette.accent, size: 10)
                     Spacer()
-                    TrustFolio(text: "Last \(session.event.historyWindowHours) hours", size: 10)
+                    TrustFolio(text: TrustCopy.lastHours(session.event.historyWindowHours), size: 10)
                 }
                 Text(session.event.subjectName)
                     .font(TrustTheme.display(22))
                     .foregroundStyle(palette.ink)
-                Text("\(session.event.subjectName) was notified. Closing ends this look.")
+                Text(TrustCopy.subjectNotified(name: session.event.subjectName))
                     .font(TrustTheme.ui(13))
                     .foregroundStyle(palette.muted)
                 if model.coverage.canExtendHistory,
                    session.event.historyWindowHours <= CircleCoverage.freeHistoryHours {
-                    Button("Include last 24 hours") {
+                    Button(TrustCopy.includeLast24Hours) {
                         model.extendLookHistory()
                     }
                     .buttonStyle(TrustTextButtonStyle())

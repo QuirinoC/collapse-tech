@@ -297,3 +297,29 @@ final class LocationSharingTests: XCTestCase {
         XCTAssertTrue(TrustCopy.locationPrecisePurpose.contains("precise"))
     }
 }
+
+final class TrustHandleTests: XCTestCase {
+    func testNormalizesAtPrefixAndCase() {
+        if case .valid(let handle) = TrustHandle.status(of: "@Jordan") {
+            XCTAssertEqual(handle, "jordan")
+        } else {
+            XCTFail("jordan should be valid")
+        }
+        XCTAssertEqual(TrustHandle.normalize("@Jordan"), "jordan")
+        XCTAssertEqual(TrustHandle.sanitizeDraft("Jo-rdan!"), "jordan")
+    }
+
+    func testRejectsShortReservedAndLeadingDigit() {
+        XCTAssertEqual(TrustHandle.status(of: "ab"), .invalid)
+        XCTAssertEqual(TrustHandle.status(of: "1jordan"), .invalid)
+        XCTAssertEqual(TrustHandle.status(of: "admin"), .reserved)
+        XCTAssertEqual(TrustHandle.status(of: "you"), .reserved)
+        XCTAssertEqual(TrustHandle.status(of: "trust"), .reserved)
+    }
+
+    func testSuggestsFromDisplayName() {
+        XCTAssertEqual(TrustHandle.suggest(from: "Juan Quirino"), "juanquirino")
+        XCTAssertEqual(TrustHandle.suggest(from: "You"), nil)
+        XCTAssertEqual(TrustHandle.suggest(from: "Jordan"), "jordan")
+    }
+}

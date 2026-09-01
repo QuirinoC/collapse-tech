@@ -42,15 +42,15 @@ public struct CircleCoverage: Equatable, Sendable {
     public var banner: String? {
         guard isCovered, let sponsorName else { return nil }
         if actingIsSponsor {
-            return "Your Circle covers this pair"
+            return TrustCopy.bannerYourCircle
         }
-        return "\(sponsorName)’s Pro covers this circle"
+        return TrustCopy.bannerSponsorCovers(name: sponsorName)
     }
 
     public var statusLine: String {
         if let banner {
             return banner
         }
-        return "Free circle · 1 trusted person · last \(Self.freeHistoryHours) hours on look"
+        return TrustCopy.statusFreeCircle(hours: Self.freeHistoryHours)
     }
 }

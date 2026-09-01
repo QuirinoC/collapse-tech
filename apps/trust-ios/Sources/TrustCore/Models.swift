@@ -15,19 +15,29 @@ public struct Person: Identifiable, Hashable, Codable, Sendable {
     public var hasPro: Bool
     public var onboardingComplete: Bool
     public var phoneVerified: Bool
+    public var handle: String?
+
+    public var identity: String {
+        if let handle, !handle.isEmpty {
+            return "@\(handle)"
+        }
+        return displayName
+    }
 
     public init(
         id: UUID = UUID(),
         displayName: String,
         hasPro: Bool = false,
         onboardingComplete: Bool = true,
-        phoneVerified: Bool = false
+        phoneVerified: Bool = false,
+        handle: String? = nil
     ) {
         self.id = id
         self.displayName = displayName
         self.hasPro = hasPro
         self.onboardingComplete = onboardingComplete
         self.phoneVerified = phoneVerified
+        self.handle = handle
     }
 }
 
@@ -207,17 +217,17 @@ public enum TimedShareDuration: String, CaseIterable, Sendable, Equatable {
 
     public var label: String {
         switch self {
-        case .hour: return "1 hour"
-        case .tonight: return "Tonight"
-        case .home: return "Until I get home"
+        case .hour: return TrustCopy.timedHour
+        case .tonight: return TrustCopy.timedTonight
+        case .home: return TrustCopy.timedHome
         }
     }
 
     public var afterPhrase: String {
         switch self {
-        case .hour: return "After 1 hour"
-        case .tonight: return "After tonight"
-        case .home: return "When you get home"
+        case .hour: return TrustCopy.afterHour
+        case .tonight: return TrustCopy.afterTonight
+        case .home: return TrustCopy.afterHome
         }
     }
 
@@ -245,7 +255,7 @@ public struct TrustedPerson: Identifiable, Equatable, Sendable {
     public var livePoint: LocationPoint?
 
     public var id: UUID { person.id }
-    public var displayName: String { person.displayName }
+    public var displayName: String { person.identity }
 
     public init(
         person: Person,

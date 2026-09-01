@@ -17,7 +17,8 @@ public sealed record PersonDto(
     string DisplayName,
     bool HasCircle,
     bool OnboardingComplete,
-    bool PhoneVerified);
+    bool PhoneVerified,
+    string? Handle);
 
 public sealed record PresenceDto(
     DateTimeOffset LastActiveAt,
@@ -99,6 +100,14 @@ public sealed record InviteAcceptRequest(string Code);
 
 public sealed record RenameRequest(string DisplayName);
 
+public sealed record SetHandleRequest(string Handle);
+
+public sealed record HandleAvailabilityResponse(
+    string Handle,
+    bool Available,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? Code);
+
 public sealed record SendPhoneCodeRequest(string Phone);
 
 public sealed record VerifyPhoneCodeRequest(string Phone, string Code);
@@ -132,7 +141,7 @@ public sealed record ApiError(string Code, string Message);
 public static class ContractMap
 {
     public static PersonDto Person(Account account) =>
-        new(account.Id, account.DisplayName, account.HasCircle, account.OnboardingComplete, account.HasVerifiedPhone);
+        new(account.Id, account.DisplayName, account.HasCircle, account.OnboardingComplete, account.HasVerifiedPhone, account.Handle);
 
     public static PresenceDto Presence(Presence presence) =>
         new(

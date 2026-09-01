@@ -41,6 +41,15 @@ Login uses a Canvas atlas — sparse meridians, isolines, and a few coordinates 
    Local HTTP is allowed via App Transport Security local networking (`NSAllowsLocalNetworking`). Do not hardcode a LAN IP in the project.
 
 2. `cd apps/trust-ios && xcodegen generate`
+
+## Localization
+
+English is the development language (`defaultValue` in `Sources/TrustCore/TrustCopy.swift`). UI strings also ship for Spanish (`es`), Japanese (`ja`), Simplified Chinese (`zh-Hans`), German (`de`), French (`fr`), Korean (`ko`), and Brazilian Portuguese (`pt-BR`). Product names **Trust** and **Trust Circle** stay untranslated; **Circle** stays the plan name. Translations live in `Resources/*.lproj`. Location permission copy is in `InfoPlist.strings`. Known API error codes are mapped on device; unknown server messages pass through.
+
+To switch language: iOS Settings → Trust Circle → Language, or Settings → General → Language & Region (app-specific language on iOS 13+).
+
+Run `python3 Scripts/emit_localizations.py` after editing `Scripts/overlays/*.json`, then `python3 Scripts/validate_localizations.py`.
+
 3. Open `Trust.xcodeproj` in Xcode (Xcode 16+ / iOS 17). Team `3S529795M9`.
 4. The shared Run scheme attaches `Resources/Trust.storekit`.
 5. Run on Simulator or device.
@@ -67,8 +76,8 @@ Bundle ID: `com.collapsetechnologies.trust`.
 
 ## First-open and look flow
 
-1. Collapse Technologies, **Trust** (hero lockup; product name is **Trust Circle**), Log in with Apple (`apple.logo`, identity token → API). Terms of Service, Privacy, and Support sit in one row (`https://collapsetechnologies.com/trust/…`). No extra legal line under the button.
-2. After Apple, **Your profile** if display name is missing or phone is not verified: name + SMS one-time code. Completing both is required before the map. After account delete, this returns.
+1. Collapse Technologies, **Trust** (hero lockup; product name is **Trust Circle**), Sign in with Apple (`apple.logo`, identity token → API). Terms of Service, Privacy, and Support sit in one row (`https://collapsetechnologies.com/trust/…`). No extra legal line under the button.
+2. After Apple, **Your handle** if a unique handle is not set yet. Handle is the identity (like `jordan` / `@jordan`). Completing it is required before the map. A display name from Apple is kept if it already exists — not asked here. After account delete, this returns.
 3. Home is the map. Live pins for Always / For a while. Sealed people are a lock — not a coordinate.
 4. **Look** confirm: live + last 2 hours + they get a remote receipt (APNs), not a local notify on the looker’s phone. No “don’t ask again.”
 5. After Look: trail + live pin. Closing ends the look. The look log is append-only until you delete your account.
@@ -120,7 +129,7 @@ Products in `Resources/Trust.storekit` (local Run scheme only; archives use App 
 - Privacy: `https://collapsetechnologies.com/trust/privacy`
 - Terms: `https://collapsetechnologies.com/trust/terms`
 - Category: Lifestyle
-- Age: 17+ (adult peers; precise location sharing)
+- Age: 17+ on current App Store OS versions earlier than 26; 18+ on iOS 26+ (adult peers; precise location sharing). Questionnaire does not use unrestricted web access — override is for the 17+ terms.
 - Description:
 
 ```
@@ -137,7 +146,7 @@ Review notes: Sign in with Apple. A demo circle (Alex sealed, Jordan Always, Ril
 
 ### Age rating
 
-17+ — unrestricted web access is not the reason; precise location is shared with a named adult peer after a confirmed Look.
+17+ on OS versions earlier than 26, 18+ on iOS 26+ — unrestricted web access is not the reason; precise location is shared with a named adult peer after a confirmed Look. Terms require 17+.
 
 ### App Privacy (paste)
 
@@ -145,9 +154,9 @@ Review notes: Sign in with Apple. A demo circle (Alex sealed, Jordan Always, Ril
 - Tracking: No
 - Precise Location — linked, not used for tracking, App Functionality (escrow until Look)
 - Coarse Location — same
-- Name — Sign in with Apple display name, then the name you set in onboarding
-- Phone Number — verified at onboarding (SMS one-time code)
-- User ID — Sign in with Apple `sub` / account id
+- Name — Sign in with Apple display name, kept if Apple sent one; not required
+- User ID — Sign in with Apple `sub` / account id, plus the unique handle you choose
+- Phone Number — not collected (onboarding is handle-only)
 - Purchases — Circle StoreKit entitlement
 - Product Interaction — looks and share settings
 - Not collected: email (we do not require it), contacts, browsing history, ads

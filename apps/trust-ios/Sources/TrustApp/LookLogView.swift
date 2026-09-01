@@ -8,11 +8,11 @@ struct LookLogView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                TrustPanelHeading(eyebrow: "Look log", title: "Every look stays.") {
+                TrustPanelHeading(eyebrow: TrustCopy.lookLog, title: TrustCopy.everyLookStays) {
                     model.showingLookLog = false
                 }
 
-                Text("Append-only while the account exists. Deleting your account removes your location and look history. Free keeps \(CircleCoverage.freeLookLogDays) days. Circle keeps a year and can export.")
+                Text(TrustCopy.lookLogIntroText(freeDays: CircleCoverage.freeLookLogDays))
                     .font(TrustTheme.ui(15))
                     .foregroundStyle(palette.muted)
 
@@ -22,7 +22,7 @@ struct LookLogView: View {
 
                 if model.lookLog.isEmpty {
                     TrustSurface {
-                        Text("No looks yet.")
+                        Text(TrustCopy.noLooksYet)
                             .font(TrustTheme.ui(16))
                             .foregroundStyle(palette.muted)
                     }
@@ -35,20 +35,20 @@ struct LookLogView: View {
                 }
 
                 if (model.snapshot?.retainedLookLogCount ?? 0) > 0 {
-                    Text("\(model.snapshot?.retainedLookLogCount ?? 0) older looks are held for Circle retention.")
+                    Text(TrustCopy.olderLooksHeld(model.snapshot?.retainedLookLogCount ?? 0))
                         .font(TrustTheme.ui(13))
                         .foregroundStyle(palette.accent)
                 }
 
                 if model.coverage.canExportLookLog {
                     ShareLink(item: model.lookLogExportText) {
-                        Text("Export log")
+                        Text(TrustCopy.exportLog)
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(TrustOutlineButtonStyle(compact: true))
                     .disabled(model.lookLog.isEmpty)
                 } else {
-                    Text("Circle keeps the log for a year and lets either of you export. Looking is already included.")
+                    Text(TrustCopy.circleKeepsLog)
                         .font(TrustTheme.ui(13))
                         .foregroundStyle(palette.muted)
                 }
@@ -69,7 +69,7 @@ struct LookLogView: View {
                     .font(TrustTheme.ui(13))
                     .foregroundStyle(palette.muted)
             }
-            Text("Looked at \(event.subjectName) · live + last \(event.historyWindowHours)h")
+            Text(TrustCopy.lookedAtRow(name: event.subjectName, hours: event.historyWindowHours))
                 .font(TrustTheme.ui(14))
                 .foregroundStyle(palette.muted)
         }

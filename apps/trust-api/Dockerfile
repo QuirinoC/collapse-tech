@@ -10,4 +10,5 @@ WORKDIR /app
 COPY --from=build /app/publish .
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
-ENTRYPOINT ["dotnet", "TrustApi.dll"]
+# Render sets PORT (often 10000); bind to it when present so health checks reach the app.
+ENTRYPOINT ["sh", "-c", "exec env ASPNETCORE_URLS=http://+:${PORT:-8080} dotnet TrustApi.dll"]

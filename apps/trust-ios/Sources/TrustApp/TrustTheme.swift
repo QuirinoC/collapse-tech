@@ -1,4 +1,5 @@
 import SwiftUI
+import TrustCore
 
 struct TrustPalette: Equatable {
     var paper: Color
@@ -162,7 +163,7 @@ struct TrustSealedMark: View {
                 Text(initials)
                     .font(TrustTheme.label(11))
                     .tracking(0.8)
-                Text("SEALED")
+                Text(TrustCopy.sealed)
                     .font(TrustTheme.folio(8))
                     .tracking(0.9)
                     .foregroundStyle(palette.muted)
@@ -211,7 +212,7 @@ struct TrustPanelHeading: View {
             HStack {
                 TrustFolio(text: eyebrow)
                 Spacer()
-                Button("Close", action: close)
+                Button(TrustCopy.close, action: close)
                     .buttonStyle(TrustTextButtonStyle())
             }
             Text(title)
@@ -340,10 +341,14 @@ struct TrustSurface<Content: View>: View {
 
 extension String {
     var trustInitials: String {
-        let parts = split(separator: " ").prefix(2)
+        var trimmed = trimmingCharacters(in: .whitespaces)
+        if trimmed.hasPrefix("@") {
+            trimmed = String(trimmed.dropFirst())
+        }
+        let parts = trimmed.split(separator: " ").prefix(2)
         if parts.count >= 2 {
             return parts.map { String($0.prefix(1)).uppercased() }.joined()
         }
-        return String(trimmingCharacters(in: .whitespaces).prefix(2)).uppercased()
+        return String(trimmed.prefix(2)).uppercased()
     }
 }

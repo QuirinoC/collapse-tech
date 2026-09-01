@@ -7,7 +7,7 @@ namespace TrustApi.Infrastructure.Postgres;
 public sealed class PostgresTrustStore(string connectionString) : ITrustStore
 {
     private const string AccountColumns =
-        "account_id, provider, provider_subject, display_name, has_circle, circle_source, created_at, phone_e164, phone_verified_at";
+        "account_id, provider, provider_subject, display_name, has_circle, circle_source, created_at, phone_e164, phone_verified_at, handle";
 
     private readonly string _connectionString = PostgresConnectionString.Normalize(connectionString);
 
@@ -35,11 +35,11 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
             """
-            INSERT INTO trust.accounts (account_id, provider, provider_subject, display_name, has_circle, circle_source, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO trust.accounts (account_id, provider, provider_subject, display_name, has_circle, circle_source, created_at, handle)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (provider, provider_subject) DO UPDATE
                 SET display_name = EXCLUDED.display_name
-            RETURNING account_id, provider, provider_subject, display_name, has_circle, circle_source, created_at, phone_e164, phone_verified_at;
+            RETURNING account_id, provider, provider_subject, display_name, has_circle, circle_source, created_at, phone_e164, phone_verified_at, handle;
             """,
             connection);
         command.Parameters.AddWithValue(account.Id);
@@ -49,6 +49,7 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
         command.Parameters.AddWithValue(account.HasCircle);
         command.Parameters.AddWithValue((object?)account.CircleSource ?? DBNull.Value);
         command.Parameters.AddWithValue(account.CreatedAt);
+        command.Parameters.AddWithValue((object?)account.Handle ?? DBNull.Value);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         await reader.ReadAsync(cancellationToken);
         return ReadAccount(reader);
@@ -60,7 +61,7 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
         await using var command = new NpgsqlCommand(
             """
             UPDATE trust.accounts
-            SET display_name = $2, has_circle = $3, circle_source = $4
+            SET display_name = $2, has_circle = $3, circle_source = $4, handle = $5
             WHERE account_id = $1;
             """,
             connection);
@@ -68,6 +69,7 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
         command.Parameters.AddWithValue(account.DisplayName);
         command.Parameters.AddWithValue(account.HasCircle);
         command.Parameters.AddWithValue((object?)account.CircleSource ?? DBNull.Value);
+        command.Parameters.AddWithValue((object?)account.Handle ?? DBNull.Value);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -76,7 +78,7 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
             """
-            SELECT a.account_id, a.provider, a.provider_subject, a.display_name, a.has_circle, a.circle_source, a.created_at, a.phone_e164, a.phone_verified_at
+            SELECT a.account_id, a.provider, a.provider_subject, a.display_name, a.has_circle, a.circle_source, a.created_at, a.phone_e164, a.phone_verified_at, a.handle
             FROM trust.memberships m
             JOIN trust.accounts a ON a.account_id = CASE WHEN m.person_a = $1 THEN m.person_b ELSE m.person_a END
             WHERE m.status = 'active' AND (m.person_a = $1 OR m.person_b = $1);
@@ -552,6 +554,39 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
         }
     }
 
+    public Task<Account?> FindByHandleAsync(string handle, CancellationToken cancellationToken) =>
+        QueryAccountAsync(
+            $"SELECT {AccountColumns} FROM trust.accounts WHERE handle = $1",
+            cmd => cmd.Parameters.AddWithValue(handle),
+            cancellationToken);
+
+    public async Task SetHandleAsync(
+        Guid accountId,
+        string handle,
+        string displayName,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            UPDATE trust.accounts
+            SET handle = $2, display_name = $3
+            WHERE account_id = $1;
+            """,
+            connection);
+        command.Parameters.AddWithValue(accountId);
+        command.Parameters.AddWithValue(handle);
+        command.Parameters.AddWithValue(displayName);
+        try
+        {
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+        catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            throw TrustException.HandleInUse();
+        }
+    }
+
     public async Task<PhoneChallenge?> GetPhoneChallengeAsync(Guid accountId, CancellationToken cancellationToken)
     {
         await using var connection = await OpenAsync(cancellationToken);
@@ -667,7 +702,8 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
             reader.IsDBNull(5) ? null : reader.GetString(5),
             reader.GetFieldValue<DateTimeOffset>(6),
             reader.IsDBNull(7) ? null : reader.GetString(7),
-            reader.IsDBNull(8) ? null : reader.GetFieldValue<DateTimeOffset>(8));
+            reader.IsDBNull(8) ? null : reader.GetFieldValue<DateTimeOffset>(8),
+            reader.IsDBNull(9) ? null : reader.GetString(9));
 
     private static PhoneChallenge ReadChallenge(NpgsqlDataReader reader) =>
         new(

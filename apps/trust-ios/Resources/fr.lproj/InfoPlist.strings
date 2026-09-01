@@ -1,0 +1,5 @@
+"CFBundleDisplayName" = "Trust Circle";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Trust Circle garde ta position en dépôt, y compris en arrière-plan, pour qu’un pair adulte de confiance puisse te trouver s’il regarde. Il ne la voit qu’après confirmation, et tu es prévenu. Trust Circle ne vend pas ta position.";
+"NSLocationAlwaysUsageDescription" = "Trust Circle garde ta position en dépôt, y compris en arrière-plan, pour qu’un pair adulte de confiance puisse te trouver s’il regarde. Il ne la voit qu’après confirmation, et tu es prévenu. Trust Circle ne vend pas ta position.";
+"NSLocationWhenInUseUsageDescription" = "Trust Circle utilise ta position pendant que l’app est ouverte pour que tu te voies sur la carte et que tu regardes les personnes qui partagent avec toi. Trust Circle ne vend pas ta position.";
+"PreciseEscrow" = "Trust Circle a besoin d’une position précise pour qu’un pair adulte de confiance puisse te trouver s’il regarde. La position approximative ne suffit pas au dépôt.";

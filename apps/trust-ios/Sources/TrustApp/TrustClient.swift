@@ -13,6 +13,13 @@ struct PersonDTO: Decodable {
     var hasCircle: Bool
     var onboardingComplete: Bool?
     var phoneVerified: Bool?
+    var handle: String?
+}
+
+struct HandleAvailabilityPayload: Decodable {
+    var handle: String
+    var available: Bool
+    var code: String?
 }
 
 struct SendPhoneCodePayload: Decodable {
@@ -126,29 +133,29 @@ enum TrustClientError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unauthorized:
-            return "Sign in expired. Please sign in again."
+            return TrustCopy.signInExpired
         case .unreachable:
             #if DEBUG
-            return "Trust Circle cannot reach \(AppConfiguration.apiHostDescription). Start the API or wait until production is deployed."
+            return TrustCopy.cannotReachHost(AppConfiguration.apiHostDescription)
             #else
-            return "Trust Circle cannot reach the server. Check your connection."
+            return TrustCopy.cannotReachServer
             #endif
         case .timeout:
             #if DEBUG
-            return "Sign-in timed out talking to \(AppConfiguration.apiHostDescription)."
+            return TrustCopy.signInTimedOutHost(AppConfiguration.apiHostDescription)
             #else
-            return "Sign-in timed out. Try again."
+            return TrustCopy.signInTimedOut
             #endif
         case .serverUnavailable(let status):
             #if DEBUG
-            return "Trust Circle's server is unavailable (\(status)) at \(AppConfiguration.apiHostDescription)."
+            return TrustCopy.serverUnavailableHost(status: status, host: AppConfiguration.apiHostDescription)
             #else
-            return "Trust Circle's server is temporarily unavailable. Try again shortly."
+            return TrustCopy.serverUnavailable
             #endif
         case .server(let message):
             return message
         case .decoding:
-            return "The server sent a response this app could not read."
+            return TrustCopy.decodingError
         }
     }
 }
@@ -177,7 +184,7 @@ final class TrustClient {
             return
         }
         resolvedBaseURL = preferred
-        reachabilityNotice = "Trust Circle cannot reach \(preferred.host ?? preferred.absoluteString). Start the API on port 5088, or deploy production."
+        reachabilityNotice = TrustCopy.cannotReachLocal(preferred.host ?? preferred.absoluteString)
         #else
         resolvedBaseURL = preferred
         reachabilityNotice = nil
@@ -374,6 +381,16 @@ final class TrustClient {
         try await patchEmpty(path: "/api/v1/me", body: Body(displayName: name))
     }
 
+    func handleAvailability(_ handle: String) async throws -> HandleAvailabilityPayload {
+        let encoded = handle.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? handle
+        return try await get(path: "/api/v1/handles/available?handle=\(encoded)")
+    }
+
+    func setHandle(_ handle: String) async throws {
+        struct Body: Encodable { var handle: String }
+        try await putEmpty(path: "/api/v1/me/handle", body: Body(handle: handle))
+    }
+
     func sendPhoneCode(phone: String) async throws -> SendPhoneCodePayload {
         struct Body: Encodable { var phone: String }
         return try await post(
@@ -416,6 +433,13 @@ final class TrustClient {
 
     private func patchEmpty<B: Encodable>(path: String, body: B) async throws {
         var request = try makeRequest(path: path, method: "PATCH", authorized: true)
+        request.httpBody = try encoder.encode(body)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let _: EmptyPayload = try await send(request, allowEmpty: true)
+    }
+
+    private func putEmpty<B: Encodable>(path: String, body: B) async throws {
+        var request = try makeRequest(path: path, method: "PUT", authorized: true)
         request.httpBody = try encoder.encode(body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let _: EmptyPayload = try await send(request, allowEmpty: true)
@@ -472,11 +496,9 @@ final class TrustClient {
             throw TrustClientError.serverUnavailable(http.statusCode)
         }
         if http.statusCode == 401 {
-            if let error = try? decoder.decode(APIErrorPayload.self, from: data) {
-                let message = error.message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                if !message.isEmpty {
-                    throw TrustClientError.server(message)
-                }
+            if let error = try? decoder.decode(APIErrorPayload.self, from: data),
+               let code = error.code, code != "unauthorized" {
+                throw TrustClientError.server(TrustCopy.apiError(code: code, fallback: error.message))
             }
             throw TrustClientError.unauthorized
         }
@@ -492,9 +514,9 @@ final class TrustClient {
             }
         }
         if let error = try? decoder.decode(APIErrorPayload.self, from: data) {
-            throw TrustClientError.server(error.message ?? error.code ?? "Request failed.")
+            throw TrustClientError.server(TrustCopy.apiError(code: error.code, fallback: error.message))
         }
-        throw TrustClientError.server("Request failed (\(http.statusCode)).")
+        throw TrustClientError.server(TrustCopy.requestFailedStatus(http.statusCode))
     }
 
     private var decoder: JSONDecoder {
@@ -567,8 +589,9 @@ extension PersonDTO {
             id: id,
             displayName: displayName,
             hasPro: hasCircle,
-            onboardingComplete: onboardingComplete ?? true,
-            phoneVerified: phoneVerified ?? false
+            onboardingComplete: onboardingComplete ?? (handle != nil),
+            phoneVerified: phoneVerified ?? false,
+            handle: handle
         )
     }
 }

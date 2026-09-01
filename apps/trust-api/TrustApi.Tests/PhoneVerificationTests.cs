@@ -21,11 +21,12 @@ public sealed class PhoneVerificationTests
         var account = new Account(Guid.NewGuid(), "apple", "sub", "You", false, null, DateTimeOffset.UtcNow);
         Assert.False(account.HasChosenDisplayName);
         Assert.False(account.HasVerifiedPhone);
+        Assert.False(account.HasHandle);
         Assert.False(account.OnboardingComplete);
     }
 
     [Fact]
-    public void ChosenNameAndVerifiedPhoneCompleteOnboarding()
+    public void ChosenNameAndVerifiedPhoneWithoutHandleIsNotOnboardingComplete()
     {
         var account = new Account(
             Guid.NewGuid(),
@@ -37,7 +38,26 @@ public sealed class PhoneVerificationTests
             DateTimeOffset.UtcNow,
             "+15555550100",
             DateTimeOffset.UtcNow);
+        Assert.True(account.HasChosenDisplayName);
+        Assert.True(account.HasVerifiedPhone);
+        Assert.False(account.OnboardingComplete);
+    }
+
+    [Fact]
+    public void HandleCompletesOnboarding()
+    {
+        var account = new Account(
+            Guid.NewGuid(),
+            "apple",
+            "sub",
+            "You",
+            false,
+            null,
+            DateTimeOffset.UtcNow,
+            Handle: "jordan");
+        Assert.True(account.HasHandle);
         Assert.True(account.OnboardingComplete);
+        Assert.Equal("@jordan", account.PublicName);
     }
 
     [Fact]
@@ -66,7 +86,8 @@ public sealed class PhoneVerificationTests
 
         await phones.VerifyAsync(account.Id, "5555550123", sent.DevelopmentCode, CancellationToken.None);
         var updated = await store.FindAccountAsync(account.Id, CancellationToken.None);
-        Assert.True(updated!.OnboardingComplete);
+        Assert.True(updated!.HasVerifiedPhone);
+        Assert.False(updated.OnboardingComplete);
         Assert.Equal("+15555550123", updated.PhoneE164);
     }
 
@@ -221,7 +242,7 @@ public sealed class PhoneVerificationApiTests : IClassFixture<TrustApiFactory>
     }
 
     [Fact]
-    public async Task HttpSendAndVerifyCompletesOnboarding()
+    public async Task HttpSendAndVerifyDoesNotCompleteOnboarding()
     {
         var deviceId = Guid.NewGuid().ToString("N");
         var session = await _client.PostAsJsonAsync(
@@ -255,7 +276,7 @@ public sealed class PhoneVerificationApiTests : IClassFixture<TrustApiFactory>
         var circleResponse = await _client.SendAsync(circleRequest);
         circleResponse.EnsureSuccessStatusCode();
         var circle = await circleResponse.Content.ReadFromJsonAsync<CircleOnboardingWire>(Json);
-        Assert.True(circle!.You.OnboardingComplete);
+        Assert.False(circle!.You.OnboardingComplete);
         Assert.True(circle.You.PhoneVerified);
     }
 

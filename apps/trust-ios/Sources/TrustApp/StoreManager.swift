@@ -1,5 +1,6 @@
 import StoreKit
 import SwiftUI
+import TrustCore
 
 @MainActor
 final class StoreManager: ObservableObject {
@@ -179,7 +180,7 @@ final class StoreManager: ObservableObject {
         case failedVerification
 
         var errorDescription: String? {
-            "StoreKit verification failed."
+            TrustCopy.storeKitVerificationFailed
         }
     }
 }

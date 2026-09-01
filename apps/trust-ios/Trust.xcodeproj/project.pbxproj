@@ -7,17 +7,29 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00585D58BD36F3EFA822DA36 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 63242874F15C117B93D74C2D /* InfoPlist.strings */; };
+		06C22804C292C872FF35523A /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = BF4B0475D551D63F000821DA /* Localizable.strings */; };
 		0A2BDB08D8BE78D54C86926F /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 482B3013C3B6C0C8532F5DE6 /* LoginView.swift */; };
 		0A872DF45F12B026110B1128 /* TrustCore in Frameworks */ = {isa = PBXBuildFile; productRef = 26D261D4D2888B2D50331783 /* TrustCore */; };
+		0B084813F08FF4C2C2135AC1 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 5508C24A56E81A67A0FC1D03 /* InfoPlist.strings */; };
+		127C565893C1515E163CA5D2 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = B2063F803335BC6D0150423D /* InfoPlist.strings */; };
 		16D05BB4DFDA737C9B2DFC73 /* PairingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2DAED61704F70733282AC30 /* PairingView.swift */; };
 		193D0475C68E66AF65A7DFD7 /* TrustCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10CA18C94885D409ED3D7B7 /* TrustCoreTests.swift */; };
+		20624BD70DED7D4BF2F8F2C3 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 5BDC5D2F3934AD105418EDE7 /* InfoPlist.strings */; };
+		229593A0AF1BF0DB468BC2C7 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = EA6E8C88B60DDDCD07C84F5E /* Localizable.strings */; };
 		2D9161BA01CC4106E2F91767 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A47ECAE1AEEB5A271C1B627 /* SettingsView.swift */; };
+		32D9A6ABCEC1A4215D80BC3E /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = CC2380F09F1CF772604EADCB /* Localizable.strings */; };
 		35E24521BB8398528011D2CE /* ShareModeViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A5A0800EBD0A6B9EBDC5736 /* ShareModeViews.swift */; };
 		39A0E03BB9F0C443A78B2DB5 /* LookLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C45C977EBF890374684CAB /* LookLogView.swift */; };
 		3C26CE6415D9270C449CCEB9 /* TrustTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5980035418744C890C9440B9 /* TrustTheme.swift */; };
 		3D1FECB474E5F32BED73A8BB /* BreakTrustSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1489C15E191BEF16B0F86C4A /* BreakTrustSheet.swift */; };
+		4739F0C7171B14DA02E1E454 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = D08EA0C8184116A2084F89DF /* InfoPlist.strings */; };
+		49510C5034BE08BB9B662B51 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 4C8229953A6861B1EAF998E1 /* Localizable.strings */; };
+		54AE26811AC87E2983918621 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 37C6BA35360766DAB29065FB /* InfoPlist.strings */; };
 		591032D036F1CFD94E6CA3F4 /* Syne-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = CDAFEB434DDE7B2096119E2F /* Syne-Variable.ttf */; };
 		5ED0A8636725D0867AAB4F2C /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 66B76ABCAC45B392F6A35D09 /* PrivacyInfo.xcprivacy */; };
+		6027482DC8201B5299618423 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = BB72B4FFF4A269CFA98CC592 /* InfoPlist.strings */; };
+		66E110308D42F1BA9150F0CD /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 9F9F18EB3FE90F6B1E781EA0 /* Localizable.strings */; };
 		681EDD0BAF595CBD804C6090 /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0D907524021AC2732B10CC12 /* MapKit.framework */; };
 		6B26BDB753D5451C9B9FB8DB /* TrustApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 913C99EC0D7E0E081DA468B0 /* TrustApp.swift */; };
 		6FC27E68E657E2CE7C543470 /* AuthenticationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9D76A913BE410AB908D7AB0 /* AuthenticationServices.framework */; };
@@ -29,11 +41,13 @@
 		8EBFAA09C67AE6703DF64EE5 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DD39690718850F57B59DFBA /* RootView.swift */; };
 		A13CE8F38B1CD3B9DACB8E2E /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED1688A0F63E95BC3BD349AD /* AppModel.swift */; };
 		A3B85FA87D3F11B02F7A4B0C /* TrustCore in Frameworks */ = {isa = PBXBuildFile; productRef = C0333FDFA631E42B914FD748 /* TrustCore */; };
+		A94B6401AD264CF3FFD212E6 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 4C699BBDA4EB0CC57ED36887 /* Localizable.strings */; };
 		AAEBF87B295425BB209965A0 /* LookMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBC8B67BFB50482DF79E28F7 /* LookMapView.swift */; };
 		B54974F68A38E7221D995E39 /* AuthSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FD7594384721372A16D9E19 /* AuthSession.swift */; };
 		B99BB21E8FCC580EC3BD59BA /* SpaceGrotesk-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 6BCC3CAB70FB747A74A2A255 /* SpaceGrotesk-Variable.ttf */; };
 		C266183870E6F2B71B0911BC /* TrustClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C0D44DBC8538A89711936F4 /* TrustClient.swift */; };
 		C9DAE176C7A0161EEC13548E /* LookReceiptNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = F84BA6FBFFF34D5A92798BF4 /* LookReceiptNotifier.swift */; };
+		D2459321066E8DAE7317DAC6 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 6A37121DEAA99065100C6667 /* Localizable.strings */; };
 		DBA29825B90A09D3FE4B4E6C /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD51D846EE655571C4D9560 /* HomeView.swift */; };
 		E1F12F6A594D0140C2929F41 /* LocationIngestStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EC0AFA3E5CFC1D9047DE372 /* LocationIngestStore.swift */; };
 		EB7210492C5867FA62F0852B /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152F42E412B67DF79391EE99 /* OnboardingView.swift */; };
@@ -50,27 +64,41 @@
 		1C0D44DBC8538A89711936F4 /* TrustClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrustClient.swift; sourceTree = "<group>"; };
 		278DE343F519E15D7E58CA3A /* LoginAtlasBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginAtlasBackground.swift; sourceTree = "<group>"; };
 		2A47ECAE1AEEB5A271C1B627 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		37C6BA35360766DAB29065FB /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		3DD39690718850F57B59DFBA /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		47B487800F3DADB918917BA8 /* LocationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationCoordinator.swift; sourceTree = "<group>"; };
 		482B3013C3B6C0C8532F5DE6 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		4C699BBDA4EB0CC57ED36887 /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = de.lproj/Localizable.strings; sourceTree = "<group>"; };
+		4C8229953A6861B1EAF998E1 /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = ko.lproj/Localizable.strings; sourceTree = "<group>"; };
 		4FD51D846EE655571C4D9560 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		5508C24A56E81A67A0FC1D03 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = de.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		5980035418744C890C9440B9 /* TrustTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrustTheme.swift; sourceTree = "<group>"; };
+		5BDC5D2F3934AD105418EDE7 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = fr.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		5EC0AFA3E5CFC1D9047DE372 /* LocationIngestStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationIngestStore.swift; sourceTree = "<group>"; };
+		63242874F15C117B93D74C2D /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = ko.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		66B76ABCAC45B392F6A35D09 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		6A37121DEAA99065100C6667 /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = ja.lproj/Localizable.strings; sourceTree = "<group>"; };
 		6BCC3CAB70FB747A74A2A255 /* SpaceGrotesk-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceGrotesk-Variable.ttf"; sourceTree = "<group>"; };
 		87C45C977EBF890374684CAB /* LookLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LookLogView.swift; sourceTree = "<group>"; };
 		913C99EC0D7E0E081DA468B0 /* TrustApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrustApp.swift; sourceTree = "<group>"; };
+		9F9F18EB3FE90F6B1E781EA0 /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = "pt-BR.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		A5FADBF71283343C63339724 /* trust-ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "trust-ios"; path = .; sourceTree = SOURCE_ROOT; };
 		A764AB895F51BD53D38551D7 /* StoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreManager.swift; sourceTree = "<group>"; };
 		AE3763646FBA2DF7BEE36D79 /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
 		B07B3706D2CCD8A7AC80B91D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B2063F803335BC6D0150423D /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		B23A5C764E9E313CD90E6EB0 /* TrustCoreTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TrustCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9D76A913BE410AB908D7AB0 /* AuthenticationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; };
+		BB72B4FFF4A269CFA98CC592 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = "pt-BR.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		BBC8B67BFB50482DF79E28F7 /* LookMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LookMapView.swift; sourceTree = "<group>"; };
+		BF4B0475D551D63F000821DA /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = es.lproj/Localizable.strings; sourceTree = "<group>"; };
+		CC2380F09F1CF772604EADCB /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = fr.lproj/Localizable.strings; sourceTree = "<group>"; };
 		CDAFEB434DDE7B2096119E2F /* Syne-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Syne-Variable.ttf"; sourceTree = "<group>"; };
+		D08EA0C8184116A2084F89DF /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = es.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		D10CA18C94885D409ED3D7B7 /* TrustCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrustCoreTests.swift; sourceTree = "<group>"; };
 		E0E16CA26F45FCA3514EB874 /* Trust.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Trust.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2DAED61704F70733282AC30 /* PairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingView.swift; sourceTree = "<group>"; };
+		EA6E8C88B60DDDCD07C84F5E /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		ED1688A0F63E95BC3BD349AD /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		F84BA6FBFFF34D5A92798BF4 /* LookReceiptNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LookReceiptNotifier.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -184,6 +212,20 @@
 			isa = PBXGroup;
 			children = (
 				B07B3706D2CCD8A7AC80B91D /* Assets.xcassets */,
+				5508C24A56E81A67A0FC1D03 /* InfoPlist.strings */,
+				D08EA0C8184116A2084F89DF /* InfoPlist.strings */,
+				5BDC5D2F3934AD105418EDE7 /* InfoPlist.strings */,
+				B2063F803335BC6D0150423D /* InfoPlist.strings */,
+				63242874F15C117B93D74C2D /* InfoPlist.strings */,
+				BB72B4FFF4A269CFA98CC592 /* InfoPlist.strings */,
+				37C6BA35360766DAB29065FB /* InfoPlist.strings */,
+				4C699BBDA4EB0CC57ED36887 /* Localizable.strings */,
+				BF4B0475D551D63F000821DA /* Localizable.strings */,
+				CC2380F09F1CF772604EADCB /* Localizable.strings */,
+				6A37121DEAA99065100C6667 /* Localizable.strings */,
+				4C8229953A6861B1EAF998E1 /* Localizable.strings */,
+				9F9F18EB3FE90F6B1E781EA0 /* Localizable.strings */,
+				EA6E8C88B60DDDCD07C84F5E /* Localizable.strings */,
 				66B76ABCAC45B392F6A35D09 /* PrivacyInfo.xcprivacy */,
 				1BC2968C83745FE42A567926 /* Fonts */,
 			);
@@ -272,7 +314,14 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				Base,
+				de,
 				en,
+				es,
+				fr,
+				ja,
+				ko,
+				"pt-BR",
+				"zh-Hans",
 			);
 			mainGroup = 45FDB54EB1644E38450E63F7;
 			minimizedProjectReferenceProxies = 1;
@@ -297,6 +346,20 @@
 			files = (
 				7420B5E2CC729280CA5F7B2A /* Assets.xcassets in Resources */,
 				86AF23F721D59EF2A6C0BCCB /* IBMPlexMono-Medium.ttf in Resources */,
+				0B084813F08FF4C2C2135AC1 /* InfoPlist.strings in Resources */,
+				54AE26811AC87E2983918621 /* InfoPlist.strings in Resources */,
+				127C565893C1515E163CA5D2 /* InfoPlist.strings in Resources */,
+				4739F0C7171B14DA02E1E454 /* InfoPlist.strings in Resources */,
+				00585D58BD36F3EFA822DA36 /* InfoPlist.strings in Resources */,
+				6027482DC8201B5299618423 /* InfoPlist.strings in Resources */,
+				20624BD70DED7D4BF2F8F2C3 /* InfoPlist.strings in Resources */,
+				A94B6401AD264CF3FFD212E6 /* Localizable.strings in Resources */,
+				229593A0AF1BF0DB468BC2C7 /* Localizable.strings in Resources */,
+				D2459321066E8DAE7317DAC6 /* Localizable.strings in Resources */,
+				06C22804C292C872FF35523A /* Localizable.strings in Resources */,
+				49510C5034BE08BB9B662B51 /* Localizable.strings in Resources */,
+				66E110308D42F1BA9150F0CD /* Localizable.strings in Resources */,
+				32D9A6ABCEC1A4215D80BC3E /* Localizable.strings in Resources */,
 				5ED0A8636725D0867AAB4F2C /* PrivacyInfo.xcprivacy in Resources */,
 				B99BB21E8FCC580EC3BD59BA /* SpaceGrotesk-Variable.ttf in Resources */,
 				591032D036F1CFD94E6CA3F4 /* Syne-Variable.ttf in Resources */,

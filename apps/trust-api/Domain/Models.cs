@@ -26,6 +26,60 @@ public static class AccountIdentity
     }
 }
 
+public static class AccountHandle
+{
+    public const int MinLength = 3;
+    public const int MaxLength = 20;
+
+    private static readonly System.Text.RegularExpressions.Regex Pattern = new(
+        "^[a-z][a-z0-9_]{2,19}$",
+        System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    private static readonly HashSet<string> Reserved = new(StringComparer.Ordinal)
+    {
+        "about", "account", "admin", "administrator", "api", "apple",
+        "bot", "circle", "collapse", "collapsetechnologies",
+        "everyone", "google", "help", "here", "invite", "look",
+        "login", "me", "mod", "moderator", "null", "official", "owner",
+        "privacy", "root", "settings", "signin", "signout", "signup",
+        "staff", "status", "support", "system", "terms", "trust",
+        "trustcircle", "www", "you"
+    };
+
+    public static string Normalize(string? raw)
+    {
+        var value = (raw ?? "").Trim();
+        if (value.StartsWith('@'))
+        {
+            value = value[1..].Trim();
+        }
+
+        return value.ToLowerInvariant();
+    }
+
+    public static bool TryValidate(string? raw, out string normalized, out string? errorCode)
+    {
+        normalized = Normalize(raw);
+        if (!Pattern.IsMatch(normalized))
+        {
+            errorCode = "invalid_handle";
+            return false;
+        }
+
+        if (Reserved.Contains(normalized))
+        {
+            errorCode = "reserved_handle";
+            return false;
+        }
+
+        errorCode = null;
+        return true;
+    }
+
+    public static bool IsChosen(string? handle) =>
+        TryValidate(handle, out _, out _);
+}
+
 public sealed record Account(
     Guid Id,
     string Provider,
@@ -35,15 +89,22 @@ public sealed record Account(
     string? CircleSource,
     DateTimeOffset CreatedAt,
     string? PhoneE164 = null,
-    DateTimeOffset? PhoneVerifiedAt = null)
+    DateTimeOffset? PhoneVerifiedAt = null,
+    string? Handle = null)
 {
     public bool HasChosenDisplayName => AccountIdentity.IsChosenDisplayName(DisplayName);
 
     public bool HasVerifiedPhone =>
         !string.IsNullOrWhiteSpace(PhoneE164) && PhoneVerifiedAt is not null;
 
-    public bool OnboardingComplete => HasChosenDisplayName && HasVerifiedPhone;
+    public bool HasHandle => AccountHandle.IsChosen(Handle);
+
+    public bool OnboardingComplete => HasHandle;
+
+    public string PublicName => HasHandle ? $"@{Handle}" : DisplayName;
 }
+
+public sealed record HandleAvailability(string Handle, bool Available, string? Code);
 
 public sealed record PhoneChallenge(
     Guid AccountId,
@@ -284,6 +345,15 @@ public sealed class TrustException : Exception
 
     public static TrustException PhoneInUse() =>
         new("phone_in_use", "That phone is already on another Trust account.");
+
+    public static TrustException InvalidHandle() =>
+        new("invalid_handle", "That handle isn’t valid.");
+
+    public static TrustException ReservedHandle() =>
+        new("reserved_handle", "That handle is reserved.");
+
+    public static TrustException HandleInUse() =>
+        new("handle_in_use", "That handle is taken.");
 }
 
 public interface ITrustStore
@@ -327,6 +397,8 @@ public interface ITrustStore
     Task DeleteAccountAsync(Guid accountId, CancellationToken cancellationToken);
     Task<Account?> FindByVerifiedPhoneAsync(string phoneE164, CancellationToken cancellationToken);
     Task SetVerifiedPhoneAsync(Guid accountId, string phoneE164, DateTimeOffset verifiedAt, CancellationToken cancellationToken);
+    Task<Account?> FindByHandleAsync(string handle, CancellationToken cancellationToken);
+    Task SetHandleAsync(Guid accountId, string handle, string displayName, CancellationToken cancellationToken);
     Task<PhoneChallenge?> GetPhoneChallengeAsync(Guid accountId, CancellationToken cancellationToken);
     Task UpsertPhoneChallengeAsync(PhoneChallenge challenge, CancellationToken cancellationToken);
     Task ClearPhoneChallengeAsync(Guid accountId, CancellationToken cancellationToken);

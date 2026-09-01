@@ -31,11 +31,11 @@ struct SettingsView: View {
                 .padding(20)
             }
             .background(palette.paper.ignoresSafeArea())
-            .navigationTitle("Settings")
+            .navigationTitle(TrustCopy.settings)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { model.showingSettings = false }
+                    Button(TrustCopy.done) { model.showingSettings = false }
                         .font(TrustTheme.folio(12))
                         .tracking(1)
                         .textCase(.uppercase)
@@ -44,14 +44,14 @@ struct SettingsView: View {
             }
         }
         .confirmationDialog(
-            "Revoke this person immediately?",
+            TrustCopy.revokePersonConfirm,
             isPresented: Binding(
                 get: { revokeTarget != nil },
                 set: { if !$0 { revokeTarget = nil } }
             ),
             titleVisibility: .visible
         ) {
-            Button("Revoke", role: .destructive) {
+            Button(TrustCopy.revoke, role: .destructive) {
                 if let person = revokeTarget {
                     model.revoke(person)
                 }
@@ -59,11 +59,11 @@ struct SettingsView: View {
             }
         }
         .confirmationDialog(
-            "Delete your Trust Circle account? Location, looks, and circle membership are removed. This cannot be undone.",
+            TrustCopy.deleteAccountConfirm,
             isPresented: $showingDeleteAccount,
             titleVisibility: .visible
         ) {
-            Button("Delete account", role: .destructive) {
+            Button(TrustCopy.deleteAccount, role: .destructive) {
                 Task { await model.deleteAccount() }
             }
         }
@@ -80,14 +80,14 @@ struct SettingsView: View {
     private var appearanceCard: some View {
         TrustSurface {
             VStack(alignment: .leading, spacing: 12) {
-                sectionTitle("Edition")
+                sectionTitle(TrustCopy.edition)
                 Toggle(isOn: model.nightEditionBinding) {
-                    Text("Night Edition")
+                    Text(TrustCopy.nightEdition)
                         .font(TrustTheme.ui(15))
                         .foregroundStyle(palette.ink)
                 }
                 .tint(palette.accent)
-                Text("Paper is the default: white sheet, black streets, one red verb.")
+                Text(TrustCopy.paperDefaultNote)
                     .font(TrustTheme.ui(13))
                     .foregroundStyle(palette.muted)
             }
@@ -98,13 +98,13 @@ struct SettingsView: View {
         TrustSurface {
             VStack(alignment: .leading, spacing: 12) {
                 TrustFolio(text: TrustCopy.appName)
-                sectionTitle(model.coverage.isCovered ? "Circle" : "Get Circle")
+                sectionTitle(model.coverage.isCovered ? TrustCopy.circle : TrustCopy.getCircle)
                 Text(subscriptionNote)
                     .font(TrustTheme.ui(14))
                     .foregroundStyle(palette.muted)
 
-                benefit("Free", "One person, Look, last 2 hours, quiet receipts, 30-day log.")
-                benefit("Circle", "More people, 24-hour history, place pings, year-long log + export. One seat covers the unpaid partner.")
+                benefit(TrustCopy.free, TrustCopy.benefitFree)
+                benefit(TrustCopy.circle, TrustCopy.benefitCircle)
 
                 if let banner = model.coverage.banner {
                     TrustFolio(text: banner, color: palette.accent, size: 10)
@@ -116,37 +116,40 @@ struct SettingsView: View {
                             Task { await model.purchase(product) }
                         } label: {
                             Text(product.id == AppConfiguration.monthlyProductID
-                                 ? "Circle monthly — \(product.displayPrice)"
-                                 : "Circle annual — \(product.displayPrice)")
+                                 ? TrustCopy.circleMonthly(price: product.displayPrice)
+                                 : TrustCopy.circleAnnual(price: product.displayPrice))
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(TrustFilledButtonStyle())
                         .disabled(model.store.isWorking)
                     }
                     if model.store.products.isEmpty {
-                        Text("Circle \(AppConfiguration.monthlyDisplayPrice)/mo or \(AppConfiguration.annualDisplayPrice)/yr. 7-day trial.")
+                        Text(TrustCopy.circlePriceFallback(
+                            monthly: AppConfiguration.monthlyDisplayPrice,
+                            annual: AppConfiguration.annualDisplayPrice
+                        ))
                             .font(TrustTheme.ui(13))
                             .foregroundStyle(palette.muted)
                     }
-                    Text("Circle is an auto-renewing subscription. Payment is charged to your Apple ID at confirmation. It renews unless you cancel at least 24 hours before the period ends. Family Sharing is off. We do not sell location.")
+                    Text(TrustCopy.circleLegal)
                         .font(TrustTheme.ui(13))
                         .foregroundStyle(palette.muted)
                     HStack(spacing: 6) {
-                        Link("Privacy", destination: AppConfiguration.privacyURL)
+                        Link(TrustCopy.privacy, destination: AppConfiguration.privacyURL)
                         Text("·")
-                        Link("Terms", destination: AppConfiguration.termsURL)
+                        Link(TrustCopy.terms, destination: AppConfiguration.termsURL)
                     }
                     .font(TrustTheme.folio(11))
                     .foregroundStyle(palette.muted)
                     if model.snapshot?.allowsReviewUnlock == true {
-                        Button("Unlock Circle for review") {
+                        Button(TrustCopy.unlockCircleForReview) {
                             model.unlockCircleForReview()
                         }
                         .buttonStyle(TrustOutlineButtonStyle(compact: true))
                     }
                 }
 
-                Button("Restore purchases") {
+                Button(TrustCopy.restorePurchases) {
                     Task {
                         if let signed = await model.store.restorePurchases() {
                             await model.syncCircleEntitlement(signedTransactionInfo: signed)
@@ -157,13 +160,13 @@ struct SettingsView: View {
                 .disabled(model.store.isWorking)
 
                 if model.store.hasCircleAccess {
-                    Link("Manage subscription", destination: StoreManager.manageSubscriptionsURL)
+                    Link(TrustCopy.manageSubscription, destination: StoreManager.manageSubscriptionsURL)
                         .font(TrustTheme.folio(11))
                         .foregroundStyle(palette.muted)
                 }
 
                 if model.store.linkedToAnotherAccount {
-                    Text("This Apple subscription is linked to another Trust Circle account. Contact hello@collapsetechnologies.com.")
+                    Text(TrustCopy.subscriptionLinked)
                         .font(TrustTheme.ui(13))
                         .foregroundStyle(palette.accent)
                 }
@@ -180,20 +183,20 @@ struct SettingsView: View {
     private var membersCard: some View {
         TrustSurface {
             VStack(alignment: .leading, spacing: 0) {
-                sectionTitle("Circle members")
+                sectionTitle(TrustCopy.circleMembers)
                     .padding(.bottom, 8)
-                stateRow("You", model.you.displayName)
-                stateRow("Trusted", "\(model.circle.count) / \(model.coverage.trustedPeopleLimit)")
-                stateRow("Plan", model.coverage.isCovered ? "Circle" : "Free")
+                stateRow(TrustCopy.you, model.you.identity)
+                stateRow(TrustCopy.trusted, "\(model.circle.count) / \(model.coverage.trustedPeopleLimit)")
+                stateRow(TrustCopy.plan, model.coverage.isCovered ? TrustCopy.circle : TrustCopy.free)
                 ForEach(model.circle) { member in
                     HStack {
-                        stateRow("Member", member.displayName)
-                        Button("Revoke") { revokeTarget = member.person }
+                        stateRow(TrustCopy.member, member.displayName)
+                        Button(TrustCopy.revoke) { revokeTarget = member.person }
                             .font(TrustTheme.folio(10))
                             .foregroundStyle(palette.accent)
                     }
                 }
-                Text("Invite from the map. Free is one trusted person. Circle adds seats. Looking does not need Circle.")
+                Text(TrustCopy.inviteFromMap)
                     .font(TrustTheme.ui(13))
                     .foregroundStyle(palette.muted)
                     .padding(.top, 10)
@@ -204,30 +207,30 @@ struct SettingsView: View {
     private var locationCard: some View {
         TrustSurface {
             VStack(alignment: .leading, spacing: 12) {
-                sectionTitle("Location")
+                sectionTitle(TrustCopy.location)
                 Text(locationPurposeCopy)
                     .font(TrustTheme.ui(14))
                     .foregroundStyle(palette.muted)
-                stateRow("Permission", model.location.statusLabel)
-                stateRow("Accuracy", model.location.accuracyLabel)
-                stateRow("Sharing", model.isSharingLocation ? "On" : "Off")
-                stateRow("Ingest", model.isSharingLocation && model.location.hasAccess ? "On" : "Off")
-                stateRow("Feed", model.location.isUsingSimulatorFeed ? "Waiting" : "Device")
+                stateRow(TrustCopy.permission, model.location.statusLabel)
+                stateRow(TrustCopy.accuracy, model.location.accuracyLabel)
+                stateRow(TrustCopy.sharing, model.isSharingLocation ? TrustCopy.on : TrustCopy.off)
+                stateRow(TrustCopy.ingest, model.isSharingLocation && model.location.hasAccess ? TrustCopy.on : TrustCopy.off)
+                stateRow(TrustCopy.feed, model.location.isUsingSimulatorFeed ? TrustCopy.waiting : TrustCopy.device)
 
                 if model.location.isDenied {
                     Text(TrustCopy.locationDeniedBody)
                         .font(TrustTheme.ui(13))
                         .foregroundStyle(palette.muted)
-                    Button("Open iOS Settings") {
+                    Button(TrustCopy.openIOSSettings) {
                         model.openSystemSettings()
                     }
                     .buttonStyle(TrustOutlineButtonStyle(compact: true))
                 } else {
-                    Button("Allow while using") {
+                    Button(TrustCopy.allowWhileUsing) {
                         model.requestWhenInUseLocation()
                     }
                     .buttonStyle(TrustOutlineButtonStyle(compact: true))
-                    Button("Allow always") {
+                    Button(TrustCopy.allowAlways) {
                         if model.location.needsSystemSettings {
                             model.openSystemSettings()
                         } else {
@@ -241,13 +244,13 @@ struct SettingsView: View {
                     Text(TrustCopy.locationReducedAccuracy)
                         .font(TrustTheme.ui(13))
                         .foregroundStyle(palette.muted)
-                    Button("Allow precise location") {
+                    Button(TrustCopy.allowPreciseLocation) {
                         model.requestPreciseLocation()
                     }
                     .buttonStyle(TrustOutlineButtonStyle(compact: true))
                 }
 
-                Button("Allow quiet receipts") {
+                Button(TrustCopy.allowQuietReceipts) {
                     Task { await model.requestNotifications() }
                 }
                 .buttonStyle(TrustOutlineButtonStyle(compact: true))
@@ -268,30 +271,30 @@ struct SettingsView: View {
     private var moreCard: some View {
         TrustSurface {
             VStack(alignment: .leading, spacing: 12) {
-                sectionTitle("More")
-                Button("Look log") {
+                sectionTitle(TrustCopy.more)
+                Button(TrustCopy.lookLog) {
                     model.showingLookLog = true
                 }
                 .buttonStyle(TrustOutlineButtonStyle(compact: true))
 
                 Button(model.coverage.hasPlacePings
-                       ? "Place ping — got home"
-                       : "Place ping — Circle") {
+                       ? TrustCopy.placePingGotHome
+                       : TrustCopy.placePingCircle) {
                     model.sendPlacePing()
                 }
                 .buttonStyle(TrustOutlineButtonStyle(compact: true))
 
-                Button("Check in") {
+                Button(TrustCopy.checkIn) {
                     model.checkIn()
                 }
                 .buttonStyle(TrustOutlineButtonStyle(compact: true))
 
-                Button("Sign out") {
+                Button(TrustCopy.signOut) {
                     model.signOut()
                 }
                 .buttonStyle(TrustTextButtonStyle())
 
-                Button("Delete account") {
+                Button(TrustCopy.deleteAccount) {
                     showingDeleteAccount = true
                 }
                 .buttonStyle(TrustOutlineButtonStyle(compact: true))
@@ -299,11 +302,11 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(TrustCopy.weDoNotSellLocation)
                     HStack(spacing: 6) {
-                        Link("Privacy", destination: AppConfiguration.privacyURL)
+                        Link(TrustCopy.privacy, destination: AppConfiguration.privacyURL)
                         Text("·")
-                        Link("Terms", destination: AppConfiguration.termsURL)
+                        Link(TrustCopy.terms, destination: AppConfiguration.termsURL)
                         Text("·")
-                        Link("Support", destination: AppConfiguration.supportURL)
+                        Link(TrustCopy.support, destination: AppConfiguration.supportURL)
                     }
                     #if DEBUG
                     Text("API \(AppConfiguration.apiBaseURL.absoluteString)")
@@ -321,14 +324,14 @@ struct SettingsView: View {
     private var subscriptionNote: String {
         if model.coverage.isCovered {
             if model.coverage.actingIsSponsor {
-                return "You sponsor this circle. Unpaid people do not need to pay to share or look."
+                return TrustCopy.sponsorNote
             }
-            return "\(model.coverage.sponsorName ?? "Your partner")’s Pro covers you. You can share and look without buying Circle."
+            return TrustCopy.coveredBySponsor(name: model.coverage.sponsorName ?? TrustCopy.yourPartner)
         }
         if model.store.trialEligibility == .eligible {
-            return "7-day trial. Free already includes the 1:1 look. Circle is extras, not a lock on looking."
+            return TrustCopy.trialNote
         }
-        return "Free already includes the 1:1 look. Circle is extras: more people, longer history, place pings, full log. One subscription covers two people."
+        return TrustCopy.freeIncludesLook
     }
 
     private func benefit(_ title: String, _ body: String) -> some View {

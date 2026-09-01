@@ -96,7 +96,7 @@ struct QuietReceiptBanner: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            TrustFolio(text: "Notification", color: palette.accent, size: 10)
+            TrustFolio(text: TrustCopy.notification, color: palette.accent, size: 10)
             Text(receipt.title)
                 .font(TrustTheme.ui(16, weight: .medium))
                 .foregroundStyle(palette.ink)

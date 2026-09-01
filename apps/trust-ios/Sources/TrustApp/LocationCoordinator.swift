@@ -60,16 +60,16 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
 
     var statusLabel: String {
         switch authorization {
-        case .authorizedAlways: return "Always"
-        case .authorizedWhenInUse: return "While using"
-        case .denied, .restricted: return "Denied"
-        case .notDetermined: return "Not asked"
-        @unknown default: return "Unknown"
+        case .authorizedAlways: return TrustCopy.always
+        case .authorizedWhenInUse: return TrustCopy.whileUsing
+        case .denied, .restricted: return TrustCopy.denied
+        case .notDetermined: return TrustCopy.notAsked
+        @unknown default: return TrustCopy.unknown
         }
     }
 
     var accuracyLabel: String {
-        isPrecise ? "Precise" : "Approximate"
+        isPrecise ? TrustCopy.precise : TrustCopy.approximate
     }
 
     func setMapActive(_ active: Bool) {

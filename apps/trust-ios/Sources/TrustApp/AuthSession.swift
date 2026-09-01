@@ -1,5 +1,6 @@
 import AuthenticationServices
 import Foundation
+import TrustCore
 import UIKit
 
 enum AuthenticationProvider: String, Equatable {
@@ -17,15 +18,15 @@ enum TrustAuthenticationError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .appleAuthorizationFailed:
-            return "Apple could not complete sign-in."
+            return TrustCopy.appleSignInFailed
         case .appleAuthorizationTimedOut:
-            return "Apple sign-in did not finish. Try again."
+            return TrustCopy.appleSignInTimedOut
         case .invalidAppleCredential:
-            return "Apple did not return a usable sign-in."
+            return TrustCopy.invalidAppleCredential
         case .presentationUnavailable:
-            return "Sign-in needs a window to present from."
+            return TrustCopy.presentationUnavailable
         case .signInInProgress:
-            return "Sign-in is already in progress."
+            return TrustCopy.signInInProgress
         }
     }
 }

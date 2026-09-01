@@ -14,7 +14,7 @@ Until end-to-end encryption exists, location points are **plaintext on the serve
 
 | Table | What it stores |
 | --- | --- |
-| `trust.accounts` | Sign-in identity, display name, verified E.164 phone, Circle entitlement |
+| `trust.accounts` | Sign-in identity, unique handle, optional display name, optional verified E.164 phone, Circle entitlement |
 | `trust.phone_challenges` | Hashed SMS OTP in flight (not the plaintext code) |
 | `trust.invites` | Pending/consumed invite codes |
 | `trust.memberships` | Circle pairs |
@@ -100,10 +100,12 @@ All other `/api/v1/*` routes require `Authorization: Bearer <session JWT>`.
 
 ## Product API
 
-- `GET /api/v1/circle` — members, presence **without coordinates** unless Always / For a while / an open Look. Sealed `live` is `null`. `you.onboardingComplete` is true only after a chosen display name and a verified phone.
-- `PATCH /api/v1/me` — display name (required for onboarding).
-- `POST /api/v1/me/phone/send` `{ phone }` — SMS OTP to an E.164 number. Twilio when `Twilio:AccountSid` + `AuthToken` + `FromNumber` (or `MessagingServiceSid`) are set. In **Development only**, if Twilio is not configured, the JSON includes `developmentCode` (never logged, never returned in Production).
-- `POST /api/v1/me/phone/verify` `{ phone, code }` — checks the hashed OTP and sets `phone_verified_at`.
+- `GET /api/v1/circle` — members, presence **without coordinates** unless Always / For a while / an open Look. Sealed `live` is `null`. `you.onboardingComplete` is true only after a unique handle is set.
+- `GET /api/v1/handles/available?handle=` — whether a handle is valid, not reserved, and free (own handle counts as available).
+- `PUT /api/v1/me/handle` `{ handle }` — claim the unique handle; required for onboarding. If display name is still the placeholder, it becomes the handle.
+- `PATCH /api/v1/me` — optional display name (not required for the map).
+- `POST /api/v1/me/phone/send` `{ phone }` — unused by onboarding. SMS OTP to an E.164 number. Twilio when `Twilio:AccountSid` + `AuthToken` + `FromNumber` (or `MessagingServiceSid`) are set. In **Development only**, if Twilio is not configured, the JSON includes `developmentCode` (never logged, never returned in Production).
+- `POST /api/v1/me/phone/verify` `{ phone, code }` — unused by onboarding. Checks the hashed OTP and sets `phone_verified_at`.
 - `POST /api/v1/location` — append point(s) only while sharing (Until they look / Always / For a while). Optional `points` array for a batch. Prunes GPS older than 26 hours. No-op (and clears GPS) if the circle is empty.
 - `POST /api/v1/looks` `{ subjectId, confirmed: true }` — unlock **live + last 2 hours from stored points**, append look log.
 - `POST /api/v1/looks/close`, `POST /api/v1/looks/{subjectId}/extend` — extend is Circle (24h).
@@ -130,7 +132,7 @@ Production host: Render service `trust-api`, custom domain `trust.collapsetechno
 | `StoreKit:Enabled` + Apple Root CA G3 (embedded) | Verify App Store JWS | On in production |
 | `StoreKit:AllowReviewUnlock` | Settings → Unlock Circle for review | Development / first App Review |
 | `Apns:KeyId` + `Apns:PrivateKey` | Look receipts on the subject’s phone | User-supplied Auth Key; do not invent |
-| `Twilio:AccountSid`, `Twilio:AuthToken`, `Twilio:FromNumber` or `Twilio:MessagingServiceSid` | Phone OTP SMS | Optional locally; Development returns `developmentCode` if unset. Production must set these. Do not commit secrets. |
+| `Twilio:AccountSid`, `Twilio:AuthToken`, `Twilio:FromNumber` or `Twilio:MessagingServiceSid` | Phone OTP SMS | Optional. Not required for onboarding. Development returns `developmentCode` if unset. Do not commit secrets. |
 | Stripe `SecretKey`, price IDs | Web checkout | Optional; iOS Circle is StoreKit |
 | Mapbox | Not used | MapKit on iOS |
 

@@ -52,14 +52,11 @@ final class AppModel: ObservableObject {
     @Published var isSigningIn = false
     @Published var snapshot: CircleSnapshot?
     @Published var localSession: LookSession?
-    @Published var onboardingName = ""
-    @Published var onboardingPhone = ""
-    @Published var onboardingCode = ""
+    @Published var onboardingHandle = ""
     @Published var onboardingNotice: String?
-    @Published var developmentOtpCode: String?
-    @Published var phoneCodeSent = false
-    @Published var phoneVerified = false
+    @Published var handleAvailability: Bool?
     @Published var isOnboardingBusy = false
+    private var handleCheckTask: Task<Void, Never>?
 
     private var cancellables: Set<AnyCancellable> = []
 
@@ -90,10 +87,10 @@ final class AppModel: ObservableObject {
 
     var signedInSummary: String {
         guard let account = auth.account else {
-            return "Not signed in. No ads. We do not sell location."
+            return TrustCopy.signedOutSummary
         }
         let method = account.provider == .apple ? "Apple" : "Google"
-        return "Signed in with \(method) as \(you.displayName). No ads. We do not sell location."
+        return TrustCopy.signedInSummary(method: method, name: you.identity)
     }
 
     init() {
@@ -189,7 +186,7 @@ final class AppModel: ObservableObject {
                 )
                 await refresh(enterHome: true, fallbackOnboardingComplete: session.you.model.onboardingComplete)
             case .google:
-                auth.notice = "Trust uses Sign in with Apple."
+                auth.notice = TrustCopy.trustUsesSignInWithApple
                 return
             }
             receipts.prepare(client: client)
@@ -282,78 +279,65 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func sendOnboardingPhoneCode() async {
-        onboardingNotice = nil
-        guard let phone = TrustPhoneNumber.e164(from: onboardingPhone) else {
-            onboardingNotice = "Enter a phone number with country code."
-            return
-        }
-        isOnboardingBusy = true
-        defer { isOnboardingBusy = false }
-        do {
-            try await saveOnboardingNameIfNeeded()
-            let payload = try await client.sendPhoneCode(phone: phone)
-            phoneCodeSent = true
-            developmentOtpCode = payload.developmentCode
-            if payload.developmentCode != nil {
-                onboardingNotice = "Development: no SMS was sent. Enter the code shown below."
-            } else {
-                onboardingNotice = "We texted a code to \(TrustPhoneNumber.masked(phone))."
-            }
-        } catch {
-            onboardingNotice = error.localizedDescription
-        }
+    var onboardingHandleIsValid: Bool {
+        if case .valid = TrustHandle.status(of: onboardingHandle) { return true }
+        return false
     }
 
-    func verifyOnboardingPhoneCode() async {
+    func setOnboardingHandle(_ raw: String) {
+        let next = TrustHandle.sanitizeDraft(raw)
+        guard next != onboardingHandle else { return }
+        onboardingHandle = next
+        handleAvailability = nil
         onboardingNotice = nil
-        guard let phone = TrustPhoneNumber.e164(from: onboardingPhone) else {
-            onboardingNotice = "Enter a phone number with country code."
-            return
-        }
-        let code = onboardingCode.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard code.count == 6 else {
-            onboardingNotice = "Enter the 6-digit code."
-            return
-        }
-        isOnboardingBusy = true
-        defer { isOnboardingBusy = false }
-        do {
-            try await saveOnboardingNameIfNeeded()
-            try await client.verifyPhoneCode(phone: phone, code: code)
-            phoneVerified = true
-            await finishOnboardingIfComplete()
-        } catch {
-            onboardingNotice = error.localizedDescription
-        }
+        scheduleHandleAvailabilityCheck()
     }
 
     func completeOnboarding() async {
         onboardingNotice = nil
-        isOnboardingBusy = true
-        defer { isOnboardingBusy = false }
-        do {
-            try await saveOnboardingNameIfNeeded()
-            await finishOnboardingIfComplete()
-            if phase != .home {
-                onboardingNotice = phoneVerified
-                    ? "Enter a display name of at least two characters."
-                    : "Verify your phone to continue."
+        switch TrustHandle.status(of: onboardingHandle) {
+        case .invalid:
+            onboardingNotice = TrustCopy.enterHandle
+            return
+        case .reserved:
+            onboardingNotice = TrustCopy.handleReserved
+            return
+        case .valid(let handle):
+            isOnboardingBusy = true
+            defer { isOnboardingBusy = false }
+            do {
+                try await client.setHandle(handle)
+                await finishOnboardingIfComplete()
+                if phase != .home {
+                    onboardingNotice = TrustCopy.enterHandle
+                }
+            } catch {
+                onboardingNotice = error.localizedDescription
             }
-        } catch {
-            onboardingNotice = error.localizedDescription
         }
     }
 
-    private func saveOnboardingNameIfNeeded() async throws {
-        let name = onboardingName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard TrustDisplayName.isChosen(name) else { return }
-        if snapshot?.you.displayName != name {
-            try await client.rename(name)
-            if var account = auth.account {
-                account.displayName = name
-                auth.persist(account: account, token: client.token ?? auth.sessionToken ?? "")
+    private func scheduleHandleAvailabilityCheck() {
+        handleCheckTask?.cancel()
+        guard case .valid(let handle) = TrustHandle.status(of: onboardingHandle) else { return }
+        handleCheckTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard !Task.isCancelled else { return }
+            await self?.checkHandleAvailability(handle)
+        }
+    }
+
+    private func checkHandleAvailability(_ handle: String) async {
+        do {
+            let payload = try await client.handleAvailability(handle)
+            guard handle == TrustHandle.normalize(onboardingHandle) else { return }
+            handleAvailability = payload.available
+            if payload.available {
+                onboardingNotice = nil
             }
+        } catch {
+            guard handle == TrustHandle.normalize(onboardingHandle) else { return }
+            handleAvailability = nil
         }
     }
 
@@ -386,22 +370,20 @@ final class AppModel: ObservableObject {
     }
 
     private func beginOnboarding() {
-        let current = snapshot?.you.displayName ?? auth.account?.displayName ?? ""
-        if TrustDisplayName.isChosen(current) {
-            onboardingName = current
+        if let existing = snapshot?.you.handle, case .valid(let handle) = TrustHandle.status(of: existing) {
+            onboardingHandle = handle
+        } else if let suggestion = TrustHandle.suggest(from: snapshot?.you.displayName ?? auth.account?.displayName ?? "") {
+            onboardingHandle = suggestion
+            scheduleHandleAvailabilityCheck()
         }
-        phoneVerified = snapshot?.you.phoneVerified ?? false
         phase = .onboarding
     }
 
     private func resetOnboardingDraft() {
-        onboardingName = ""
-        onboardingPhone = ""
-        onboardingCode = ""
+        handleCheckTask?.cancel()
+        onboardingHandle = ""
         onboardingNotice = nil
-        developmentOtpCode = nil
-        phoneCodeSent = false
-        phoneVerified = false
+        handleAvailability = nil
         isOnboardingBusy = false
     }
 
@@ -410,7 +392,7 @@ final class AppModel: ObservableObject {
         Task {
             do {
                 let code = try await client.createInvite()
-                pairingNotice = "Share this code. They cannot see you until they join and later look."
+                pairingNotice = TrustCopy.shareThisCode
                 await refresh()
                 _ = code
             } catch {
@@ -620,8 +602,8 @@ final class AppModel: ObservableObject {
 
     func confirmCopy(for personID: UUID?) -> (title: String, body: String) {
         let subject = circle.first { $0.id == personID }?.displayName
-            ?? lookSubject?.displayName
-            ?? "them"
+            ?? lookSubject?.identity
+            ?? TrustCopy.them
         let looksToday = lookLog.filter {
             $0.viewerID == you.id && Calendar.current.isDateInToday($0.at)
         }.count
@@ -633,8 +615,13 @@ final class AppModel: ObservableObject {
 
     var lookLogExportText: String {
         lookLog.map { event in
-            let live = event.includedLive ? "live" : "no live"
-            return "\(event.at.ISO8601Format())\t\(event.viewerName) looked at \(event.subjectName)\t\(live) + last \(event.historyWindowHours)h"
+            return TrustCopy.lookLogExportRow(
+                timestamp: event.at.ISO8601Format(),
+                viewer: event.viewerName,
+                subject: event.subjectName,
+                live: event.includedLive,
+                hours: event.historyWindowHours
+            )
         }
         .joined(separator: "\n")
     }

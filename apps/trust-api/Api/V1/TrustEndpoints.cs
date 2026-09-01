@@ -24,6 +24,8 @@ public static class TrustEndpoints
         var auth = api.MapGroup(string.Empty).RequireAuthorization();
         auth.MapGet("/circle", GetCircleAsync);
         auth.MapPatch("/me", RenameAsync);
+        auth.MapGet("/handles/available", CheckHandleAvailableAsync);
+        auth.MapPut("/me/handle", SetHandleAsync);
         auth.MapPost("/me/phone/send", SendPhoneCodeAsync);
         auth.MapPost("/me/phone/verify", VerifyPhoneCodeAsync);
         auth.MapPost("/invites", CreateInviteAsync);
@@ -197,6 +199,45 @@ public static class TrustEndpoints
 
         await engine.RenameAsync(accountId.Value, request.DisplayName, cancellationToken);
         return Results.NoContent();
+    }
+
+    public static async Task<IResult> CheckHandleAvailableAsync(
+        [FromQuery] string? handle,
+        ClaimsPrincipal principal,
+        TrustEngine engine,
+        CancellationToken cancellationToken)
+    {
+        var accountId = AccountClaims.AccountId(principal);
+        if (accountId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await engine.CheckHandleAsync(accountId.Value, handle, cancellationToken);
+        return Results.Ok(new HandleAvailabilityResponse(result.Handle, result.Available, result.Code));
+    }
+
+    public static async Task<IResult> SetHandleAsync(
+        SetHandleRequest request,
+        ClaimsPrincipal principal,
+        TrustEngine engine,
+        CancellationToken cancellationToken)
+    {
+        var accountId = AccountClaims.AccountId(principal);
+        if (accountId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        try
+        {
+            await engine.SetHandleAsync(accountId.Value, request.Handle, cancellationToken);
+            return Results.NoContent();
+        }
+        catch (TrustException exception)
+        {
+            return Map(exception);
+        }
     }
 
     public static async Task<IResult> SendPhoneCodeAsync(
@@ -744,12 +785,13 @@ public static class TrustEndpoints
     {
         "unauthorized" => Results.Unauthorized(),
         "confirmation_required" or "invalid_code" or "own_invite" or "invalid_product"
-            or "invalid_phone" or "invalid_name" or "otp_invalid" or "otp_expired"
+            or "invalid_phone" or "invalid_name" or "invalid_handle" or "reserved_handle"
+            or "otp_invalid" or "otp_expired"
             or "otp_exhausted" or "otp_cooldown" =>
             Results.BadRequest(new ApiError(exception.Code, exception.Message)),
         "otp_not_configured" or "otp_send_failed" =>
             Results.Json(new ApiError(exception.Code, exception.Message), statusCode: StatusCodes.Status503ServiceUnavailable),
-        "not_connected" or "pair_inactive" or "no_location" or "phone_in_use" =>
+        "not_connected" or "pair_inactive" or "no_location" or "phone_in_use" or "handle_in_use" =>
             Results.Json(new ApiError(exception.Code, exception.Message), statusCode: StatusCodes.Status409Conflict),
         "seat_limit" or "pro_required" =>
             Results.Json(new ApiError(exception.Code, exception.Message), statusCode: StatusCodes.Status402PaymentRequired),

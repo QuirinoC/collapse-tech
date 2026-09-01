@@ -50,9 +50,9 @@ struct HomeView: View {
                 Button {
                     model.showingSettings = true
                 } label: {
-                    TrustFolio(text: model.you.displayName, color: palette.muted, size: 10)
+                    TrustFolio(text: model.you.identity, color: palette.muted, size: 10)
                 }
-                .accessibilityLabel("Settings")
+                .accessibilityLabel(TrustCopy.settings)
                 Button {
                     model.showingLookLog = true
                 } label: {
@@ -61,7 +61,7 @@ struct HomeView: View {
                         .tracking(1.1)
                         .foregroundStyle(palette.ink)
                 }
-                .accessibilityLabel("Look log")
+                .accessibilityLabel(TrustCopy.lookLog)
             }
             .padding(.horizontal, 16)
             .padding(.top, 6)
@@ -69,7 +69,7 @@ struct HomeView: View {
 
             if model.beingWatched != nil {
                 HStack {
-                    TrustFolio(text: "They’re looking", color: palette.accent, size: 10)
+                    TrustFolio(text: TrustCopy.theyAreLooking, color: palette.accent, size: 10)
                     Spacer()
                 }
                 .padding(.horizontal, 16)
@@ -78,9 +78,9 @@ struct HomeView: View {
 
             if model.isSharingLocation && model.location.needsAlwaysForSharing {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    TrustFolio(text: "Always for sharing", color: palette.accent, size: 10)
+                    TrustFolio(text: TrustCopy.alwaysForSharing, color: palette.accent, size: 10)
                     Spacer()
-                    Button(model.location.needsSystemSettings ? "Open Settings" : "Allow always") {
+                    Button(model.location.needsSystemSettings ? TrustCopy.openSettings : TrustCopy.allowAlways) {
                         if model.location.needsSystemSettings {
                             model.openSystemSettings()
                         } else {
@@ -114,8 +114,8 @@ struct HomeView: View {
     private var map: some View {
         Map(position: $position) {
             if let coordinate = youCoordinate {
-                Annotation("You", coordinate: coordinate) {
-                    TrustLivePin(initials: "Y", caption: "You", you: true)
+                Annotation(TrustCopy.you, coordinate: coordinate) {
+                    TrustLivePin(initials: "Y", caption: TrustCopy.you, you: true)
                 }
             }
             ForEach(liveMembers) { member in
@@ -138,7 +138,7 @@ struct HomeView: View {
         .mapStyle(mapStyle)
         .mapControls { }
         .colorScheme(model.appearance.nightEdition ? .dark : .light)
-        .accessibilityLabel("Circle map. Live people are pins. Sealed people stay locked until you look.")
+        .accessibilityLabel(TrustCopy.circleMapAccessibility)
     }
 
     private var mapStyle: MapStyle {
@@ -187,7 +187,7 @@ struct HomeView: View {
                             .foregroundStyle(palette.muted)
                             .padding(.horizontal, 6)
                     }
-                    .accessibilityLabel("Invite. \(TrustCopy.inviteLine)")
+                    .accessibilityLabel(TrustCopy.inviteAccessibility(line: TrustCopy.inviteLine))
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
@@ -242,7 +242,7 @@ struct HomeView: View {
     }
 
     private func verb(for member: TrustedPerson, share: SharePresentation) -> String {
-        if lookingAt(member) { return "OPEN MAP" }
+        if lookingAt(member) { return TrustCopy.openMap.uppercased() }
         if !member.inboundLive { return TrustCopy.look.uppercased() }
         switch share {
         case .always: return TrustCopy.always.uppercased()
@@ -257,16 +257,16 @@ struct HomeView: View {
         switch member.share.presentation(at: Date()) {
         case .always: return TrustCopy.always
         case .timed: return member.share.chipLabel(at: Date())
-        case .untilTheyLook: return "Live"
+        case .untilTheyLook: return TrustCopy.live
         }
     }
 
     private func accessibilityLabel(for member: TrustedPerson) -> String {
         let share = member.share.presentation(at: Date())
         if member.inboundLive {
-            return "\(member.displayName), visible now. \(verb(for: member, share: share))"
+            return TrustCopy.visibleNowAccessibility(name: member.displayName, verb: verb(for: member, share: share))
         }
-        return "\(member.displayName), sealed. \(verb(for: member, share: share))"
+        return TrustCopy.sealedAccessibility(name: member.displayName, verb: verb(for: member, share: share))
     }
 
     private var youCoordinate: CLLocationCoordinate2D? {
@@ -310,8 +310,6 @@ struct HomeView: View {
     }
 
     private var logLabel: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d MMM"
-        return "\(formatter.string(from: Date()).uppercased()) · LOG"
+        TrustCopy.lookLogChrome()
     }
 }

@@ -7,27 +7,27 @@ struct PersonShareSheet: View {
 
     var body: some View {
         let person = model.shareSubject
-        let name = person?.displayName ?? "them"
+        let name = person?.identity ?? TrustCopy.them
         let state = person.map { model.shareState(for: $0.id) } ?? PersonShareState()
         let now = Date()
         let presentation = state.presentation(at: now)
 
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                TrustPanelHeading(eyebrow: name, title: "What \(name) can see") {
+                TrustPanelHeading(eyebrow: name, title: TrustCopy.whatNameCanSee(name: name)) {
                     model.showingShareSheet = false
                 }
                 .padding(.bottom, 12)
 
-                Text("This is your location, not theirs. When sealed, they still use Look — live, two hours, a receipt.")
+                Text(TrustCopy.shareSheetIntro)
                     .font(TrustTheme.ui(15))
                     .foregroundStyle(palette.muted)
                     .padding(.bottom, 20)
 
                 shareChoice(
                     title: TrustCopy.untilTheyLook,
-                    tag: "Default",
-                    body: "Nothing until \(name) looks. Then live + last 2 hours, and you get a receipt.",
+                    tag: TrustCopy.tagDefault,
+                    body: TrustCopy.untilTheyLookBody(name: name),
                     selected: {
                         if case .untilTheyLook = presentation { return true }
                         return false
@@ -41,8 +41,8 @@ struct PersonShareSheet: View {
 
                 shareChoice(
                     title: TrustCopy.always,
-                    tag: "Exception",
-                    body: "\(name) always sees your live location. Stays until you turn it off.",
+                    tag: TrustCopy.tagException,
+                    body: TrustCopy.alwaysBody(name: name),
                     selected: {
                         if case .always = presentation { return true }
                         return false
@@ -56,8 +56,8 @@ struct PersonShareSheet: View {
 
                 shareChoice(
                     title: TrustCopy.forAWhile,
-                    tag: "Exception",
-                    body: "\(name) sees you until a timer ends. Then this goes back to whatever you had before — not a new default.",
+                    tag: TrustCopy.tagException,
+                    body: TrustCopy.forAWhileBody(name: name),
                     selected: {
                         if case .timed = presentation { return true }
                         return false
@@ -66,7 +66,7 @@ struct PersonShareSheet: View {
                     model.showingTimedShare = true
                 }
 
-                Text("Always and For a while are opt-in per person. Everyone else stays Until they look.")
+                Text(TrustCopy.shareModesFootnote)
                     .font(TrustTheme.ui(13))
                     .foregroundStyle(palette.muted)
                     .padding(.top, 22)
@@ -115,7 +115,7 @@ struct TimedShareSheet: View {
     @State private var duration: TimedShareDuration = .hour
 
     var body: some View {
-        let name = model.shareSubject?.displayName ?? "them"
+        let name = model.shareSubject?.identity ?? TrustCopy.them
         let state = model.shareSubject.map { model.shareState(for: $0.id) } ?? PersonShareState()
         let revertsToLook: Bool = {
             switch state.presentation(at: Date()) {
@@ -132,12 +132,12 @@ struct TimedShareSheet: View {
             }
             .padding(.bottom, 12)
 
-            Text("Temporary overlay. When the timer ends, \(name) returns to the setting you already had.")
+            Text(TrustCopy.timedOverlayIntro(name: name))
                 .font(TrustTheme.ui(15))
                 .foregroundStyle(palette.muted)
                 .padding(.bottom, 20)
 
-            TrustFolio(text: "How long", size: 10)
+            TrustFolio(text: TrustCopy.howLong, size: 10)
                 .padding(.bottom, 10)
 
             HStack(spacing: 8) {

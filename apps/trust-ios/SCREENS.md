@@ -13,7 +13,7 @@ Home UI is owned elsewhere. This inventory treats **map as the product** (people
 **Onboarding & account**
 1. [OA.1 First open](#oa1-first-open)
 2. [OA.2 Sign-in failed](#oa2-sign-in-failed)
-3. [OA.3 Name and phone](#oa3-name-and-phone)
+3. [OA.3 Handle](#oa3-handle)
 
 **Map & looking**
 4. [ML.1 Home](#ml1-home)
@@ -77,14 +77,14 @@ Home UI is owned elsewhere. This inventory treats **map as the product** (people
 - **Empty / edge:** Session expired mid-use → land here with “Sign in expired.”
 - **Paper:** Same sheet as OA.1; notice is muted ink, not a red alarm.
 
-### OA.3 Name and phone
+### OA.3 Handle
 
-- **When:** After Sign in with Apple (or Google), before Home/map. First launch after auth, or any launch while display name is missing/placeholder (`You`) or phone is not verified. After they wipe the account this comes back; it does not reappear while name + verified phone remain on the account.
-- **On it:** Collapse Technologies mark. Didot **Your profile**. Display name. Phone. Send a real SMS one-time code. Enter the 6-digit code (system OTP autofill). Continue when both are done. Sign out.
-- **Do:** Save name. Send OTP. Verify OTP. Continue to Home.
-- **Must not:** Skip. A fake “I have a phone” checkbox. Map. The OA.1 atlas background. Production showing a debug code.
-- **Empty / edge:** Apple already gave a name → field is pre-filled. Wrong/expired code → stay here. Development without Twilio: the API returns the code and the app shows it (never in Production). Wrong Apple account → Sign out to OA.1.
-- **Paper:** White sheet, black ink, red Verify/Continue; not beige; not the login atlas.
+- **When:** After Sign in with Apple (or Google), before Home/map. First launch after auth, or any launch while a unique handle is not set. After they wipe the account this comes back; it does not reappear while the handle remains on the account.
+- **On it:** Collapse Technologies mark. Didot **Your handle**. One field: handle, shown as `@jordan`. Continue when it is valid and available. Sign out. If Apple already sent a display name, keep it on the account — do not ask for it here.
+- **Do:** Choose a unique handle. Continue to Home.
+- **Must not:** Phone. SMS OTP. Skip. A display-name field. Map. The OA.1 atlas background. Development codes.
+- **Empty / edge:** Apple already gave a name → not shown; the field may suggest a slug of it. Taken / reserved / invalid → stay here. Wrong Apple account → Sign out to OA.1.
+- **Paper:** White sheet, black ink, red Continue; not beige; not the login atlas.
 
 ---
 
@@ -92,7 +92,7 @@ Home UI is owned elsewhere. This inventory treats **map as the product** (people
 
 ### ML.1 Home
 
-- **When:** Signed in and onboarding complete (OA.3). This is the app.
+- **When:** Signed in and onboarding complete (OA.3 handle is set). This is the app.
 - **On it:** Full-bleed map. **You** as a square + red rule. **Live** people (Always / For a while / open Look) as initial pins. **Sealed** people (Until they look) as lock marks — no coordinate. Masthead: Trust · look log · you/settings. Optional folio if someone is looking at you. Presence on a sealed mark is last-active / battery only — never a lat/long. Invite line available from a mark or a thin chrome, not a people column: “I trust you with my location.”
 - **Do:** Pan/zoom. Tap a sealed mark → Look confirm. Tap a live pin → After Look if a look is open, else Person. Open Look log. Open Settings. Share invite.
 - **Must not:** A column or list of people as the product. GPS for sealed people. Peeking escrow. Ads. A feed of addresses.
@@ -342,7 +342,7 @@ Inspected `apps/trust-ios` so nothing real is invisible. **This list is not a vo
 | Inventory | Exists in app today as |
 | --- | --- |
 | OA.1 | `LoginView` — Apple only; Google is stub (“Trust uses Sign in with Apple.”) |
-| OA.3 | `OnboardingView` — display name + real SMS OTP; gates Home until both are done |
+| OA.3 | `OnboardingView` — unique handle; gates Home until the handle is set |
 | ML.1 | `HomeView` — map **plus** a people **column rail** (not the product in this doc) |
 | ML.2 | `PairingView` in the Home stack when the circle is empty |
 | ML.3 | `LookSheet` |

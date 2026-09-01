@@ -40,7 +40,7 @@ struct LoginView: View {
                                 .font(.system(size: 18, weight: .medium))
                                 .accessibilityHidden(true)
                         }
-                        Text(model.isSigningIn ? "Signing in…" : "Log in with Apple")
+                        Text(model.isSigningIn ? TrustCopy.signingIn : TrustCopy.signInWithApple)
                             .font(TrustTheme.ui(17, weight: .medium))
                     }
                     .frame(maxWidth: .infinity, minHeight: 52)
@@ -49,13 +49,13 @@ struct LoginView: View {
                 .clipShape(Rectangle())
                 .contentShape(Rectangle())
                 .disabled(model.isSigningIn)
-                .accessibilityLabel("Log in with Apple")
-                .accessibilityValue(model.isSigningIn ? "Signing in" : "")
+                .accessibilityLabel(TrustCopy.signInWithApple)
+                .accessibilityValue(model.isSigningIn ? TrustCopy.signingInShort : "")
 
                 HStack(spacing: 14) {
-                    Link("Terms of Service", destination: AppConfiguration.termsURL)
-                    Link("Privacy", destination: AppConfiguration.privacyURL)
-                    Link("Support", destination: AppConfiguration.supportURL)
+                    Link(TrustCopy.termsOfService, destination: AppConfiguration.termsURL)
+                    Link(TrustCopy.privacy, destination: AppConfiguration.privacyURL)
+                    Link(TrustCopy.support, destination: AppConfiguration.supportURL)
                 }
                 .font(TrustTheme.folio(10))
                 .tracking(0.7)

@@ -425,6 +425,55 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
         await store.UpdateAccountAsync(you with { DisplayName = trimmed }, cancellationToken);
     }
 
+    public HandleAvailability CheckHandle(Guid accountId, string? raw, Account? existing)
+    {
+        if (!AccountHandle.TryValidate(raw, out var normalized, out var errorCode))
+        {
+            return new HandleAvailability(normalized, false, errorCode);
+        }
+
+        if (existing is not null && existing.Id != accountId)
+        {
+            return new HandleAvailability(normalized, false, "handle_in_use");
+        }
+
+        return new HandleAvailability(normalized, true, null);
+    }
+
+    public async Task<HandleAvailability> CheckHandleAsync(
+        Guid accountId,
+        string? raw,
+        CancellationToken cancellationToken)
+    {
+        if (!AccountHandle.TryValidate(raw, out var normalized, out var errorCode))
+        {
+            return new HandleAvailability(normalized, false, errorCode);
+        }
+
+        var existing = await store.FindByHandleAsync(normalized, cancellationToken);
+        return CheckHandle(accountId, normalized, existing);
+    }
+
+    public async Task SetHandleAsync(Guid accountId, string? raw, CancellationToken cancellationToken)
+    {
+        if (!AccountHandle.TryValidate(raw, out var normalized, out var errorCode))
+        {
+            throw errorCode == "reserved_handle"
+                ? TrustException.ReservedHandle()
+                : TrustException.InvalidHandle();
+        }
+
+        var you = await RequireAccount(accountId, cancellationToken);
+        var existing = await store.FindByHandleAsync(normalized, cancellationToken);
+        if (existing is not null && existing.Id != accountId)
+        {
+            throw TrustException.HandleInUse();
+        }
+
+        var displayName = you.HasChosenDisplayName ? you.DisplayName : normalized;
+        await store.SetHandleAsync(accountId, normalized, displayName, cancellationToken);
+    }
+
     public async Task<int> LooksTodayAsync(Guid viewerId, CancellationToken cancellationToken)
     {
         var now = time.GetUtcNow();
