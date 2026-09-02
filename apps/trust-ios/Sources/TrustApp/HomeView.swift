@@ -5,7 +5,9 @@ import TrustCore
 struct HomeView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.trustPalette) private var palette
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var position: MapCameraPosition = .automatic
+    @Namespace private var stripSelect
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -198,10 +200,17 @@ struct HomeView: View {
 
     private func personChip(_ member: TrustedPerson) -> some View {
         let share = member.share.presentation(at: Date())
+        let selected = isStripSelected(member)
+        let overdue = isOverdue(member)
+        let verbColor: Color = {
+            if overdue || lookingAt(member) || !member.inboundLive { return palette.accent }
+            return palette.ink
+        }()
         return Button {
             activate(member)
         } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
+                stripMark(for: member)
                 Text(member.displayName)
                     .font(TrustTheme.display(17, italic: true))
                     .foregroundStyle(palette.ink)
@@ -209,14 +218,61 @@ struct HomeView: View {
                 Text(verb(for: member, share: share))
                     .font(TrustTheme.folio(10))
                     .tracking(1.0)
-                    .foregroundStyle(lookingAt(member) || !member.inboundLive ? palette.accent : palette.ink)
+                    .foregroundStyle(verbColor)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .overlay(Rectangle().stroke(palette.line, lineWidth: 1))
+            .overlay(alignment: .bottom) {
+                if selected {
+                    Rectangle()
+                        .fill(palette.accent)
+                        .frame(height: 1)
+                        .padding(.horizontal, 10)
+                        .padding(.bottom, 2)
+                        .matchedGeometryEffect(id: "stripSelect", in: stripSelect)
+                }
+            }
         }
         .buttonStyle(.plain)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.28), value: selectedMemberID)
         .accessibilityLabel(accessibilityLabel(for: member))
+    }
+
+    @ViewBuilder
+    private func stripMark(for member: TrustedPerson) -> some View {
+        if let home = member.homePresence {
+            switch home.state {
+            case .home:
+                TrustHomeGlyph(filled: true)
+            case .away:
+                TrustHomeGlyph(filled: false)
+            case .unknown:
+                if !member.inboundLive {
+                    TrustSealedLock()
+                }
+            }
+        } else if !member.inboundLive {
+            TrustSealedLock()
+        }
+    }
+
+    private func isOverdue(_ member: TrustedPerson) -> Bool {
+        guard let promise = member.promise, !promise.youAreSubject else { return false }
+        return promise.status == .overdue
+    }
+
+    private func isStripSelected(_ member: TrustedPerson) -> Bool {
+        if lookingAt(member) { return true }
+        if model.lookSubject?.id == member.id { return true }
+        if model.shareSubject?.id == member.id { return true }
+        return false
+    }
+
+    private var selectedMemberID: UUID? {
+        if let id = model.activeSession?.event.subjectID { return id }
+        if let id = model.lookSubject?.id { return id }
+        return model.shareSubject?.id
     }
 
     private var liveMembers: [TrustedPerson] {

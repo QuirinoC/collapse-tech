@@ -10,22 +10,18 @@ struct LookSheet: View {
         let name = model.lookSubject?.identity ?? TrustCopy.them
 
         VStack(alignment: .leading, spacing: 0) {
-            Capsule()
-                .fill(palette.muted.opacity(0.4))
-                .frame(width: 36, height: 4)
-                .frame(maxWidth: .infinity)
-                .padding(.top, 8)
-                .padding(.bottom, 16)
-
             Text(copy.title)
                 .font(TrustTheme.display(26))
                 .foregroundStyle(palette.ink)
-                .padding(.bottom, 8)
+                .padding(.bottom, 10)
+
+            TrustRule(width: 44, draws: true)
+                .padding(.bottom, 16)
 
             Text(TrustCopy.lookSheetSummary(name: name))
                 .font(TrustTheme.ui(15))
                 .foregroundStyle(palette.muted)
-                .padding(.bottom, 20)
+                .padding(.bottom, 18)
 
             fact(TrustCopy.factLiveLocation)
             fact(TrustCopy.factLastHours)
@@ -51,6 +47,7 @@ struct LookSheet: View {
             .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 24)
+        .padding(.top, 20)
         .padding(.bottom, 20)
         .background(palette.paper.ignoresSafeArea())
     }
