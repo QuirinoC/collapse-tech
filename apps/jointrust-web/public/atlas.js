@@ -2,6 +2,7 @@
   const canvas = document.getElementById("atlas");
   if (!canvas) return;
 
+  // Stroke/density matched to apps/trust-ios LoginAtlasBackground (quiet paper wash).
   const paper = "#ffffff";
   const ink = "#000000";
   const accent = "#e10600";
@@ -23,7 +24,7 @@
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    lw = Math.max(1.25, width / 720);
+    lw = Math.max(0.55, width / 1400);
   }
 
   function stroke(path, alpha, widthMul = 1) {
@@ -33,7 +34,7 @@
   }
 
   function drawMeridians(phase) {
-    const count = 9;
+    const count = 4;
     const cx = width * 0.5;
     const path = new Path2D();
     for (let i = 0; i <= count; i += 1) {
@@ -42,11 +43,11 @@
       path.moveTo(base + drift, 0);
       path.quadraticCurveTo(base + (base - cx) * 0.14, height * 0.48, base - drift * 0.4, height);
     }
-    stroke(path, 0.42, 0.95);
+    stroke(path, 0.034, 0.8);
   }
 
   function drawParallels(phase) {
-    const count = 10;
+    const count = 5;
     const cy = height * 0.4;
     const path = new Path2D();
     for (let j = 0; j <= count; j += 1) {
@@ -55,7 +56,7 @@
       path.moveTo(0, y);
       path.quadraticCurveTo(width * 0.5, y + bulge, width, y);
     }
-    stroke(path, 0.3, 0.8);
+    stroke(path, 0.028, 0.7);
   }
 
   function drawGlobe(phase) {
@@ -64,17 +65,17 @@
     const rw = width * 0.46;
     const rh = height * 0.24;
     ctx.save();
-    ctx.strokeStyle = hexAlpha(ink, 0.48);
-    ctx.lineWidth = lw;
+    ctx.strokeStyle = hexAlpha(ink, 0.045);
+    ctx.lineWidth = lw * 0.9;
     ctx.setLineDash([lw * 3.2, lw * 9]);
     ctx.lineDashOffset = -(phase * 16);
     ctx.beginPath();
     ctx.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
-    for (let k = -3; k <= 3; k += 1) {
+    for (let k = -1; k <= 1; k += 1) {
       if (k === 0) continue;
-      ctx.strokeStyle = hexAlpha(ink, 0.26);
+      ctx.strokeStyle = hexAlpha(ink, 0.024);
       ctx.lineWidth = lw * 0.7;
       ctx.beginPath();
       ctx.ellipse(cx, cy, rw - Math.abs(k) * width * 0.07, rh + height * 0.012 * k, 0, 0, Math.PI * 2);
@@ -87,31 +88,29 @@
     const cx = width * 0.5;
     const cy = height * 0.4;
     const bands = [
-      [0.24, 0.14, 0],
-      [0.36, 0.2, 1.1],
-      [0.16, 0.09, 2.3],
-      [0.48, 0.27, 3.4],
+      [0.2, 0.11, 0],
+      [0.3, 0.16, 1.1],
     ];
     bands.forEach((band, index) => {
       const ox = cx + Math.sin(phase * 0.65 + band[2]) * (width * 0.018);
       const oy = cy + Math.cos(phase * 0.45 + band[2]) * (height * 0.014);
       const path = new Path2D();
-      const steps = 72;
+      const steps = 48;
       for (let step = 0; step <= steps; step += 1) {
         const angle = (step / steps) * Math.PI * 2;
-        const wobble = 1 + 0.08 * Math.sin(angle * 3 + phase + index);
+        const wobble = 1 + 0.07 * Math.sin(angle * 3 + phase + index);
         const x = ox + Math.cos(angle) * width * band[0] * wobble;
         const y = oy + Math.sin(angle) * height * band[1] * wobble;
         if (step === 0) path.moveTo(x, y);
         else path.lineTo(x, y);
       }
       path.closePath();
-      stroke(path, 0.44, 1.15);
+      stroke(path, 0.042, 0.9);
     });
   }
 
   function drawFix(time) {
-    const pulse = 0.5 + (0.4 * (Math.sin(time * 1.15) + 1)) / 2;
+    const pulse = 0.45 + (0.35 * (Math.sin(time * 1.15) + 1)) / 2;
     const x = width * 0.72;
     const y = height * 0.33;
     const arm = Math.max(8, width * 0.008);
@@ -120,22 +119,22 @@
     ctx.lineTo(x + arm, y);
     ctx.moveTo(x, y - arm);
     ctx.lineTo(x, y + arm);
-    ctx.strokeStyle = hexAlpha(accent, 0.45 + 0.4 * pulse);
-    ctx.lineWidth = lw * 1.15;
+    ctx.strokeStyle = hexAlpha(accent, 0.12 + 0.14 * pulse);
+    ctx.lineWidth = lw * 0.9;
     ctx.stroke();
     ctx.beginPath();
     ctx.arc(x, y, arm * 2.1, 0, Math.PI * 2);
-    ctx.strokeStyle = hexAlpha(ink, 0.2);
+    ctx.strokeStyle = hexAlpha(ink, 0.048);
     ctx.lineWidth = lw * 0.7;
     ctx.stroke();
     const dot = Math.max(2.5, lw * 1.6);
-    ctx.fillStyle = hexAlpha(accent, 0.55 + 0.35 * pulse);
+    ctx.fillStyle = hexAlpha(accent, 0.22 + 0.12 * pulse);
     ctx.fillRect(x - dot / 2, y - dot / 2, dot, dot);
   }
 
   function drawCoordinates() {
     const size = Math.max(10, Math.round(width / 130));
-    ctx.fillStyle = hexAlpha(ink, 0.5);
+    ctx.fillStyle = hexAlpha(ink, 0.12);
     ctx.font = `500 ${size}px 'IBM Plex Mono', ui-monospace, monospace`;
     ctx.textBaseline = "top";
     ctx.textAlign = "left";
@@ -152,24 +151,25 @@
   function drawWash() {
     const cx = width * 0.5;
     const cy = height * 0.4;
-    const radialEnd = Math.min(width, height) * 0.28;
-    const radial = ctx.createRadialGradient(cx, cy, 8, cx, cy, radialEnd);
-    radial.addColorStop(0, hexAlpha(paper, 0.55));
+    const radialEnd = Math.min(width, height) * 0.42;
+    const radial = ctx.createRadialGradient(cx, cy, 16, cx, cy, radialEnd);
+    radial.addColorStop(0, hexAlpha(paper, 0.9));
     radial.addColorStop(1, hexAlpha(paper, 0));
     ctx.fillStyle = radial;
     ctx.fillRect(0, 0, width, height);
 
-    const topH = Math.max(64, height * 0.08);
+    const topH = Math.max(96, height * 0.12);
     const top = ctx.createLinearGradient(0, 0, 0, topH);
-    top.addColorStop(0, hexAlpha(paper, 0.75));
+    top.addColorStop(0, hexAlpha(paper, 1));
     top.addColorStop(1, hexAlpha(paper, 0));
     ctx.fillStyle = top;
     ctx.fillRect(0, 0, width, topH);
 
-    const bottomH = Math.max(140, height * 0.18);
+    const bottomH = Math.max(220, height * 0.28);
     const bottom = ctx.createLinearGradient(0, height - bottomH, 0, height);
     bottom.addColorStop(0, hexAlpha(paper, 0));
-    bottom.addColorStop(1, hexAlpha(paper, 0.7));
+    bottom.addColorStop(0.55, hexAlpha(paper, 0.8));
+    bottom.addColorStop(1, hexAlpha(paper, 1));
     ctx.fillStyle = bottom;
     ctx.fillRect(0, height - bottomH, width, bottomH);
   }
