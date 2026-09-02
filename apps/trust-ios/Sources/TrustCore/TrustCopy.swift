@@ -425,10 +425,33 @@ public enum TrustCopy {
     public static var howLong: String { value("how_long", defaultValue: "How long") }
     public static var timedHour: String { value("timed_hour", defaultValue: "1 hour") }
     public static var timedTonight: String { value("timed_tonight", defaultValue: "Tonight") }
-    public static var timedHome: String { value("timed_home", defaultValue: "Until I get home") }
+    public static var timedHome: String { value("timed_home", defaultValue: "For 4 hours") }
     public static var afterHour: String { value("after_hour", defaultValue: "After 1 hour") }
     public static var afterTonight: String { value("after_tonight", defaultValue: "After tonight") }
-    public static var afterHome: String { value("after_home", defaultValue: "When you get home") }
+    public static var afterHome: String { value("after_home", defaultValue: "After 4 hours") }
+
+    public static var presenceGrantTitle: String {
+        value("presence_grant_title", defaultValue: "They can see whether you’re home")
+    }
+
+    public static func presenceGrantBody(name: String) -> String {
+        format(
+            "presence_grant_body",
+            defaultValue: "%@ sees Home or Away — not where you are. Always location is required.",
+            name
+        )
+    }
+
+    public static var setHomeHere: String { value("set_home_here", defaultValue: "Set Home here") }
+    public static var homeNeedsLocation: String {
+        value("home_needs_location", defaultValue: "Allow location, then set Home.")
+    }
+    public static var homeChip: String { value("home_chip", defaultValue: "Home") }
+    public static var awayChip: String { value("away_chip", defaultValue: "Away") }
+    public static var promiseOverdue: String { value("promise_overdue", defaultValue: "Overdue") }
+    public static var promiseNoSignal: String {
+        value("promise_no_signal", defaultValue: "No signal")
+    }
 
     public static func timedShareSentence(after: String, name: String, revertsToLook: Bool) -> String {
         if revertsToLook {

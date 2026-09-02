@@ -20,6 +20,7 @@
 		2D9161BA01CC4106E2F91767 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A47ECAE1AEEB5A271C1B627 /* SettingsView.swift */; };
 		32D9A6ABCEC1A4215D80BC3E /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = CC2380F09F1CF772604EADCB /* Localizable.strings */; };
 		35E24521BB8398528011D2CE /* ShareModeViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A5A0800EBD0A6B9EBDC5736 /* ShareModeViews.swift */; };
+		36CD510268DA16335A9EAD0A /* TrustKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 706E76871CAC53B051985DCC /* TrustKeychain.swift */; };
 		39A0E03BB9F0C443A78B2DB5 /* LookLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C45C977EBF890374684CAB /* LookLogView.swift */; };
 		3C26CE6415D9270C449CCEB9 /* TrustTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5980035418744C890C9440B9 /* TrustTheme.swift */; };
 		3D1FECB474E5F32BED73A8BB /* BreakTrustSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1489C15E191BEF16B0F86C4A /* BreakTrustSheet.swift */; };
@@ -35,6 +36,7 @@
 		6FC27E68E657E2CE7C543470 /* AuthenticationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9D76A913BE410AB908D7AB0 /* AuthenticationServices.framework */; };
 		7420B5E2CC729280CA5F7B2A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B07B3706D2CCD8A7AC80B91D /* Assets.xcassets */; };
 		782D4136776A2EC066ADCDC6 /* LocationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B487800F3DADB918917BA8 /* LocationCoordinator.swift */; };
+		7841602D93EE1A9F61026567 /* HomePlaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6AEC0BF1A6640B58DEED252 /* HomePlaceStore.swift */; };
 		86AF23F721D59EF2A6C0BCCB /* IBMPlexMono-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 1A43013E81099AA3717EC066 /* IBMPlexMono-Medium.ttf */; };
 		86FE72F137DB14E7C61CA2B9 /* LoginAtlasBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 278DE343F519E15D7E58CA3A /* LoginAtlasBackground.swift */; };
 		8D923C0A5271D91381623F02 /* StoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A764AB895F51BD53D38551D7 /* StoreManager.swift */; };
@@ -79,6 +81,7 @@
 		66B76ABCAC45B392F6A35D09 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		6A37121DEAA99065100C6667 /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = ja.lproj/Localizable.strings; sourceTree = "<group>"; };
 		6BCC3CAB70FB747A74A2A255 /* SpaceGrotesk-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceGrotesk-Variable.ttf"; sourceTree = "<group>"; };
+		706E76871CAC53B051985DCC /* TrustKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrustKeychain.swift; sourceTree = "<group>"; };
 		87C45C977EBF890374684CAB /* LookLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LookLogView.swift; sourceTree = "<group>"; };
 		913C99EC0D7E0E081DA468B0 /* TrustApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrustApp.swift; sourceTree = "<group>"; };
 		9F9F18EB3FE90F6B1E781EA0 /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = "pt-BR.lproj/Localizable.strings"; sourceTree = "<group>"; };
@@ -100,6 +103,7 @@
 		E2DAED61704F70733282AC30 /* PairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingView.swift; sourceTree = "<group>"; };
 		EA6E8C88B60DDDCD07C84F5E /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Localizable.strings; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		ED1688A0F63E95BC3BD349AD /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		F6AEC0BF1A6640B58DEED252 /* HomePlaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomePlaceStore.swift; sourceTree = "<group>"; };
 		F84BA6FBFFF34D5A92798BF4 /* LookReceiptNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LookReceiptNotifier.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -179,6 +183,7 @@
 				ED1688A0F63E95BC3BD349AD /* AppModel.swift */,
 				0FD7594384721372A16D9E19 /* AuthSession.swift */,
 				1489C15E191BEF16B0F86C4A /* BreakTrustSheet.swift */,
+				F6AEC0BF1A6640B58DEED252 /* HomePlaceStore.swift */,
 				4FD51D846EE655571C4D9560 /* HomeView.swift */,
 				47B487800F3DADB918917BA8 /* LocationCoordinator.swift */,
 				5EC0AFA3E5CFC1D9047DE372 /* LocationIngestStore.swift */,
@@ -195,6 +200,7 @@
 				A764AB895F51BD53D38551D7 /* StoreManager.swift */,
 				913C99EC0D7E0E081DA468B0 /* TrustApp.swift */,
 				1C0D44DBC8538A89711936F4 /* TrustClient.swift */,
+				706E76871CAC53B051985DCC /* TrustKeychain.swift */,
 				5980035418744C890C9440B9 /* TrustTheme.swift */,
 			);
 			path = TrustApp;
@@ -377,6 +383,7 @@
 				A13CE8F38B1CD3B9DACB8E2E /* AppModel.swift in Sources */,
 				B54974F68A38E7221D995E39 /* AuthSession.swift in Sources */,
 				3D1FECB474E5F32BED73A8BB /* BreakTrustSheet.swift in Sources */,
+				7841602D93EE1A9F61026567 /* HomePlaceStore.swift in Sources */,
 				DBA29825B90A09D3FE4B4E6C /* HomeView.swift in Sources */,
 				782D4136776A2EC066ADCDC6 /* LocationCoordinator.swift in Sources */,
 				E1F12F6A594D0140C2929F41 /* LocationIngestStore.swift in Sources */,
@@ -393,6 +400,7 @@
 				8D923C0A5271D91381623F02 /* StoreManager.swift in Sources */,
 				6B26BDB753D5451C9B9FB8DB /* TrustApp.swift in Sources */,
 				C266183870E6F2B71B0911BC /* TrustClient.swift in Sources */,
+				36CD510268DA16335A9EAD0A /* TrustKeychain.swift in Sources */,
 				3C26CE6415D9270C449CCEB9 /* TrustTheme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -481,7 +489,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Trust.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 3S529795M9;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = Info.plist;
@@ -537,7 +545,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Trust.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 3S529795M9;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = Info.plist;

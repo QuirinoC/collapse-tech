@@ -43,7 +43,8 @@ public sealed class PostgresHistoryTests
                 CancellationToken.None);
         }
 
-        var look = await engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
+        var lookResult = await engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
+        var look = lookResult.Session;
         Assert.Equal(4, look.Trail.Count);
         Assert.Equal(2, look.Event.HistoryWindowHours);
 
@@ -58,9 +59,11 @@ public sealed class PostgresHistoryTests
         Assert.Equal(37.751, trail[0].Latitude, 3);
         Assert.Equal(37.754, trail[^1].Latitude, 3);
 
-        var rebuilt = await afterRestart.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
+        var rebuiltResult = await afterRestart.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
+        var rebuilt = rebuiltResult.Session;
         Assert.Equal(look.Event.Id, rebuilt.Event.Id);
         Assert.Equal(4, rebuilt.Trail.Count);
+        Assert.False(rebuiltResult.IsNew);
 
         var receipts = await restarted.ListLooksAsync(sam.Id, time.UtcNow.AddDays(-1), CancellationToken.None);
         Assert.Contains(receipts, item => item.Id == look.Event.Id && item.IncludedLive);

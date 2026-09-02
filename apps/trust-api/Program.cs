@@ -114,6 +114,7 @@ builder.Services.AddHttpClient("twilio");
 builder.Services.AddSingleton<ISmsOtpSender, TwilioSmsSender>();
 builder.Services.AddSingleton<PhoneVerificationService>();
 builder.Services.AddSingleton<TrustEngine>();
+builder.Services.AddHostedService<TrustSweepService>();
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

@@ -10,7 +10,57 @@ public static class TrustRules
     public const int ProLookLogDays = 365;
     /// Server GPS window: long enough for Circle's 24h Look extend, then pruned. Not a 30-day dossier.
     public static readonly TimeSpan LocationRetention = TimeSpan.FromHours(26);
+    /// Open Looks expire so a killed client cannot leave a live pin forever.
+    public static readonly TimeSpan ActiveLookTtl = TimeSpan.FromMinutes(30);
+    /// If last home/away signal is older than this at a promise deadline, copy is "no signal".
+    public static readonly TimeSpan PresenceSignalStale = TimeSpan.FromMinutes(30);
 }
+
+public enum HomePresenceState
+{
+    Unknown,
+    Home,
+    Away
+}
+
+public enum PromiseStatus
+{
+    Active,
+    Resolved,
+    Overdue,
+    NoSignal
+}
+
+public sealed record PresenceGrant(
+    Guid SubjectId,
+    Guid TrusteeId,
+    bool Enabled,
+    DateTimeOffset UpdatedAt);
+
+public sealed record HomePlace(
+    Guid AccountId,
+    Guid PlaceId,
+    string Label,
+    DateTimeOffset UpdatedAt);
+
+public sealed record CurrentHomePresence(
+    Guid AccountId,
+    Guid? PlaceId,
+    HomePresenceState State,
+    DateTimeOffset LastChangedAt,
+    DateTimeOffset? LastSignalAt);
+
+public sealed record HomePromise(
+    Guid Id,
+    Guid SubjectId,
+    Guid TrusteeId,
+    Guid PlaceId,
+    DateTimeOffset DeadlineAt,
+    PromiseStatus Status,
+    DateTimeOffset? ResolvedAt,
+    DateTimeOffset CreatedAt);
+
+public sealed record LookResult(LookSession Session, bool IsNew);
 
 public static class AccountIdentity
 {
@@ -198,12 +248,31 @@ public sealed record LookSession(
     LocationFix Live,
     IReadOnlyList<LocationFix> Trail);
 
+public sealed record VisibleHomePresence(
+    HomePresenceState State,
+    DateTimeOffset ChangedAt,
+    string? PlaceLabel);
+
+public sealed record PromiseView(
+    Guid Id,
+    Guid SubjectId,
+    Guid TrusteeId,
+    string PlaceLabel,
+    DateTimeOffset DeadlineAt,
+    PromiseStatus Status,
+    DateTimeOffset? ResolvedAt,
+    bool YouAreSubject);
+
 public sealed record CircleMember(
     Account Person,
-    Presence Presence,
+    Presence? Presence,
     ShareState OutboundShare,
     bool InboundLive,
-    LocationFix? Live);
+    LocationFix? Live,
+    bool OutboundPresenceGranted,
+    bool InboundPresenceGranted,
+    VisibleHomePresence? HomePresence,
+    PromiseView? Promise);
 
 public sealed record CircleSnapshot(
     Account You,
@@ -213,7 +282,9 @@ public sealed record CircleSnapshot(
     LookSession? ActiveSession,
     LookEvent? BeingWatched,
     IReadOnlyList<LookEvent> LookLog,
-    int RetainedLookLogCount);
+    int RetainedLookLogCount,
+    HomePlace? YourHomePlace,
+    CurrentHomePresence? YourHomePresence);
 
 public sealed record CircleCoverage(
     bool IsCovered,
@@ -261,6 +332,7 @@ public static class TimedShare
         {
             TimedShareDuration.Hour => now.AddHours(1),
             TimedShareDuration.Tonight => Tonight(now, zone),
+            // Product copy is "For 4 hours" — still a fixed window until home-transition end exists.
             TimedShareDuration.Home => now.AddHours(4),
             _ => now.AddHours(1)
         };
@@ -284,9 +356,15 @@ public static class TimedShare
     {
         TimedShareDuration.Hour => "After 1 hour",
         TimedShareDuration.Tonight => "After tonight",
-        TimedShareDuration.Home => "When you get home",
+        TimedShareDuration.Home => "After 4 hours",
         _ => "After 1 hour"
     };
+}
+
+public static class ActiveLookRules
+{
+    public static bool IsExpired(ActiveLook look, DateTimeOffset now) =>
+        now - look.OpenedAt >= TrustRules.ActiveLookTtl;
 }
 
 public sealed class TrustException : Exception
@@ -381,6 +459,7 @@ public interface ITrustStore
         CancellationToken cancellationToken);
     Task<LocationFix?> LatestLocationAsync(Guid accountId, CancellationToken cancellationToken);
     Task InsertLookEventAsync(LookEvent look, CancellationToken cancellationToken);
+    Task UpdateLookEventHistoryHoursAsync(Guid lookId, int historyWindowHours, CancellationToken cancellationToken);
     Task<IReadOnlyList<LookEvent>> ListLooksAsync(
         Guid accountId,
         DateTimeOffset since,
@@ -390,6 +469,8 @@ public interface ITrustStore
     Task<ActiveLook?> GetActiveLookAsync(Guid viewerId, Guid subjectId, CancellationToken cancellationToken);
     Task<ActiveLook?> GetLookAtMeAsync(Guid subjectId, CancellationToken cancellationToken);
     Task ClearActiveLookAsync(Guid viewerId, Guid? subjectId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<ActiveLook>> ListExpiredActiveLooksAsync(DateTimeOffset olderThan, CancellationToken cancellationToken);
+    Task PruneAllLocationsAsync(DateTimeOffset olderThan, CancellationToken cancellationToken);
     Task<Invite?> FindInviteByCodeAsync(string code, CancellationToken cancellationToken);
     Task<Invite?> FindPendingInviteAsync(Guid creatorId, CancellationToken cancellationToken);
     Task InsertInviteAsync(Invite invite, CancellationToken cancellationToken);
@@ -402,4 +483,17 @@ public interface ITrustStore
     Task<PhoneChallenge?> GetPhoneChallengeAsync(Guid accountId, CancellationToken cancellationToken);
     Task UpsertPhoneChallengeAsync(PhoneChallenge challenge, CancellationToken cancellationToken);
     Task ClearPhoneChallengeAsync(Guid accountId, CancellationToken cancellationToken);
+
+    Task SetPresenceGrantAsync(Guid subjectId, Guid trusteeId, bool enabled, DateTimeOffset updatedAt, CancellationToken cancellationToken);
+    Task<PresenceGrant?> GetPresenceGrantAsync(Guid subjectId, Guid trusteeId, CancellationToken cancellationToken);
+    Task UpsertHomePlaceAsync(HomePlace place, CancellationToken cancellationToken);
+    Task<HomePlace?> GetHomePlaceAsync(Guid accountId, CancellationToken cancellationToken);
+    Task UpsertCurrentHomePresenceAsync(CurrentHomePresence presence, CancellationToken cancellationToken);
+    Task<CurrentHomePresence?> GetCurrentHomePresenceAsync(Guid accountId, CancellationToken cancellationToken);
+    Task InsertPromiseAsync(HomePromise promise, CancellationToken cancellationToken);
+    Task UpdatePromiseAsync(HomePromise promise, CancellationToken cancellationToken);
+    Task<HomePromise?> GetPromiseAsync(Guid promiseId, CancellationToken cancellationToken);
+    Task<HomePromise?> GetActivePromiseAsync(Guid subjectId, Guid trusteeId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<HomePromise>> ListPromisesForPairAsync(Guid a, Guid b, CancellationToken cancellationToken);
+    Task<IReadOnlyList<HomePromise>> ListDuePromisesAsync(DateTimeOffset now, CancellationToken cancellationToken);
 }

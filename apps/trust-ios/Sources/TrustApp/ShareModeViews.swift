@@ -66,6 +66,8 @@ struct PersonShareSheet: View {
                     model.showingTimedShare = true
                 }
 
+                presenceGrantRow(person: person, name: name)
+
                 Text(TrustCopy.shareModesFootnote)
                     .font(TrustTheme.ui(13))
                     .foregroundStyle(palette.muted)
@@ -74,6 +76,44 @@ struct PersonShareSheet: View {
             .padding(24)
         }
         .background(palette.paper.ignoresSafeArea())
+    }
+
+    @ViewBuilder
+    private func presenceGrantRow(person: Person?, name: String) -> some View {
+        let enabled = person.flatMap { id in
+            model.circle.first(where: { $0.id == id.id })?.outboundPresenceGranted
+        } ?? false
+        VStack(alignment: .leading, spacing: 8) {
+            TrustHairline()
+                .padding(.top, 8)
+            Toggle(isOn: Binding(
+                get: { enabled },
+                set: { next in
+                    if let id = person?.id {
+                        model.setPresenceGrant(personID: id, enabled: next)
+                    }
+                }
+            )) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(TrustCopy.presenceGrantTitle)
+                        .font(TrustTheme.ui(16, weight: .semibold))
+                        .foregroundStyle(palette.ink)
+                    Text(TrustCopy.presenceGrantBody(name: name))
+                        .font(TrustTheme.ui(13))
+                        .foregroundStyle(palette.muted)
+                        .multilineTextAlignment(.leading)
+                }
+            }
+            .tint(palette.accent)
+            .padding(.vertical, 12)
+
+            if enabled, !model.location.homeIsSet {
+                Button(TrustCopy.setHomeHere) {
+                    model.setHomeHere()
+                }
+                .buttonStyle(TrustOutlineButtonStyle(compact: true))
+            }
+        }
     }
 
     private func shareChoice(

@@ -243,6 +243,25 @@ struct HomeView: View {
 
     private func verb(for member: TrustedPerson, share: SharePresentation) -> String {
         if lookingAt(member) { return TrustCopy.openMap.uppercased() }
+        if let promise = member.promise, !promise.youAreSubject {
+            switch promise.status {
+            case .overdue:
+                return TrustCopy.promiseOverdue.uppercased()
+            case .noSignal:
+                return TrustCopy.promiseNoSignal.uppercased()
+            case .resolved:
+                return TrustCopy.homeChip.uppercased()
+            case .active:
+                break
+            }
+        }
+        if let home = member.homePresence {
+            switch home.state {
+            case .home: return TrustCopy.homeChip.uppercased()
+            case .away: return TrustCopy.awayChip.uppercased()
+            case .unknown: break
+            }
+        }
         if !member.inboundLive { return TrustCopy.look.uppercased() }
         switch share {
         case .always: return TrustCopy.always.uppercased()

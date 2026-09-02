@@ -44,11 +44,11 @@ services:
       - key: Trust__Store
         value: postgres
       - key: Trust__SeedReviewCircle
-        value: "true"
+        value: "false" # set true only while Apple is reviewing; seeds Alex/Jordan/Riley for empty circles
       - key: StoreKit__Enabled
         value: "true"
       - key: StoreKit__AllowReviewUnlock
-        value: "true"
+        value: "false" # set true only while Apple is reviewing; enables Unlock Circle for review
       - key: StoreKit__BundleId
         value: com.collapsetechnologies.trust
       - key: StoreKit__MonthlyProductId

@@ -216,6 +216,7 @@ struct SettingsView: View {
                 stateRow(TrustCopy.sharing, model.isSharingLocation ? TrustCopy.on : TrustCopy.off)
                 stateRow(TrustCopy.ingest, model.isSharingLocation && model.location.hasAccess ? TrustCopy.on : TrustCopy.off)
                 stateRow(TrustCopy.feed, model.location.isUsingSimulatorFeed ? TrustCopy.waiting : TrustCopy.device)
+                stateRow(TrustCopy.homeChip, model.location.homeIsSet ? TrustCopy.on : TrustCopy.off)
 
                 if model.location.isDenied {
                     Text(TrustCopy.locationDeniedBody)
@@ -226,6 +227,10 @@ struct SettingsView: View {
                     }
                     .buttonStyle(TrustOutlineButtonStyle(compact: true))
                 } else {
+                    Button(TrustCopy.setHomeHere) {
+                        model.setHomeHere()
+                    }
+                    .buttonStyle(TrustOutlineButtonStyle(compact: true))
                     Button(TrustCopy.allowWhileUsing) {
                         model.requestWhenInUseLocation()
                     }
@@ -274,18 +279,6 @@ struct SettingsView: View {
                 sectionTitle(TrustCopy.more)
                 Button(TrustCopy.lookLog) {
                     model.showingLookLog = true
-                }
-                .buttonStyle(TrustOutlineButtonStyle(compact: true))
-
-                Button(model.coverage.hasPlacePings
-                       ? TrustCopy.placePingGotHome
-                       : TrustCopy.placePingCircle) {
-                    model.sendPlacePing()
-                }
-                .buttonStyle(TrustOutlineButtonStyle(compact: true))
-
-                Button(TrustCopy.checkIn) {
-                    model.checkIn()
                 }
                 .buttonStyle(TrustOutlineButtonStyle(compact: true))
 
