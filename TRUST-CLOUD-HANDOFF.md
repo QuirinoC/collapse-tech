@@ -37,7 +37,7 @@ Snapshot when this file was last updated (2 Sep 2026, Pacific): **before-submit 
 | Team | `3S529795M9` |
 | Listing | https://appstoreconnect.apple.com/apps/6806879060/distribution |
 | iOS version | **1.0 Prepare for Submission** |
-| Build in tree | **3** (`CURRENT_PROJECT_VERSION` in `project.yml` / pbxproj) — **upload may still be pending** if this Mac lacks full Xcode (archive needs `/Applications/Xcode.app`). Build **2** remains the last known attached VALID binary until 3 is uploaded. |
+| Build | **3** attached (`f6b95d62-f489-4adf-a8c0-c2a888caa259`, VALID). Build 2 remains available. |
 | Group | https://appstoreconnect.apple.com/apps/6806879060/distribution/subscription-groups/22346972 — en-US localization **Trust Circle** |
 | IAPs | Monthly `6806880712` and Annual `6806880974` both `READY_TO_SUBMIT` |
 | App Privacy | Republished with **Product Interaction** (7 data types; no phone number, no tracking) |
@@ -145,8 +145,8 @@ TRUST-FOLLOWUP-OPTIONS.md       pre-submit memo (mostly landed for submit:yes se
 
 ## Suggested next steps
 
-1. Confirm `/health/ready` **200** after the API deploy from this push.
-2. On a Mac with Xcode: archive Trust build **3**, upload, attach to 1.0 — **stop** (no Add for Review).
+1. `/health/ready` is **200** on restored deploy `dep-dac6n6qd0e5s73fpqb50` (`44eb211`).
+2. Build **3** is attached — Juan: **Add for Review** (app + subscriptions) → **Submit**. Do not flip review env until that moment.
 3. For Apple review window only: Render `Trust__SeedReviewCircle=true` + `StoreKit__AllowReviewUnlock=true`; flip off after approval.
-4. Optional: two-device APNs smoke on prod.
+4. Optional: two-device APNs smoke on prod (signing key rotated — re-register devices after re-login).
 5. Do not merge to `main` unless Render’s branch is repointed first.
