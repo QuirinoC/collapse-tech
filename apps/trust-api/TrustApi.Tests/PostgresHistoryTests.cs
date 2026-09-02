@@ -1,0 +1,79 @@
+using TrustApi.Application;
+using TrustApi.Domain;
+using TrustApi.Infrastructure.Postgres;
+
+namespace TrustApi.Tests;
+
+public sealed class PostgresHistoryTests
+{
+    private static readonly string Connection =
+        Environment.GetEnvironmentVariable("ConnectionStrings__Postgres")
+        ?? "Host=127.0.0.1;Port=5433;Database=trust;Username=trust;Password=trust";
+
+    [Fact]
+    public async Task LocationTrailAndLookReceiptSurviveNewStoreInstance()
+    {
+        try
+        {
+            await PostgresMigrator.ApplyAsync(Connection);
+        }
+        catch (Exception exception)
+        {
+            Console.WriteLine($"Skipping Postgres history test; docker Postgres is not on 5433 ({exception.Message}).");
+            return;
+        }
+
+        var store = new PostgresTrustStore(Connection);
+        var time = new MutableTimeProvider { UtcNow = new DateTimeOffset(2026, 8, 30, 19, 0, 0, TimeSpan.Zero) };
+        var engine = new TrustEngine(store, time);
+        var suffix = Guid.NewGuid().ToString("N");
+        var sam = await engine.SignInAsync("development", $"pg-sam-{suffix}", "Sam", CancellationToken.None);
+        var jordan = await engine.SignInAsync("development", $"pg-jordan-{suffix}", "Jordan", CancellationToken.None);
+        var invite = await engine.CreateInviteAsync(sam.Id, CancellationToken.None);
+        await engine.AcceptInviteAsync(jordan.Id, invite.Code, CancellationToken.None);
+
+        for (var i = 0; i < 4; i++)
+        {
+            time.UtcNow = time.UtcNow.AddMinutes(12);
+            await engine.IngestAsync(
+                sam.Id,
+                new LocationFix(time.UtcNow, 37.751 + (i * 0.001), -122.411),
+                81,
+                false,
+                CancellationToken.None);
+        }
+
+        var look = await engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
+        Assert.Equal(4, look.Trail.Count);
+        Assert.Equal(2, look.Event.HistoryWindowHours);
+
+        var restarted = new PostgresTrustStore(Connection);
+        var afterRestart = new TrustEngine(restarted, time);
+        var trail = await restarted.UnlockLocationsAsync(
+            sam.Id,
+            time.UtcNow.AddHours(-2),
+            time.UtcNow,
+            CancellationToken.None);
+        Assert.Equal(4, trail.Count);
+        Assert.Equal(37.751, trail[0].Latitude, 3);
+        Assert.Equal(37.754, trail[^1].Latitude, 3);
+
+        var rebuilt = await afterRestart.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
+        Assert.Equal(look.Event.Id, rebuilt.Event.Id);
+        Assert.Equal(4, rebuilt.Trail.Count);
+
+        var receipts = await restarted.ListLooksAsync(sam.Id, time.UtcNow.AddDays(-1), CancellationToken.None);
+        Assert.Contains(receipts, item => item.Id == look.Event.Id && item.IncludedLive);
+
+        var sealedView = await afterRestart.GetCircleAsync(jordan.Id, CancellationToken.None);
+        Assert.NotNull(sealedView.Members.Single(member => member.Person.Id == sam.Id).Live);
+        Assert.Equal(4, sealedView.ActiveSession?.Trail.Count);
+
+        await afterRestart.CloseLookAsync(jordan.Id, sam.Id, CancellationToken.None);
+        var sealedAgain = await afterRestart.GetCircleAsync(jordan.Id, CancellationToken.None);
+        Assert.Null(sealedAgain.Members.Single(member => member.Person.Id == sam.Id).Live);
+
+        await afterRestart.DeleteAccountAsync(sam.Id, CancellationToken.None);
+        await afterRestart.DeleteAccountAsync(jordan.Id, CancellationToken.None);
+    }
+}

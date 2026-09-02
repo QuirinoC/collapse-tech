@@ -142,6 +142,7 @@ h2 { margin-bottom: 0; font-size: clamp(3.4rem, 7vw, 7rem); }
 .legal-page .wordmark { margin-bottom: 18vh; }
 .legal-page h1 { margin-bottom: 42px; }
 .legal-copy { max-width: 550px; margin-bottom: 42px; color: var(--muted); font-size: 1.03rem; line-height: 1.55; }
+.legal-copy ul { padding-left: 1.2rem; margin: 1rem 0; }
 
 .reveal { animation: fade-up .65s ease both; }
 @keyframes fade-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }

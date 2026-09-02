@@ -1,0 +1,38 @@
+name: iPhoneRover
+options:
+  bundleIdPrefix: com.collapsetechnologies
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    SUPPORTS_MACCATALYST: NO
+    CODE_SIGN_STYLE: Automatic
+targets:
+  iPhoneRover:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/RoverApp
+      - path: Sources/RoverCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.collapsetechnologies.iphonerover
+        PRODUCT_NAME: iPhone Rover
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_STRICT_CONCURRENCY: targeted
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: iPhone Rover
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSCameraUsageDescription: "The rover uses the rear camera for on-device driving and obstacle detection."
+        NSBluetoothAlwaysUsageDescription: "The rover uses Bluetooth to send motor commands and receive telemetry."
+        UILaunchScreen:
+          UIColorName: RoverBackground
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait

@@ -1,0 +1,5 @@
+"CFBundleDisplayName" = "Trust Circle";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Trust Circleは位置情報を預かり、バックグラウンドでも保持します。信頼できる大人の相手が「見る」とあなたを見つけられます。確認するまで相手には見えず、あなたに通知されます。Trust Circleは位置情報を販売しません。";
+"NSLocationAlwaysUsageDescription" = "Trust Circleは位置情報を預かり、バックグラウンドでも保持します。信頼できる大人の相手が「見る」とあなたを見つけられます。確認するまで相手には見えず、あなたに通知されます。Trust Circleは位置情報を販売しません。";
+"NSLocationWhenInUseUsageDescription" = "Trust Circleは、アプリを開いているあいだ位置情報を使い、地図上の自分と、共有している人を見るために使います。Trust Circleは位置情報を販売しません。";
+"PreciseEscrow" = "Trust Circleは、信頼できる大人の相手が「見る」ときに見つけられるよう、正確な位置情報が必要です。おおよその位置では預かりに足りません。";

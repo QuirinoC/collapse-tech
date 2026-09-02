@@ -1,0 +1,20 @@
+{
+  "name": "trust-oci",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-30",
+  "account_id": "12c3db2de92a96d28dc637332307c229",
+  "workers_dev": true,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "oci.collapsetechnologies.com",
+      "custom_domain": true
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "trust-oci"
+    }
+  ]
+}

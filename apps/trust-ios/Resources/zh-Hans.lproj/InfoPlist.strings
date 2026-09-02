@@ -1,0 +1,5 @@
+"CFBundleDisplayName" = "Trust Circle";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Trust Circle 会托管你的位置（包括后台），以便受信任的成年同伴在查看时能找到你。对方确认查看之前看不到，你会收到通知。Trust Circle 不出售你的位置。";
+"NSLocationAlwaysUsageDescription" = "Trust Circle 会托管你的位置（包括后台），以便受信任的成年同伴在查看时能找到你。对方确认查看之前看不到，你会收到通知。Trust Circle 不出售你的位置。";
+"NSLocationWhenInUseUsageDescription" = "Trust Circle 在 App 打开时使用你的位置，以便你在地图上看到自己，并查看与你共享的人。Trust Circle 不出售你的位置。";
+"PreciseEscrow" = "Trust Circle 需要精确位置，以便受信任的成年同伴在查看时能找到你。大致位置不足以用于托管。";

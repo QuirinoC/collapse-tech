@@ -21,12 +21,20 @@ const projects = [
     mark: "02",
   },
   {
+    name: "Trust Circle",
+    description: "Adult-peer location escrow. Hidden until they look.",
+    category: "Software",
+    status: "App Store",
+    href: "https://collapsetechnologies.com/trust",
+    mark: "03",
+  },
+  {
     name: "CoachGG",
     description: "Smash Ultimate data rebuilt into player scouting and matchup signal.",
     category: "Software",
     status: "In deployment",
     href: null,
-    mark: "03",
+    mark: "04",
   },
   {
     name: "Dress Like Me",
@@ -35,7 +43,7 @@ const projects = [
     category: "Experiment",
     status: "In progress",
     href: null,
-    mark: "04",
+    mark: "05",
   },
 ];
 
