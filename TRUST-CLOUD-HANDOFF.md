@@ -6,7 +6,9 @@ Repo: `https://github.com/QuirinoC/collapse-tech`
 Branch URL: `https://github.com/QuirinoC/collapse-tech/tree/quirinoc-ship-pending-wip`  
 No PR on purpose.
 
-Snapshot when this file was last updated (2 Sep 2026, Pacific): **before-submit escrow fixes + presence-grant foundation shipped** on this branch (Look TTL sweep, honest 24h extend + receipt dedupe, review switches OFF in `render.yaml`, JWT → Keychain, sealed presence redaction, Home/Away grants without coords). Production API auto-deploys from this branch. App Store Connect still stops before **Add for Review**.
+Snapshot when this file was last updated (2 Sep 2026, Pacific): **before-submit escrow fixes + presence-grant foundation shipped** (`44eb211`). Production live on that commit (`dep-dac6n6qd0e5s73fpqb50`). **Build 3** attached (`f6b95d62-f489-4adf-a8c0-c2a888caa259`, VALID). Stop before **Add for Review**.
+
+**Ops note:** A mistaken Render env bulk PUT briefly wiped secrets; restored from blueprint + Postgres connection-info + APNs `K5G3DA277J`. **`Auth__SigningKey` was rotated** (clients must re-sign-in). Review switches stay **false**. Never bulk-PUT Render env — update keys individually.
 
 ---
 
@@ -43,7 +45,7 @@ Snapshot when this file was last updated (2 Sep 2026, Pacific): **before-submit 
 | App Privacy | Republished with **Product Interaction** (7 data types; no phone number, no tracking) |
 | Add for Review | **Enabled, not clicked** |
 
-**Remaining clicks (Juan):** after build 3 is attached → iOS 1.0 **Add for Review** → Subscriptions group **Add for Review** (Monthly + Annual) → **Submit to App Review**. Do not submit the app without the subscriptions.
+**Remaining clicks (Juan):** iOS 1.0 **Add for Review** → Subscriptions group **Add for Review** (Monthly + Annual) → **Submit to App Review**. Do not submit the app without the subscriptions.
 
 IAP facts: Monthly `com.collapsetechnologies.trust.circle.monthly` $7.99 / mo; Annual `com.collapsetechnologies.trust.circle.annual` $69.99 / yr; both 7-day trial, Family Sharing **off**.
 
