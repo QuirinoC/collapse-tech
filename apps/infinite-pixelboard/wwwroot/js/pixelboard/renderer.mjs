@@ -52,7 +52,6 @@ export class PixelRenderer {
       }
     }
 
-    drawGrid(context, viewport, this.width, this.height, cell);
     if (highlightedPixel) drawHighlight(context, viewport, highlightedPixel, cell, this.cellSize);
     if (reportRegion) drawReportRegion(context, viewport, reportRegion, cell, this.cellSize);
     return range;
@@ -61,6 +60,9 @@ export class PixelRenderer {
 }
 
 function drawTile(context, pixels, x, y, cell, defaultColor) {
+  // Expand fills by 1 CSS px so adjacent pixels (and neighboring network tiles)
+  // abut without hairline gaps from floor/ceil rounding.
+  const span = Math.max(1, Math.ceil(cell) + 1);
   for (let row = 0; row < pixels.length; row += 1) {
     for (let column = 0; column < pixels[row].length; column += 1) {
       const color = pixels[row][column];
@@ -69,33 +71,10 @@ function drawTile(context, pixels, x, y, cell, defaultColor) {
       context.fillRect(
         Math.floor(x + column * cell),
         Math.floor(y + row * cell),
-        Math.ceil(cell),
-        Math.ceil(cell),
+        span,
+        span,
       );
     }
-  }
-}
-
-function drawGrid(context, viewport, width, height, cell) {
-  if (cell >= 5) {
-    const firstColumn = Math.floor(-viewport.offsetX / cell);
-    const lastColumn = Math.ceil((width - viewport.offsetX) / cell);
-    const firstRow = Math.floor(-viewport.offsetY / cell);
-    const lastRow = Math.ceil((height - viewport.offsetY) / cell);
-    context.beginPath();
-    context.strokeStyle = "rgba(23, 23, 20, .06)";
-    context.lineWidth = 0.5;
-    for (let column = firstColumn; column <= lastColumn; column += 1) {
-      const x = Math.round(viewport.offsetX + column * cell) + .5;
-      context.moveTo(x, 0);
-      context.lineTo(x, height);
-    }
-    for (let row = firstRow; row <= lastRow; row += 1) {
-      const y = Math.round(viewport.offsetY + row * cell) + .5;
-      context.moveTo(0, y);
-      context.lineTo(width, y);
-    }
-    context.stroke();
   }
 }
 

@@ -144,15 +144,14 @@ struct BoardCanvasView: View {
                     let origin = model.viewport.boardToScreen(
                         BoardPosition(row: row, column: column)
                     )
+                    // Expand by 1pt so neighboring network tiles abut without hairline seams.
                     context.fill(
-                        Path(CGRect(x: origin.x, y: origin.y, width: cell + 0.5, height: cell + 0.5)),
+                        Path(CGRect(x: origin.x, y: origin.y, width: cell + 1, height: cell + 1)),
                         with: .color(Color(pixelboardHex: color))
                     )
                 }
             }
         }
-
-        drawGrid(context: &context, size: size, cell: cell)
 
         let selected = model.viewport.boardToScreen(model.selectedPosition)
         let highlight = CGRect(
@@ -162,34 +161,5 @@ struct BoardCanvasView: View {
             height: max(1, cell - 2)
         )
         context.stroke(Path(highlight), with: .color(PixelboardTheme.accent), lineWidth: 2)
-    }
-
-    private func drawGrid(
-        context: inout GraphicsContext,
-        size: CGSize,
-        cell: Double
-    ) {
-        let offsetX = model.viewport.offsetX
-        let offsetY = model.viewport.offsetY
-        if cell >= 5 {
-            var pixelGrid = Path()
-            let firstColumn = Int(floor(-offsetX / cell))
-            let lastColumn = Int(ceil((size.width - offsetX) / cell))
-            let firstRow = Int(floor(-offsetY / cell))
-            let lastRow = Int(ceil((size.height - offsetY) / cell))
-            if lastColumn >= firstColumn, lastRow >= firstRow {
-                for column in firstColumn...lastColumn {
-                    let x = (offsetX + Double(column) * cell).rounded() + 0.5
-                    pixelGrid.move(to: CGPoint(x: x, y: 0))
-                    pixelGrid.addLine(to: CGPoint(x: x, y: size.height))
-                }
-                for row in firstRow...lastRow {
-                    let y = (offsetY + Double(row) * cell).rounded() + 0.5
-                    pixelGrid.move(to: CGPoint(x: 0, y: y))
-                    pixelGrid.addLine(to: CGPoint(x: size.width, y: y))
-                }
-            }
-            context.stroke(pixelGrid, with: .color(PixelboardTheme.ink.opacity(0.06)), lineWidth: 0.5)
-        }
     }
 }
