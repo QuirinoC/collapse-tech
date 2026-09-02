@@ -6,7 +6,7 @@ Repo: `https://github.com/QuirinoC/collapse-tech`
 Branch URL: `https://github.com/QuirinoC/collapse-tech/tree/quirinoc-ship-pending-wip`  
 No PR on purpose.
 
-Snapshot when this file was last updated (2 Sep 2026, Pacific): **before-submit escrow fixes + presence-grant foundation shipped** (`44eb211`). Production live on that commit (`dep-dac6n6qd0e5s73fpqb50`). **Build 3** attached (`f6b95d62-f489-4adf-a8c0-c2a888caa259`, VALID). Stop before **Add for Review**.
+Snapshot when this file was last updated (2 Sep 2026, Pacific): **Masthead ship-first motions** on iOS (`883fb6d`+) — strip select, Look confirm red rule draw, Home/Away morph + soft sealed lock breathe. API unchanged; production still `44eb211` / `dep-dac6n6qd0e5s73fpqb50`. **Build 4** is the submit candidate (replaces build 3 on 1.0). Stop before **Add for Review**.
 
 **Ops note:** A mistaken Render env bulk PUT briefly wiped secrets; restored from blueprint + Postgres connection-info + APNs `K5G3DA277J`. **`Auth__SigningKey` was rotated** (clients must re-sign-in). Review switches stay **false**. Never bulk-PUT Render env — update keys individually.
 
@@ -14,7 +14,7 @@ Snapshot when this file was last updated (2 Sep 2026, Pacific): **before-submit 
 
 ## Do not
 
-- Submit Trust Circle to App Review until **build 3** is uploaded and attached — or Juan explicitly decides to submit build 2 as-is. Connect listing/IAPs are otherwise ready (§1); **Add for Review / Submit** remain Juan’s clicks.
+- Submit Trust Circle to App Review until **build 4** is uploaded and attached — or Juan explicitly decides to submit an earlier build. Connect listing/IAPs are otherwise ready (§1); **Add for Review / Submit** remain Juan’s clicks.
 - Force-push, `--no-verify`, or rewrite this branch’s history.
 - Push a **phone-OTP-only** onboarding story. Production and the IPA use **handle** onboarding (`PUT /api/v1/me/handle`). Phone OTP endpoints exist unused; do not revive them as the first-open path.
 - Point Release iOS at a LAN URL. Release `TRUST_BASE_URL` is `https://trust.collapsetechnologies.com` (`apps/trust-ios/project.yml`).
@@ -39,7 +39,7 @@ Snapshot when this file was last updated (2 Sep 2026, Pacific): **before-submit 
 | Team | `3S529795M9` |
 | Listing | https://appstoreconnect.apple.com/apps/6806879060/distribution |
 | iOS version | **1.0 Prepare for Submission** |
-| Build | **3** attached (`f6b95d62-f489-4adf-a8c0-c2a888caa259`, VALID). Build 2 remains available. |
+| Build | **4** (motions) — attach after processing; build 3 `f6b95d62-…` remains available until replaced. |
 | Group | https://appstoreconnect.apple.com/apps/6806879060/distribution/subscription-groups/22346972 — en-US localization **Trust Circle** |
 | IAPs | Monthly `6806880712` and Annual `6806880974` both `READY_TO_SUBMIT` |
 | App Privacy | Republished with **Product Interaction** (7 data types; no phone number, no tracking) |
@@ -96,7 +96,7 @@ Local API: `cd apps/trust-api && docker compose up postgres -d && dotnet run --l
 - iOS: set Home (coords Keychain + CLCircularRegion), grant toggle on person sheet, Home/Away on strip, promise API wired (full promise picker UI can stay thin).
 - Engine tests: presence not leaked without grant; Look TTL; extend log hours; Look reopen not new.
 
-**Deferred:** full promise deadline picker UI polish, cheaper sealed GPS battery mode, StoreKit expiry recompute, offline copy polish, build 3 IPA upload if Xcode unavailable on the agent host.
+**Deferred:** person-sheet grant bundle polish, quiet receipt rest + overdue fade, full promise deadline picker, cheaper sealed GPS battery mode, StoreKit expiry recompute, offline copy polish.
 
 ---
 
@@ -147,8 +147,8 @@ TRUST-FOLLOWUP-OPTIONS.md       pre-submit memo (mostly landed for submit:yes se
 
 ## Suggested next steps
 
-1. `/health/ready` is **200** on restored deploy `dep-dac6n6qd0e5s73fpqb50` (`44eb211`).
-2. Build **3** is attached — Juan: **Add for Review** (app + subscriptions) → **Submit**. Do not flip review env until that moment.
+1. `/health/ready` is **200** on restored deploy `dep-dac6n6qd0e5s73fpqb50` (`44eb211`). No API change in the motions pass.
+2. Build **4** — Juan: **Add for Review** (app + subscriptions) → **Submit** after attach is VALID. Do not flip review env until that moment.
 3. For Apple review window only: Render `Trust__SeedReviewCircle=true` + `StoreKit__AllowReviewUnlock=true`; flip off after approval.
 4. Optional: two-device APNs smoke on prod (signing key rotated — re-register devices after re-login).
 5. Do not merge to `main` unless Render’s branch is repointed first.
