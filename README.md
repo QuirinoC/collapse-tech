@@ -10,7 +10,6 @@ The workspace behind [collapsetechnologies.com](https://collapsetechnologies.com
 | Asymmetric Challenge | `apps/asymmetric-challenge` | 256-bit key challenge experiment |
 | Dress Like Me | `apps/dress-like-me` | Creator-style discovery and shopping matches |
 | Collapse Health | `apps/collapse-health` | Medical tourism referral site (US/Canada → Mexico) |
-| Influence.Market | `apps/influence-market` | Influencer marketing agency-marketplace: escrowed multi-creator campaigns |
 | CoachGG | `apps/coach-gg` | Super Smash Bros. Ultimate player analysis with live SignalR updates |
 | Infinite Pixelboard | `apps/infinite-pixelboard` | Collaborative, infinite canvas built with ASP.NET Core SignalR |
 | iPhone Rover | `apps/iphone-rover-ios` + `apps/iphone-rover-firmware` | iPhone-powered indoor rover prototype with ESP32 motion control |
@@ -41,12 +40,6 @@ Collapse Health is a fully static export, same as the studio site:
 ```bash
 npm --prefix apps/collapse-health install
 npx --prefix apps/collapse-health next dev   # or: cd apps/collapse-health && npm run dev
-```
-
-```bash
-npm --prefix apps/influence-market install
-npm run dev:influence
-# Runs in demo mode with seeded creators; add Supabase/Stripe env for production mode.
 ```
 
 ```bash
@@ -83,13 +76,14 @@ npm test
 
 **Current architecture (Aug 2026): Cloudflare for frontends + DNS, Render for backends. Azure and Vercel are retired.**
 
+Influence.Market was shut down in August 2026 (Worker + D1 deleted; hostname no longer resolves). It was a Collabstr-class marketplace without a wedge.
+
 | Application | Directory | Host | Production URL |
 | --- | --- | --- | --- |
 | Collapse Technologies | `apps/collapse-technologies` | Cloudflare Pages (static export) | `collapsetechnologies.com` ✅ live |
 | Asymmetric Challenge | `apps/asymmetric-challenge` | Cloudflare Workers via `@opennextjs/cloudflare` + Cloudflare D1 | `challenge.collapsetechnologies.com` ✅ live (`x-opennext: 1`) |
 | Dress Like Me | `apps/dress-like-me` | Cloudflare Workers via `@opennextjs/cloudflare` | `dresslikeme.collapsetechnologies.com` ✅ live (app itself still pre-launch) |
 | Collapse Health | `apps/collapse-health` | Cloudflare Pages (static export) + lead Worker `collapse-health-leads` (KV-backed) | `health.collapsetechnologies.com` ✅ live — WIP/not-operating banner, no prices |
-| Influence.Market | `apps/influence-market` | Cloudflare Workers via `@opennextjs/cloudflare` + Cloudflare D1 (native `DB` binding; Supabase Postgres optional) | `influence.collapsetechnologies.com` ✅ live |
 | CoachGG | `apps/coach-gg` | Render web service (`srv-da56cr2jobas73dmulv0`) | `coachgg-api.onrender.com`, custom domain `coach.collapsetechnologies.com` ✅ live |
 | Infinite Pixelboard | `apps/infinite-pixelboard` | Render web service (`srv-da55t78u01pc73e3rlu0`) + Render Key Value (Redis) | `infinite-pixelboard.onrender.com`, custom domain `pixelboard.collapsetechnologies.com` ✅ live |
 | Infinite Pixelboard iOS | `apps/infinite-pixelboard-ios` | Native SwiftUI app (TestFlight/App Store) — no server deploys; talks to the pixelboard API + Firebase Auth | n/a |
