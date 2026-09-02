@@ -8,6 +8,11 @@ const testsDirectory = fileURLToPath(new URL(".", import.meta.url));
 const webRoot = join(testsDirectory, "../../../..");
 const razor = readFileSync(join(webRoot, "Pages/Shared/_Pixelboard.cshtml"), "utf8");
 const app = readFileSync(join(webRoot, "wwwroot/js/pixelboard/app.mjs"), "utf8");
+const renderer = readFileSync(join(webRoot, "wwwroot/js/pixelboard/renderer.mjs"), "utf8");
+const iosCanvas = readFileSync(
+  join(webRoot, "../infinite-pixelboard-ios/Sources/InfinitePixelboardApp/BoardCanvasView.swift"),
+  "utf8",
+);
 const iosAccount = readFileSync(
   join(webRoot, "../infinite-pixelboard-ios/Sources/InfinitePixelboardApp/AccountView.swift"),
   "utf8",
@@ -26,6 +31,13 @@ test("web keeps compact auth controls without an account status panel", () => {
   assert.doesNotMatch(app, /authNote|Signing out|Board service unavailable|Painting is paused/);
   assert.doesNotMatch(app, /Viewing anonymously|Signed in as|Account action required/);
   assert.doesNotMatch(iosAccount, /authNote|authNotice|Accept the community standards before placing/);
+});
+
+test("board renderers stay seamless without grid overlays", () => {
+  assert.doesNotMatch(renderer, /drawGrid|strokeStyle.*23, 23, 20/);
+  assert.match(renderer, /Math\.ceil\(cell\) \+ 1/);
+  assert.doesNotMatch(iosCanvas, /drawGrid|pixelGrid|tileGrid/);
+  assert.match(iosCanvas, /cell \+ 1/);
 });
 
 test("web palette exposes the Pro color-grid affordance", () => {
