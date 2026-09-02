@@ -6,7 +6,7 @@ Repo: `https://github.com/QuirinoC/collapse-tech`
 Branch URL: `https://github.com/QuirinoC/collapse-tech/tree/quirinoc-ship-pending-wip`  
 No PR on purpose.
 
-Snapshot when this file was last updated (2 Sep 2026, Pacific): **Masthead ship-first motions** on iOS (`883fb6d`+) — strip select, Look confirm red rule draw, Home/Away morph + soft sealed lock breathe. API unchanged; production still `44eb211` / `dep-dac6n6qd0e5s73fpqb50`. **Build 4** is the submit candidate (replaces build 3 on 1.0). Stop before **Add for Review**.
+Snapshot when this file was last updated (2 Sep 2026, Pacific): **Masthead ship-first motions** on iOS (`883fb6d` / `ee22c83`) — strip select, Look confirm red rule draw, Home/Away morph + soft sealed lock breathe. API unchanged; production still `44eb211` / `dep-dac6n6qd0e5s73fpqb50`. **Build 4** attached (`38c8340a-5a58-4e55-94cb-e5407048e745`, VALID). Stop before **Add for Review**.
 
 **Ops note:** A mistaken Render env bulk PUT briefly wiped secrets; restored from blueprint + Postgres connection-info + APNs `K5G3DA277J`. **`Auth__SigningKey` was rotated** (clients must re-sign-in). Review switches stay **false**. Never bulk-PUT Render env — update keys individually.
 
@@ -39,7 +39,7 @@ Snapshot when this file was last updated (2 Sep 2026, Pacific): **Masthead ship-
 | Team | `3S529795M9` |
 | Listing | https://appstoreconnect.apple.com/apps/6806879060/distribution |
 | iOS version | **1.0 Prepare for Submission** |
-| Build | **4** (motions) — attach after processing; build 3 `f6b95d62-…` remains available until replaced. |
+| Build | **4** attached (`38c8340a-5a58-4e55-94cb-e5407048e745`, VALID). Build 3 remains available. |
 | Group | https://appstoreconnect.apple.com/apps/6806879060/distribution/subscription-groups/22346972 — en-US localization **Trust Circle** |
 | IAPs | Monthly `6806880712` and Annual `6806880974` both `READY_TO_SUBMIT` |
 | App Privacy | Republished with **Product Interaction** (7 data types; no phone number, no tracking) |
@@ -148,7 +148,7 @@ TRUST-FOLLOWUP-OPTIONS.md       pre-submit memo (mostly landed for submit:yes se
 ## Suggested next steps
 
 1. `/health/ready` is **200** on restored deploy `dep-dac6n6qd0e5s73fpqb50` (`44eb211`). No API change in the motions pass.
-2. Build **4** — Juan: **Add for Review** (app + subscriptions) → **Submit** after attach is VALID. Do not flip review env until that moment.
+2. Build **4** is attached — Juan: **Add for Review** (app + subscriptions) → **Submit**. Do not flip review env until that moment.
 3. For Apple review window only: Render `Trust__SeedReviewCircle=true` + `StoreKit__AllowReviewUnlock=true`; flip off after approval.
 4. Optional: two-device APNs smoke on prod (signing key rotated — re-register devices after re-login).
 5. Do not merge to `main` unless Render’s branch is repointed first.
