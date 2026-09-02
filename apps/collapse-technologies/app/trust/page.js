@@ -27,14 +27,17 @@ export default function TrustPage() {
       <h1>Location stays<br />hidden until they look.</h1>
       <div className="legal-copy">
         <p>
-          Trust Circle is adult-peer location escrow for iPhone. A look returns live
-          location plus the last two hours, after a confirm, and sends a quiet
-          receipt. Circle is optional. One paid seat covers unpaid people in the
-          circle. We do not sell location. There are no ads.
+          Trust Circle, by Collapse Technologies, is adult-peer location escrow for
+          iPhone. Sign in with Apple, pick a handle, invite someone you trust. A look
+          returns live location plus the last two hours, after a confirm, and sends a
+          quiet receipt to the person being looked at. Circle is optional. One paid
+          seat covers unpaid people in the circle. We do not sell location. There
+          are no ads.
         </p>
         <p>
-          Circle is $7.99 per month or $69.99 per year, with a 7-day trial,
-          through Apple on iPhone.
+          Circle is $7.99 per month or $69.99 per year, with a 7-day free trial,
+          auto-renewing through Apple on iPhone. Cancel any time in iOS Settings →
+          Apple ID → Subscriptions.
         </p>
       </div>
       <p>
