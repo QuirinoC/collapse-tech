@@ -132,9 +132,18 @@ public static partial class PostgresProvisioner
         var exists = (bool)(await existsCommand.ExecuteScalarAsync(cancellationToken)
             ?? false);
 
-        var sql = exists
-            ? $"ALTER ROLE {quotedRole} WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD {quotedPassword};"
-            : $"CREATE ROLE {quotedRole} WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD {quotedPassword};";
+        if (exists)
+        {
+            // Managed Postgres owners often cannot ALTER ROLE privilege bits
+            // (NOSUPERUSER etc.). Keep the existing runtime role and continue
+            // with migrations/grants; password rotation remains a manual op.
+            Console.WriteLine(
+                $"Runtime role {runtimeRole} already exists; skipping ALTER ROLE.");
+            return;
+        }
+
+        var sql =
+            $"CREATE ROLE {quotedRole} WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD {quotedPassword};";
         await using var roleCommand = new NpgsqlCommand(sql, connection);
         await roleCommand.ExecuteNonQueryAsync(cancellationToken);
     }
