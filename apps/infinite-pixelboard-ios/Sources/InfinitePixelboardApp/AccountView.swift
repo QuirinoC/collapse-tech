@@ -11,6 +11,7 @@ struct AccountView: View {
     @State private var showingReport = false
     @State private var showingPro = true
     @State private var showingMore = false
+    @State private var specialCodeDraft = ""
 
     var body: some View {
         ScrollView {
@@ -350,6 +351,22 @@ struct AccountView: View {
                 .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
                 .padding(.bottom, 10)
             }
+            Text(PixelboardL10n.haveACode)
+                .font(PixelboardTheme.sans(14))
+                .foregroundStyle(PixelboardTheme.muted)
+                .padding(.top, 8)
+                .padding(.bottom, 8)
+            TextField("CODE", text: $specialCodeDraft)
+                .textInputAutocapitalization(.characters)
+                .disableAutocorrection(true)
+                .font(PixelboardTheme.mono(14))
+                .padding(12)
+                .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
+                .padding(.bottom, 10)
+            Button(PixelboardL10n.redeemInvite) {
+                Task { await model.redeemEnteredCode(specialCodeDraft) }
+            }
+            .buttonStyle(PixelboardOutlineButtonStyle(compact: true))
         }
     }
 

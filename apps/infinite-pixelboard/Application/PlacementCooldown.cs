@@ -21,9 +21,13 @@ public static class PlacementCooldown
         DateTimeOffset now)
     {
         var baseline = SecondsForTier(tier);
-        return boost is { } active && active.ExpiresAt > now
-            ? Math.Min(baseline, active.CooldownSeconds)
-            : baseline;
+        if (boost is not { } active || active.ExpiresAt <= now)
+        {
+            return baseline;
+        }
+
+        // Zero means unlimited placing for the boost window (special codes).
+        return Math.Min(baseline, Math.Max(0, active.CooldownSeconds));
     }
 
     public static DateTimeOffset ExtendExpiry(
@@ -35,5 +39,29 @@ public static class PlacementCooldown
         var uncapped = start + duration;
         var cap = now + TimeSpan.FromHours(MaxBoostBankHours);
         return uncapped <= cap ? uncapped : cap;
+    }
+
+    public static DateTimeOffset ResolveSpecialBenefitExpiry(
+        DateTimeOffset now,
+        int? benefitDurationSeconds,
+        DateTimeOffset? benefitExpiresAt)
+    {
+        DateTimeOffset? fromDuration = benefitDurationSeconds is { } seconds
+            ? now.AddSeconds(seconds)
+            : null;
+        if (fromDuration is null)
+        {
+            return benefitExpiresAt
+                ?? throw new ArgumentException("A special-code benefit expiry is required.");
+        }
+
+        if (benefitExpiresAt is null)
+        {
+            return fromDuration.Value;
+        }
+
+        return fromDuration.Value <= benefitExpiresAt.Value
+            ? fromDuration.Value
+            : benefitExpiresAt.Value;
     }
 }

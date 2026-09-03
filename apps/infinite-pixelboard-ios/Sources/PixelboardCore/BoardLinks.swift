@@ -45,6 +45,17 @@ public enum BoardLinks {
         return cleaned
     }
 
+    public static func normalizeSpecialCode(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let cleaned = value.uppercased().filter { $0 != "-" && !$0.isWhitespace }
+        let alphabet = Set("ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
+        guard (4...16).contains(cleaned.count),
+              cleaned.allSatisfy({ alphabet.contains($0) }) else {
+            return nil
+        }
+        return cleaned
+    }
+
     private static func queryValue(_ name: String, in url: URL) -> String? {
         URLComponents(url: url, resolvingAgainstBaseURL: false)?
             .queryItems?

@@ -381,6 +381,10 @@ public sealed class PostgresAccountDeletionService(
             WHERE firebase_uid = $1;
             """,
             """
+            DELETE FROM pixelboard.special_code_redemptions
+            WHERE firebase_uid = $1;
+            """,
+            """
             DELETE FROM pixelboard.referral_attributions
             WHERE referee_firebase_uid = $1
                OR referrer_firebase_uid = $1;

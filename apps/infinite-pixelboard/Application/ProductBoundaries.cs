@@ -33,6 +33,47 @@ public enum ReferralClaimOutcome
     AccountDeleted
 }
 
+public enum SpecialCodeClaimOutcome
+{
+    NotSpecialCode,
+    Granted,
+    InvalidCode,
+    AlreadyRedeemed,
+    CodeExpired,
+    BenefitExpired,
+    CommunityStandardsRequired,
+    AccountDeleted
+}
+
+public sealed record SpecialCodeDefinition(
+    string Code,
+    int CooldownSeconds,
+    DateTimeOffset? CodeExpiresAt,
+    int? BenefitDurationSeconds,
+    DateTimeOffset? BenefitExpiresAt,
+    string? Note,
+    DateTimeOffset CreatedAt);
+
+public sealed record CreateSpecialCodeCommand(
+    string? Code,
+    int CooldownSeconds,
+    DateTimeOffset? CodeExpiresAt,
+    int? BenefitDurationSeconds,
+    DateTimeOffset? BenefitExpiresAt,
+    string? Note);
+
+public enum SpecialCodeCreateOutcome
+{
+    Created,
+    InvalidRequest,
+    CodeConflict
+}
+
+public sealed record SpecialCodeCreateResult(
+    SpecialCodeCreateOutcome Outcome,
+    SpecialCodeDefinition? Code = null,
+    string? ErrorMessage = null);
+
 public sealed record AccountPolicyState(
     bool IsBanned,
     bool CommunityStandardsAccepted);
@@ -141,6 +182,19 @@ public interface IReferralService
     ValueTask<ReferralClaimOutcome> ClaimAsync(
         AccountId refereeAccountId,
         string? code,
+        CancellationToken cancellationToken = default);
+}
+
+public interface ISpecialCodeService
+{
+    ValueTask<SpecialCodeClaimOutcome> RedeemAsync(
+        AccountId accountId,
+        string? code,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<SpecialCodeCreateResult> CreateAsync(
+        AccountId actorAccountId,
+        CreateSpecialCodeCommand command,
         CancellationToken cancellationToken = default);
 }
 
