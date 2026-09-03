@@ -4,6 +4,8 @@ Run migrations with a dedicated deployment identity that can create and alter ob
 
 Apply files in lexical order before enabling `Postgres:Enabled`. Do not grant the runtime application role schema-owner or migration privileges.
 
+`013_special_codes.sql` adds `special_codes` / `special_code_redemptions` and allows `paint_boosts.cooldown_seconds = 0` for unlimited-placing benefits. Re-run `--provision-postgres` after deploying an image that embeds the new migration so grants and `/health/ready` stay aligned.
+
 The production image includes a repeatable provisioning command that applies
 the embedded migrations, creates or rotates a restricted runtime role, and
 grants that role DML access only:

@@ -37,6 +37,9 @@ public sealed class PlacementCooldownTests
         var boost = new PaintBoostState(0, Now.AddHours(2));
         Assert.Equal(0, PlacementCooldown.Resolve(AccountTier.Free, boost, Now));
         Assert.Equal(0, PlacementCooldown.Resolve(AccountTier.Pro, boost, Now));
+        Assert.Equal(
+            PlacementCooldown.FreeSeconds,
+            PlacementCooldown.Resolve(AccountTier.Free, boost, Now.AddHours(3)));
     }
 
     [Fact]
