@@ -61,7 +61,7 @@ Say this out loud before buying anything.
 | **Named insured on UAS liability** | LLC (Juan as additional insured / listed pilot as the carrier requires). |
 | **WSDOT aircraft registration** (WA) | Can be the LLC once there is an aircraft to register. Confirm current WSDOT UAS rules at registration time; do not skip it. |
 
-Part 107 knowledge test + TSA/application stay on Juan’s name. The LLC does not “hold” the certificate.
+Part 107 knowledge test + TSA/application stay on Juan’s name. The LLC does not “hold” the certificate. Study guide: [docs/part-107-study-guide.md](./part-107-study-guide.md).
 
 ### Insurance
 
