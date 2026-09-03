@@ -117,6 +117,22 @@ test("invite claims post the normalized code to the account referral route", asy
   assert.equal(JSON.parse(request.options.body).code, "ABCD2345");
 });
 
+
+test("special code redeem posts to the account special-code route", async (context) => {
+  let request;
+  context.mock.method(globalThis, "fetch", async (url, options) => {
+    request = { url, options };
+    return new Response(null, { status: 204 });
+  });
+  const api = new PixelboardApi({ getToken: async () => "firebase-token" });
+
+  await api.redeemSpecialCode("PARTY24");
+
+  assert.equal(request.url, "/api/v1/account/special-code");
+  assert.equal(request.options.method, "POST");
+  assert.equal(JSON.parse(request.options.body).code, "PARTY24");
+});
+
 test("stripe checkout posts month or year and never a card payload", async (context) => {
   let request;
   context.mock.method(globalThis, "fetch", async (url, options) => {
