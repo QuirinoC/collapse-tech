@@ -29,9 +29,9 @@ if (provisionPostgres)
 }
 
 // When provisioning credentials are present on the web service, apply any
- // pending embedded migrations before the host starts accepting traffic. This
- // avoids a chicken/egg failure where /health/ready requires tables that the
- // new image introduces.
+// pending embedded migrations before the host starts accepting traffic. This
+// avoids a chicken/egg failure where /health/ready requires tables that the
+// new image introduces.
 var canAutoProvision =
     !string.IsNullOrWhiteSpace(
         builder.Configuration["PostgresProvisioning:ConnectionString"])
