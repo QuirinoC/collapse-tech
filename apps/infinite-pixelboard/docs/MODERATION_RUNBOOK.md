@@ -94,8 +94,14 @@ Moderators can create multi-user promotional codes that grant a temporary paint 
 codes are redeemable even after an account has already used a referral invite. Each
 account may redeem a given special code only once.
 
-Create an unlimited-placing code that lasts 24 hours (requires a Firebase ID token with
-`moderator=true`):
+Create codes via `POST /api/v1/moderation/special-codes` (requires a Firebase ID token with
+`moderator=true`). Prefer the API over raw SQL so validation and audits stay consistent.
+`cooldownSeconds` is `0`–`10` (`0` = unlimited placing). Provide
+`benefitDurationSeconds` and/or `benefitExpiresAt`. Optional `codeExpiresAt` stops new
+redemptions after that instant. Codes are 4–16 characters from the invite alphabet
+(`A–Z` / `2–9`, no `I`/`O`/`0`/`1`). Omit `code` to auto-generate one.
+
+Unlimited placing for 24 hours after each redemption:
 
 ```bash
 TOKEN='<firebase-id-token-with-moderator-claim>'
@@ -111,9 +117,37 @@ curl -sS -X POST \
   }'
 ```
 
-Omit `code` to auto-generate one. Optional `codeExpiresAt` stops new redemptions;
-`benefitExpiresAt` caps the absolute end of the boost. Apply migration `013_special_codes`
-with `--provision-postgres` before creating codes in production.
+Custom cooldown (1s) until a hard expiry, with a redemption window:
+
+```bash
+curl -sS -X POST \
+  'https://pixelboard.collapsetechnologies.com/api/v1/moderation/special-codes' \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "code": "FAST1S",
+    "cooldownSeconds": 1,
+    "benefitExpiresAt": "2026-12-31T23:59:59Z",
+    "codeExpiresAt": "2026-10-01T00:00:00Z",
+    "note": "event 1s cooldown through Dec"
+  }'
+```
+
+Users redeem with `POST /api/v1/account/special-code` (`{"code":"PAINTNOW"}`) while signed
+in — web Account panel “Redeem a special code”, or iOS Account → code field (special codes
+tried first, then referral). Each account may redeem a given code only once.
+
+Emergency SQL (prefer API). Alphabet and constraints must match migration `013_special_codes`:
+
+```sql
+INSERT INTO pixelboard.special_codes (
+  code, cooldown_seconds, code_expires_at, benefit_duration_seconds, benefit_expires_at, note)
+VALUES (
+  'PAINTNOW', 0, NULL, 86400, NULL, 'manual unlimited drop');
+```
+
+Apply migration `013_special_codes` with `--provision-postgres` before creating codes in
+production (already done when `/health/ready` reports Healthy with special_codes tables).
 
 ## Routine checks
 
