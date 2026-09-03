@@ -1,11 +1,14 @@
-# Infinite Pixelboard — Ready-to-paste outreach drafts
+# Infinite Pixelboard outreach drafts
 
 Varied copy for week-1 channels. Do **not** paste the same body into every community.
-Disclose painting sign-in + free 5s cooldown when the channel expects honesty about access.
+Always include **both** links. Disclose painting sign-in + free 5s cooldown when the channel expects honesty about access.
+**No em dashes** in any post text.
 
 **Links**
-- Web (primary): https://pixelboard.collapsetechnologies.com/
+- Web: https://pixelboard.collapsetechnologies.com/
 - iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
+
+Screenshots: `docs/pixelboard-outreach-assets/02-live-ui.png` (prefer attaching where uploads work).
 
 ---
 
@@ -13,7 +16,7 @@ Disclose painting sign-in + free 5s cooldown when the channel expects honesty ab
 
 **Title**
 ```
-Show HN: Infinite Pixelboard – a collaborative mural you can paint on the web
+Show HN: Infinite Pixelboard - a collaborative mural you can paint on the web and iOS
 ```
 
 **URL**
@@ -23,11 +26,11 @@ https://pixelboard.collapsetechnologies.com/
 
 **First comment (post immediately after submit)**
 ```
-I built Infinite Pixelboard — a shared pixel mural that anyone can view live, and paint after signing in.
+I built Infinite Pixelboard: a shared pixel mural that anyone can view live, and paint after signing in.
 
-Free tier: 5s cooldown between paints. Pro shortens cooldown (optional). Happy to answer questions about the realtime stack, tiling, or fairness/moderation.
+Free tier: 5s cooldown between paints. Optional Pro shortens cooldown. Happy to answer questions about the realtime stack, tiling, or fairness/moderation.
 
-Try it: https://pixelboard.collapsetechnologies.com/
+Web: https://pixelboard.collapsetechnologies.com/
 iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
 ```
 
@@ -37,24 +40,24 @@ iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
 
 **Title**
 ```
-[Infinite Pixelboard] - A live collaborative pixel mural (web + iOS)
+[Infinite Pixelboard] live collaborative pixel mural (web + iOS)
 ```
 
 **Body**
 ```
-Hey SideProject —
+Hey SideProject,
 
-I shipped Infinite Pixelboard: a shared canvas where people paint together in real time (think r/place energy, but always on).
+I shipped Infinite Pixelboard: a shared canvas where people paint together in real time (r/place energy, but always on).
 
-• Web: https://pixelboard.collapsetechnologies.com/
-• iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
-• Viewing is open; painting requires sign-in
-• Free: 5s cooldown between paints; Pro is optional for a faster cooldown
+Web: https://pixelboard.collapsetechnologies.com/
+iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
 
-Looking for honest feedback on first-paint UX, whether the cooldown feels fair, and what would make you come back tomorrow.
+Viewing is open. Painting needs a free sign-in, and free paints have a 5s cooldown (keeps the board from getting totally trashed).
 
-Happy to answer build questions too.
+Looking for honest feedback on first-paint UX, whether the cooldown feels fair, and what would make you come back tomorrow. Happy to answer build questions too.
 ```
+
+*(Posted 2026-09-02: https://www.reddit.com/r/SideProject/comments/1w5wpom/infinite_pixelboard_live_collaborative_pixel/)*
 
 ---
 
@@ -62,24 +65,24 @@ Happy to answer build questions too.
 
 **Title**
 ```
-[Web] Infinite Pixelboard — collaborative live mural (free to play, feedback welcome)
+[Web] [Mobile] Infinite Pixelboard: collaborative live mural (feedback welcome)
 ```
 
 **Body**
 ```
-Game / toy: Infinite Pixelboard — paint pixels on a shared infinite-ish mural with other people in real time.
+Toy / chill multiplayer canvas: Infinite Pixelboard. Paint pixels on a shared mural with other people in real time.
 
-Play (web): https://pixelboard.collapsetechnologies.com/
+Web: https://pixelboard.collapsetechnologies.com/
 iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
 
-Notes for players:
-• You can look around freely
-• Painting requires a free sign-in
-• Free cooldown is 5 seconds between paints (Pro optional for faster paints)
+Notes:
+- Look around freely
+- Painting needs a free sign-in
+- Free cooldown is 5 seconds between paints
 
-I’m the solo maker. What I’m hoping to learn: is the “first paint” moment clear enough, and does the mural feel alive when a few people are on?
+I am the solo maker. What I want to learn: is the first paint moment clear enough, and does the mural feel alive when a few people are on?
 
-Thanks for any playtests / harsh feedback.
+Harsh feedback welcome.
 ```
 
 ---
@@ -88,7 +91,7 @@ Thanks for any playtests / harsh feedback.
 
 **Title**
 ```
-Launched: Infinite Pixelboard — collaborative mural (web + iOS, freemium cooldown)
+Launched: Infinite Pixelboard collaborative mural (web + iOS, freemium cooldown)
 ```
 
 **Body**
@@ -98,10 +101,10 @@ Just put Infinite Pixelboard in front of people.
 What it is: a live collaborative pixel mural. View without an account; sign in to paint. Free users get a 5s cooldown; Pro is optional for a shorter wait.
 
 Links:
-• Web: https://pixelboard.collapsetechnologies.com/
-• iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
+- Web: https://pixelboard.collapsetechnologies.com/
+- iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
 
-Why I’m posting: looking for maker feedback on positioning (toy vs social canvas vs “r/place forever”) and whether freemium cooldown feels fair vs paywalled features.
+Why I am posting: looking for maker feedback on positioning (toy vs social canvas vs "r/place forever") and whether freemium cooldown feels fair vs paywalled features.
 
 What I built / learned so far: realtime sync + moderation constraints matter more than fancy brushes. Happy to share stack details if useful.
 
@@ -114,16 +117,15 @@ What would you change before a Product Hunt day?
 
 **Title**
 ```
-[Web + iOS] Infinite Pixelboard — looking for bug reports on collaborative painting
+[Web + iOS] Infinite Pixelboard: looking for bugs on collaborative painting
 ```
 
 **Body**
 ```
 App under test: Infinite Pixelboard (collaborative live mural)
 
-Platforms:
-• Web: https://pixelboard.collapsetechnologies.com/
-• iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
+Web: https://pixelboard.collapsetechnologies.com/
+iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
 
 What to try:
 1. Browse the mural without signing in
@@ -131,13 +133,15 @@ What to try:
 3. Zoom/pan around busy areas and watch live updates
 
 What I want broken:
-• Auth / session weirdness
-• Missed or delayed pixel updates
-• UI that hides the cooldown or sign-in requirement
-• Mobile Safari / iOS layout issues
+- Auth / session weirdness
+- Missed or delayed pixel updates
+- UI that hides the cooldown or sign-in requirement
+- Mobile Safari / iOS layout issues
 
-Please reply with device + browser/OS + steps. Thank you testers — paint requires sign-in; Pro is optional and not required for testing.
+Please reply with device + browser/OS + steps. Thank you testers. Paint requires sign-in; Pro is optional and not required for testing.
 ```
+
+*(Posted 2026-09-02: https://www.reddit.com/r/TestMyApp/comments/1w5wqis/web_ios_infinite_pixelboard_looking_for_bugs_on/)*
 
 ---
 
@@ -145,26 +149,28 @@ Please reply with device + browser/OS + steps. Thank you testers — paint requi
 
 **Title**
 ```
-[Web, Alpha][iOS, Beta] Infinite Pixelboard — collaborative mural testers wanted
+[Web, Alpha][iOS, Beta] Infinite Pixelboard testers wanted (live mural)
 ```
 
 **Body**
 ```
 Looking for alpha/beta testers for Infinite Pixelboard.
 
-What it is: a shared pixel mural. Anyone can view live; painting needs sign-in. Free cooldown 5s; Pro optional.
+Shared pixel mural. Anyone can view live; painting needs sign-in. Free cooldown 5s.
 
-Live now (no waitlist):
-• Web: https://pixelboard.collapsetechnologies.com/
-• iOS App Store: https://apps.apple.com/app/infinite-pixelboard/id6804066543
+No waitlist:
+Web: https://pixelboard.collapsetechnologies.com/
+iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
 
-Success criteria for this round:
-• Can a new user understand how to paint in <60s?
-• Do live updates feel reliable with 2+ painters?
-• Any confusing paywall / cooldown messaging?
+This round I care about:
+- Can a new user understand how to paint in under 60s?
+- Do live updates feel reliable with 2+ painters?
+- Any confusing cooldown or paywall messaging?
 
 Comment with what you tested + what confused you. Thanks!
 ```
+
+*(Posted 2026-09-02: https://www.reddit.com/r/alphaandbetausers/comments/1w5wtzk/web_alphaios_beta_infinite_pixelboard_testers/)*
 
 ---
 
@@ -172,39 +178,39 @@ Comment with what you tested + what confused you. Thanks!
 
 **Title**
 ```
-Infinite Pixelboard — collaborative pixel mural on iOS (freemium)
+Infinite Pixelboard on iOS: collaborative pixel mural (also on web)
 ```
 
 **Body**
 ```
 I made Infinite Pixelboard for iOS: paint on a shared live mural with others.
 
-App Store: https://apps.apple.com/app/infinite-pixelboard/id6804066543
+iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
+Web twin: https://pixelboard.collapsetechnologies.com/
 
-Transparency:
-• Freemium — free to paint with a 5s cooldown
-• Optional Pro shortens cooldown
-• Also available on the web if you want to compare: https://pixelboard.collapsetechnologies.com/
+Price / IAP:
+- Free to download and paint (5s cooldown)
+- Optional Pro IAP shortens cooldown (not required)
 
-Happy to answer questions about the app. If the sub prefers the monthly App Shelf / Trust format, mods please nudge and I’ll move it.
+Happy to answer questions. If the sub prefers App Shelf / Trust / megathread format, mods please nudge and I will move it.
 ```
 
-*(Use Freemium flair if available. Attach a short demo GIF if you have one.)*
+*(Attach `02-live-ui.png`. Pick a flair if required.)*
 
 ---
 
-## 8. Product Hunt — Coming Soon / Upcoming
+## 8. Product Hunt Coming Soon / Upcoming
 
-**Tagline (≤60 chars target)**
+**Tagline (keep short)**
 ```
-Collaborative live pixel mural — web + iOS
+Collaborative live pixel mural on web + iOS
 ```
 
 **Description**
 ```
 Infinite Pixelboard is a shared mural anyone can explore live. Sign in to paint. Free painters get a 5-second cooldown; Pro is optional for a faster pace.
 
-Built for people who miss r/place energy but want something always on — drop a pixel, come back tomorrow, see what strangers added.
+Built for people who miss r/place energy but want something always on. Drop a pixel, come back tomorrow, see what strangers added.
 
 Web: https://pixelboard.collapsetechnologies.com/
 iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
@@ -212,14 +218,11 @@ iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
 
 **Maker first comment (launch day)**
 ```
-Maker here — happy to answer anything about the realtime canvas, moderation, or the freemium cooldown model.
+Maker here. Happy to answer anything about the realtime canvas, moderation, or the freemium cooldown model.
+
 Web: https://pixelboard.collapsetechnologies.com/
 iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
 ```
-
-**Reminders**
-- Claim maker role; schedule Coming Soon before the hunt day.
-- Do not organize friend upvote rings (PH ranks drop for that).
 
 ---
 
@@ -227,55 +230,52 @@ iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
 
 **Post**
 ```
-Open collaborative mural — paint a pixel, watch it update live.
+Open collaborative mural. Paint a pixel, watch it update live.
 
 Web (view free; sign-in to paint; free 5s cooldown):
 https://pixelboard.collapsetechnologies.com/
 
-iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
+iOS:
+https://apps.apple.com/app/infinite-pixelboard/id6804066543
 
 Curious what strangers will leave tonight.
 ```
-
-*(Prefer attaching a 10–15s screen recording of painting if available. Engage replies before blasting follow lists.)*
 
 ---
 
 ## Saturday US ET only (do not post Wed 2026-09-02)
 
-### A. r/iOSGaming — Developer Saturday megathread
-
-Comment in the sticky megathread (not a standalone post):
+### A. r/iOSGaming Developer Saturday megathread
 
 ```
-[Dev] Infinite Pixelboard — collaborative live pixel mural
+[Dev] Infinite Pixelboard collaborative live pixel mural
 
-App Store: https://apps.apple.com/app/infinite-pixelboard/id6804066543
+iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
 Web: https://pixelboard.collapsetechnologies.com/
 
 Free to paint with a 5s cooldown; optional Pro for faster paints. Looking for players who like chill social/creative apps more than score-chasers. Feedback on first-session clarity welcome.
 ```
 
-### B. r/iosprogramming — Saturday app post (1×/year)
+### B. r/iosprogramming Saturday app post (1x/year)
 
 ```
-Title: [App] Infinite Pixelboard — realtime collaborative mural (Swift / shared backend)
+Title: [App] Infinite Pixelboard realtime collaborative mural (Swift / shared backend)
 
 Body:
 Shipped Infinite Pixelboard on iOS: a collaborative pixel mural synced in realtime.
 
-App Store: https://apps.apple.com/app/infinite-pixelboard/id6804066543
+iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
 Web twin: https://pixelboard.collapsetechnologies.com/
 
-Technical notes I’m happy to dig into: client paint pipeline, cooldown fairness, and keeping the board feel “live” without melting the battery. Painting requires sign-in; free cooldown is 5s.
+Technical notes I am happy to dig into: client paint pipeline, cooldown fairness, and keeping the board feel live without melting the battery. Painting requires sign-in; free cooldown is 5s.
 
-One post per year rule respected — would love critiques from other iOS folks.
+One post per year rule respected. Would love critiques from other iOS folks.
 ```
 
-### C. r/webdev — Showoff Saturday
+### C. r/webdev Showoff Saturday
 
 ```
-Title: [Showoff Saturday] Infinite Pixelboard — collaborative mural on the web
+Title: [Showoff Saturday] Infinite Pixelboard collaborative mural on the web
 
 Body:
 Built a live collaborative pixel mural. View without an account; sign in to paint (free 5s cooldown).
@@ -283,16 +283,17 @@ Built a live collaborative pixel mural. View without an account; sign in to pain
 Web: https://pixelboard.collapsetechnologies.com/
 iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
 
-Happy to talk stack / realtime choices in the comments. Not a paid pitch — Pro exists but the free mural is the product.
+Happy to talk stack / realtime choices in the comments. Not a paid pitch. Pro exists but the free mural is the product.
 ```
 
-### D. r/dotnet — Weekend Promotion flair
+### D. r/dotnet Weekend Promotion flair
 
 ```
-Title: [Promotion] Infinite Pixelboard — realtime collaborative mural (ASP.NET / SignalR-style sync)
+Title: [Promotion] Infinite Pixelboard realtime collaborative mural (ASP.NET / SignalR-style sync)
 
 Body:
 Weekend share: we run Infinite Pixelboard as a realtime collaborative canvas.
+
 Web: https://pixelboard.collapsetechnologies.com/
 iOS: https://apps.apple.com/app/infinite-pixelboard/id6804066543
 
@@ -305,4 +306,4 @@ Happy to discuss architecture in comments.
 
 ## Excluded (do not post)
 
-r/PixelArt, r/gamedev, r/InternetIsBeautiful, r/WebGames, r/somethingimade, r/programming, r/SwiftUI, r/AppHookup, r/SideHustle, r/Entrepreneur, and others listed in the outreach canvas — self-promo banned or product mismatch (sign-in / freemium).
+r/PixelArt, r/gamedev, r/InternetIsBeautiful, r/WebGames, r/somethingimade, r/programming, r/SwiftUI, r/AppHookup, r/SideHustle, r/Entrepreneur, and others listed in the outreach research: self-promo banned or product mismatch (sign-in / freemium).

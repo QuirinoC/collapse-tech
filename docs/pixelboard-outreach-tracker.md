@@ -15,7 +15,7 @@ Living log of week-1+ organic outreach. Update a row when status changes; never 
 - Screenshots live in [`docs/pixelboard-outreach-assets/`](./pixelboard-outreach-assets/).
 - Ready-to-paste copy: [`pixelboard-outreach-drafts.md`](./pixelboard-outreach-drafts.md).
 
-**Last updated:** 2026-09-02 (Wed) — confirmed live SideProject body has Web + App Store (`1w5wpom`). HN / Indie Hackers / Product Hunt / Bluesky still need login.
+**Last updated:** 2026-09-02 (Wed). Confirmed live SideProject body has Web + App Store (`1w5wpom`). HN / Indie Hackers / Product Hunt / Bluesky still need login.
 
 ---
 
