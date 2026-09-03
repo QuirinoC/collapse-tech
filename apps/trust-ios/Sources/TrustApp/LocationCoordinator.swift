@@ -10,16 +10,21 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
     @Published var lastFix: LocationPoint?
     @Published var isUsingSimulatorFeed = true
     @Published var isSharing = false
+    @Published private(set) var homeIsSet = false
 
     var onLocations: (([LocationPoint]) -> Void)?
+    var onHomePresence: ((HomePresenceKind) -> Void)?
 
     private let manager = CLLocationManager()
     private let alwaysAskedKey = "trust.location.didRequestAlways"
+    private let homeStore = HomePlaceStore()
     private var isMapActive = false
     private var isAppActive = true
     private var pendingAlwaysAfterWhenInUse = false
     private var awaitingAlwaysAnswer = false
     private var didRequestPreciseThisSession = false
+    private var monitoringHome = false
+    private var lastPostedHomeState: HomePresenceKind?
 
     override init() {
         super.init()
@@ -31,7 +36,11 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
         manager.allowsBackgroundLocationUpdates = false
         authorization = manager.authorizationStatus
         accuracyAuthorization = manager.accuracyAuthorization
+        homeIsSet = homeStore.isSet
     }
+
+    var homePlaceID: UUID? { homeStore.placeID }
+    var homeLabel: String { homeStore.label }
 
     var hasAccess: Bool {
         authorization == .authorizedAlways || authorization == .authorizedWhenInUse
@@ -90,6 +99,30 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
             didRequestPreciseThisSession = false
         }
         applyTracking()
+    }
+
+    func setHomeMonitoring(_ enabled: Bool) {
+        monitoringHome = enabled && homeStore.isSet
+        applyHomeMonitoring()
+    }
+
+    @discardableResult
+    func setHomeFromCurrentFix(label: String = "Home") -> (placeID: UUID, label: String)? {
+        guard let fix = lastFix ?? manager.location.map({
+            LocationPoint(timestamp: $0.timestamp, latitude: $0.coordinate.latitude, longitude: $0.coordinate.longitude)
+        }) else {
+            return nil
+        }
+        let placeID = homeStore.placeID ?? UUID()
+        homeStore.save(
+            coordinate: CLLocationCoordinate2D(latitude: fix.latitude, longitude: fix.longitude),
+            label: label,
+            placeID: placeID
+        )
+        homeIsSet = true
+        applyHomeMonitoring()
+        evaluateHomePresence(at: CLLocation(latitude: fix.latitude, longitude: fix.longitude))
+        return (placeID, label)
     }
 
     func requestWhenInUse() {
@@ -161,6 +194,23 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
             if !points.isEmpty {
                 self.onLocations?(points)
             }
+            if let latest = locations.last {
+                self.evaluateHomePresence(at: latest)
+            }
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
+        guard region.identifier.hasPrefix("trust.home.") else { return }
+        DispatchQueue.main.async {
+            self.postHomeState(.home)
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
+        guard region.identifier.hasPrefix("trust.home.") else { return }
+        DispatchQueue.main.async {
+            self.postHomeState(.away)
         }
     }
 
@@ -171,17 +221,17 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
     }
 
     private var wantsBackground: Bool {
-        isSharing && authorization == .authorizedAlways
+        (isSharing || monitoringHome) && authorization == .authorizedAlways
     }
 
     private var wantsForegroundUpdates: Bool {
-        hasAccess && isAppActive && (isMapActive || isSharing)
+        hasAccess && isAppActive && (isMapActive || isSharing || monitoringHome)
     }
 
     private func applyTracking() {
         let background = wantsBackground
         manager.allowsBackgroundLocationUpdates = background
-        manager.showsBackgroundLocationIndicator = background
+        manager.showsBackgroundLocationIndicator = background && isSharing
         manager.pausesLocationUpdatesAutomatically = !background
         if background {
             manager.desiredAccuracy = kCLLocationAccuracyBest
@@ -200,6 +250,30 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
                 isUsingSimulatorFeed = true
             }
         }
+        applyHomeMonitoring()
+    }
+
+    private func applyHomeMonitoring() {
+        let existing = manager.monitoredRegions.filter { $0.identifier.hasPrefix("trust.home.") }
+        for region in existing {
+            manager.stopMonitoring(for: region)
+        }
+        guard monitoringHome, hasAlways, let region = homeStore.region else { return }
+        manager.startMonitoring(for: region)
+        if let location = manager.location {
+            evaluateHomePresence(at: location)
+        }
+    }
+
+    private func evaluateHomePresence(at location: CLLocation) {
+        guard monitoringHome, homeStore.isSet else { return }
+        postHomeState(homeStore.contains(location) ? .home : .away)
+    }
+
+    private func postHomeState(_ state: HomePresenceKind) {
+        guard lastPostedHomeState != state else { return }
+        lastPostedHomeState = state
+        onHomePresence?(state)
     }
 
     private func requestPreciseIfNeeded() {

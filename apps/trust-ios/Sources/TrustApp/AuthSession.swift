@@ -95,7 +95,8 @@ final class AuthSession: ObservableObject {
         defaults.set(true, forKey: Self.authenticatedKey)
         defaults.set(account.provider.rawValue, forKey: Self.providerKey)
         defaults.set(account.displayName, forKey: Self.nameKey)
-        defaults.set(token, forKey: Self.tokenKey)
+        TrustKeychain.set(token, account: Self.tokenKey)
+        defaults.removeObject(forKey: Self.tokenKey) // migrate off UserDefaults
         if let appleUserID = account.appleUserID {
             defaults.set(appleUserID, forKey: Self.appleUserKey)
         } else {
@@ -113,6 +114,7 @@ final class AuthSession: ObservableObject {
         defaults.removeObject(forKey: Self.appleUserKey)
         defaults.removeObject(forKey: Self.nameKey)
         defaults.removeObject(forKey: Self.tokenKey)
+        TrustKeychain.delete(account: Self.tokenKey)
     }
 
     func validateRestoredAppleCredential() async {
@@ -143,13 +145,25 @@ final class AuthSession: ObservableObject {
         let defaults = UserDefaults.standard
         guard defaults.bool(forKey: Self.authenticatedKey),
               let raw = defaults.string(forKey: Self.providerKey),
-              let provider = AuthenticationProvider(rawValue: raw),
-              let token = defaults.string(forKey: Self.tokenKey),
-              !token.isEmpty else {
+              let provider = AuthenticationProvider(rawValue: raw) else {
             account = nil
             sessionToken = nil
             return
         }
+
+        var token = TrustKeychain.get(account: Self.tokenKey)
+        if token == nil, let legacy = defaults.string(forKey: Self.tokenKey), !legacy.isEmpty {
+            TrustKeychain.set(legacy, account: Self.tokenKey)
+            defaults.removeObject(forKey: Self.tokenKey)
+            token = legacy
+        }
+
+        guard let token, !token.isEmpty else {
+            account = nil
+            sessionToken = nil
+            return
+        }
+
         let stored = defaults.string(forKey: Self.nameKey) ?? ""
         let name = stored.trimmingCharacters(in: .whitespacesAndNewlines)
         account = AuthAccount(

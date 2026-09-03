@@ -38,6 +38,10 @@ public static class TrustEndpoints
         auth.MapPost("/looks/{subjectId:guid}/extend", ExtendLookAsync);
         auth.MapPost("/presence/check-in", CheckInAsync);
         auth.MapPost("/presence/place-ping", PlacePingAsync);
+        auth.MapPut("/people/{personId:guid}/presence-grant", SetPresenceGrantAsync);
+        auth.MapPut("/me/home", SetHomePlaceAsync);
+        auth.MapPost("/me/home/presence", PostHomePresenceAsync);
+        auth.MapPost("/promises", CreatePromiseAsync);
         auth.MapPost("/circle/entitlement", EntitlementAsync);
         auth.MapGet("/storekit/account-token", StoreKitAccountTokenAsync);
         auth.MapPost("/storekit/transactions", VerifyStoreKitTransactionAsync);
@@ -374,9 +378,13 @@ public static class TrustEndpoints
 
         try
         {
-            var session = await engine.LookAsync(accountId.Value, request.SubjectId, request.Confirmed, cancellationToken);
-            await receipts.NotifyLookAsync(session.Event, cancellationToken);
-            return Results.Ok(ContractMap.Session(session));
+            var result = await engine.LookAsync(accountId.Value, request.SubjectId, request.Confirmed, cancellationToken);
+            if (result.IsNew)
+            {
+                await receipts.NotifyLookAsync(result.Session.Event, cancellationToken);
+            }
+
+            return Results.Ok(ContractMap.Session(result.Session));
         }
         catch (TrustException exception)
         {
@@ -397,6 +405,7 @@ public static class TrustEndpoints
         Guid subjectId,
         ClaimsPrincipal principal,
         TrustEngine engine,
+        ILookReceiptPublisher receipts,
         CancellationToken cancellationToken)
     {
         var accountId = AccountClaims.AccountId(principal);
@@ -408,6 +417,7 @@ public static class TrustEndpoints
         try
         {
             var session = await engine.ExtendLookAsync(accountId.Value, subjectId, cancellationToken);
+            await receipts.NotifyLookExtendedAsync(session.Event, cancellationToken);
             return Results.Ok(ContractMap.Session(session));
         }
         catch (TrustException exception)
@@ -430,6 +440,95 @@ public static class TrustEndpoints
         CancellationToken cancellationToken)
     {
         return await RunAsync(principal, engine, engine.PlacePingAsync, cancellationToken);
+    }
+
+    public static async Task<IResult> SetPresenceGrantAsync(
+        Guid personId,
+        PresenceGrantRequest request,
+        ClaimsPrincipal principal,
+        TrustEngine engine,
+        CancellationToken cancellationToken)
+    {
+        return await RunAsync(
+            principal,
+            engine,
+            (id, ct) => engine.SetPresenceGrantAsync(id, personId, request.Enabled, ct),
+            cancellationToken);
+    }
+
+    public static async Task<IResult> SetHomePlaceAsync(
+        SetHomePlaceRequest request,
+        ClaimsPrincipal principal,
+        TrustEngine engine,
+        CancellationToken cancellationToken)
+    {
+        return await RunAsync(
+            principal,
+            engine,
+            (id, ct) => engine.SetHomePlaceAsync(id, request.PlaceId, request.Label ?? "Home", ct),
+            cancellationToken);
+    }
+
+    public static async Task<IResult> PostHomePresenceAsync(
+        HomePresenceRequest request,
+        ClaimsPrincipal principal,
+        TrustEngine engine,
+        ILookReceiptPublisher receipts,
+        CancellationToken cancellationToken)
+    {
+        var accountId = AccountClaims.AccountId(principal);
+        if (accountId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var state = ContractMap.ParseHomeState(request.State);
+        if (state is null)
+        {
+            return Results.BadRequest(new ApiError("invalid_state", "State must be home, away, or unknown."));
+        }
+
+        try
+        {
+            await engine.PostHomePresenceAsync(accountId.Value, state.Value, request.SignaledAt, cancellationToken);
+            if (state == HomePresenceState.Home)
+            {
+                await receipts.NotifyHomeArrivalAsync(accountId.Value, cancellationToken);
+            }
+
+            return Results.NoContent();
+        }
+        catch (TrustException exception)
+        {
+            return Map(exception);
+        }
+    }
+
+    public static async Task<IResult> CreatePromiseAsync(
+        CreatePromiseRequest request,
+        ClaimsPrincipal principal,
+        TrustEngine engine,
+        CancellationToken cancellationToken)
+    {
+        var accountId = AccountClaims.AccountId(principal);
+        if (accountId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        try
+        {
+            _ = await engine.CreatePromiseAsync(
+                accountId.Value,
+                request.TrusteeId,
+                request.DeadlineAt,
+                cancellationToken);
+            return Results.NoContent();
+        }
+        catch (TrustException exception)
+        {
+            return Map(exception);
+        }
     }
 
     public static async Task<IResult> EntitlementAsync(

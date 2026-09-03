@@ -74,6 +74,12 @@ public struct PresenceSnapshot: Equatable, Codable, Sendable {
     public var gotHomeAt: Date?
     public var checkedInAt: Date?
 
+    public static let sealed = PresenceSnapshot(
+        lastActiveAt: .distantPast,
+        batteryPercent: 0,
+        isCharging: false
+    )
+
     public init(
         lastActiveAt: Date,
         batteryPercent: Int,
@@ -86,6 +92,62 @@ public struct PresenceSnapshot: Equatable, Codable, Sendable {
         self.isCharging = isCharging
         self.gotHomeAt = gotHomeAt
         self.checkedInAt = checkedInAt
+    }
+}
+
+public enum HomePresenceKind: String, Codable, Sendable, Equatable {
+    case unknown
+    case home
+    case away
+}
+
+public struct HomePresenceSnapshot: Equatable, Codable, Sendable {
+    public var state: HomePresenceKind
+    public var changedAt: Date
+    public var placeLabel: String?
+
+    public init(state: HomePresenceKind, changedAt: Date, placeLabel: String? = nil) {
+        self.state = state
+        self.changedAt = changedAt
+        self.placeLabel = placeLabel
+    }
+}
+
+public enum PromiseKind: String, Codable, Sendable, Equatable {
+    case active
+    case resolved
+    case overdue
+    case noSignal = "no_signal"
+}
+
+public struct PromiseSnapshot: Identifiable, Equatable, Codable, Sendable {
+    public var id: UUID
+    public var subjectID: UUID
+    public var trusteeID: UUID
+    public var placeLabel: String
+    public var deadlineAt: Date
+    public var status: PromiseKind
+    public var resolvedAt: Date?
+    public var youAreSubject: Bool
+
+    public init(
+        id: UUID,
+        subjectID: UUID,
+        trusteeID: UUID,
+        placeLabel: String,
+        deadlineAt: Date,
+        status: PromiseKind,
+        resolvedAt: Date? = nil,
+        youAreSubject: Bool
+    ) {
+        self.id = id
+        self.subjectID = subjectID
+        self.trusteeID = trusteeID
+        self.placeLabel = placeLabel
+        self.deadlineAt = deadlineAt
+        self.status = status
+        self.resolvedAt = resolvedAt
+        self.youAreSubject = youAreSubject
     }
 }
 
@@ -253,6 +315,10 @@ public struct TrustedPerson: Identifiable, Equatable, Sendable {
     public var inboundLive: Bool
     /// Coordinates only when this person is visible to you. Always nil when sealed.
     public var livePoint: LocationPoint?
+    public var outboundPresenceGranted: Bool
+    public var inboundPresenceGranted: Bool
+    public var homePresence: HomePresenceSnapshot?
+    public var promise: PromiseSnapshot?
 
     public var id: UUID { person.id }
     public var displayName: String { person.identity }
@@ -262,13 +328,21 @@ public struct TrustedPerson: Identifiable, Equatable, Sendable {
         presence: PresenceSnapshot,
         share: PersonShareState,
         inboundLive: Bool,
-        livePoint: LocationPoint? = nil
+        livePoint: LocationPoint? = nil,
+        outboundPresenceGranted: Bool = false,
+        inboundPresenceGranted: Bool = false,
+        homePresence: HomePresenceSnapshot? = nil,
+        promise: PromiseSnapshot? = nil
     ) {
         self.person = person
         self.presence = presence
         self.share = share
         self.inboundLive = inboundLive
         self.livePoint = inboundLive ? livePoint : nil
+        self.outboundPresenceGranted = outboundPresenceGranted
+        self.inboundPresenceGranted = inboundPresenceGranted
+        self.homePresence = homePresence
+        self.promise = promise
     }
 }
 

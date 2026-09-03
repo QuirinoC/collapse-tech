@@ -36,6 +36,34 @@ struct PresenceDTO: Decodable {
     var checkedInAt: Date?
 }
 
+struct HomePresenceDTO: Decodable {
+    var state: String
+    var changedAt: Date
+    var placeLabel: String?
+}
+
+struct PromiseDTO: Decodable {
+    var id: UUID
+    var subjectId: UUID
+    var trusteeId: UUID
+    var placeLabel: String
+    var deadlineAt: Date
+    var status: String
+    var resolvedAt: Date?
+    var youAreSubject: Bool
+}
+
+struct YourHomeDTO: Decodable {
+    var place: HomePlaceDTO?
+    var state: String?
+    var changedAt: Date?
+}
+
+struct HomePlaceDTO: Decodable {
+    var placeId: UUID
+    var label: String
+}
+
 struct LocationDTO: Decodable {
     var timestamp: Date
     var latitude: Double
@@ -52,10 +80,14 @@ struct ShareDTO: Decodable {
 
 struct MemberDTO: Decodable {
     var person: PersonDTO
-    var presence: PresenceDTO
+    var presence: PresenceDTO?
     var share: ShareDTO
     var inboundLive: Bool
     var live: LocationDTO?
+    var outboundPresenceGranted: Bool?
+    var inboundPresenceGranted: Bool?
+    var homePresence: HomePresenceDTO?
+    var promise: PromiseDTO?
 }
 
 struct CoverageDTO: Decodable {
@@ -98,6 +130,7 @@ struct CirclePayload: Decodable {
     var retainedLookLogCount: Int
     var allowsDevelopmentSignIn: Bool
     var allowsReviewUnlock: Bool?
+    var yourHome: YourHomeDTO?
 }
 
 struct InvitePayload: Decodable {
@@ -120,6 +153,9 @@ struct CircleSnapshot {
     var retainedLookLogCount: Int
     var allowsDevelopmentSignIn: Bool
     var allowsReviewUnlock: Bool
+    var yourHomePlaceID: UUID?
+    var yourHomeLabel: String?
+    var yourHomeState: HomePresenceKind?
 }
 
 enum TrustClientError: LocalizedError {
@@ -302,6 +338,44 @@ final class TrustClient {
         try await patchEmpty(path: "/api/v1/people/\(personID.uuidString)/share", body: Body(resting: resting, timed: timed))
     }
 
+    func setPresenceGrant(personID: UUID, enabled: Bool) async throws {
+        struct Body: Encodable { var enabled: Bool }
+        try await putEmpty(
+            path: "/api/v1/people/\(personID.uuidString)/presence-grant",
+            body: Body(enabled: enabled)
+        )
+    }
+
+    func setHomePlace(placeID: UUID, label: String) async throws {
+        struct Body: Encodable {
+            var placeId: UUID
+            var label: String
+        }
+        try await putEmpty(path: "/api/v1/me/home", body: Body(placeId: placeID, label: label))
+    }
+
+    func postHomePresence(state: HomePresenceKind, signaledAt: Date? = nil) async throws {
+        struct Body: Encodable {
+            var state: String
+            var signaledAt: Date?
+        }
+        try await postEmpty(
+            path: "/api/v1/me/home/presence",
+            body: Body(state: state.rawValue, signaledAt: signaledAt)
+        )
+    }
+
+    func createPromise(trusteeID: UUID, deadlineAt: Date) async throws {
+        struct Body: Encodable {
+            var trusteeId: UUID
+            var deadlineAt: Date
+        }
+        try await postEmpty(
+            path: "/api/v1/promises",
+            body: Body(trusteeId: trusteeID, deadlineAt: deadlineAt)
+        )
+    }
+
     func createInvite() async throws -> String {
         let payload: InvitePayload = try await post(path: "/api/v1/invites", body: EmptyBody(), authorized: true)
         return payload.code
@@ -310,14 +384,6 @@ final class TrustClient {
     func acceptInvite(code: String) async throws {
         struct Body: Encodable { var code: String }
         try await postEmpty(path: "/api/v1/invites/accept", body: Body(code: code))
-    }
-
-    func checkIn() async throws {
-        try await postEmpty(path: "/api/v1/presence/check-in", body: EmptyBody())
-    }
-
-    func placePing() async throws {
-        try await postEmpty(path: "/api/v1/presence/place-ping", body: EmptyBody())
     }
 
     func revoke(personID: UUID) async throws {
@@ -578,7 +644,10 @@ extension CirclePayload {
             lookLog: lookLog.map(\.model),
             retainedLookLogCount: retainedLookLogCount,
             allowsDevelopmentSignIn: allowsDevelopmentSignIn,
-            allowsReviewUnlock: allowsReviewUnlock ?? false
+            allowsReviewUnlock: allowsReviewUnlock ?? false,
+            yourHomePlaceID: yourHome?.place?.placeId,
+            yourHomeLabel: yourHome?.place?.label,
+            yourHomeState: yourHome?.state.flatMap(HomePresenceKind.init(rawValue:))
         )
     }
 }
@@ -625,10 +694,36 @@ extension MemberDTO {
     var model: TrustedPerson {
         TrustedPerson(
             person: person.model,
-            presence: presence.model,
+            presence: presence?.model ?? .sealed,
             share: share.model,
             inboundLive: inboundLive,
-            livePoint: inboundLive ? live?.model : nil
+            livePoint: inboundLive ? live?.model : nil,
+            outboundPresenceGranted: outboundPresenceGranted ?? false,
+            inboundPresenceGranted: inboundPresenceGranted ?? false,
+            homePresence: homePresence?.model,
+            promise: promise?.model
+        )
+    }
+}
+
+extension HomePresenceDTO {
+    var model: HomePresenceSnapshot? {
+        guard let kind = HomePresenceKind(rawValue: state) else { return nil }
+        return HomePresenceSnapshot(state: kind, changedAt: changedAt, placeLabel: placeLabel)
+    }
+}
+
+extension PromiseDTO {
+    var model: PromiseSnapshot {
+        PromiseSnapshot(
+            id: id,
+            subjectID: subjectId,
+            trusteeID: trusteeId,
+            placeLabel: placeLabel,
+            deadlineAt: deadlineAt,
+            status: PromiseKind(rawValue: status) ?? .active,
+            resolvedAt: resolvedAt,
+            youAreSubject: youAreSubject
         )
     }
 }

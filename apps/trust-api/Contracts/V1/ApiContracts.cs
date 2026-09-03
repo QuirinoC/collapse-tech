@@ -27,6 +27,28 @@ public sealed record PresenceDto(
     DateTimeOffset? GotHomeAt,
     DateTimeOffset? CheckedInAt);
 
+public sealed record HomePresenceDto(
+    string State,
+    DateTimeOffset ChangedAt,
+    string? PlaceLabel);
+
+public sealed record PromiseDto(
+    Guid Id,
+    Guid SubjectId,
+    Guid TrusteeId,
+    string PlaceLabel,
+    DateTimeOffset DeadlineAt,
+    string Status,
+    DateTimeOffset? ResolvedAt,
+    bool YouAreSubject);
+
+public sealed record HomePlaceDto(Guid PlaceId, string Label);
+
+public sealed record YourHomeDto(
+    HomePlaceDto? Place,
+    string? State,
+    DateTimeOffset? ChangedAt);
+
 public sealed record LocationDto(
     DateTimeOffset Timestamp,
     double Latitude,
@@ -41,10 +63,14 @@ public sealed record ShareDto(
 
 public sealed record MemberDto(
     PersonDto Person,
-    PresenceDto Presence,
+    PresenceDto? Presence,
     ShareDto Share,
     bool InboundLive,
-    LocationDto? Live);
+    LocationDto? Live,
+    bool OutboundPresenceGranted,
+    bool InboundPresenceGranted,
+    HomePresenceDto? HomePresence,
+    PromiseDto? Promise);
 
 public sealed record CoverageDto(
     bool IsCovered,
@@ -82,7 +108,8 @@ public sealed record CircleResponse(
     IReadOnlyList<LookEventDto> LookLog,
     int RetainedLookLogCount,
     bool AllowsDevelopmentSignIn,
-    bool AllowsReviewUnlock);
+    bool AllowsReviewUnlock,
+    YourHomeDto? YourHome);
 
 public sealed record LocationIngestRequest(
     DateTimeOffset Timestamp,
@@ -95,6 +122,14 @@ public sealed record LocationIngestRequest(
 public sealed record LookRequest(Guid SubjectId, bool Confirmed);
 
 public sealed record ShareRequest(string? Resting, string? Timed);
+
+public sealed record PresenceGrantRequest(bool Enabled);
+
+public sealed record SetHomePlaceRequest(Guid PlaceId, string? Label);
+
+public sealed record HomePresenceRequest(string State, DateTimeOffset? SignaledAt);
+
+public sealed record CreatePromiseRequest(Guid TrusteeId, DateTimeOffset DeadlineAt);
 
 public sealed record InviteAcceptRequest(string Code);
 
@@ -143,13 +178,39 @@ public static class ContractMap
     public static PersonDto Person(Account account) =>
         new(account.Id, account.DisplayName, account.HasCircle, account.OnboardingComplete, account.HasVerifiedPhone, account.Handle);
 
-    public static PresenceDto Presence(Presence presence) =>
+    public static PresenceDto? Presence(Presence? presence) =>
+        presence is null
+            ? null
+            : new(
+                presence.LastActiveAt,
+                presence.BatteryPercent,
+                presence.IsCharging,
+                presence.GotHomeAt,
+                presence.CheckedInAt);
+
+    public static HomePresenceDto? HomePresence(VisibleHomePresence? presence) =>
+        presence is null
+            ? null
+            : new(HomeStateName(presence.State), presence.ChangedAt, presence.PlaceLabel);
+
+    public static PromiseDto? Promise(PromiseView? promise) =>
+        promise is null
+            ? null
+            : new(
+                promise.Id,
+                promise.SubjectId,
+                promise.TrusteeId,
+                promise.PlaceLabel,
+                promise.DeadlineAt,
+                PromiseStatusName(promise.Status),
+                promise.ResolvedAt,
+                promise.YouAreSubject);
+
+    public static YourHomeDto YourHome(HomePlace? place, CurrentHomePresence? presence) =>
         new(
-            presence.LastActiveAt,
-            presence.BatteryPercent,
-            presence.IsCharging,
-            presence.GotHomeAt,
-            presence.CheckedInAt);
+            place is null ? null : new HomePlaceDto(place.PlaceId, place.Label),
+            presence is null ? null : HomeStateName(presence.State),
+            presence?.LastChangedAt);
 
     public static LocationDto? Location(LocationFix? fix) =>
         fix is null ? null : new LocationDto(fix.Timestamp, fix.Latitude, fix.Longitude);
@@ -226,7 +287,11 @@ public static class ContractMap
                 Presence(member.Presence),
                 Share(member.OutboundShare, now),
                 member.InboundLive,
-                Location(member.Live))).ToList(),
+                Location(member.Live),
+                member.OutboundPresenceGranted,
+                member.InboundPresenceGranted,
+                HomePresence(member.HomePresence),
+                Promise(member.Promise))).ToList(),
             Coverage(snapshot.Coverage),
             snapshot.PendingInvite?.Code,
             snapshot.ActiveSession is null ? null : Session(snapshot.ActiveSession),
@@ -234,7 +299,8 @@ public static class ContractMap
             snapshot.LookLog.Select(Look).ToList(),
             snapshot.RetainedLookLogCount,
             allowsDevelopmentSignIn,
-            allowsReviewUnlock);
+            allowsReviewUnlock,
+            YourHome(snapshot.YourHomePlace, snapshot.YourHomePresence));
 
     public static ShareResting? ParseResting(string? value) => value?.Trim().ToLowerInvariant() switch
     {
@@ -253,6 +319,30 @@ public static class ContractMap
         _ => null
     };
 
+    public static HomePresenceState? ParseHomeState(string? value) => value?.Trim().ToLowerInvariant() switch
+    {
+        "home" => HomePresenceState.Home,
+        "away" => HomePresenceState.Away,
+        "unknown" => HomePresenceState.Unknown,
+        null or "" => null,
+        _ => null
+    };
+
     private static string RestingName(ShareResting resting) =>
         resting == ShareResting.Always ? "always" : "untilTheyLook";
+
+    private static string HomeStateName(HomePresenceState state) => state switch
+    {
+        HomePresenceState.Home => "home",
+        HomePresenceState.Away => "away",
+        _ => "unknown"
+    };
+
+    private static string PromiseStatusName(PromiseStatus status) => status switch
+    {
+        PromiseStatus.Resolved => "resolved",
+        PromiseStatus.Overdue => "overdue",
+        PromiseStatus.NoSignal => "no_signal",
+        _ => "active"
+    };
 }

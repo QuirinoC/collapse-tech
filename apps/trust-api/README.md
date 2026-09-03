@@ -86,6 +86,8 @@ Development (`ASPNETCORE_ENVIRONMENT=Development`):
 - `Trust:SeedReviewCircle=true` — first sign-in seeds Alex (sealed), Jordan (Always), Riley (For a while) as **database accounts** with escrowed trails. Not an iOS mock.
 - `StoreKit:AllowReviewUnlock=true` — Settings → Unlock Circle for review grants Circle on the server.
 
+**App Review only:** Production `apps/render.yaml` defaults both to `false`. While Apple is reviewing, set Render env `Trust__SeedReviewCircle=true` and `StoreKit__AllowReviewUnlock=true`, then set them back to `false` after approval so real users are not seeded demo people.
+
 Production must set `Auth:SigningKey` (32+ bytes). Do not ship the Development key.
 
 ## Auth
@@ -100,18 +102,20 @@ All other `/api/v1/*` routes require `Authorization: Bearer <session JWT>`.
 
 ## Product API
 
-- `GET /api/v1/circle` — members, presence **without coordinates** unless Always / For a while / an open Look. Sealed `live` is `null`. `you.onboardingComplete` is true only after a unique handle is set.
-- `GET /api/v1/handles/available?handle=` — whether a handle is valid, not reserved, and free (own handle counts as available).
-- `PUT /api/v1/me/handle` `{ handle }` — claim the unique handle; required for onboarding. If display name is still the placeholder, it becomes the handle.
-- `PATCH /api/v1/me` — optional display name (not required for the map).
-- `POST /api/v1/me/phone/send` `{ phone }` — unused by onboarding. SMS OTP to an E.164 number. Twilio when `Twilio:AccountSid` + `AuthToken` + `FromNumber` (or `MessagingServiceSid`) are set. In **Development only**, if Twilio is not configured, the JSON includes `developmentCode` (never logged, never returned in Production).
-- `POST /api/v1/me/phone/verify` `{ phone, code }` — unused by onboarding. Checks the hashed OTP and sets `phone_verified_at`.
+- `GET /api/v1/circle` — members, live coords only for Always / For a while / open Look. Battery presence is omitted when sealed. Home/Away chips only when a presence grant exists (no coordinates). Looks older than ~30 minutes are closed by a background sweep.
+- `GET /api/v1/handles/available?handle=` — whether a handle is valid, not reserved, and free.
+- `PUT /api/v1/me/handle` `{ handle }` — claim unique handle (onboarding).
+- `PATCH /api/v1/me` — optional display name.
+- `PUT /api/v1/people/{id}/presence-grant` `{ enabled }` — subject-only: trustee may see Home/Away.
+- `PUT /api/v1/me/home` `{ placeId, label }` — register Home place **without coordinates** (coords stay on device).
+- `POST /api/v1/me/home/presence` `{ state: home|away|unknown }` — device posts geofence transitions.
+- `POST /api/v1/promises` `{ trusteeId, deadlineAt }` — “back home by” promise (subject-only).
 - `POST /api/v1/location` — append point(s) only while sharing (Until they look / Always / For a while). Optional `points` array for a batch. Prunes GPS older than 26 hours. No-op (and clears GPS) if the circle is empty.
-- `POST /api/v1/looks` `{ subjectId, confirmed: true }` — unlock **live + last 2 hours from stored points**, append look log.
-- `POST /api/v1/looks/close`, `POST /api/v1/looks/{subjectId}/extend` — extend is Circle (24h).
-- `PATCH /api/v1/people/{id}/share` `{ resting, timed }` — Until they look / Always / For a while (reverts).
+- `POST /api/v1/looks` `{ subjectId, confirmed: true }` — unlock **live + last 2 hours from stored points**, append look log. Re-opening an active Look does not send another receipt.
+- `POST /api/v1/looks/close`, `POST /api/v1/looks/{subjectId}/extend` — extend is Circle (24h); updates the look-log row and sends a quiet extend receipt.
+- `PATCH /api/v1/people/{id}/share` `{ resting, timed }` — Until they look / Always / For a while (reverts). Timed `home` is a fixed 4-hour window (“For 4 hours”).
 - `POST /api/v1/invites`, `POST /api/v1/invites/accept` — copy: “I trust you with my location.”
-- `POST /api/v1/presence/check-in`, `POST /api/v1/presence/place-ping` — ping is Circle.
+- `POST /api/v1/presence/check-in`, `POST /api/v1/presence/place-ping` — legacy; unused by iOS 1.0 UI.
 - `POST /api/v1/circle/entitlement` — review unlock when allowed, or a signed transaction.
 - `GET /api/v1/storekit/account-token`, `POST /api/v1/storekit/transactions` — StoreKit JWS, App Account Token, ownership lock.
 - `POST /api/v1/storekit/notifications` — App Store Server Notifications V2.

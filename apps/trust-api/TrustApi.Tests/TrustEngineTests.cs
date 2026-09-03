@@ -34,7 +34,8 @@ public sealed class TrustEngineTests
         await Assert.ThrowsAsync<TrustException>(() =>
             engine.LookAsync(you.Id, alex.Person.Id, confirmed: false, CancellationToken.None));
 
-        var session = await engine.LookAsync(you.Id, alex.Person.Id, confirmed: true, CancellationToken.None);
+        var lookResult = await engine.LookAsync(you.Id, alex.Person.Id, confirmed: true, CancellationToken.None);
+        var session = lookResult.Session;
         Assert.Equal(2, session.Event.HistoryWindowHours);
         Assert.True(session.Event.IncludedLive);
         Assert.NotEmpty(session.Trail);
@@ -97,7 +98,8 @@ public sealed class TrustEngineTests
         Assert.True(circle.Coverage.IsCovered);
         Assert.True(circle.Coverage.ActingIsSponsor);
         var alex = circle.Members.Single(member => member.Person.DisplayName == "Alex");
-        var session = await engine.LookAsync(you.Id, alex.Person.Id, true, CancellationToken.None);
+        var lookResult = await engine.LookAsync(you.Id, alex.Person.Id, true, CancellationToken.None);
+        var session = lookResult.Session;
         Assert.Equal(2, session.Event.HistoryWindowHours);
         var extended = await engine.ExtendLookAsync(you.Id, alex.Person.Id, CancellationToken.None);
         Assert.Equal(24, extended.Event.HistoryWindowHours);
@@ -156,7 +158,8 @@ public sealed class TrustEngineTests
         Assert.False(sealedSam.InboundLive);
         Assert.Null(sealedSam.Live);
 
-        var session = await engine.LookAsync(jordan.Id, sam.Id, confirmed: true, CancellationToken.None);
+        var lookResult = await engine.LookAsync(jordan.Id, sam.Id, confirmed: true, CancellationToken.None);
+        var session = lookResult.Session;
         Assert.Equal(2, session.Event.HistoryWindowHours);
         Assert.Equal(5, session.Trail.Count);
         Assert.Equal(37.750, session.Trail[0].Latitude, 3);
@@ -188,7 +191,8 @@ public sealed class TrustEngineTests
             false,
             CancellationToken.None);
 
-        var session = await engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
+        var lookResult = await engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
+        var session = lookResult.Session;
         Assert.Single(session.Trail);
         Assert.Equal(37.76, session.Trail[0].Latitude);
         var stored = await store.UnlockLocationsAsync(
@@ -245,7 +249,8 @@ public sealed class TrustEngineTests
                 CancellationToken.None);
         }
 
-        var look = await engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
+        var lookResult = await engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
+        var look = lookResult.Session;
         Assert.Equal(2, look.Event.HistoryWindowHours);
         Assert.True(look.Trail.Count is >= 2 and <= 3);
         var extended = await engine.ExtendLookAsync(jordan.Id, sam.Id, CancellationToken.None);
@@ -281,6 +286,112 @@ public sealed class TrustEngineTests
         await engine.LookAsync(you.Id, alex.Person.Id, true, CancellationToken.None);
         await engine.DeleteAccountAsync(you.Id, CancellationToken.None);
         Assert.Null(await store.FindAccountAsync(you.Id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SealedMemberDoesNotLeakPresenceWithoutGrant()
+    {
+        var engine = NewEngine(out _);
+        var (sam, jordan) = await PairAsync(engine);
+        await engine.IngestAsync(
+            sam.Id,
+            new LocationFix(DateTimeOffset.UtcNow, 37.76, -122.42),
+            42,
+            true,
+            CancellationToken.None);
+        var jordanView = await engine.GetCircleAsync(jordan.Id, CancellationToken.None);
+        var sealedSam = jordanView.Members.Single(member => member.Person.Id == sam.Id);
+        Assert.False(sealedSam.InboundLive);
+        Assert.Null(sealedSam.Presence);
+        Assert.Null(sealedSam.HomePresence);
+        Assert.False(sealedSam.InboundPresenceGranted);
+    }
+
+    [Fact]
+    public async Task PresenceGrantShowsHomeAwayWithoutCoordinates()
+    {
+        var engine = NewEngine(out _);
+        var (sam, jordan) = await PairAsync(engine);
+        var placeId = Guid.NewGuid();
+        await engine.SetHomePlaceAsync(sam.Id, placeId, "Home", CancellationToken.None);
+        await engine.SetPresenceGrantAsync(sam.Id, jordan.Id, true, CancellationToken.None);
+        await engine.PostHomePresenceAsync(sam.Id, HomePresenceState.Away, null, CancellationToken.None);
+
+        var jordanView = await engine.GetCircleAsync(jordan.Id, CancellationToken.None);
+        var samMember = jordanView.Members.Single(member => member.Person.Id == sam.Id);
+        Assert.False(samMember.InboundLive);
+        Assert.Null(samMember.Presence);
+        Assert.Null(samMember.Live);
+        Assert.True(samMember.InboundPresenceGranted);
+        Assert.NotNull(samMember.HomePresence);
+        Assert.Equal(HomePresenceState.Away, samMember.HomePresence!.State);
+        Assert.Equal("Home", samMember.HomePresence.PlaceLabel);
+
+        await engine.PostHomePresenceAsync(sam.Id, HomePresenceState.Home, null, CancellationToken.None);
+        jordanView = await engine.GetCircleAsync(jordan.Id, CancellationToken.None);
+        samMember = jordanView.Members.Single(member => member.Person.Id == sam.Id);
+        Assert.Equal(HomePresenceState.Home, samMember.HomePresence!.State);
+    }
+
+    [Fact]
+    public async Task ActiveLookExpiresAfterTtl()
+    {
+        var time = new MutableTimeProvider { UtcNow = new DateTimeOffset(2026, 9, 2, 12, 0, 0, TimeSpan.Zero) };
+        var engine = NewEngine(out var store, time);
+        var (sam, jordan) = await PairAsync(engine);
+        await engine.IngestAsync(
+            sam.Id,
+            new LocationFix(time.UtcNow, 37.76, -122.42),
+            80,
+            false,
+            CancellationToken.None);
+        var opened = await engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
+        Assert.True(opened.IsNew);
+        var live = await engine.GetCircleAsync(jordan.Id, CancellationToken.None);
+        Assert.True(live.Members.Single(member => member.Person.Id == sam.Id).InboundLive);
+
+        time.UtcNow = time.UtcNow.Add(TrustRules.ActiveLookTtl).AddMinutes(1);
+        var expired = await engine.GetCircleAsync(jordan.Id, CancellationToken.None);
+        Assert.False(expired.Members.Single(member => member.Person.Id == sam.Id).InboundLive);
+        Assert.Null(expired.ActiveSession);
+        Assert.Null(await store.GetActiveLookAsync(jordan.Id, sam.Id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ExtendLookUpdatesLookLogHours()
+    {
+        var engine = NewEngine(out var store);
+        var (sam, jordan) = await PairAsync(engine);
+        await engine.GrantCircleAsync(jordan.Id, "test", CancellationToken.None);
+        await engine.IngestAsync(
+            sam.Id,
+            new LocationFix(DateTimeOffset.UtcNow, 37.76, -122.42),
+            80,
+            false,
+            CancellationToken.None);
+        var opened = await engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
+        Assert.Equal(2, opened.Session.Event.HistoryWindowHours);
+        await engine.ExtendLookAsync(jordan.Id, sam.Id, CancellationToken.None);
+        var log = await store.ListLooksAsync(sam.Id, DateTimeOffset.MinValue, CancellationToken.None);
+        Assert.Contains(log, look => look.Id == opened.Session.Event.Id && look.HistoryWindowHours == 24);
+    }
+
+    [Fact]
+    public async Task ReopeningActiveLookIsNotNew()
+    {
+        var engine = NewEngine(out _);
+        var (sam, jordan) = await PairAsync(engine);
+        await engine.IngestAsync(
+            sam.Id,
+            new LocationFix(DateTimeOffset.UtcNow, 37.76, -122.42),
+            80,
+            false,
+            CancellationToken.None);
+        var first = await engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
+        var second = await engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
+        Assert.True(first.IsNew);
+        Assert.False(second.IsNew);
+        Assert.Equal(first.Session.Event.Id, second.Session.Event.Id);
     }
 
     private static TrustEngine NewEngine(out MemoryTrustStore store, TimeProvider? time = null)

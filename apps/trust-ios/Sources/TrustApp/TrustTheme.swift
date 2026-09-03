@@ -89,11 +89,44 @@ struct TrustFolio: View {
 
 struct TrustRule: View {
     var width: CGFloat = 56
+    /// Scale X 0→1 under Didot on sheet appear (Look confirm).
+    var draws: Bool = false
     @Environment(\.trustPalette) private var palette
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var progress: CGFloat = 1
 
     var body: some View {
         palette.accent
             .frame(width: width, height: 2)
+            .scaleEffect(x: draws ? progress : 1, y: 1, anchor: .leading)
+            .accessibilityHidden(true)
+            .onAppear {
+                guard draws else { return }
+                if reduceMotion {
+                    progress = 1
+                    return
+                }
+                progress = 0
+                withAnimation(.easeOut(duration: 0.34)) {
+                    progress = 1
+                }
+            }
+    }
+}
+
+/// Home geofence mark — fill when inside, outline when away. No bounce.
+struct TrustHomeGlyph: View {
+    var filled: Bool
+    @Environment(\.trustPalette) private var palette
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Image(systemName: filled ? "house.fill" : "house")
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(filled ? palette.ink : palette.muted)
+            .frame(width: 12, height: 11)
+            .accessibilityHidden(true)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.26), value: filled)
     }
 }
 
@@ -154,11 +187,14 @@ struct TrustLivePin: View {
 struct TrustSealedMark: View {
     let initials: String
     @Environment(\.trustPalette) private var palette
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var lockBreath = false
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "lock.fill")
+            Image(systemName: "lock")
                 .font(.system(size: 10, weight: .semibold))
+                .opacity(lockOpacity)
             VStack(alignment: .leading, spacing: 1) {
                 Text(initials)
                     .font(TrustTheme.label(11))
@@ -174,6 +210,43 @@ struct TrustSealedMark: View {
         .padding(.vertical, 6)
         .background(palette.paper)
         .overlay(Rectangle().stroke(palette.ink, lineWidth: 1))
+        .onAppear { startBreath() }
+        .onChange(of: reduceMotion) { _, _ in startBreath() }
+    }
+
+    private var lockOpacity: Double {
+        reduceMotion ? 1 : (lockBreath ? 1 : 0.88)
+    }
+
+    private func startBreath() {
+        guard !reduceMotion else {
+            lockBreath = true
+            return
+        }
+        withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+            lockBreath = true
+        }
+    }
+}
+
+/// Outline lock for strip chips — same soft breathe as the map sealed mark.
+struct TrustSealedLock: View {
+    @Environment(\.trustPalette) private var palette
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var breath = false
+
+    var body: some View {
+        Image(systemName: "lock")
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(palette.ink)
+            .opacity(reduceMotion ? 1 : (breath ? 1 : 0.88))
+            .accessibilityHidden(true)
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                    breath = true
+                }
+            }
     }
 }
 

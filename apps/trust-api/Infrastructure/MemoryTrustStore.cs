@@ -15,6 +15,10 @@ public sealed class MemoryTrustStore : ITrustStore
     private readonly ConcurrentDictionary<(Guid Viewer, Guid Subject), ActiveLook> _active = new();
     private readonly ConcurrentDictionary<string, Invite> _invites = new();
     private readonly ConcurrentDictionary<Guid, PhoneChallenge> _phoneChallenges = new();
+    private readonly ConcurrentDictionary<(Guid Subject, Guid Trustee), PresenceGrant> _presenceGrants = new();
+    private readonly ConcurrentDictionary<Guid, HomePlace> _homePlaces = new();
+    private readonly ConcurrentDictionary<Guid, CurrentHomePresence> _homePresence = new();
+    private readonly ConcurrentDictionary<Guid, HomePromise> _promises = new();
     private readonly object _gate = new();
 
     public Task<Account?> FindAccountAsync(Guid id, CancellationToken cancellationToken)
@@ -176,6 +180,20 @@ public sealed class MemoryTrustStore : ITrustStore
         return Task.CompletedTask;
     }
 
+    public Task UpdateLookEventHistoryHoursAsync(Guid lookId, int historyWindowHours, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            var index = _looks.FindIndex(look => look.Id == lookId);
+            if (index >= 0)
+            {
+                _looks[index] = _looks[index] with { HistoryWindowHours = historyWindowHours };
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
     public Task<IReadOnlyList<LookEvent>> ListLooksAsync(
         Guid accountId,
         DateTimeOffset since,
@@ -228,6 +246,27 @@ public sealed class MemoryTrustStore : ITrustStore
             foreach (var key in _active.Keys.Where(key => key.Viewer == viewerId).ToList())
             {
                 _active.TryRemove(key, out _);
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<ActiveLook>> ListExpiredActiveLooksAsync(
+        DateTimeOffset olderThan,
+        CancellationToken cancellationToken)
+    {
+        var expired = _active.Values.Where(look => look.OpenedAt < olderThan).ToList();
+        return Task.FromResult<IReadOnlyList<ActiveLook>>(expired);
+    }
+
+    public Task PruneAllLocationsAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            foreach (var list in _locations.Values)
+            {
+                list.RemoveAll(fix => fix.Timestamp < olderThan);
             }
         }
 
@@ -297,9 +336,129 @@ public sealed class MemoryTrustStore : ITrustStore
             }
 
             _phoneChallenges.TryRemove(accountId, out _);
+            foreach (var key in _presenceGrants.Keys
+                .Where(key => key.Subject == accountId || key.Trustee == accountId).ToList())
+            {
+                _presenceGrants.TryRemove(key, out _);
+            }
+
+            _homePlaces.TryRemove(accountId, out _);
+            _homePresence.TryRemove(accountId, out _);
+            foreach (var key in _promises.Keys
+                .Where(id =>
+                {
+                    var promise = _promises[id];
+                    return promise.SubjectId == accountId || promise.TrusteeId == accountId;
+                }).ToList())
+            {
+                _promises.TryRemove(key, out _);
+            }
         }
 
         return Task.CompletedTask;
+    }
+
+    public Task SetPresenceGrantAsync(
+        Guid subjectId,
+        Guid trusteeId,
+        bool enabled,
+        DateTimeOffset updatedAt,
+        CancellationToken cancellationToken)
+    {
+        _presenceGrants[(subjectId, trusteeId)] = new PresenceGrant(subjectId, trusteeId, enabled, updatedAt);
+        return Task.CompletedTask;
+    }
+
+    public Task<PresenceGrant?> GetPresenceGrantAsync(
+        Guid subjectId,
+        Guid trusteeId,
+        CancellationToken cancellationToken)
+    {
+        _presenceGrants.TryGetValue((subjectId, trusteeId), out var grant);
+        return Task.FromResult(grant);
+    }
+
+    public Task UpsertHomePlaceAsync(HomePlace place, CancellationToken cancellationToken)
+    {
+        _homePlaces[place.AccountId] = place;
+        return Task.CompletedTask;
+    }
+
+    public Task<HomePlace?> GetHomePlaceAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        _homePlaces.TryGetValue(accountId, out var place);
+        return Task.FromResult(place);
+    }
+
+    public Task UpsertCurrentHomePresenceAsync(CurrentHomePresence presence, CancellationToken cancellationToken)
+    {
+        _homePresence[presence.AccountId] = presence;
+        return Task.CompletedTask;
+    }
+
+    public Task<CurrentHomePresence?> GetCurrentHomePresenceAsync(
+        Guid accountId,
+        CancellationToken cancellationToken)
+    {
+        _homePresence.TryGetValue(accountId, out var presence);
+        return Task.FromResult(presence);
+    }
+
+    public Task InsertPromiseAsync(HomePromise promise, CancellationToken cancellationToken)
+    {
+        _promises[promise.Id] = promise;
+        return Task.CompletedTask;
+    }
+
+    public Task UpdatePromiseAsync(HomePromise promise, CancellationToken cancellationToken)
+    {
+        _promises[promise.Id] = promise;
+        return Task.CompletedTask;
+    }
+
+    public Task<HomePromise?> GetPromiseAsync(Guid promiseId, CancellationToken cancellationToken)
+    {
+        _promises.TryGetValue(promiseId, out var promise);
+        return Task.FromResult(promise);
+    }
+
+    public Task<HomePromise?> GetActivePromiseAsync(
+        Guid subjectId,
+        Guid trusteeId,
+        CancellationToken cancellationToken)
+    {
+        var match = _promises.Values
+            .Where(promise =>
+                promise.SubjectId == subjectId
+                && promise.TrusteeId == trusteeId
+                && promise.Status == PromiseStatus.Active)
+            .OrderByDescending(promise => promise.CreatedAt)
+            .FirstOrDefault();
+        return Task.FromResult(match);
+    }
+
+    public Task<IReadOnlyList<HomePromise>> ListPromisesForPairAsync(
+        Guid a,
+        Guid b,
+        CancellationToken cancellationToken)
+    {
+        var list = _promises.Values
+            .Where(promise =>
+                (promise.SubjectId == a && promise.TrusteeId == b)
+                || (promise.SubjectId == b && promise.TrusteeId == a))
+            .OrderByDescending(promise => promise.CreatedAt)
+            .ToList();
+        return Task.FromResult<IReadOnlyList<HomePromise>>(list);
+    }
+
+    public Task<IReadOnlyList<HomePromise>> ListDuePromisesAsync(
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var list = _promises.Values
+            .Where(promise => promise.Status == PromiseStatus.Active && promise.DeadlineAt <= now)
+            .ToList();
+        return Task.FromResult<IReadOnlyList<HomePromise>>(list);
     }
 
     public Task<Account?> FindByVerifiedPhoneAsync(string phoneE164, CancellationToken cancellationToken)

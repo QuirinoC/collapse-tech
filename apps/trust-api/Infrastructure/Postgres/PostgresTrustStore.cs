@@ -333,6 +333,20 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task UpdateLookEventHistoryHoursAsync(
+        Guid lookId,
+        int historyWindowHours,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            "UPDATE trust.look_events SET history_window_hours = $2 WHERE look_id = $1;",
+            connection);
+        command.Parameters.AddWithValue(lookId);
+        command.Parameters.AddWithValue(historyWindowHours);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<LookEvent>> ListLooksAsync(
         Guid accountId,
         DateTimeOffset since,
@@ -453,6 +467,39 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
             connection);
         all.Parameters.AddWithValue(viewerId);
         await all.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ActiveLook>> ListExpiredActiveLooksAsync(
+        DateTimeOffset olderThan,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT look_id, viewer_id, subject_id, history_window_hours, opened_at
+            FROM trust.active_looks
+            WHERE opened_at < $1;
+            """,
+            connection);
+        command.Parameters.AddWithValue(olderThan);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var looks = new List<ActiveLook>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            looks.Add(ReadActive(reader));
+        }
+
+        return looks;
+    }
+
+    public async Task PruneAllLocationsAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            "DELETE FROM trust.location_points WHERE recorded_at < $1;",
+            connection);
+        command.Parameters.AddWithValue(olderThan);
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public Task<Invite?> FindInviteByCodeAsync(string code, CancellationToken cancellationToken) =>
@@ -645,6 +692,331 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
         command.Parameters.AddWithValue(accountId);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
+
+    public async Task SetPresenceGrantAsync(
+        Guid subjectId,
+        Guid trusteeId,
+        bool enabled,
+        DateTimeOffset updatedAt,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            INSERT INTO trust.presence_grants (subject_id, trustee_id, enabled, updated_at)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (subject_id, trustee_id) DO UPDATE SET
+                enabled = EXCLUDED.enabled,
+                updated_at = EXCLUDED.updated_at;
+            """,
+            connection);
+        command.Parameters.AddWithValue(subjectId);
+        command.Parameters.AddWithValue(trusteeId);
+        command.Parameters.AddWithValue(enabled);
+        command.Parameters.AddWithValue(updatedAt);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<PresenceGrant?> GetPresenceGrantAsync(
+        Guid subjectId,
+        Guid trusteeId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT subject_id, trustee_id, enabled, updated_at
+            FROM trust.presence_grants
+            WHERE subject_id = $1 AND trustee_id = $2;
+            """,
+            connection);
+        command.Parameters.AddWithValue(subjectId);
+        command.Parameters.AddWithValue(trusteeId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return new PresenceGrant(
+            reader.GetGuid(0),
+            reader.GetGuid(1),
+            reader.GetBoolean(2),
+            reader.GetFieldValue<DateTimeOffset>(3));
+    }
+
+    public async Task UpsertHomePlaceAsync(HomePlace place, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            INSERT INTO trust.home_places (account_id, place_id, label, updated_at)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (account_id) DO UPDATE SET
+                place_id = EXCLUDED.place_id,
+                label = EXCLUDED.label,
+                updated_at = EXCLUDED.updated_at;
+            """,
+            connection);
+        command.Parameters.AddWithValue(place.AccountId);
+        command.Parameters.AddWithValue(place.PlaceId);
+        command.Parameters.AddWithValue(place.Label);
+        command.Parameters.AddWithValue(place.UpdatedAt);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<HomePlace?> GetHomePlaceAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            "SELECT account_id, place_id, label, updated_at FROM trust.home_places WHERE account_id = $1;",
+            connection);
+        command.Parameters.AddWithValue(accountId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return new HomePlace(
+            reader.GetGuid(0),
+            reader.GetGuid(1),
+            reader.GetString(2),
+            reader.GetFieldValue<DateTimeOffset>(3));
+    }
+
+    public async Task UpsertCurrentHomePresenceAsync(
+        CurrentHomePresence presence,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            INSERT INTO trust.current_home_presence (account_id, place_id, state, last_changed_at, last_signal_at)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (account_id) DO UPDATE SET
+                place_id = EXCLUDED.place_id,
+                state = EXCLUDED.state,
+                last_changed_at = EXCLUDED.last_changed_at,
+                last_signal_at = EXCLUDED.last_signal_at;
+            """,
+            connection);
+        command.Parameters.AddWithValue(presence.AccountId);
+        command.Parameters.AddWithValue((object?)presence.PlaceId ?? DBNull.Value);
+        command.Parameters.AddWithValue(FormatHomeState(presence.State));
+        command.Parameters.AddWithValue(presence.LastChangedAt);
+        command.Parameters.AddWithValue((object?)presence.LastSignalAt ?? DBNull.Value);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<CurrentHomePresence?> GetCurrentHomePresenceAsync(
+        Guid accountId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT account_id, place_id, state, last_changed_at, last_signal_at
+            FROM trust.current_home_presence
+            WHERE account_id = $1;
+            """,
+            connection);
+        command.Parameters.AddWithValue(accountId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return new CurrentHomePresence(
+            reader.GetGuid(0),
+            reader.IsDBNull(1) ? null : reader.GetGuid(1),
+            ParseHomeState(reader.GetString(2)),
+            reader.GetFieldValue<DateTimeOffset>(3),
+            reader.IsDBNull(4) ? null : reader.GetFieldValue<DateTimeOffset>(4));
+    }
+
+    public async Task InsertPromiseAsync(HomePromise promise, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            INSERT INTO trust.home_promises (
+                promise_id, subject_id, trustee_id, place_id, deadline_at, status, resolved_at, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
+            """,
+            connection);
+        BindPromise(command, promise);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task UpdatePromiseAsync(HomePromise promise, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            UPDATE trust.home_promises
+            SET deadline_at = $5, status = $6, resolved_at = $7
+            WHERE promise_id = $1;
+            """,
+            connection);
+        command.Parameters.AddWithValue(promise.Id);
+        command.Parameters.AddWithValue(promise.SubjectId);
+        command.Parameters.AddWithValue(promise.TrusteeId);
+        command.Parameters.AddWithValue(promise.PlaceId);
+        command.Parameters.AddWithValue(promise.DeadlineAt);
+        command.Parameters.AddWithValue(FormatPromiseStatus(promise.Status));
+        command.Parameters.AddWithValue((object?)promise.ResolvedAt ?? DBNull.Value);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<HomePromise?> GetPromiseAsync(Guid promiseId, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT promise_id, subject_id, trustee_id, place_id, deadline_at, status, resolved_at, created_at
+            FROM trust.home_promises
+            WHERE promise_id = $1;
+            """,
+            connection);
+        command.Parameters.AddWithValue(promiseId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return ReadPromise(reader);
+    }
+
+    public async Task<HomePromise?> GetActivePromiseAsync(
+        Guid subjectId,
+        Guid trusteeId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT promise_id, subject_id, trustee_id, place_id, deadline_at, status, resolved_at, created_at
+            FROM trust.home_promises
+            WHERE subject_id = $1 AND trustee_id = $2 AND status = 'active'
+            ORDER BY created_at DESC
+            LIMIT 1;
+            """,
+            connection);
+        command.Parameters.AddWithValue(subjectId);
+        command.Parameters.AddWithValue(trusteeId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return ReadPromise(reader);
+    }
+
+    public async Task<IReadOnlyList<HomePromise>> ListPromisesForPairAsync(
+        Guid a,
+        Guid b,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT promise_id, subject_id, trustee_id, place_id, deadline_at, status, resolved_at, created_at
+            FROM trust.home_promises
+            WHERE (subject_id = $1 AND trustee_id = $2) OR (subject_id = $2 AND trustee_id = $1)
+            ORDER BY created_at DESC;
+            """,
+            connection);
+        command.Parameters.AddWithValue(a);
+        command.Parameters.AddWithValue(b);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var promises = new List<HomePromise>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            promises.Add(ReadPromise(reader));
+        }
+
+        return promises;
+    }
+
+    public async Task<IReadOnlyList<HomePromise>> ListDuePromisesAsync(
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT promise_id, subject_id, trustee_id, place_id, deadline_at, status, resolved_at, created_at
+            FROM trust.home_promises
+            WHERE status = 'active' AND deadline_at <= $1;
+            """,
+            connection);
+        command.Parameters.AddWithValue(now);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var promises = new List<HomePromise>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            promises.Add(ReadPromise(reader));
+        }
+
+        return promises;
+    }
+
+    private static void BindPromise(NpgsqlCommand command, HomePromise promise)
+    {
+        command.Parameters.AddWithValue(promise.Id);
+        command.Parameters.AddWithValue(promise.SubjectId);
+        command.Parameters.AddWithValue(promise.TrusteeId);
+        command.Parameters.AddWithValue(promise.PlaceId);
+        command.Parameters.AddWithValue(promise.DeadlineAt);
+        command.Parameters.AddWithValue(FormatPromiseStatus(promise.Status));
+        command.Parameters.AddWithValue((object?)promise.ResolvedAt ?? DBNull.Value);
+        command.Parameters.AddWithValue(promise.CreatedAt);
+    }
+
+    private static HomePromise ReadPromise(NpgsqlDataReader reader) =>
+        new(
+            reader.GetGuid(0),
+            reader.GetGuid(1),
+            reader.GetGuid(2),
+            reader.GetGuid(3),
+            reader.GetFieldValue<DateTimeOffset>(4),
+            ParsePromiseStatus(reader.GetString(5)),
+            reader.IsDBNull(6) ? null : reader.GetFieldValue<DateTimeOffset>(6),
+            reader.GetFieldValue<DateTimeOffset>(7));
+
+    private static HomePresenceState ParseHomeState(string value) => value.ToLowerInvariant() switch
+    {
+        "home" => HomePresenceState.Home,
+        "away" => HomePresenceState.Away,
+        _ => HomePresenceState.Unknown
+    };
+
+    private static string FormatHomeState(HomePresenceState state) => state switch
+    {
+        HomePresenceState.Home => "home",
+        HomePresenceState.Away => "away",
+        _ => "unknown"
+    };
+
+    private static PromiseStatus ParsePromiseStatus(string value) => value.ToLowerInvariant() switch
+    {
+        "resolved" => PromiseStatus.Resolved,
+        "overdue" => PromiseStatus.Overdue,
+        "no_signal" => PromiseStatus.NoSignal,
+        _ => PromiseStatus.Active
+    };
+
+    private static string FormatPromiseStatus(PromiseStatus status) => status switch
+    {
+        PromiseStatus.Resolved => "resolved",
+        PromiseStatus.Overdue => "overdue",
+        PromiseStatus.NoSignal => "no_signal",
+        _ => "active"
+    };
 
     private async Task<Account?> QueryAccountAsync(
         string sql,

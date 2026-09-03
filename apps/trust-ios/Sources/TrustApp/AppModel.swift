@@ -221,6 +221,7 @@ final class AppModel: ObservableObject {
         resetOnboardingDraft()
         ingestStore.clear()
         location.setSharing(false)
+        location.setHomeMonitoring(false)
         location.setMapActive(false)
     }
 
@@ -232,6 +233,7 @@ final class AppModel: ObservableObject {
                 routeAfterAuth(onboardingComplete: snapshot?.you.onboardingComplete ?? fallbackOnboardingComplete ?? true)
             }
             syncLocationSharing()
+            syncHomePresenceMonitoring()
             await flushIngestQueue()
             if let watched = snapshot?.beingWatched {
                 quietBanner = LookReceipt(
@@ -245,6 +247,7 @@ final class AppModel: ObservableObject {
         } catch {
             pairingNotice = error.localizedDescription
             syncLocationSharing()
+            syncHomePresenceMonitoring()
             if enterHome, auth.isAuthenticated {
                 routeAfterAuth(onboardingComplete: fallbackOnboardingComplete ?? snapshot?.you.onboardingComplete ?? true)
             }
@@ -530,24 +533,46 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func checkIn() {
+    func setPresenceGrant(personID: UUID, enabled: Bool) {
+        if enabled {
+            beginSharingLocation()
+            ensureHomeConfigured()
+        }
         Task {
-            try? await client.checkIn()
-            await refresh()
+            do {
+                try await client.setPresenceGrant(personID: personID, enabled: enabled)
+                await refresh()
+            } catch {
+                pairingNotice = error.localizedDescription
+            }
         }
     }
 
-    func sendPlacePing() {
+    func setHomeHere() {
+        beginSharingLocation()
+        guard let saved = location.setHomeFromCurrentFix() else {
+            pairingNotice = TrustCopy.homeNeedsLocation
+            return
+        }
         Task {
             do {
-                try await client.placePing()
+                try await client.setHomePlace(placeID: saved.placeID, label: saved.label)
                 await refresh()
             } catch {
-                if error.localizedDescription.lowercased().contains("circle") {
-                    showingSettings = true
-                } else {
-                    pairingNotice = error.localizedDescription
-                }
+                pairingNotice = error.localizedDescription
+            }
+        }
+    }
+
+    func createPromise(trusteeID: UUID, deadlineAt: Date) {
+        beginSharingLocation()
+        ensureHomeConfigured()
+        Task {
+            do {
+                try await client.createPromise(trusteeID: trusteeID, deadlineAt: deadlineAt)
+                await refresh()
+            } catch {
+                pairingNotice = error.localizedDescription
             }
         }
     }
@@ -650,6 +675,39 @@ final class AppModel: ObservableObject {
 
         location.onLocations = { [weak self] points in
             self?.enqueueLocations(points)
+        }
+        location.onHomePresence = { [weak self] state in
+            Task { await self?.postHomePresence(state) }
+        }
+    }
+
+    private func ensureHomeConfigured() {
+        if !location.homeIsSet {
+            _ = location.setHomeFromCurrentFix()
+        }
+        if let placeID = location.homePlaceID {
+            Task {
+                try? await client.setHomePlace(placeID: placeID, label: location.homeLabel)
+            }
+        }
+    }
+
+    private func syncHomePresenceMonitoring() {
+        let grantsPresence = circle.contains(where: \.outboundPresenceGranted)
+        let hasPromise = circle.contains { member in
+            guard let promise = member.promise else { return false }
+            return promise.youAreSubject && (promise.status == .active || promise.status == .overdue || promise.status == .noSignal)
+        }
+        let shouldMonitor = location.homeIsSet && (grantsPresence || hasPromise)
+        location.setHomeMonitoring(shouldMonitor)
+    }
+
+    private func postHomePresence(_ state: HomePresenceKind) async {
+        guard auth.isAuthenticated else { return }
+        do {
+            try await client.postHomePresence(state: state)
+        } catch {
+            // Offline — next transition or refresh will catch up.
         }
     }
 

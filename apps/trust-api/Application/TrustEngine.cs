@@ -50,13 +50,14 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
         var coverage = CoverageOf(you, connected);
         var members = new List<CircleMember>();
         LookSession? activeSession = null;
+        var yourHome = await store.GetHomePlaceAsync(you.Id, cancellationToken);
+        var yourPresence = await store.GetCurrentHomePresenceAsync(you.Id, cancellationToken);
 
         foreach (var person in connected)
         {
             var outbound = await store.GetShareAsync(you.Id, person.Id, cancellationToken);
             var inbound = await store.GetShareAsync(person.Id, you.Id, cancellationToken);
-            var active = await store.GetActiveLookAsync(you.Id, person.Id, cancellationToken);
-            var presence = await store.GetPresenceAsync(person.Id, now, cancellationToken);
+            var active = await RequireLiveActiveLookAsync(you.Id, person.Id, cancellationToken);
             var inboundLive = inbound.RevealsLive(now) || active is not null;
             LocationFix? live = null;
             if (inboundLive)
@@ -64,7 +65,42 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
                 live = await store.LatestLocationAsync(person.Id, cancellationToken);
             }
 
-            members.Add(new CircleMember(person, presence, outbound, inboundLive, live));
+            // Battery / last-active / got-home only while Looking or Always / For a while.
+            Presence? presence = inboundLive
+                ? await store.GetPresenceAsync(person.Id, now, cancellationToken)
+                : null;
+
+            var outboundGrant = await store.GetPresenceGrantAsync(you.Id, person.Id, cancellationToken);
+            var inboundGrant = await store.GetPresenceGrantAsync(person.Id, you.Id, cancellationToken);
+            var outboundPresenceGranted = outboundGrant?.Enabled == true;
+            var inboundPresenceGranted = inboundGrant?.Enabled == true;
+
+            VisibleHomePresence? homePresence = null;
+            if (inboundPresenceGranted)
+            {
+                var current = await store.GetCurrentHomePresenceAsync(person.Id, cancellationToken);
+                var place = await store.GetHomePlaceAsync(person.Id, cancellationToken);
+                if (current is not null)
+                {
+                    homePresence = new VisibleHomePresence(
+                        current.State,
+                        current.LastChangedAt,
+                        place?.Label);
+                }
+            }
+
+            var promiseView = await BuildPromiseViewAsync(you.Id, person.Id, cancellationToken);
+
+            members.Add(new CircleMember(
+                person,
+                presence,
+                outbound,
+                inboundLive,
+                live,
+                outboundPresenceGranted,
+                inboundPresenceGranted,
+                homePresence,
+                promiseView));
 
             if (active is not null)
             {
@@ -76,7 +112,7 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             }
         }
 
-        var watched = await store.GetLookAtMeAsync(you.Id, cancellationToken);
+        var watched = await RequireLiveLookAtMeAsync(you.Id, cancellationToken);
         LookEvent? beingWatched = null;
         if (watched is not null)
         {
@@ -105,7 +141,9 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             activeSession,
             beingWatched,
             log,
-            Math.Max(0, allLog.Count - log.Count));
+            Math.Max(0, allLog.Count - log.Count),
+            yourHome,
+            yourPresence);
     }
 
     public async Task<Invite> CreateInviteAsync(Guid accountId, CancellationToken cancellationToken)
@@ -264,7 +302,7 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             cancellationToken);
     }
 
-    public async Task<LookSession> LookAsync(
+    public async Task<LookResult> LookAsync(
         Guid viewerId,
         Guid subjectId,
         bool confirmed,
@@ -282,11 +320,12 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             throw TrustException.NotConnected();
         }
 
-        var existing = await store.GetActiveLookAsync(viewer.Id, subject.Id, cancellationToken);
+        var existing = await RequireLiveActiveLookAsync(viewer.Id, subject.Id, cancellationToken);
         if (existing is not null)
         {
-            return await BuildSessionAsync(viewer, subject, existing, cancellationToken)
+            var reused = await BuildSessionAsync(viewer, subject, existing, cancellationToken)
                 ?? throw TrustException.NoLocation();
+            return new LookResult(reused, IsNew: false);
         }
 
         var now = time.GetUtcNow();
@@ -312,7 +351,9 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
         await store.SetActiveLookAsync(
             new ActiveLook(look.Id, viewer.Id, subject.Id, hours, now),
             cancellationToken);
-        return new LookSession(look, live, trail.Count > 0 ? trail : [live]);
+        return new LookResult(
+            new LookSession(look, live, trail.Count > 0 ? trail : [live]),
+            IsNew: true);
     }
 
     public async Task CloseLookAsync(Guid viewerId, Guid? subjectId, CancellationToken cancellationToken)
@@ -330,7 +371,7 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
 
         var viewer = snapshot.You;
         var subject = await RequireAccount(subjectId, cancellationToken);
-        var active = await store.GetActiveLookAsync(viewer.Id, subject.Id, cancellationToken)
+        var active = await RequireLiveActiveLookAsync(viewer.Id, subject.Id, cancellationToken)
             ?? throw TrustException.PairInactive();
         var now = time.GetUtcNow();
         var hours = TrustRules.ProHistoryHours;
@@ -338,6 +379,7 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
         var live = trail.LastOrDefault() ?? throw TrustException.NoLocation();
         var updated = active with { HistoryWindowHours = hours };
         await store.SetActiveLookAsync(updated, cancellationToken);
+        await store.UpdateLookEventHistoryHoursAsync(updated.LookId, hours, cancellationToken);
         var look = new LookEvent(
             updated.LookId,
             viewer.Id,
@@ -481,6 +523,157 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
         return await store.LooksTodayAsync(viewerId, start, cancellationToken);
     }
 
+    public async Task SetPresenceGrantAsync(
+        Guid subjectId,
+        Guid trusteeId,
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        var you = await RequireAccount(subjectId, cancellationToken);
+        await RequireAccount(trusteeId, cancellationToken);
+        if (!await store.AreConnectedAsync(you.Id, trusteeId, cancellationToken))
+        {
+            throw TrustException.NotConnected();
+        }
+
+        await store.SetPresenceGrantAsync(you.Id, trusteeId, enabled, time.GetUtcNow(), cancellationToken);
+    }
+
+    public async Task SetHomePlaceAsync(
+        Guid accountId,
+        Guid placeId,
+        string label,
+        CancellationToken cancellationToken)
+    {
+        var you = await RequireAccount(accountId, cancellationToken);
+        var trimmed = string.IsNullOrWhiteSpace(label) ? "Home" : label.Trim();
+        if (trimmed.Length > 40)
+        {
+            trimmed = trimmed[..40];
+        }
+
+        var now = time.GetUtcNow();
+        await store.UpsertHomePlaceAsync(new HomePlace(you.Id, placeId, trimmed, now), cancellationToken);
+        var current = await store.GetCurrentHomePresenceAsync(you.Id, cancellationToken);
+        if (current is null)
+        {
+            await store.UpsertCurrentHomePresenceAsync(
+                new CurrentHomePresence(you.Id, placeId, HomePresenceState.Unknown, now, null),
+                cancellationToken);
+        }
+    }
+
+    public async Task PostHomePresenceAsync(
+        Guid accountId,
+        HomePresenceState state,
+        DateTimeOffset? signaledAt,
+        CancellationToken cancellationToken)
+    {
+        var you = await RequireAccount(accountId, cancellationToken);
+        var place = await store.GetHomePlaceAsync(you.Id, cancellationToken)
+            ?? throw new TrustException("home_unset", "Set Home on this phone before posting presence.");
+        var now = time.GetUtcNow();
+        var at = signaledAt ?? now;
+        if (at > now.AddMinutes(2))
+        {
+            at = now;
+        }
+
+        var previous = await store.GetCurrentHomePresenceAsync(you.Id, cancellationToken);
+        var changedAt = previous is not null && previous.State == state
+            ? previous.LastChangedAt
+            : at;
+        await store.UpsertCurrentHomePresenceAsync(
+            new CurrentHomePresence(you.Id, place.PlaceId, state, changedAt, at),
+            cancellationToken);
+
+        if (state == HomePresenceState.Home)
+        {
+            await ResolvePromisesOnArrivalAsync(you.Id, at, cancellationToken);
+        }
+    }
+
+    public async Task<HomePromise> CreatePromiseAsync(
+        Guid subjectId,
+        Guid trusteeId,
+        DateTimeOffset deadlineAt,
+        CancellationToken cancellationToken)
+    {
+        var you = await RequireAccount(subjectId, cancellationToken);
+        await RequireAccount(trusteeId, cancellationToken);
+        if (!await store.AreConnectedAsync(you.Id, trusteeId, cancellationToken))
+        {
+            throw TrustException.NotConnected();
+        }
+
+        var place = await store.GetHomePlaceAsync(you.Id, cancellationToken)
+            ?? throw new TrustException("home_unset", "Set Home before making a promise.");
+        var now = time.GetUtcNow();
+        if (deadlineAt <= now)
+        {
+            throw new TrustException("invalid_deadline", "Choose a time in the future.");
+        }
+
+        var existing = await store.GetActivePromiseAsync(you.Id, trusteeId, cancellationToken);
+        if (existing is not null)
+        {
+            var updated = existing with { DeadlineAt = deadlineAt, PlaceId = place.PlaceId };
+            await store.UpdatePromiseAsync(updated, cancellationToken);
+            return updated;
+        }
+
+        var promise = new HomePromise(
+            Guid.NewGuid(),
+            you.Id,
+            trusteeId,
+            place.PlaceId,
+            deadlineAt,
+            PromiseStatus.Active,
+            null,
+            now);
+        await store.InsertPromiseAsync(promise, cancellationToken);
+        return promise;
+    }
+
+    public async Task EvaluateDuePromisesAsync(CancellationToken cancellationToken)
+    {
+        var now = time.GetUtcNow();
+        var due = await store.ListDuePromisesAsync(now, cancellationToken);
+        foreach (var promise in due)
+        {
+            var presence = await store.GetCurrentHomePresenceAsync(promise.SubjectId, cancellationToken);
+            PromiseStatus status;
+            if (presence?.State == HomePresenceState.Home
+                && presence.LastChangedAt <= promise.DeadlineAt)
+            {
+                status = PromiseStatus.Resolved;
+            }
+            else if (presence?.LastSignalAt is { } signal
+                     && now - signal > TrustRules.PresenceSignalStale)
+            {
+                status = PromiseStatus.NoSignal;
+            }
+            else if (presence is null
+                     || presence.LastSignalAt is null
+                     || now - presence.LastSignalAt > TrustRules.PresenceSignalStale)
+            {
+                status = PromiseStatus.NoSignal;
+            }
+            else
+            {
+                status = PromiseStatus.Overdue;
+            }
+
+            await store.UpdatePromiseAsync(
+                promise with
+                {
+                    Status = status,
+                    ResolvedAt = status == PromiseStatus.Resolved ? presence!.LastChangedAt : now
+                },
+                cancellationToken);
+        }
+    }
+
     public async Task EnsureReviewCircleAsync(Guid accountId, CancellationToken cancellationToken)
     {
         var you = await RequireAccount(accountId, cancellationToken);
@@ -515,6 +708,93 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             you.Id,
             new ShareState(ShareResting.UntilTheyLook, now.AddMinutes(47)),
             cancellationToken);
+    }
+
+    private async Task ResolvePromisesOnArrivalAsync(
+        Guid subjectId,
+        DateTimeOffset arrivedAt,
+        CancellationToken cancellationToken)
+    {
+        var connected = await store.ListConnectedAsync(subjectId, cancellationToken);
+        foreach (var person in connected)
+        {
+            var active = await store.GetActivePromiseAsync(subjectId, person.Id, cancellationToken);
+            if (active is null)
+            {
+                continue;
+            }
+
+            await store.UpdatePromiseAsync(
+                active with { Status = PromiseStatus.Resolved, ResolvedAt = arrivedAt },
+                cancellationToken);
+        }
+    }
+
+    private async Task<PromiseView?> BuildPromiseViewAsync(
+        Guid youId,
+        Guid otherId,
+        CancellationToken cancellationToken)
+    {
+        var promises = await store.ListPromisesForPairAsync(youId, otherId, cancellationToken);
+        var relevant = promises.FirstOrDefault(promise =>
+            promise.Status is PromiseStatus.Active or PromiseStatus.Overdue or PromiseStatus.NoSignal
+            || (promise.Status == PromiseStatus.Resolved
+                && promise.ResolvedAt is { } resolved
+                && time.GetUtcNow() - resolved < TimeSpan.FromHours(12)));
+        if (relevant is null)
+        {
+            return null;
+        }
+
+        var subjectPlace = await store.GetHomePlaceAsync(relevant.SubjectId, cancellationToken);
+        return new PromiseView(
+            relevant.Id,
+            relevant.SubjectId,
+            relevant.TrusteeId,
+            subjectPlace?.Label ?? "Home",
+            relevant.DeadlineAt,
+            relevant.Status,
+            relevant.ResolvedAt,
+            relevant.SubjectId == youId);
+    }
+
+    private async Task<ActiveLook?> RequireLiveActiveLookAsync(
+        Guid viewerId,
+        Guid subjectId,
+        CancellationToken cancellationToken)
+    {
+        var active = await store.GetActiveLookAsync(viewerId, subjectId, cancellationToken);
+        if (active is null)
+        {
+            return null;
+        }
+
+        if (ActiveLookRules.IsExpired(active, time.GetUtcNow()))
+        {
+            await store.ClearActiveLookAsync(viewerId, subjectId, cancellationToken);
+            return null;
+        }
+
+        return active;
+    }
+
+    private async Task<ActiveLook?> RequireLiveLookAtMeAsync(
+        Guid subjectId,
+        CancellationToken cancellationToken)
+    {
+        var watched = await store.GetLookAtMeAsync(subjectId, cancellationToken);
+        if (watched is null)
+        {
+            return null;
+        }
+
+        if (ActiveLookRules.IsExpired(watched, time.GetUtcNow()))
+        {
+            await store.ClearActiveLookAsync(watched.ViewerId, watched.SubjectId, cancellationToken);
+            return null;
+        }
+
+        return watched;
     }
 
     private async Task<Account> SeedPersonAsync(
