@@ -32,7 +32,29 @@ iOS invite sharing uses the existing `pixelboard://invite/<code>` URL scheme bec
 
 ## Ship to TestFlight / App Store
 
-The app code is ready to archive. These are the remaining console steps (I cannot click them for you).
+**Current ship target:** `1.0.1` (build `6`). Live App Store is `1.0` build `5`, archived/approved before seamless tiles (`a7dbcbf`, PR #36) and the iPad full palette (`fe90bdd`, PR #38). Web got those via Render auto-deploy; iOS needs a new archive + App Store Connect submit.
+
+There is no Fastlane lane in this repo. Archive from Xcode (or `xcodebuild` once full Xcode is selected with `xcode-select -s /Applications/Xcode.app`).
+
+### Release 1.0.1 (build 6) — what you do
+
+1. Confirm `main` includes seamless fills + iPad regular-size-class palette (both already on `main` after PRs #36 and #38).
+2. On a Mac with full Xcode:
+
+```bash
+cd apps/infinite-pixelboard-ios
+xcodegen generate
+open InfinitePixelboard.xcodeproj
+```
+
+3. Select any iOS device / **Any iOS Device (arm64)** → **Product → Archive**.
+4. In Organizer: **Distribute App → App Store Connect → Upload**. Wait for processing in App Store Connect (app id `6804066543`, bundle `com.collapsetechnologies.pixelboard`).
+5. In App Store Connect → Infinite Pixelboard → **+ Version** (or add build to an existing `1.0.1` version): attach build **6**, short “What’s New” noting seamless tile borders and full iPad palette, then **Submit for Review**.
+6. After approval, release manually or automatically per your Connect setting.
+
+Do not reuse build `5`; Apple requires a higher `CFBundleVersion` for each upload. Marketing version is already bumped to `1.0.1` in `project.yml`.
+
+The app code is ready to archive. Broader console setup (Firebase, StoreKit, APNs) is below if anything is still incomplete.
 
 **Legal URLs (use these in App Store Connect):**
 
