@@ -15,7 +15,7 @@ Living log of week-1+ organic outreach. Update a row when status changes; never 
 - Screenshots live in [`docs/pixelboard-outreach-assets/`](./pixelboard-outreach-assets/).
 - Ready-to-paste copy: [`pixelboard-outreach-drafts.md`](./pixelboard-outreach-drafts.md).
 
-**Last updated:** 2026-09-02 (Wed, late). Posted r/iOSApps. Login still required for HN / Indie Hackers / Product Hunt / Bluesky.
+**Last updated:** 2026-09-02 (Wed, late). Posted r/iOSApps. SideProject may have two live IDs (`1w5wpom` + `1w5wpbh`) — leave both until user decides. Login still required for HN / Indie Hackers / Product Hunt / Bluesky.
 
 **Reddit session used:** `u/Ok_Seaworthiness_331` (Playwright browser profile).
 
@@ -26,7 +26,7 @@ Living log of week-1+ organic outreach. Update a row when status changes; never 
 | Date | Channel | URL | Status | Post URL if any | Angle used | Notes |
 |------|---------|-----|--------|-----------------|------------|-------|
 | 2026-09-02 | Show HN | https://news.ycombinator.com/submit | blocked need login | | Collaborative mural + both links + sign-in/cooldown | WAITING FOR LOGIN. Browser tab on https://news.ycombinator.com/login?goto=submit |
-| 2026-09-02 | r/SideProject | https://www.reddit.com/r/SideProject/ | posted | https://www.reddit.com/r/SideProject/comments/1w5wpom/infinite_pixelboard_live_collaborative_pixel/ | Live mural launch + both links | Canonical live post. Earlier draft URL `1w5wpbh` was deleted by OP. |
+| 2026-09-02 | r/SideProject | https://www.reddit.com/r/SideProject/ | posted | https://www.reddit.com/r/SideProject/comments/1w5wpom/infinite_pixelboard_live_collaborative_pixel/ | Live mural launch + both links | Canonical: `1w5wpom`. Second ID from same session: [`1w5wpbh`](https://www.reddit.com/r/SideProject/comments/1w5wpbh/) (prior agent attempted delete). **Possibly two live posts — do not delete either without explicit user ask.** |
 | 2026-09-02 | r/playmygame | https://www.reddit.com/r/playmygame/ | deferred | | [Web] playable mural feedback | Skipped this pass: TestMyApp covers the playmygame OR TestMyApp slot. Retry later with Web flair + spacing. |
 | 2026-09-02 | Indie Hackers | https://www.indiehackers.com/ | blocked need login | | Launch diary | WAITING FOR LOGIN. Browser tab on https://www.indiehackers.com/sign-in |
 | 2026-09-02 | r/TestMyApp | https://www.reddit.com/r/TestMyApp/ | posted | https://www.reddit.com/r/TestMyApp/comments/1w5wqis/web_ios_infinite_pixelboard_looking_for_bugs_on/ | Bug-hunt brief web + iOS | Both links + free 5s cooldown disclose. Satisfies playmygame OR TestMyApp. |
@@ -57,6 +57,11 @@ Living log of week-1+ organic outreach. Update a row when status changes; never 
 Reddit account used: `Ok_Seaworthiness_331`
 
 ---
+
+### SideProject duplicate note
+- Primary: https://www.reddit.com/r/SideProject/comments/1w5wpom/infinite_pixelboard_live_collaborative_pixel/
+- Possible second: https://www.reddit.com/r/SideProject/comments/1w5wpbh/
+- Live verification from this agent was blocked by Reddit bot walls; if both resolve in your browser, leave them. Do not delete without an explicit ask.
 
 ## WAITING FOR LOGIN
 
