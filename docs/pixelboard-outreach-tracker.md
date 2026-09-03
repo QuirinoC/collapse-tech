@@ -15,7 +15,7 @@ Living log of week-1+ organic outreach. Update a row when status changes; never 
 - Screenshots live in [`docs/pixelboard-outreach-assets/`](./pixelboard-outreach-assets/).
 - Ready-to-paste copy: [`pixelboard-outreach-drafts.md`](./pixelboard-outreach-drafts.md).
 
-**Last updated:** 2026-09-02 (Wed, late). Posted r/iOSApps. SideProject may have two live IDs (`1w5wpom` + `1w5wpbh`) — leave both until user decides. Login still required for HN / Indie Hackers / Product Hunt / Bluesky.
+**Last updated:** 2026-09-02 (Wed night, re-check). Reddit already posted (4). Re-verified Playwright sessions: HN / Indie Hackers / Product Hunt / Bluesky still signed out (login forms / Sign in buttons). Nothing new posted this pass. SideProject may have two live IDs (`1w5wpom` + `1w5wpbh`) — leave both until user decides.
 
 **Reddit session used:** `u/Ok_Seaworthiness_331` (Playwright browser profile).
 
@@ -65,12 +65,12 @@ Reddit account used: `Ok_Seaworthiness_331`
 
 ## WAITING FOR LOGIN
 
-Please log into these sites in the same Playwright browser session, then ask the agent to continue posting:
+Re-checked 2026-09-02 night in Playwright: still not logged in. Please log into these sites in the **same Playwright browser** session, then ask the agent to continue posting:
 
-1. **Hacker News** - https://news.ycombinator.com/login?goto=submit
-2. **Indie Hackers** - https://www.indiehackers.com/sign-in
-3. **Product Hunt** - https://www.producthunt.com/login
-4. **Bluesky** - https://bsky.app/ (Sign in)
+1. **Hacker News** - https://news.ycombinator.com/login?goto=submit (login form visible)
+2. **Indie Hackers** - https://www.indiehackers.com/sign-in (Sign in / Join visible)
+3. **Product Hunt** - https://www.producthunt.com/login (Sign in visible)
+4. **Bluesky** - https://bsky.app/ (Create account / Sign in; no Compose)
 
 ---
 
