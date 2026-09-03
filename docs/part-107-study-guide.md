@@ -129,12 +129,14 @@ Industry summaries of the **current PSI bulletin** (verify in the bulletin itsel
 
 ### WA / Seattle notes (ops vs exam)
 
+Local WA rules are **not** UAG content. See **[Washington](#washington)** for fees, PSI booking, and park bans. Quick matrix:
+
 | Topic | On the UAG test? | For listing jobs? |
 | --- | --- | --- |
 | **Sea-Tac Class B** airspace + need for authorization | **Yes** (as Class B / chart / 107.41 concepts) | **Yes** — use LAANC (or equivalent) before flying |
-| **Seattle parks drone ban** | **No** — local ordinance, not FAR | **Yes** — treat park flights as banned unless written exception |
+| **Seattle parks drone ban** (SMC 18.12.265) | **No** — local ordinance, not FAR | **Yes** — parks flights banned unless a written exception |
 | HOA / private property permission | **No** | **Yes** |
-| WSDOT aircraft registration | **No** | **Yes** (WA ops checklist) |
+| WSDOT commercial UAS registration | **No** | **Yes** — $15/aircraft now; ~$150/yr from 2027-01-01 |
 
 Do not study Seattle park rules for the knowledge test. Do not skip them for paid flights.
 
@@ -222,9 +224,22 @@ Prefer sources that cite **ACS codes** or regulation sections. If a site sells �
 
 ## After the test (listing-media path)
 
-- Certificate is **personal** (Juan), not LLC — see the WA plan legal split.
+- Certificate is **personal** (Juan), not LLC — see the WA plan legal split and **[Washington](#washington)**.
 - Before paid Seattle-area flights: **LAANC** (or equivalent) for controlled airspace; **do not** treat park bans as “exam trivia.”
 - Bind **UAS liability** before first paid job; register aircraft per FAA + WA rules when you have an airframe.
+
+---
+
+## Washington
+
+State and local rules do **not** change the UAG exam. They matter for **booking a WA test seat** and for **paid flights** after you pass.
+
+- **Yes — take UAG at PSI in Washington.** Create an IACRA profile → get your **FTN** → schedule at [faa.psiexams.com](https://faa.psiexams.com/faa/login) → search **UAG** near your ZIP. Same nationwide process; WA has PSI Knowledge Testing Centers.
+- **No separate Washington pilot license.** The FAA Remote Pilot Certificate is the airman credential; Washington does not issue a parallel commercial drone pilot license.
+- **WSDOT commercial UAS registration** is an **owner / aircraft** annual fee (not a pilot license): **$15 per aircraft** today. From **January 1, 2027**: registration **$30** + **$120** aircraft excise for commercial UAS (**~$150/yr**). Official: [WSDOT commercial drone registration](https://wsdot.wa.gov/travel/aviation/drones-unmanned-aircraft-systems-uas/uncrewed-aircraft-systems-and-commercial-drone-registration); statutes [RCW 47.68.250](https://apps.leg.wa.gov/rcw/default.aspx?cite=47.68.250) (registration fee) and [RCW 82.48.030](https://apps.leg.wa.gov/rcw/default.aspx?cite=82.48.030) (excise; commercial UAS line effective 2027-01-01).
+- **LAANC = airspace authorization, not a license.** It authorizes ops in participating controlled airspace; it does not replace Part 107 or WSDOT registration. FAA overview: [LAANC](https://www.faa.gov/uas/getting_started/laanc).
+- **Seattle parks drone ban** — [SMC 18.12.265](https://library.municode.com/wa/seattle/codes/municipal_code?nodeId=TIT18BURECO_SUBTITLE_IPACO_CH18.12PAPA_18.12.265MOFLMO) / [Seattle Parks rules](https://www.seattle.gov/parks/about-us/rules-and-regulations): **ops only**, not exam content.
+- **Exam and certificate are personal (Juan), not the LLC.** The UAG and Remote Pilot Certificate attach to the individual airman.
 
 ---
 
@@ -238,3 +253,8 @@ Prefer sources that cite **ACS codes** or regulation sections. If a site sells �
 6. FAA, *Remote Pilot Study Guide* (FAA-G-8082-22): https://www.faa.gov/sites/faa.gov/files/regulations_policies/handbooks_manuals/aviation/remote_pilot_study_guide.pdf
 7. FAA, Airman Testing Community Advisory (August 2025): https://www.faa.gov/training_testing/testing/community_advisory_August_2025.pdf — ACS UAG blueprint obsolete **2025-09-29**; use PSI UAG Information Bulletin; validation questions may appear.
 8. PSI FAA testing portal: https://faa.psiexams.com/faa/login — schedule + sample test + Candidate Information Bulletin.
+9. WSDOT, commercial drone registration: https://wsdot.wa.gov/travel/aviation/drones-unmanned-aircraft-systems-uas/uncrewed-aircraft-systems-and-commercial-drone-registration — $15/aircraft (current).
+10. RCW 47.68.250 (eff. 2027-01-01): https://apps.leg.wa.gov/rcw/default.aspx?cite=47.68.250 — aircraft registration fee **$30**.
+11. RCW 82.48.030 (eff. 2027-01-01): https://apps.leg.wa.gov/rcw/default.aspx?cite=82.48.030 — commercial UAS excise **$120**.
+12. Seattle Parks rules (SMC 18.12.265 drones): https://www.seattle.gov/parks/about-us/rules-and-regulations
+13. FAA LAANC: https://www.faa.gov/uas/getting_started/laanc
