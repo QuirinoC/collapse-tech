@@ -169,6 +169,22 @@
                         <p class="invite-code" data-invite-code>—</p>
                         <button type="button" data-copy-invite>Share invite link</button>
                         <p class="auth-note" data-invite-status role="status" aria-live="polite"></p>
+                        <p class="panel-copy" style="margin-top: 1rem;">Redeem a special code</p>
+                        <p class="panel-copy">
+                            Event and promo codes work even after you have used an invite. Each
+                            special code can be redeemed once per account.
+                        </p>
+                        <label class="panel-copy" for="special-code-input">Special code</label>
+                        <input
+                            id="special-code-input"
+                            type="text"
+                            autocomplete="off"
+                            spellcheck="false"
+                            maxlength="24"
+                            data-special-code-input
+                            placeholder="Enter code" />
+                        <button type="button" data-redeem-special-code>Redeem code</button>
+                        <p class="auth-note" data-special-code-status role="status" aria-live="polite"></p>
                     </div>
                 </div>
             </div>

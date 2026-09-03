@@ -82,6 +82,15 @@ public struct PixelboardAPIClient: Sendable {
         )
     }
 
+    public func redeemSpecialCode(_ code: String) async throws {
+        try await requestWithoutResponse(
+            "account/special-code",
+            method: "POST",
+            body: RedeemSpecialCodeRequest(code: code),
+            authorized: true
+        )
+    }
+
     public func registerPushDevice(
         installationId: UUID,
         token: String,

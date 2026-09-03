@@ -382,6 +382,25 @@ final class AppModel: ObservableObject {
         await redeemPendingInvite()
     }
 
+    func redeemEnteredCode(_ raw: String?) async {
+        if let special = BoardLinks.normalizeSpecialCode(raw) {
+            do {
+                try await api.redeemSpecialCode(special)
+                await refreshAccount()
+                statusMessage = PixelboardL10n.inviteApplied
+            } catch {
+                // Fall through to referral when the special endpoint rejects an 8-char invite.
+                if BoardLinks.normalizeReferralCode(special) != nil {
+                    await queueReferralCode(special)
+                    return
+                }
+                statusMessage = error.localizedDescription
+            }
+            return
+        }
+        await queueReferralCode(raw)
+    }
+
     func handleIncomingURL(_ url: URL) {
         if let code = BoardLinks.referralCode(from: url) {
             Task { await queueReferralCode(code) }

@@ -649,6 +649,23 @@ async function start(app) {
         elements.inviteStatus.textContent = inviteUrl(code);
       }
     });
+    elements.redeemSpecialCode?.addEventListener("click", async () => {
+      const code = elements.specialCodeInput?.value?.trim();
+      if (!code) {
+        elements.specialCodeStatus.textContent = "Enter a special code first.";
+        return;
+      }
+      try {
+        await api.redeemSpecialCode(code);
+        elements.specialCodeInput.value = "";
+        elements.specialCodeStatus.textContent =
+          "Special code applied. Check your cooldown above.";
+        await refreshAccount();
+      } catch (error) {
+        elements.specialCodeStatus.textContent =
+          error.message ?? "Special code could not be applied.";
+      }
+    });
   }
 
   function renderInvite(state) {
@@ -844,6 +861,9 @@ function collectElements(app) {
     inviteCode: app.querySelector("[data-invite-code]"),
     copyInvite: app.querySelector("[data-copy-invite]"),
     inviteStatus: app.querySelector("[data-invite-status]"),
+    specialCodeInput: app.querySelector("[data-special-code-input]"),
+    redeemSpecialCode: app.querySelector("[data-redeem-special-code]"),
+    specialCodeStatus: app.querySelector("[data-special-code-status]"),
     billingBlock: app.querySelector("[data-billing-block]"),
     billingSection: app.querySelector("[data-billing-section]"),
     billingMonth: app.querySelector("[data-billing-month]"),

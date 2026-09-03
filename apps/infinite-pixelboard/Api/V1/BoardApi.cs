@@ -26,6 +26,7 @@ public static class BoardApi
                 AcceptCommunityStandardsAsync)
             .RequireAuthorization();
         api.MapPost("/account/referral", ClaimReferralAsync).RequireAuthorization();
+        api.MapPost("/account/special-code", RedeemSpecialCodeAsync).RequireAuthorization();
         api.MapPost("/placements", PlaceAsync).RequireAuthorization();
         api.MapPost("/reports", ReportAsync).RequireAuthorization();
 
@@ -194,6 +195,19 @@ public static class BoardApi
             return AuthenticationRequired();
         }
 
+        var specialCodeService = services.GetService<ISpecialCodeService>();
+        if (specialCodeService is not null)
+        {
+            var specialOutcome = await specialCodeService.RedeemAsync(
+                account.Id,
+                request?.Code,
+                cancellationToken);
+            if (specialOutcome != SpecialCodeClaimOutcome.NotSpecialCode)
+            {
+                return MapSpecialCodeOutcome(specialOutcome);
+            }
+        }
+
         var referralService = services.GetService<IReferralService>();
         if (referralService is null)
         {
@@ -238,6 +252,70 @@ public static class BoardApi
             _ => ServiceUnavailable("Invites are not configured.")
         };
     }
+
+    public static async Task<IResult> RedeemSpecialCodeAsync(
+        RedeemSpecialCodeRequest? request,
+        IAccountIdentityAccessor identityAccessor,
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        var account = await identityAccessor.GetCurrentAsync(cancellationToken);
+        if (account is null)
+        {
+            return AuthenticationRequired();
+        }
+
+        var specialCodeService = services.GetService<ISpecialCodeService>();
+        if (specialCodeService is null)
+        {
+            return ServiceUnavailable("Special codes are not configured.");
+        }
+
+        var outcome = await specialCodeService.RedeemAsync(
+            account.Id,
+            request?.Code,
+            cancellationToken);
+        return MapSpecialCodeOutcome(
+            outcome == SpecialCodeClaimOutcome.NotSpecialCode
+                ? SpecialCodeClaimOutcome.InvalidCode
+                : outcome);
+    }
+
+    private static IResult MapSpecialCodeOutcome(SpecialCodeClaimOutcome outcome) =>
+        outcome switch
+        {
+            SpecialCodeClaimOutcome.Granted => Results.NoContent(),
+            SpecialCodeClaimOutcome.InvalidCode
+                or SpecialCodeClaimOutcome.NotSpecialCode => Results.Json(
+                new ApiError(
+                    ApiErrorCodes.InvalidSpecialCode,
+                    "That special code is not valid."),
+                statusCode: StatusCodes.Status400BadRequest),
+            SpecialCodeClaimOutcome.AlreadyRedeemed => Results.Json(
+                new ApiError(
+                    ApiErrorCodes.SpecialCodeAlreadyRedeemed,
+                    "This account already redeemed that special code."),
+                statusCode: StatusCodes.Status409Conflict),
+            SpecialCodeClaimOutcome.CodeExpired
+                or SpecialCodeClaimOutcome.BenefitExpired => Results.Json(
+                new ApiError(
+                    ApiErrorCodes.SpecialCodeExpired,
+                    "That special code has expired."),
+                statusCode: StatusCodes.Status410Gone),
+            SpecialCodeClaimOutcome.CommunityStandardsRequired => Results.Json(
+                new ApiError(
+                    ApiErrorCodes.CommunityStandardsRequired,
+                    "Accept the current community standards before redeeming a code."),
+                statusCode: StatusCodes.Status403Forbidden),
+            SpecialCodeClaimOutcome.AccountDeleted => Results.Json(
+                new ApiError(ApiErrorCodes.AccountDeleted, "This account has been deleted."),
+                statusCode: StatusCodes.Status410Gone),
+            _ => Results.Json(
+                new ApiError(
+                    ApiErrorCodes.ServiceUnavailable,
+                    "Special codes are not configured."),
+                statusCode: StatusCodes.Status503ServiceUnavailable)
+        };
 
     public static async Task<IResult> DeleteAccountAsync(
         IAccountIdentityAccessor identityAccessor,
@@ -429,7 +507,9 @@ public static class BoardApi
                 result.PlacementId,
                 result.Pixel,
                 new CooldownState(
-                    timeProvider.GetUtcNow().Add(result.RemainingCooldown),
+                    result.RemainingCooldown > TimeSpan.Zero
+                        ? timeProvider.GetUtcNow().Add(result.RemainingCooldown)
+                        : null,
                     cooldownSeconds),
                 null));
     }

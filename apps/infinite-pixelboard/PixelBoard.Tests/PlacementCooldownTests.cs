@@ -32,6 +32,30 @@ public sealed class PlacementCooldownTests
     }
 
     [Fact]
+    public void ZeroSecondBoostGrantsUnlimitedPlacing()
+    {
+        var boost = new PaintBoostState(0, Now.AddHours(2));
+        Assert.Equal(0, PlacementCooldown.Resolve(AccountTier.Free, boost, Now));
+        Assert.Equal(0, PlacementCooldown.Resolve(AccountTier.Pro, boost, Now));
+    }
+
+    [Fact]
+    public void SpecialBenefitExpiryTakesEarlierOfDurationAndAbsolute()
+    {
+        var fromDuration = PlacementCooldown.ResolveSpecialBenefitExpiry(
+            Now,
+            benefitDurationSeconds: 3600,
+            benefitExpiresAt: Now.AddHours(3));
+        Assert.Equal(Now.AddHours(1), fromDuration);
+
+        var fromAbsolute = PlacementCooldown.ResolveSpecialBenefitExpiry(
+            Now,
+            benefitDurationSeconds: 10_800,
+            benefitExpiresAt: Now.AddMinutes(30));
+        Assert.Equal(Now.AddMinutes(30), fromAbsolute);
+    }
+
+    [Fact]
     public void BoostDurationStacksUntilTheDailyCap()
     {
         var first = PlacementCooldown.ExtendExpiry(

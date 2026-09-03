@@ -216,6 +216,14 @@ public struct ClaimReferralRequest: Codable, Equatable, Sendable {
     }
 }
 
+public struct RedeemSpecialCodeRequest: Codable, Equatable, Sendable {
+    public let code: String
+
+    public init(code: String) {
+        self.code = code
+    }
+}
+
 public struct PushDeviceRequest: Codable, Equatable, Sendable {
     public let installationId: UUID
     public let token: String

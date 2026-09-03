@@ -87,6 +87,34 @@ incident system. Current tooling does not automatically reverse bans, warnings,
 quarantines, or rollbacks; approved reversals require a reviewed operational change
 and must never delete the original audit or evidence.
 
+## Special codes
+
+Moderators can create multi-user promotional codes that grant a temporary paint boost
+(including `cooldownSeconds: 0` for unlimited placing until the benefit expires). Special
+codes are redeemable even after an account has already used a referral invite. Each
+account may redeem a given special code only once.
+
+Create an unlimited-placing code that lasts 24 hours (requires a Firebase ID token with
+`moderator=true`):
+
+```bash
+TOKEN='<firebase-id-token-with-moderator-claim>'
+curl -sS -X POST \
+  'https://pixelboard.collapsetechnologies.com/api/v1/moderation/special-codes' \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "code": "PAINTNOW",
+    "cooldownSeconds": 0,
+    "benefitDurationSeconds": 86400,
+    "note": "influencer unlimited drop"
+  }'
+```
+
+Omit `code` to auto-generate one. Optional `codeExpiresAt` stops new redemptions;
+`benefitExpiresAt` caps the absolute end of the boost. Apply migration `013_special_codes`
+with `--provision-postgres` before creating codes in production.
+
 ## Routine checks
 
 - Review the queue at least daily while placement is open.

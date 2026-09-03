@@ -37,6 +37,8 @@ public sealed class PostgresHealthCheck(NpgsqlDataSource dataSource) : IHealthCh
                     'referral_codes',
                     'referral_attributions',
                     'paint_boosts',
+                    'special_codes',
+                    'special_code_redemptions',
                     'push_devices',
                     'notification_preferences',
                     'notification_campaigns',

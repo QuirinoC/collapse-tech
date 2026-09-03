@@ -23,6 +23,11 @@ public static class ApiErrorCodes
     public const string ReferralAlreadyClaimed = "referral_already_claimed";
     public const string ReferralOwnCode = "referral_own_code";
     public const string ReferralLimitReached = "referral_limit_reached";
+    public const string InvalidSpecialCode = "invalid_special_code";
+    public const string SpecialCodeAlreadyRedeemed = "special_code_already_redeemed";
+    public const string SpecialCodeExpired = "special_code_expired";
+    public const string InvalidSpecialCodeRequest = "invalid_special_code_request";
+    public const string SpecialCodeDuplicate = "special_code_duplicate";
     public const string CooldownActive = "cooldown_active";
     public const string DuplicateRequest = "duplicate_request";
     public const string InvalidColor = "invalid_color";
@@ -149,6 +154,25 @@ public sealed record AccountStateResponse(
     string? EntitlementSource = null);
 
 public sealed record ClaimReferralRequest(string? Code);
+
+public sealed record RedeemSpecialCodeRequest(string? Code);
+
+public sealed record CreateSpecialCodeRequest(
+    string? Code,
+    int CooldownSeconds,
+    DateTimeOffset? CodeExpiresAt,
+    int? BenefitDurationSeconds,
+    DateTimeOffset? BenefitExpiresAt,
+    string? Note);
+
+public sealed record SpecialCodeResponse(
+    string Code,
+    int CooldownSeconds,
+    DateTimeOffset? CodeExpiresAt,
+    int? BenefitDurationSeconds,
+    DateTimeOffset? BenefitExpiresAt,
+    string? Note,
+    DateTimeOffset CreatedAt);
 
 public sealed record ReportRegion(
     int Top,

@@ -83,6 +83,14 @@ export class PixelboardApi {
     });
   }
 
+  redeemSpecialCode(code, signal) {
+    return this.#authorized("/account/special-code", {
+      method: "POST",
+      signal,
+      body: { code },
+    });
+  }
+
   stripeConfig(signal) {
     return this.#request("/stripe/config", { signal });
   }

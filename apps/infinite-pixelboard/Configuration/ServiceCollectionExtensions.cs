@@ -219,6 +219,9 @@ public static class ServiceCollectionExtensions
             provider => provider.GetRequiredService<PostgresReferralService>());
         services.AddSingleton<IPaintBoostService>(
             provider => provider.GetRequiredService<PostgresReferralService>());
+        services.AddSingleton<PostgresSpecialCodeService>();
+        services.AddSingleton<ISpecialCodeService>(
+            provider => provider.GetRequiredService<PostgresSpecialCodeService>());
         services.AddHostedService<PlacementOutboxWorker>();
         services.AddSingleton<INotificationStore, PostgresNotificationStore>();
         services.AddHttpClient<ApnsClient>();

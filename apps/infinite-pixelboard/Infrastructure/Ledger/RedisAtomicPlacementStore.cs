@@ -119,7 +119,12 @@ public sealed class RedisAtomicPlacementStore(
             cjson.encode(idempotency_result),
             'PX',
             ARGV[10])
-        redis.call('SET', KEYS[5], '1', 'PX', ARGV[8])
+        local cooldown_ms = tonumber(ARGV[8])
+        if cooldown_ms > 0 then
+            redis.call('SET', KEYS[5], '1', 'PX', cooldown_ms)
+        else
+            redis.call('DEL', KEYS[5])
+        end
 
         return {
             stream_id,
@@ -159,13 +164,7 @@ public sealed class RedisAtomicPlacementStore(
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var cooldownMilliseconds = checked((long)cooldown.TotalMilliseconds);
-        if (cooldownMilliseconds < 1)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(cooldown),
-                "Placement cooldown must be at least one millisecond.");
-        }
+        var cooldownMilliseconds = checked((long)Math.Max(0, cooldown.TotalMilliseconds));
 
         var location = BoardGeometry.Locate(
             new BoardPosition(placement.Row, placement.Column));

@@ -48,6 +48,7 @@ public static class ModerationApi
         api.MapGet("/safety", GetSafetyStateAsync);
         api.MapPost("/safety", SetSafetyStateAsync);
         api.MapPost("/pixel-art", PixelArtApi.FillModeratedAsync);
+        api.MapPost("/special-codes", CreateSpecialCodeAsync);
         return endpoints;
     }
 
@@ -270,6 +271,71 @@ public static class ModerationApi
     private static bool ValidReason(string? reason) =>
         !string.IsNullOrWhiteSpace(reason)
         && reason.Trim().Length <= 500;
+
+    public static async Task<IResult> CreateSpecialCodeAsync(
+        CreateSpecialCodeRequest? request,
+        IAccountIdentityAccessor identityAccessor,
+        IServiceProvider services,
+        CancellationToken cancellationToken)
+    {
+        var actor = await identityAccessor.GetCurrentAsync(cancellationToken);
+        var specialCodes = services.GetService<ISpecialCodeService>();
+        var guard = services.GetService<IAccountOperationGuard>();
+        if (actor is null || specialCodes is null || guard is null)
+        {
+            return ServiceUnavailable();
+        }
+
+        await using var accountOperation = await guard.AcquireIfActiveAsync(
+            [actor.Id],
+            cancellationToken);
+        if (accountOperation is null)
+        {
+            return AccountDeleted();
+        }
+
+        if (request is null)
+        {
+            return Results.BadRequest(
+                new ApiError(
+                    ApiErrorCodes.InvalidSpecialCodeRequest,
+                    "A special code body is required."));
+        }
+
+        var result = await specialCodes.CreateAsync(
+            actor.Id,
+            new CreateSpecialCodeCommand(
+                request.Code,
+                request.CooldownSeconds,
+                request.CodeExpiresAt,
+                request.BenefitDurationSeconds,
+                request.BenefitExpiresAt,
+                request.Note),
+            cancellationToken);
+        return result.Outcome switch
+        {
+            SpecialCodeCreateOutcome.Created when result.Code is { } created =>
+                Results.Json(
+                    new SpecialCodeResponse(
+                        created.Code,
+                        created.CooldownSeconds,
+                        created.CodeExpiresAt,
+                        created.BenefitDurationSeconds,
+                        created.BenefitExpiresAt,
+                        created.Note,
+                        created.CreatedAt),
+                    statusCode: StatusCodes.Status201Created),
+            SpecialCodeCreateOutcome.CodeConflict => Results.Json(
+                new ApiError(
+                    ApiErrorCodes.SpecialCodeDuplicate,
+                    result.ErrorMessage ?? "That special code already exists."),
+                statusCode: StatusCodes.Status409Conflict),
+            _ => Results.BadRequest(
+                new ApiError(
+                    ApiErrorCodes.InvalidSpecialCodeRequest,
+                    result.ErrorMessage ?? "That special code request is invalid."))
+        };
+    }
 
     private static bool ValidIdempotencyKey(string? key) =>
         !string.IsNullOrWhiteSpace(key)
