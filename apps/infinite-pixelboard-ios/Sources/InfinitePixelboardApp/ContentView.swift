@@ -143,72 +143,34 @@ struct ContentView: View {
         .accessibilityLabel(label)
     }
 
+    private var usesFullPalette: Bool {
+        horizontalSizeClass == .regular
+    }
+
     private var palette: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 10) {
-                if horizontalSizeClass == .regular {
+            HStack(alignment: .top, spacing: 10) {
+                if usesFullPalette {
                     Text(PixelboardL10n.ink)
                         .font(PixelboardTheme.mono(9.5))
                         .tracking(1.1)
                         .textCase(.uppercase)
                         .foregroundStyle(PixelboardTheme.muted)
                         .padding(.trailing, 4)
+                        .padding(.top, 6)
                 }
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 5) {
-                        ForEach(model.availableColors, id: \.self) { color in
-                            Button {
-                                model.selectedColor = color
-                            } label: {
-                                ZStack {
-                                    Rectangle().fill(Color(pixelboardHex: color))
-                                    if color.caseInsensitiveCompare(model.selectedColor) == .orderedSame {
-                                        Rectangle()
-                                            .stroke(Color.white.opacity(0.82), lineWidth: 1)
-                                            .padding(4)
-                                    }
-                                }
-                                .frame(width: 26, height: 26)
-                                .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(
-                                PixelboardL10n.selectColor(
-                                    "\(PixelboardPalette.name(for: color)) (\(color))"
-                                )
-                            )
-                            .accessibilityAddTraits(
-                                color.caseInsensitiveCompare(model.selectedColor) == .orderedSame
-                                    ? .isSelected : []
-                            )
-                        }
-                        if model.canUseCustomColors {
-                            ZStack {
-                                Rectangle().fill(Color(pixelboardHex: model.selectedColor))
-                                ColorPicker(PixelboardL10n.customColor, selection: customColorBinding, supportsOpacity: false)
-                                    .labelsHidden()
-                                    .opacity(0.02)
-                            }
-                            .frame(width: 26, height: 26)
-                            .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
-                            .accessibilityLabel(PixelboardL10n.chooseCustomProColor)
-                        } else {
-                            Button {
-                                model.showingAccount = true
-                            } label: {
-                                HStack(spacing: 3) {
-                                    PremiumPixelGrid()
-                                        .frame(width: 26, height: 26)
-                                    Text(PixelboardL10n.pro)
-                                        .font(PixelboardTheme.mono(7.5))
-                                        .tracking(0.4)
-                                        .foregroundStyle(PixelboardTheme.muted)
-                                }
-                                .frame(height: 26)
-                            }
-                            .buttonStyle(.plain)
-                            .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
-                            .accessibilityLabel(PixelboardL10n.unlockCustomColors)
+                if usesFullPalette {
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 26), spacing: 5)],
+                        alignment: .leading,
+                        spacing: 5
+                    ) {
+                        paletteSwatches
+                    }
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 5) {
+                            paletteSwatches
                         }
                     }
                 }
@@ -236,8 +198,66 @@ struct ContentView: View {
             .accessibilityLabel(placeTitle)
         }
         .padding(.horizontal, 16)
-        .frame(maxWidth: 420)
+        .frame(maxWidth: usesFullPalette ? 720 : 420)
         .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private var paletteSwatches: some View {
+        ForEach(model.availableColors, id: \.self) { color in
+            Button {
+                model.selectedColor = color
+            } label: {
+                ZStack {
+                    Rectangle().fill(Color(pixelboardHex: color))
+                    if color.caseInsensitiveCompare(model.selectedColor) == .orderedSame {
+                        Rectangle()
+                            .stroke(Color.white.opacity(0.82), lineWidth: 1)
+                            .padding(4)
+                    }
+                }
+                .frame(width: 26, height: 26)
+                .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                PixelboardL10n.selectColor(
+                    "\(PixelboardPalette.name(for: color)) (\(color))"
+                )
+            )
+            .accessibilityAddTraits(
+                color.caseInsensitiveCompare(model.selectedColor) == .orderedSame
+                    ? .isSelected : []
+            )
+        }
+        if model.canUseCustomColors {
+            ZStack {
+                Rectangle().fill(Color(pixelboardHex: model.selectedColor))
+                ColorPicker(PixelboardL10n.customColor, selection: customColorBinding, supportsOpacity: false)
+                    .labelsHidden()
+                    .opacity(0.02)
+            }
+            .frame(width: 26, height: 26)
+            .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
+            .accessibilityLabel(PixelboardL10n.chooseCustomProColor)
+        } else {
+            Button {
+                model.showingAccount = true
+            } label: {
+                HStack(spacing: 3) {
+                    PremiumPixelGrid()
+                        .frame(width: 26, height: 26)
+                    Text(PixelboardL10n.pro)
+                        .font(PixelboardTheme.mono(7.5))
+                        .tracking(0.4)
+                        .foregroundStyle(PixelboardTheme.muted)
+                }
+                .frame(height: 26)
+            }
+            .buttonStyle(.plain)
+            .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
+            .accessibilityLabel(PixelboardL10n.unlockCustomColors)
+        }
     }
 
     private var placeTitle: String {
