@@ -118,7 +118,9 @@ final class AppModel: ObservableObject {
         if let metadata, metadata.accessMode != .open { return false }
         if account == nil { return true }
         guard cache != nil else { return false }
-        return canPlace
+        // Keep the control enabled during cooldown so "Ready in Xs" stays visible
+        // at full opacity after app switches; taps still no-op via canPlace.
+        return canPlace || remainingCooldown > 0
     }
 
     var needsAppUpdate: Bool {
@@ -181,6 +183,9 @@ final class AppModel: ObservableObject {
             await realtime.stop()
             return
         }
+        // Refresh wall-clock immediately so Ready-in countdown stays accurate
+        // after backgrounding (timer ticks are paused while inactive).
+        now = Date()
         guard started else { return }
         if await authentication.isAuthenticated {
             await pushNotifications.prepare(api: api)

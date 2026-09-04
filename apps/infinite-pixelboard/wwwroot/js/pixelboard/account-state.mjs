@@ -1,10 +1,25 @@
 export class AccountState {
-  constructor({ onChange, now = () => Date.now() } = {}) {
+  constructor({
+    onChange,
+    now = () => Date.now(),
+    document: doc = globalThis.document,
+    setTimeout: schedule = globalThis.setTimeout?.bind(globalThis),
+    clearTimeout: clear = globalThis.clearTimeout?.bind(globalThis),
+  } = {}) {
     this.onChange = onChange ?? (() => {});
     this.now = now;
+    this.document = doc ?? null;
+    this.setTimeout = schedule ?? ((callback) => callback());
+    this.clearTimeout = clear ?? (() => {});
     this.account = null;
     this.nextPlacementAt = null;
     this.timer = null;
+    this.handleVisibility = () => {
+      if (this.document?.hidden) return;
+      this.#emit();
+      this.#schedule();
+    };
+    this.document?.addEventListener?.("visibilitychange", this.handleVisibility);
   }
 
   setAccount(account) {
@@ -39,13 +54,16 @@ export class AccountState {
   }
 
   dispose() {
-    clearTimeout(this.timer);
+    this.clearTimeout(this.timer);
+    this.timer = null;
+    this.document?.removeEventListener?.("visibilitychange", this.handleVisibility);
   }
 
   #schedule() {
-    clearTimeout(this.timer);
+    this.clearTimeout(this.timer);
+    this.timer = null;
     if (this.snapshot.remainingSeconds > 0) {
-      this.timer = setTimeout(() => {
+      this.timer = this.setTimeout(() => {
         this.#emit();
         this.#schedule();
       }, 250);
