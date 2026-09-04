@@ -90,10 +90,13 @@ query ResultsQuery($slug: String $page: Int $perPage: Int) {
                 }
                 if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized
                     || response.StatusCode == System.Net.HttpStatusCode.Forbidden
-                    || (int)response.StatusCode == 400 && json.Contains("Invalid authentication token"))
+                    || (int)response.StatusCode == 400 && json.Contains("Invalid authentication token", StringComparison.Ordinal))
                 {
                     // Never retry auth failures — surface the actual ops problem instead of hanging
-                    throw new Exception($"start.gg rejected the configured API key (HTTP {(int)response.StatusCode}). Check STARTGG_APIKEY.");
+                    var detail = TryReadErrorMessage(json);
+                    throw new Exception(string.IsNullOrEmpty(detail)
+                        ? $"start.gg rejected the configured API key (HTTP {(int)response.StatusCode}). Check STARTGG_APIKEY."
+                        : $"start.gg rejected the configured API key (HTTP {(int)response.StatusCode}): {detail}. Rotate STARTGG_APIKEY.");
                 }
 
                 response.EnsureSuccessStatusCode();
@@ -120,6 +123,18 @@ query ResultsQuery($slug: String $page: Int $perPage: Int) {
         }
 
         throw new Exception($"start.gg unreachable after {MaxAttemptsPerRequest} attempts");
+    }
+
+    private static string? TryReadErrorMessage(string json)
+    {
+        try
+        {
+            return JsonNode.Parse(json)?["message"]?.GetValue<string>();
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     public async Task<(long? UserId, List<RawGame> Games)> GetGamesMetadataAsync(

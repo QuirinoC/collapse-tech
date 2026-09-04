@@ -7,8 +7,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Config from env vars (Railway injects these)
 // Fail fast on a MISSING *or BLANK* key: an empty string used to slip past the null check and
 // boot "healthy" while every start.gg call failed with HTTP 400 Invalid authentication token.
-var apiKey = Environment.GetEnvironmentVariable("STARTGG_APIKEY")
-    ?? builder.Configuration["StartGG:ApiKey"];
+var apiKey = (Environment.GetEnvironmentVariable("STARTGG_APIKEY")
+    ?? builder.Configuration["StartGG:ApiKey"])?.Trim();
+if (!string.IsNullOrEmpty(apiKey) && apiKey.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+    apiKey = apiKey["Bearer ".Length..].Trim();
 if (string.IsNullOrWhiteSpace(apiKey))
     throw new Exception("STARTGG_APIKEY env var not set or blank — get a key at https://start.gg/admin/profile (Developer Settings)");
 
@@ -47,16 +49,6 @@ builder.Services.AddHttpClient<StartGGService>(client =>
 // App services
 builder.Services.AddSingleton<AggregationService>();
 builder.Services.AddSingleton<JobManager>();
-
-// Search service (separate HttpClient instance)
-builder.Services.AddHttpClient<SearchService>(client =>
-{
-    client.BaseAddress = new Uri(builder.Configuration["StartGG:Host"] ?? Constants.StartGGHost);
-    client.DefaultRequestHeaders.Authorization =
-        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
-    client.DefaultRequestHeaders.Add("Accept", "application/json");
-    client.Timeout = TimeSpan.FromSeconds(10);
-});
 
 // SignalR
 builder.Services.AddSignalR(opts =>
@@ -114,26 +106,6 @@ app.UseRouting();
 
 // Health check (used by Railway)
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
-
-// Player search endpoint — used by autocomplete
-app.MapGet("/search", async (string q, SearchService search, HttpContext ctx) =>
-{
-    if (string.IsNullOrWhiteSpace(q) || q.Length < 2)
-        return Results.Ok(new List<object>());
-
-    try
-    {
-        var results = await search.SearchAsync(q, ctx.RequestAborted);
-        return Results.Ok(results);
-    }
-    catch (StartGgUnavailableException ex)
-    {
-        // Upstream outage/auth failure must not masquerade as "no players found" (200 [])
-        return ex.IsRateLimit
-            ? Results.Json(new { error = "start.gg rate limit exceeded — try again shortly" }, statusCode: 503)
-            : Results.Json(new { error = ex.Message }, statusCode: 502);
-    }
-});
 
 // SignalR hub
 app.MapHub<AnalysisHub>("/analysishub");
