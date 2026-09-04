@@ -476,8 +476,20 @@ async function start(app) {
     renderPalette(state);
     refreshAdvertising(state.tier);
     elements.acceptStandards.hidden = !state.authenticated || state.communityStandardsAccepted;
+    renderPlacementHint(state);
     renderInvite(state);
     renderBilling(state);
+  }
+
+  function renderPlacementHint(state) {
+    if (!elements.placementHint) return;
+    if (state.authenticated && state.remainingSeconds > 0) {
+      elements.placementHint.hidden = false;
+      elements.placementHint.textContent = `Ready in ${state.remainingSeconds}s`;
+      return;
+    }
+    elements.placementHint.hidden = true;
+    elements.placementHint.textContent = "";
   }
 
   function renderPalette(state) {
@@ -824,6 +836,7 @@ function collectElements(app) {
     customColor: app.querySelector("[data-custom-color]"),
     coordinate: app.querySelector("[data-coordinate]"),
     zoom: app.querySelector("[data-zoom]"),
+    placementHint: app.querySelector("[data-placement-hint]"),
     zoomIn: app.querySelector("[data-zoom-in]"),
     zoomOut: app.querySelector("[data-zoom-out]"),
     connection: app.querySelector("[data-connection]"),

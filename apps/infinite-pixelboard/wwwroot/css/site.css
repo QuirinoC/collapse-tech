@@ -344,6 +344,10 @@ a { color: inherit; }
   gap: 6px;
 }
 
+.board-readout [data-placement-hint]:not([hidden]) {
+  color: var(--accent);
+}
+
 .connection-pill { bottom: 23px; left: 22px; display: flex; align-items: center; gap: 8px; }
 .connection-pill span { width: 7px; height: 7px; border-radius: 50%; background: #c88a2a; }
 .connection-pill[data-state="online"] span { background: #4f7355; }
