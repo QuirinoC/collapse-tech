@@ -15,7 +15,7 @@ Living log of week-1+ organic outreach. Update a row when status changes; never 
 - Screenshots live in [`docs/pixelboard-outreach-assets/`](./pixelboard-outreach-assets/).
 - Ready-to-paste copy: [`pixelboard-outreach-drafts.md`](./pixelboard-outreach-drafts.md).
 
-**Last updated:** 2026-09-04 (engagement re-check). All 4 Reddit posts audited in browser. Feedback sparse; **no new Firebase signups** since outreach (only founder + Apple review). SideProject duplicate `1w5wpbh` is **self-deleted**. iOSApps filtered by Reddit.
+**Last updated:** 2026-09-04 (replies + cooldown deploy). All 4 Reddit posts audited earlier; OP replies posted as `u/Ok_Seaworthiness_331`. PR #59 cooldown tab-switch fix is **live** on production (Render deploy `870ec5f`). Feedback sparse; **no new Firebase signups** since outreach (only founder + Apple review). SideProject duplicate `1w5wpbh` is **self-deleted**. iOSApps filtered by Reddit.
 
 **Reddit session used:** `u/Ok_Seaworthiness_331` (Playwright browser profile).
 
@@ -26,10 +26,10 @@ Living log of week-1+ organic outreach. Update a row when status changes; never 
 | Date | Channel | URL | Status | Post URL if any | Angle used | Notes |
 |------|---------|-----|--------|-----------------|------------|-------|
 | 2026-09-02 | Show HN | https://news.ycombinator.com/submit | blocked need login | | Collaborative mural + both links + sign-in/cooldown | WAITING FOR LOGIN. Browser tab on https://news.ycombinator.com/login?goto=submit |
-| 2026-09-02 | r/SideProject | https://www.reddit.com/r/SideProject/ | posted | https://www.reddit.com/r/SideProject/comments/1w5wpom/infinite_pixelboard_live_collaborative_pixel/ | Live mural launch + both links | **2026-09-04:** ~1 up, 2 comments, **314 views**. Real feedback: u/gargantuanrocco664 praised cooldown. u/medialantern spam (pixel-art post aggregator). Canonical only: `1w5wpom`. Duplicate [`1w5wpbh`](https://www.reddit.com/r/SideProject/comments/1w5wpbh/) is **self-deleted** (author removed). |
+| 2026-09-02 | r/SideProject | https://www.reddit.com/r/SideProject/ | posted | https://www.reddit.com/r/SideProject/comments/1w5wpom/infinite_pixelboard_live_collaborative_pixel/ | Live mural launch + both links | **2026-09-04:** ~1 up, 2 comments, **314 views**. Real feedback: u/gargantuanrocco664 praised cooldown. u/medialantern spam (pixel-art post aggregator). Canonical only: `1w5wpom`. Duplicate [`1w5wpbh`](https://www.reddit.com/r/SideProject/comments/1w5wpbh/) is **self-deleted** (author removed). **OP reply** to u/gargantuanrocco664: [`t1_p7uepi1`](https://www.reddit.com/r/SideProject/comments/1w5wpom/comment/p7uepi1/). |
 | 2026-09-02 | r/playmygame | https://www.reddit.com/r/playmygame/ | deferred | | [Web] playable mural feedback | Skipped this pass: TestMyApp covers the playmygame OR TestMyApp slot. Retry later with Web flair + spacing. |
 | 2026-09-02 | Indie Hackers | https://www.indiehackers.com/ | blocked need login | | Launch diary | WAITING FOR LOGIN. Browser tab on https://www.indiehackers.com/sign-in |
-| 2026-09-02 | r/TestMyApp | https://www.reddit.com/r/TestMyApp/ | posted | https://www.reddit.com/r/TestMyApp/comments/1w5wqis/web_ios_infinite_pixelboard_looking_for_bugs_on/ | Bug-hunt brief web + iOS | **2026-09-04:** ~1 up, 1 comment, **107 views**. Bug: u/worse_locality — cooldown timer disappears after tab switch but placement still blocked until 5s. |
+| 2026-09-02 | r/TestMyApp | https://www.reddit.com/r/TestMyApp/ | posted | https://www.reddit.com/r/TestMyApp/comments/1w5wqis/web_ios_infinite_pixelboard_looking_for_bugs_on/ | Bug-hunt brief web + iOS | **2026-09-04:** ~1 up, 1 comment, **107 views**. Bug: u/worse_locality — cooldown timer disappears after tab switch but placement still blocked until 5s. **OP reply** acknowledging fix: [`t1_p7uerx9`](https://www.reddit.com/r/TestMyApp/comments/1w5wqis/comment/p7uerx9/). Fix shipped: PR #59 / Render live `870ec5f` (`visibilitychange` + `Ready in Xs`). |
 | 2026-09-02 | r/AlphaAndBetaUsers | https://www.reddit.com/r/AlphaAndBetaUsers/ | posted | https://www.reddit.com/r/alphaandbetausers/comments/1w5wtzk/web_alphaios_beta_infinite_pixelboard_testers/ | Alpha/beta tester ask | **2026-09-04:** ~2 ups, **0 comments**, **96 views**. Silence (no tester replies). |
 | 2026-09-02 | r/iOSApps | https://www.reddit.com/r/iOSApps/ | filtered | https://www.reddit.com/r/iosapps/comments/1w5wz44/infinite_pixelboard_on_ios_collaborative_pixel/ | Freemium App Store + web twin | **2026-09-04:** Reddit filters removed post (“retirada por los filtros”). ~1 up; only AutoModerator pinned (no human feedback). Sub rule: Promote in Megathread. Retry via Saturday megathread / App Shelf if required. |
 | 2026-09-02 | Product Hunt Upcoming | https://www.producthunt.com/ | blocked need login | | Coming Soon / maker claim | WAITING FOR LOGIN. Browser tab on https://www.producthunt.com/login |
@@ -95,10 +95,19 @@ Re-checked 2026-09-02 night in Playwright: still not logged in. Please log into 
 
 ---
 
+## OP replies (2026-09-04)
+
+Posted as `u/Ok_Seaworthiness_331` via old.reddit (Playwright):
+
+| Thread | Parent | Reply |
+|--------|--------|-------|
+| SideProject `1w5wpom` | u/gargantuanrocco664 (`t1_p7iimea`) | [`t1_p7uepi1`](https://www.reddit.com/r/SideProject/comments/1w5wpom/comment/p7uepi1/) — thank cooldown praise |
+| TestMyApp `1w5wqis` | u/worse_locality (`t1_p7ijqrd`) | [`t1_p7uerx9`](https://www.reddit.com/r/TestMyApp/comments/1w5wqis/comment/p7uerx9/) — confirmed tab-switch cooldown UI bug; fix live |
+
+**Deploy check:** production HTML has `data-placement-hint`; `/js/pixelboard/account-state.mjs` has `visibilitychange`; hashed `app.*.mjs` has `Ready in ${...}s`. Render `infinite-pixelboard` deploy of merge commit `870ec5f` (#59) status `live`.
+
 ## Next human actions
 
-1. Reply on Reddit (human): thank SideProject cooldown praise; acknowledge TestMyApp tab-switch cooldown timer bug and say you will fix.
-2. Complete WAITING FOR LOGIN (HN / IH / PH / Bluesky) for broader reach.
-3. Saturday 2026-09-06: scheduled windows; for iOS use megathread (standalone iOSApps was filtered).
-4. Optional later: r/playmygame with Web flair after spacing.
-5. Optional: fix cooldown timer visibility after tab blur (TestMyApp bug).
+1. Complete WAITING FOR LOGIN (HN / IH / PH / Bluesky) for broader reach.
+2. Saturday 2026-09-06: scheduled windows; for iOS use megathread (standalone iOSApps was filtered).
+3. Optional later: r/playmygame with Web flair after spacing.
