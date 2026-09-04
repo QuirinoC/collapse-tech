@@ -7,48 +7,12 @@ test('health endpoint returns 200', async ({ request }) => {
   expect(body.status).toBe('healthy');
 });
 
-test('homepage loads with search UI', async ({ page }) => {
+test('homepage loads with slug input', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('#slugInput')).toBeVisible();
   await expect(page.locator('#analyzeBtn')).toBeVisible();
-  await expect(page.locator('#searchDropdown')).toBeAttached();
-});
-
-test('search API finds MkLeo (major player)', async ({ request }) => {
-  const res = await request.get('/search?q=MkLeo', { timeout: 20000 });
-  expect(res.ok()).toBeTruthy();
-  const body = await res.json();
-  expect(Array.isArray(body)).toBeTruthy();
-  expect(body.length).toBeGreaterThan(0);
-  expect(body[0].slug).toBeTruthy();
-  console.log(`MkLeo result: ${JSON.stringify(body[0])}`);
-});
-
-test('search API finds player by slug (bc954a2e)', async ({ request }) => {
-  // Direct slug lookup via start.gg user query — reliable, no rate-limit race with MkLeo test
-  const res = await request.get('/search?q=bc954a2e', { timeout: 30000 });
-  expect(res.ok()).toBeTruthy();
-  const body = await res.json();
-  expect(Array.isArray(body)).toBeTruthy();
-  // Direct slug lookup may return 0 if start.gg rate-limits; just verify endpoint shape is correct
-  if (body.length > 0) {
-    expect(body[0]).toHaveProperty('slug');
-    expect(body[0]).toHaveProperty('gamerTag');
-    console.log(`Slug lookup result: ${JSON.stringify(body[0])}`);
-  } else {
-    console.log('start.gg returned 0 results (rate-limited or slug not found)');
-  }
-});
-
-test('search dropdown appears when typing', async ({ page }) => {
-  await page.goto('/');
-  await page.locator('#slugInput').fill('Nes');
-  await page.waitForTimeout(500);
-  const dropdown = page.locator('#searchDropdown');
-  await expect(dropdown).not.toHaveClass(/hidden/, { timeout: 20000 });
-  const count = await dropdown.locator('.dropdown-item, .dropdown-empty').count();
-  expect(count).toBeGreaterThan(0);
-  console.log(`Dropdown items: ${count}`);
+  await expect(page.locator('#searchDropdown')).toHaveCount(0);
+  await expect(page.locator('#slugInput')).toHaveAttribute('placeholder', /slug/i);
 });
 
 test('direct slug analysis starts (bc954a2e)', async ({ page }) => {

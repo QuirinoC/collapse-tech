@@ -168,8 +168,6 @@ const heroSection     = document.getElementById('heroSection');
 const searchForm      = document.getElementById('searchForm');
 const slugInput       = document.getElementById('slugInput');
 const analyzeBtn      = document.getElementById('analyzeBtn');
-const searchDropdown  = document.getElementById('searchDropdown');
-const searchSpinner   = document.getElementById('searchSpinner');
 const progressSection = document.getElementById('progressSection');
 const progressFill    = document.getElementById('progressFill');
 const progressText    = document.getElementById('progressText');
@@ -192,115 +190,6 @@ function escapeHtml(value) {
 
 function normalizeSlug(slug) {
   return String(slug).trim().replace(/^user\//i, '').toLowerCase();
-}
-
-// ── Search Autocomplete ──────────────────────────────────────
-let searchDebounce = null;
-let activeIndex = -1;
-let activeSearchRequest = null;
-let searchRequestSequence = 0;
-
-slugInput.addEventListener('input', () => {
-  clearTimeout(searchDebounce);
-  activeSearchRequest?.abort();
-  const requestSequence = ++searchRequestSequence;
-  const q = slugInput.value.trim();
-  if (q.length < 2) {
-    searchSpinner.classList.add('hidden');
-    hideDropdown();
-    return;
-  }
-  searchDebounce = setTimeout(() => fetchSuggestions(q, requestSequence), 300);
-});
-
-slugInput.addEventListener('keydown', (e) => {
-  const items = searchDropdown.querySelectorAll('.dropdown-item');
-  if (e.key === 'ArrowDown') { e.preventDefault(); setActive(Math.min(activeIndex + 1, items.length - 1), items); }
-  else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(Math.max(activeIndex - 1, -1), items); }
-  else if (e.key === 'Escape') hideDropdown();
-  else if (e.key === 'Enter' && activeIndex >= 0) {
-    e.preventDefault();
-    items[activeIndex]?.click();
-  }
-});
-
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('.search-container')) hideDropdown();
-});
-
-function setActive(idx, items) {
-  items.forEach((el, i) => el.classList.toggle('active', i === idx));
-  activeIndex = idx;
-}
-
-async function fetchSuggestions(q, requestSequence) {
-  const controller = new AbortController();
-  activeSearchRequest = controller;
-  searchSpinner.classList.remove('hidden');
-  try {
-    const res = await fetch(`/search?q=${encodeURIComponent(q)}`, { signal: controller.signal });
-    if (requestSequence !== searchRequestSequence) return;
-    if (res.status === 502 || res.status === 503) {
-      let msg = 'Player search is temporarily unavailable — you can still paste your start.gg slug below.';
-      try { msg = (await res.json()).error || msg; } catch { /* keep default */ }
-      if (requestSequence !== searchRequestSequence) return;
-      renderDropdownError(msg);
-      return;
-    }
-    if (!res.ok) return;
-    const results = await res.json();
-    if (requestSequence !== searchRequestSequence) return;
-    renderDropdown(results);
-  } catch (error) {
-    if (error.name !== 'AbortError') console.error('Player search failed:', error);
-  } finally {
-    if (requestSequence === searchRequestSequence) {
-      activeSearchRequest = null;
-      searchSpinner.classList.add('hidden');
-    }
-  }
-}
-
-function renderDropdownError(msg) {
-  activeIndex = -1;
-  searchDropdown.innerHTML = `<li class="dropdown-empty">${escapeHtml(msg)}</li>`;
-  searchDropdown.classList.remove('hidden');
-}
-
-function renderDropdown(results) {
-  activeIndex = -1;
-  // Filter out results with no slug
-  results = results.filter(r => r.slug);
-  if (!results.length) {
-    searchDropdown.innerHTML = `<li class="dropdown-empty">No players found — try a different tag or paste your slug directly</li>`;
-    searchDropdown.classList.remove('hidden');
-    return;
-  }
-  searchDropdown.innerHTML = results.map((r, i) => {
-    const gamerTag = escapeHtml(r.gamerTag);
-    const slug = escapeHtml(r.slug);
-    const tag = r.prefix ? `<span class="dd-prefix">${escapeHtml(r.prefix)}</span> ${gamerTag}` : gamerTag;
-    return `<li class="dropdown-item" data-slug="${slug}" data-index="${i}">
-      <span class="dd-tag">${tag}</span>
-      <span class="dd-slug">${slug}</span>
-    </li>`;
-  }).join('');
-  searchDropdown.querySelectorAll('.dropdown-item').forEach(el => {
-    el.addEventListener('click', () => {
-      slugInput.value = el.dataset.slug;
-      hideDropdown();
-      startAnalysis(el.dataset.slug);
-    });
-    el.addEventListener('mouseenter', () => {
-      setActive(parseInt(el.dataset.index || 0), searchDropdown.querySelectorAll('.dropdown-item'));
-    });
-  });
-  searchDropdown.classList.remove('hidden');
-}
-
-function hideDropdown() {
-  searchDropdown.classList.add('hidden');
-  activeIndex = -1;
 }
 
 // ── Sort State ────────────────────────────────────────────────
