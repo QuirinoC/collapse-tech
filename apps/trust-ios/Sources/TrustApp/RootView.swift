@@ -47,14 +47,6 @@ struct RootView: View {
                 .presentationDragIndicator(.visible)
                 .presentationBackground(palette.paper)
         }
-        .sheet(isPresented: $model.showingTimedShare) {
-            TimedShareSheet()
-                .environmentObject(model)
-                .environment(\.trustPalette, palette)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(palette.paper)
-        }
         .sheet(isPresented: $model.showingLookConfirm) {
             LookSheet()
                 .environmentObject(model)
@@ -63,6 +55,7 @@ struct RootView: View {
                 .presentationDragIndicator(.visible)
                 .presentationBackground(palette.paper)
         }
+        // LookMap full-screen kept for screenshots only; normal Look stays on Home.
         .fullScreenCover(isPresented: $model.showingMap) {
             LookMapView()
                 .environmentObject(model)

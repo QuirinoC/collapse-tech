@@ -52,6 +52,18 @@ struct LoginView: View {
                 .accessibilityLabel(TrustCopy.signInWithApple)
                 .accessibilityValue(model.isSigningIn ? TrustCopy.signingInShort : "")
 
+                #if DEBUG
+                Button {
+                    model.enterDemo()
+                } label: {
+                    Text(TrustCopy.seeTheApp)
+                        .font(TrustTheme.ui(16, weight: .medium))
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .buttonStyle(TrustOutlineButtonStyle())
+                .disabled(model.isSigningIn)
+                #endif
+
                 HStack(spacing: 14) {
                     Link(TrustCopy.termsOfService, destination: AppConfiguration.termsURL)
                     Link(TrustCopy.privacy, destination: AppConfiguration.privacyURL)

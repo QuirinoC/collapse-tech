@@ -4,6 +4,8 @@ import TrustCore
 struct PersonShareSheet: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.trustPalette) private var palette
+    @State private var pickingDuration = false
+    @State private var duration: TimedShareDuration = .hour
 
     var body: some View {
         let person = model.shareSubject
@@ -16,6 +18,7 @@ struct PersonShareSheet: View {
             VStack(alignment: .leading, spacing: 0) {
                 TrustPanelHeading(eyebrow: name, title: TrustCopy.whatNameCanSee(name: name)) {
                     model.showingShareSheet = false
+                    pickingDuration = false
                 }
                 .padding(.bottom, 12)
 
@@ -60,13 +63,30 @@ struct PersonShareSheet: View {
                     body: TrustCopy.forAWhileBody(name: name),
                     selected: {
                         if case .timed = presentation { return true }
-                        return false
+                        return pickingDuration
                     }()
                 ) {
-                    model.showingTimedShare = true
+                    withAnimation(.easeOut(duration: 0.28)) {
+                        pickingDuration = true
+                    }
+                }
+
+                if pickingDuration {
+                    timedBlock(name: name, person: person, state: state)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
                 presenceGrantRow(person: person, name: name)
+
+                if let id = person?.id {
+                    Button(TrustCopy.revoke) {
+                        model.revoke(Person(id: id, displayName: name))
+                        model.showingShareSheet = false
+                    }
+                    .font(TrustTheme.ui(15, weight: .medium))
+                    .foregroundStyle(palette.accent)
+                    .padding(.top, 24)
+                }
 
                 Text(TrustCopy.shareModesFootnote)
                     .font(TrustTheme.ui(13))
@@ -76,6 +96,47 @@ struct PersonShareSheet: View {
             .padding(24)
         }
         .background(palette.paper.ignoresSafeArea())
+    }
+
+    @ViewBuilder
+    private func timedBlock(name: String, person: Person?, state: PersonShareState) -> some View {
+        let revertsToLook: Bool = {
+            switch state.presentation(at: Date()) {
+            case .always, .timed(_, .always):
+                return false
+            case .untilTheyLook, .timed(_, .untilTheyLook):
+                return true
+            }
+        }()
+
+        VStack(alignment: .leading, spacing: 14) {
+            TrustFolio(text: TrustCopy.howLong, size: 10)
+            HStack(spacing: 8) {
+                ForEach(TimedShareDuration.allCases, id: \.self) { option in
+                    Button(option.label.uppercased()) { duration = option }
+                        .font(TrustTheme.folio(11))
+                        .tracking(0.8)
+                        .foregroundStyle(duration == option ? palette.accentOn : palette.ink)
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: 36)
+                        .background(duration == option ? palette.accent : Color.clear)
+                        .overlay(Rectangle().stroke(palette.line, lineWidth: 1))
+                }
+            }
+            Text(TrustCopy.timedShareSentence(after: duration.afterPhrase, name: name, revertsToLook: revertsToLook))
+                .font(TrustTheme.ui(15, weight: .medium))
+                .foregroundStyle(palette.ink)
+            Button(TrustCopy.shareForAWhile) {
+                if let id = person?.id {
+                    model.setTimedShare(personID: id, duration: duration)
+                }
+                pickingDuration = false
+                model.showingShareSheet = false
+            }
+            .buttonStyle(TrustFilledButtonStyle())
+            .padding(.bottom, 8)
+        }
+        .padding(.vertical, 12)
     }
 
     @ViewBuilder
@@ -107,7 +168,7 @@ struct PersonShareSheet: View {
             .tint(palette.accent)
             .padding(.vertical, 12)
 
-            if enabled, !model.location.homeIsSet {
+            if enabled, !model.location.homeIsSet, !model.isDemoMode {
                 Button(TrustCopy.setHomeHere) {
                     model.setHomeHere()
                 }
@@ -146,75 +207,5 @@ struct PersonShareSheet: View {
             .overlay(alignment: .bottom) { TrustHairline() }
         }
         .buttonStyle(.plain)
-    }
-}
-
-struct TimedShareSheet: View {
-    @EnvironmentObject private var model: AppModel
-    @Environment(\.trustPalette) private var palette
-    @State private var duration: TimedShareDuration = .hour
-
-    var body: some View {
-        let name = model.shareSubject?.identity ?? TrustCopy.them
-        let state = model.shareSubject.map { model.shareState(for: $0.id) } ?? PersonShareState()
-        let revertsToLook: Bool = {
-            switch state.presentation(at: Date()) {
-            case .always, .timed(_, .always):
-                return false
-            case .untilTheyLook, .timed(_, .untilTheyLook):
-                return true
-            }
-        }()
-
-        VStack(alignment: .leading, spacing: 0) {
-            TrustPanelHeading(eyebrow: name, title: TrustCopy.forAWhile) {
-                model.showingTimedShare = false
-            }
-            .padding(.bottom, 12)
-
-            Text(TrustCopy.timedOverlayIntro(name: name))
-                .font(TrustTheme.ui(15))
-                .foregroundStyle(palette.muted)
-                .padding(.bottom, 20)
-
-            TrustFolio(text: TrustCopy.howLong, size: 10)
-                .padding(.bottom, 10)
-
-            HStack(spacing: 8) {
-                ForEach(TimedShareDuration.allCases, id: \.self) { option in
-                    Button(option.label.uppercased()) { duration = option }
-                        .font(TrustTheme.folio(11))
-                        .tracking(0.8)
-                        .foregroundStyle(duration == option ? palette.accentOn : palette.ink)
-                        .padding(.horizontal, 12)
-                        .frame(minHeight: 36)
-                        .background(duration == option ? palette.accent : Color.clear)
-                        .overlay(Rectangle().stroke(palette.line, lineWidth: 1))
-                }
-            }
-            .padding(.bottom, 22)
-
-            Text(TrustCopy.timedShareSentence(after: duration.afterPhrase, name: name, revertsToLook: revertsToLook))
-                .font(TrustTheme.ui(16, weight: .medium))
-                .foregroundStyle(palette.ink)
-                .padding(.bottom, 10)
-
-            Text(TrustCopy.timedRevertLine(revertsToLook: revertsToLook))
-                .font(TrustTheme.ui(14))
-                .foregroundStyle(palette.muted)
-
-            Spacer()
-
-            Button(TrustCopy.shareForAWhile) {
-                if let id = model.shareSubject?.id {
-                    model.setTimedShare(personID: id, duration: duration)
-                }
-                model.showingTimedShare = false
-                model.showingShareSheet = false
-            }
-            .buttonStyle(TrustFilledButtonStyle())
-        }
-        .padding(24)
-        .background(palette.paper.ignoresSafeArea())
     }
 }

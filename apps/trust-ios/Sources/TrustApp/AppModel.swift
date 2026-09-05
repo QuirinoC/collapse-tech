@@ -50,6 +50,7 @@ final class AppModel: ObservableObject {
     @Published var pairingNotice: String?
     @Published var quietBanner: LookReceipt?
     @Published var isSigningIn = false
+    @Published var isDemoMode = false
     @Published var snapshot: CircleSnapshot?
     @Published var localSession: LookSession?
     @Published var onboardingHandle = ""
@@ -57,6 +58,8 @@ final class AppModel: ObservableObject {
     @Published var handleAvailability: Bool?
     @Published var isOnboardingBusy = false
     private var handleCheckTask: Task<Void, Never>?
+    private var demo: DemoTrustService?
+    private var demoTickTask: Task<Void, Never>?
 
     private var cancellables: Set<AnyCancellable> = []
 
@@ -109,6 +112,13 @@ final class AppModel: ObservableObject {
 
     func start() async {
         await client.prepare()
+        #if DEBUG
+        if auth.sessionToken == "demo" {
+            enterDemo()
+            await store.loadProducts()
+            return
+        }
+        #endif
         await auth.validateRestoredAppleCredential()
         if auth.isAuthenticated {
             await refresh(enterHome: true)
@@ -166,6 +176,71 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Offline lean demo — Login → Home with couple / child / elder. DEBUG and Simulator-friendly.
+    func enterDemo() {
+        #if DEBUG
+        let service = DemoTrustService(displayName: "Sam")
+        service.startLeanDemo()
+        demo = service
+        isDemoMode = true
+        auth.persist(
+            account: AuthAccount(provider: .apple, displayName: "Sam", appleUserID: "demo.sam"),
+            token: "demo"
+        )
+        client.token = "demo"
+        publishDemoSnapshot()
+        phase = .home
+        quietBanner = LookReceipt(
+            title: TrustCopy.demoBannerTitle,
+            body: TrustCopy.demoBannerBody,
+            at: Date()
+        )
+        startDemoTicks()
+        #endif
+    }
+
+    private func publishDemoSnapshot() {
+        guard let demo else { return }
+        let pack = demo.makeCircleSnapshot()
+        snapshot = CircleSnapshot(
+            you: pack.you,
+            members: pack.members,
+            coverage: pack.coverage,
+            pendingInviteCode: pack.invite,
+            activeSession: pack.session,
+            beingWatched: nil,
+            lookLog: pack.log,
+            retainedLookLogCount: pack.retained,
+            allowsDevelopmentSignIn: true,
+            allowsReviewUnlock: true,
+            yourHomePlaceID: nil,
+            yourHomeLabel: "Home",
+            yourHomeState: .home
+        )
+        localSession = pack.session
+        if let receipt = demo.lastReceipt {
+            quietBanner = receipt
+        }
+    }
+
+    private func startDemoTicks() {
+        demoTickTask?.cancel()
+        demoTickTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(8))
+                guard let self, self.isDemoMode else { return }
+                self.publishDemoSnapshot()
+            }
+        }
+    }
+
+    private func stopDemo() {
+        demoTickTask?.cancel()
+        demoTickTask = nil
+        demo = nil
+        isDemoMode = false
+    }
+
     func signIn(with provider: AuthenticationProvider) async {
         guard !isSigningIn else { return }
         isSigningIn = true
@@ -206,6 +281,7 @@ final class AppModel: ObservableObject {
         store.clearAfterSignOut()
         auth.signOut()
         client.token = nil
+        stopDemo()
         snapshot = nil
         localSession = nil
         phase = .login
@@ -218,6 +294,7 @@ final class AppModel: ObservableObject {
         shareSubject = nil
         lookSubject = nil
         pairingNotice = nil
+        quietBanner = nil
         resetOnboardingDraft()
         ingestStore.clear()
         location.setSharing(false)
@@ -226,6 +303,11 @@ final class AppModel: ObservableObject {
     }
 
     func refresh(enterHome: Bool = false, fallbackOnboardingComplete: Bool? = nil) async {
+        if isDemoMode {
+            publishDemoSnapshot()
+            if enterHome { phase = .home }
+            return
+        }
         client.token = auth.sessionToken
         do {
             snapshot = try await client.refreshCircle()
@@ -392,6 +474,12 @@ final class AppModel: ObservableObject {
 
     func createInvite() {
         beginSharingLocation()
+        if let demo {
+            demo.createInvite()
+            pairingNotice = TrustCopy.shareThisCode
+            publishDemoSnapshot()
+            return
+        }
         Task {
             do {
                 let code = try await client.createInvite()
@@ -406,6 +494,18 @@ final class AppModel: ObservableObject {
 
     func joinInvite() {
         beginSharingLocation()
+        if let demo {
+            do {
+                try demo.joinInvite(code: inviteCodeDraft)
+                inviteCodeDraft = ""
+                pairingNotice = nil
+                publishDemoSnapshot()
+                phase = .home
+            } catch {
+                pairingNotice = error.localizedDescription
+            }
+            return
+        }
         Task {
             do {
                 try await client.acceptInvite(code: inviteCodeDraft)
@@ -486,12 +586,28 @@ final class AppModel: ObservableObject {
 
     func confirmLook() {
         guard let subject = lookSubject else { return }
+        if let demo {
+            do {
+                let session = try demo.breakTrust(confirmed: true, subjectID: subject.id)
+                localSession = session
+                showingLookConfirm = false
+                // Lean: After Look is Home with a live pin — not a second map screen.
+                showingMap = false
+                publishDemoSnapshot()
+                if let receipt = demo.lastReceipt {
+                    quietBanner = receipt
+                }
+            } catch {
+                pairingNotice = error.localizedDescription
+            }
+            return
+        }
         Task {
             do {
                 let session = try await client.look(subjectID: subject.id, confirmed: true)
                 localSession = session
                 showingLookConfirm = false
-                showingMap = true
+                showingMap = false
                 await refresh()
             } catch {
                 pairingNotice = error.localizedDescription
@@ -503,6 +619,11 @@ final class AppModel: ObservableObject {
         showingMap = false
         let subjectID = localSession?.event.subjectID ?? snapshot?.activeSession?.event.subjectID
         localSession = nil
+        if let demo {
+            demo.closeLook()
+            publishDemoSnapshot()
+            return
+        }
         Task {
             try? await client.closeLook(subjectID: subjectID)
             await refresh()
@@ -511,6 +632,11 @@ final class AppModel: ObservableObject {
 
     func setUntilTheyLook(personID: UUID) {
         beginSharingLocation()
+        if let demo {
+            demo.setUntilTheyLook(personID: personID)
+            publishDemoSnapshot()
+            return
+        }
         Task {
             try? await client.setShare(personID: personID, resting: "untilTheyLook", timed: nil)
             await refresh()
@@ -519,6 +645,11 @@ final class AppModel: ObservableObject {
 
     func setAlways(personID: UUID) {
         beginSharingLocation()
+        if let demo {
+            demo.setAlways(personID: personID)
+            publishDemoSnapshot()
+            return
+        }
         Task {
             try? await client.setShare(personID: personID, resting: "always", timed: nil)
             await refresh()
@@ -527,6 +658,11 @@ final class AppModel: ObservableObject {
 
     func setTimedShare(personID: UUID, duration: TimedShareDuration) {
         beginSharingLocation()
+        if let demo {
+            demo.setTimedShare(personID: personID, duration: duration)
+            publishDemoSnapshot()
+            return
+        }
         Task {
             try? await client.setShare(personID: personID, resting: nil, timed: duration.rawValue)
             await refresh()
@@ -537,6 +673,11 @@ final class AppModel: ObservableObject {
         if enabled {
             beginSharingLocation()
             ensureHomeConfigured()
+        }
+        if let demo {
+            demo.setPresenceGrant(personID: personID, enabled: enabled)
+            publishDemoSnapshot()
+            return
         }
         Task {
             do {
@@ -602,6 +743,10 @@ final class AppModel: ObservableObject {
     }
 
     func deleteAccount() async {
+        if isDemoMode {
+            signOut()
+            return
+        }
         do {
             try await client.deleteAccount()
             await receipts.unregister()
@@ -613,6 +758,14 @@ final class AppModel: ObservableObject {
     }
 
     func revoke(_ person: Person) {
+        if let demo {
+            demo.revoke(personID: person.id)
+            showingMap = false
+            showingLookConfirm = false
+            showingShareSheet = false
+            publishDemoSnapshot()
+            return
+        }
         Task {
             try? await client.revoke(personID: person.id)
             showingMap = false
@@ -622,7 +775,10 @@ final class AppModel: ObservableObject {
     }
 
     func shareState(for personID: UUID) -> PersonShareState {
-        circle.first { $0.id == personID }?.share ?? PersonShareState()
+        if let demo {
+            return demo.shareState(for: personID)
+        }
+        return circle.first { $0.id == personID }?.share ?? PersonShareState()
     }
 
     func confirmCopy(for personID: UUID?) -> (title: String, body: String) {
