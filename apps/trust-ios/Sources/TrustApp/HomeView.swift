@@ -48,6 +48,9 @@ struct HomeView: View {
                     .font(TrustTheme.display(26))
                     .foregroundStyle(palette.ink)
                     .accessibilityLabel(TrustCopy.appName)
+                if model.isDemoMode {
+                    TrustFolio(text: TrustCopy.demoBannerTitle, color: palette.accent, size: 9)
+                }
                 Spacer()
                 Button {
                     model.showingSettings = true

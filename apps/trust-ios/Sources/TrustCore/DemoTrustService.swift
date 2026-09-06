@@ -21,6 +21,12 @@ public final class DemoTrustService: ObservableObject {
     private var extraVaults: [UUID: EscrowVault] = [:]
     private var extraPresence: [UUID: PresenceSnapshot] = [:]
     @Published private var shares: [UUID: PersonShareState] = [:]
+    /// People who let you see Home/Away (inbound grant).
+    private var inboundPresenceGranted: Set<UUID> = []
+    /// People you let see your Home/Away (outbound grant).
+    private var outboundPresenceGranted: Set<UUID> = []
+    private var homePresenceByPerson: [UUID: HomePresenceSnapshot] = [:]
+    private var promisesBySubject: [UUID: PromiseSnapshot] = [:]
     private var tickPhase: Double = 0
     private let clock: TrustClock
 
@@ -171,6 +177,10 @@ public final class DemoTrustService: ObservableObject {
         extraPresence = [:]
         shares = [:]
         inboundLive = []
+        inboundPresenceGranted = []
+        outboundPresenceGranted = []
+        homePresenceByPerson = [:]
+        promisesBySubject = [:]
         if let partner {
             shares[partner.id] = PersonShareState()
         }
@@ -190,6 +200,102 @@ public final class DemoTrustService: ObservableObject {
                 timedUntil: clock.now().addingTimeInterval(47 * 60)
             )
         }
+    }
+
+    /// Lean demo circle: couple + parent/child + elder — no network.
+    public func startLeanDemo() {
+        let now = clock.now()
+        you = Person(displayName: "Sam", handle: "sam")
+        you.hasPro = true
+        you.onboardingComplete = true
+        startDemoPair(partnerName: "Alex")
+        if let alex = partner {
+            inboundPresenceGranted.insert(alex.id)
+            outboundPresenceGranted.insert(alex.id)
+            homePresenceByPerson[alex.id] = HomePresenceSnapshot(
+                state: .away,
+                changedAt: now.addingTimeInterval(-2 * 3600),
+                placeLabel: "Home"
+            )
+        }
+
+        if let maya = addReviewMember(name: "Maya", resting: .untilTheyLook, inboundLive: false) {
+            inboundPresenceGranted.insert(maya.id)
+            homePresenceByPerson[maya.id] = HomePresenceSnapshot(
+                state: .away,
+                changedAt: now.addingTimeInterval(-5 * 3600),
+                placeLabel: "Home"
+            )
+            promisesBySubject[maya.id] = PromiseSnapshot(
+                id: UUID(),
+                subjectID: maya.id,
+                trusteeID: you.id,
+                placeLabel: "Home",
+                deadlineAt: now.addingTimeInterval(-5 * 3600),
+                status: .overdue,
+                resolvedAt: nil,
+                youAreSubject: false
+            )
+        }
+
+        if let eli = addReviewMember(name: "Eli", resting: .always, inboundLive: true) {
+            inboundPresenceGranted.insert(eli.id)
+            homePresenceByPerson[eli.id] = HomePresenceSnapshot(
+                state: .home,
+                changedAt: now.addingTimeInterval(-40 * 60),
+                placeLabel: "Home"
+            )
+        }
+    }
+
+    public func setPresenceGrant(personID: UUID, enabled: Bool) {
+        if enabled {
+            outboundPresenceGranted.insert(personID)
+        } else {
+            outboundPresenceGranted.remove(personID)
+        }
+    }
+
+    public func revoke(personID: UUID) {
+        if partner?.id == personID {
+            partner = nil
+            presencePartner = nil
+            pair?.status = .revoked
+        }
+        extraPeople.removeAll { $0.id == personID }
+        extraVaults[personID] = nil
+        extraPresence[personID] = nil
+        shares[personID] = nil
+        inboundLive.remove(personID)
+        inboundPresenceGranted.remove(personID)
+        outboundPresenceGranted.remove(personID)
+        homePresenceByPerson[personID] = nil
+        promisesBySubject[personID] = nil
+        if activeSession?.event.subjectID == personID || activeSession?.event.viewerID == personID {
+            activeSession = nil
+        }
+    }
+
+    public func makeCircleSnapshot() -> (
+        you: Person,
+        members: [TrustedPerson],
+        coverage: CircleCoverage,
+        invite: String?,
+        session: LookSession?,
+        log: [LookEvent],
+        retained: Int
+    ) {
+        expireTimedShares()
+        tickSimulator()
+        return (
+            you,
+            circle,
+            coverage,
+            pair?.status == .pending ? pair?.inviteCode : nil,
+            activeSession,
+            visibleLookLog,
+            retainedLookLogCount
+        )
     }
 
     public func recordLookForTesting(_ event: LookEvent) {
@@ -427,6 +533,10 @@ public final class DemoTrustService: ObservableObject {
         extraPresence = [:]
         shares = [:]
         inboundLive = []
+        inboundPresenceGranted = []
+        outboundPresenceGranted = []
+        homePresenceByPerson = [:]
+        promisesBySubject = [:]
         activeSession = nil
         lastReceipt = nil
         lastPlacePing = nil
@@ -507,7 +617,11 @@ public final class DemoTrustService: ObservableObject {
             ),
             share: shares[person.id] ?? PersonShareState(),
             inboundLive: visible,
-            livePoint: visible ? vault(for: person.id).latest(now: clock.now()) : nil
+            livePoint: visible ? vault(for: person.id).latest(now: clock.now()) : nil,
+            outboundPresenceGranted: outboundPresenceGranted.contains(person.id),
+            inboundPresenceGranted: inboundPresenceGranted.contains(person.id),
+            homePresence: inboundPresenceGranted.contains(person.id) ? homePresenceByPerson[person.id] : nil,
+            promise: promisesBySubject[person.id]
         )
     }
 

@@ -140,6 +140,16 @@ public enum TrustCopy {
     public static var inviteLine: String { value("invite_line", defaultValue: "I trust you with my location.") }
 
     public static var signInWithApple: String { value("sign_in_with_apple", defaultValue: "Sign in with Apple") }
+    public static var seeTheApp: String { value("see_the_app", defaultValue: "See the app") }
+    public static var demoBannerTitle: String {
+        value("demo_banner_title", defaultValue: "Demo circle")
+    }
+    public static var demoBannerBody: String {
+        value(
+            "demo_banner_body",
+            defaultValue: "Alex (partner), Maya (away · overdue), Eli (live). Offline — no Sign in with Apple."
+        )
+    }
     public static var signingIn: String { value("signing_in", defaultValue: "Signing in…") }
     public static var signingInShort: String { value("signing_in_short", defaultValue: "Signing in") }
     public static var trustUsesSignInWithApple: String {
