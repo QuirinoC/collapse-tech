@@ -7,13 +7,23 @@ struct LookMapView: View {
     @Environment(\.trustPalette) private var palette
     @State private var position: MapCameraPosition = .automatic
 
+    private var display: (name: String, live: LocationPoint, trail: [LocationPoint], watching: Bool)? {
+        if let id = model.mapSubjectID {
+            return model.mapDisplay(for: id)
+        }
+        if let session = model.activeSession {
+            return model.mapDisplay(for: session.event.subjectID)
+        }
+        return nil
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             palette.paper.ignoresSafeArea()
-            if let session = model.activeSession {
-                map(session)
+            if let display {
+                map(display)
                     .ignoresSafeArea()
-                hud(session)
+                hud(display)
             } else {
                 VStack(spacing: 16) {
                     Text(TrustCopy.lookClosed)
@@ -26,7 +36,7 @@ struct LookMapView: View {
             }
         }
         .onAppear {
-            if let live = model.activeSession?.live {
+            if let live = display?.live {
                 position = .region(
                     MKCoordinateRegion(
                         center: live.coordinate,
@@ -37,13 +47,15 @@ struct LookMapView: View {
         }
     }
 
-    private func map(_ session: LookSession) -> some View {
+    private func map(
+        _ display: (name: String, live: LocationPoint, trail: [LocationPoint], watching: Bool)
+    ) -> some View {
         Map(position: $position) {
-            MapPolyline(coordinates: session.trail.map(\.coordinate))
+            MapPolyline(coordinates: display.trail.map(\.coordinate))
                 .stroke(palette.ink, lineWidth: 2.5)
-            Annotation(TrustCopy.live, coordinate: session.live.coordinate) {
+            Annotation(TrustCopy.live, coordinate: display.live.coordinate) {
                 TrustLivePin(
-                    initials: session.event.subjectName.trustInitials,
+                    initials: display.name.trustInitials,
                     caption: TrustCopy.live
                 )
             }
@@ -63,7 +75,9 @@ struct LookMapView: View {
         return .standard(elevation: .flat, pointsOfInterest: .excludingAll)
     }
 
-    private func hud(_ session: LookSession) -> some View {
+    private func hud(
+        _ display: (name: String, live: LocationPoint, trail: [LocationPoint], watching: Bool)
+    ) -> some View {
         VStack(spacing: 0) {
             HStack {
                 Text(TrustCopy.mastheadName)
@@ -73,6 +87,7 @@ struct LookMapView: View {
                 Spacer()
                 Button(TrustCopy.close) { model.closeMap() }
                     .buttonStyle(TrustHardButtonStyle())
+                    .accessibilityLabel(TrustCopy.close)
             }
             .padding(.horizontal, 16)
             .padding(.top, 14)
@@ -84,23 +99,36 @@ struct LookMapView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    TrustFolio(text: TrustCopy.watchingNow, color: palette.accent, size: 10)
+                    TrustFolio(
+                        text: display.watching ? TrustCopy.watchingNow : TrustCopy.live,
+                        color: palette.accent,
+                        size: 10
+                    )
                     Spacer()
-                    TrustFolio(text: TrustCopy.lastHours(session.event.historyWindowHours), size: 10)
+                    if display.watching, let hours = model.activeSession?.event.historyWindowHours {
+                        TrustFolio(text: TrustCopy.lastHours(hours), size: 10)
+                    }
                 }
-                Text(session.event.subjectName)
+                Text(display.name)
                     .font(TrustTheme.display(22))
                     .foregroundStyle(palette.ink)
-                Text(TrustCopy.subjectNotified(name: session.event.subjectName))
-                    .font(TrustTheme.ui(13))
-                    .foregroundStyle(palette.muted)
-                if model.coverage.canExtendHistory,
-                   session.event.historyWindowHours <= CircleCoverage.freeHistoryHours {
-                    Button(TrustCopy.includeLast24Hours) {
-                        model.extendLookHistory()
+                if display.watching {
+                    Text(TrustCopy.subjectNotified(name: display.name))
+                        .font(TrustTheme.ui(13))
+                        .foregroundStyle(palette.muted)
+                    if model.coverage.canExtendHistory,
+                       let hours = model.activeSession?.event.historyWindowHours,
+                       hours <= CircleCoverage.freeHistoryHours {
+                        Button(TrustCopy.includeLast24Hours) {
+                            model.extendLookHistory()
+                        }
+                        .buttonStyle(TrustTextButtonStyle())
+                        .padding(.top, 2)
                     }
-                    .buttonStyle(TrustTextButtonStyle())
-                    .padding(.top, 2)
+                } else {
+                    Text(TrustCopy.mapLiveBody(name: display.name))
+                        .font(TrustTheme.ui(13))
+                        .foregroundStyle(palette.muted)
                 }
             }
             .padding(14)

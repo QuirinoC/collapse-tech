@@ -9,6 +9,16 @@ struct RootView: View {
         model.appearance.nightEdition ? .night : .paper
     }
 
+    private var lookConfirmTitle: String {
+        model.confirmCopy(for: model.lookSubject?.id).title
+    }
+
+    private var lookConfirmMessage: String {
+        let copy = model.confirmCopy(for: model.lookSubject?.id)
+        // Lead with the non-silent receipt promise (product + HIG: clear consequence).
+        return "\(TrustCopy.lookWillNotify)\n\n\(copy.body)"
+    }
+
     var body: some View {
         ZStack {
             palette.paper.ignoresSafeArea()
@@ -18,7 +28,7 @@ struct RootView: View {
             case .onboarding:
                 OnboardingView()
             case .home:
-                HomeView()
+                MainShellView()
             }
         }
         .environment(\.trustPalette, palette)
@@ -27,35 +37,31 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, phase in
             model.location.setAppActive(phase == .active)
         }
-        .sheet(isPresented: $model.showingSettings) {
-            SettingsView()
-                .environmentObject(model)
-                .environment(\.trustPalette, palette)
-                .presentationBackground(palette.paper)
-        }
         .sheet(isPresented: $model.showingLookLog) {
             LookLogView()
                 .environmentObject(model)
                 .environment(\.trustPalette, palette)
-                .presentationBackground(palette.paper)
-        }
-        .sheet(isPresented: $model.showingShareSheet) {
-            PersonShareSheet()
-                .environmentObject(model)
-                .environment(\.trustPalette, palette)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(palette.paper)
         }
-        .sheet(isPresented: $model.showingLookConfirm) {
-            LookSheet()
-                .environmentObject(model)
-                .environment(\.trustPalette, palette)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(palette.paper)
+        // HIG (Alerts / modality): intentional Look uses a confirmation dialog (action sheet),
+        // not a custom sheet — clear Confirm + Cancel with notification consequence in the message.
+        .confirmationDialog(
+            lookConfirmTitle,
+            isPresented: $model.showingLookConfirm,
+            titleVisibility: .visible
+        ) {
+            Button(TrustCopy.look) {
+                model.confirmLook()
+            }
+            Button(TrustCopy.cancel, role: .cancel) {
+                model.lookSubject = nil
+            }
+        } message: {
+            Text(lookConfirmMessage)
         }
-        // LookMap full-screen kept for screenshots only; normal Look stays on Home.
+        // Optional secondary map after Look / for live people — not the default home.
         .fullScreenCover(isPresented: $model.showingMap) {
             LookMapView()
                 .environmentObject(model)
@@ -99,10 +105,12 @@ struct QuietReceiptBanner: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: 44)
         .background(palette.paper)
         .overlay(Rectangle().stroke(palette.ink, lineWidth: 1))
         .onTapGesture(perform: dismiss)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel("\(receipt.title). \(receipt.body)")
+        .accessibilityHint(TrustCopy.close)
     }
 }

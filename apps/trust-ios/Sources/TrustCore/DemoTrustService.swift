@@ -202,14 +202,24 @@ public final class DemoTrustService: ObservableObject {
         }
     }
 
-    /// Lean demo circle: couple + parent/child + elder — no network.
+    /// Lean demo circle: couple + parent/child + elder + timed — no network.
     public func startLeanDemo() {
         let now = clock.now()
         you = Person(displayName: "Sam", handle: "sam")
         you.hasPro = true
         you.onboardingComplete = true
         startDemoPair(partnerName: "Alex")
+        // Re-seed partner vault around a distinct Mission spot so View has coordinates after Look.
         if let alex = partner {
+            seedMemberVault(
+                personID: alex.id,
+                origin: LocationPoint(
+                    timestamp: now,
+                    latitude: LocationTrail.home.latitude + 0.012,
+                    longitude: LocationTrail.home.longitude - 0.008
+                ),
+                now: now
+            )
             inboundPresenceGranted.insert(alex.id)
             outboundPresenceGranted.insert(alex.id)
             homePresenceByPerson[alex.id] = HomePresenceSnapshot(
@@ -217,10 +227,18 @@ public final class DemoTrustService: ObservableObject {
                 changedAt: now.addingTimeInterval(-2 * 3600),
                 placeLabel: "Home"
             )
+            shares[alex.id] = PersonShareState(resting: .untilTheyLook)
         }
 
-        if let maya = addReviewMember(name: "Maya", resting: .untilTheyLook, inboundLive: false) {
+        // Maya — sealed Until they look, Away, overdue promise (parent/child).
+        if let maya = addReviewMember(
+            name: "Maya",
+            resting: .untilTheyLook,
+            inboundLive: false,
+            originOffset: (0.018, 0.006)
+        ) {
             inboundPresenceGranted.insert(maya.id)
+            outboundPresenceGranted.insert(maya.id)
             homePresenceByPerson[maya.id] = HomePresenceSnapshot(
                 state: .away,
                 changedAt: now.addingTimeInterval(-5 * 3600),
@@ -236,16 +254,68 @@ public final class DemoTrustService: ObservableObject {
                 resolvedAt: nil,
                 youAreSubject: false
             )
+            shares[maya.id] = PersonShareState(resting: .always)
         }
 
-        if let eli = addReviewMember(name: "Eli", resting: .always, inboundLive: true) {
+        // Eli — Always / live, Home · Capitol Hill (elder).
+        if let eli = addReviewMember(
+            name: "Eli",
+            resting: .always,
+            inboundLive: true,
+            originOffset: (-0.008, 0.014)
+        ) {
             inboundPresenceGranted.insert(eli.id)
+            outboundPresenceGranted.insert(eli.id)
             homePresenceByPerson[eli.id] = HomePresenceSnapshot(
                 state: .home,
                 changedAt: now.addingTimeInterval(-40 * 60),
+                placeLabel: "Capitol Hill"
+            )
+        }
+
+        // Jordan — Timed share (live), Away · Mission.
+        if let jordan = addReviewMember(
+            name: "Jordan",
+            resting: .untilTheyLook,
+            inboundLive: true,
+            originOffset: (0.004, -0.016)
+        ) {
+            inboundPresenceGranted.insert(jordan.id)
+            outboundPresenceGranted.insert(jordan.id)
+            homePresenceByPerson[jordan.id] = HomePresenceSnapshot(
+                state: .away,
+                changedAt: now.addingTimeInterval(-25 * 60),
+                placeLabel: "Mission"
+            )
+            shares[jordan.id] = PersonShareState(
+                resting: .untilTheyLook,
+                timedUntil: now.addingTimeInterval(47 * 60)
+            )
+        }
+
+        // Nora — sealed Until they look, Home (quiet check-in).
+        if let nora = addReviewMember(
+            name: "Nora",
+            resting: .untilTheyLook,
+            inboundLive: false,
+            originOffset: (-0.015, -0.011)
+        ) {
+            inboundPresenceGranted.insert(nora.id)
+            homePresenceByPerson[nora.id] = HomePresenceSnapshot(
+                state: .home,
+                changedAt: now.addingTimeInterval(-90 * 60),
                 placeLabel: "Home"
             )
         }
+    }
+
+    /// Trail + live pin for someone already visible (Always / after Look). Never peeks sealed escrow.
+    public func visibleMapContent(for personID: UUID) -> (live: LocationPoint, trail: [LocationPoint])? {
+        guard isLocationVisible(personID) else { return nil }
+        let now = clock.now()
+        let trail = vault(for: personID).unlock(now: now, window: EscrowVault.defaultHistoryWindow)
+        guard let live = trail.last ?? vault(for: personID).latest(now: now) else { return nil }
+        return (live, trail.isEmpty ? [live] : trail)
     }
 
     public func setPresenceGrant(personID: UUID, enabled: Bool) {
@@ -291,7 +361,7 @@ public final class DemoTrustService: ObservableObject {
             you,
             circle,
             coverage,
-            pair?.status == .pending ? pair?.inviteCode : nil,
+            pair?.inviteCode,
             activeSession,
             visibleLookLog,
             retainedLookLogCount
@@ -303,8 +373,19 @@ public final class DemoTrustService: ObservableObject {
     }
 
     public func createInvite() {
+        let code = Self.makeInviteCode()
+        // Keep an active circle intact — Invite tab still needs a shareable code.
+        if let existing = pair, existing.status == .active, partner != nil || !extraPeople.isEmpty {
+            pair = TrustPair(
+                id: existing.id,
+                inviteCode: code,
+                status: .active,
+                createdAt: existing.createdAt
+            )
+            return
+        }
         pair = TrustPair(
-            inviteCode: Self.makeInviteCode(),
+            inviteCode: code,
             status: .pending,
             createdAt: clock.now()
         )
@@ -404,6 +485,13 @@ public final class DemoTrustService: ObservableObject {
         lookLog.append(event)
         let session = LookSession(event: event, live: live, trail: trail)
         activeSession = session
+        inboundLive.insert(subject.id)
+        inboundPresenceGranted.insert(subject.id)
+        homePresenceByPerson[subject.id] = HomePresenceSnapshot(
+            state: .away,
+            changedAt: now,
+            placeLabel: "Fremont Bridge"
+        )
         lastReceipt = LookReceipt(
             title: TrustCopy.receiptTitle(viewer: actingAs.displayName),
             body: TrustCopy.receiptBody(),
@@ -578,7 +666,8 @@ public final class DemoTrustService: ObservableObject {
     private func addReviewMember(
         name: String,
         resting: ShareRestingMode,
-        inboundLive: Bool
+        inboundLive: Bool,
+        originOffset: (lat: Double, lon: Double) = (0.003, 0.004)
     ) -> Person? {
         let person = Person(displayName: name)
         extraPeople.append(person)
@@ -592,17 +681,27 @@ public final class DemoTrustService: ObservableObject {
         if inboundLive {
             self.inboundLive.insert(person.id)
         }
-        let vault = EscrowVault()
-        extraVaults[person.id] = vault
         let origin = LocationPoint(
             timestamp: now,
-            latitude: LocationTrail.home.latitude + 0.003,
-            longitude: LocationTrail.home.longitude + 0.004
+            latitude: LocationTrail.home.latitude + originOffset.lat,
+            longitude: LocationTrail.home.longitude + originOffset.lon
         )
+        seedMemberVault(personID: person.id, origin: origin, now: now)
+        return person
+    }
+
+    private func seedMemberVault(personID: UUID, origin: LocationPoint, now: Date) {
+        let vault = EscrowVault()
+        if personID == you.id {
+            youVault = vault
+        } else if personID == partner?.id {
+            partnerVault = vault
+        } else {
+            extraVaults[personID] = vault
+        }
         for point in LocationTrail.seed(around: origin, now: now, hours: 24, intervalMinutes: 15, drift: 0.0007) {
             vault.ingest(point)
         }
-        return person
     }
 
     private func trustedPerson(from person: Person, presence: PresenceSnapshot?) -> TrustedPerson {

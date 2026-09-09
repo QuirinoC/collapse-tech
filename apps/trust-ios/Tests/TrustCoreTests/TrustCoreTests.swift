@@ -276,6 +276,38 @@ final class LookServiceTests: XCTestCase {
             XCTFail("Riley should be on a timed share")
         }
     }
+
+    @MainActor
+    func testLeanDemoSeedsMixedCircleAndMapPins() {
+        let service = DemoTrustService(displayName: "Sam")
+        service.startLeanDemo()
+        XCTAssertEqual(service.circle.count, 5)
+
+        let alex = service.partner!
+        XCTAssertFalse(service.isLocationVisible(alex.id))
+        XCTAssertNil(service.visibleMapContent(for: alex.id))
+        XCTAssertEqual(service.circle.first { $0.id == alex.id }?.homePresence?.state, .away)
+
+        let maya = service.extraPeople.first { $0.displayName == "Maya" }!
+        XCTAssertEqual(service.circle.first { $0.id == maya.id }?.promise?.status, .overdue)
+        XCTAssertNil(service.visibleMapContent(for: maya.id))
+
+        let eli = service.extraPeople.first { $0.displayName == "Eli" }!
+        XCTAssertTrue(service.isLocationVisible(eli.id))
+        XCTAssertNotNil(service.visibleMapContent(for: eli.id))
+        XCTAssertEqual(service.circle.first { $0.id == eli.id }?.homePresence?.state, .home)
+
+        let jordan = service.extraPeople.first { $0.displayName == "Jordan" }!
+        if case .timed = service.shareState(for: jordan.id).presentation(at: Date()) {
+            XCTAssertNotNil(service.visibleMapContent(for: jordan.id))
+        } else {
+            XCTFail("Jordan should be on a timed share")
+        }
+
+        let nora = service.extraPeople.first { $0.displayName == "Nora" }!
+        XCTAssertEqual(service.circle.first { $0.id == nora.id }?.homePresence?.state, .home)
+        XCTAssertNil(service.visibleMapContent(for: nora.id))
+    }
 }
 
 final class LocationSharingTests: XCTestCase {

@@ -6,41 +6,42 @@ One job: share location with people you trust (couples, parent/child, elder — 
 
 ---
 
-## Destinations (4)
+## Destinations (shell)
 
 | ID | Screen | When |
 |---|---|---|
-| D1 | **Login** | Signed out. Sign in with Apple. DEBUG: **See the app** enters offline demo. Errors stay here. |
-| D2 | **Handle** | Once after first Apple sign-in. Pick `@handle`. Never again while it exists. |
-| D3 | **Home** | The app. Full-bleed map + people strip. Live pins vs sealed locks. Home/Away chips. Overdue chip. |
-| D4 | **You / Settings** | One scroll: Circle, Night Edition, Set Home, members revoke, delete, legal. No settings tree. |
+| D1 | **Login** | Signed out. Sign in with Apple. DEBUG: **See the app** enters offline demo. |
+| D2 | **Handle** | Once after first Apple sign-in. Pick `@handle`. |
+| D3 | **Main shell** | Masthead Trust + `#E10600` rule + light footer. |
+
+### Footer tabs
+
+| Tab | Job |
+|---|---|
+| **Circle** | Vertical list of people who share with you. Photo, name, permission-aware subtitle. Sealed → Home/Away only. Live → place OK; map optional. |
+| **Sharing** | Outbound grants. Inline Until / Always / While. Home presence toggle. Timed → duration sheet. |
+| **Invite** | “I trust you with my location.” Code + join. |
+| **You** | Settings / profile scroll. |
 
 ---
 
-## Sheets on Home (not destinations)
+## Sheets
 
 | Sheet | Opens from | Contains |
 |---|---|---|
-| **Person** | Tap strip / pin | Where (Until they look / Always / For a while **inline**). Home presence toggle. Revoke. |
-| **Look confirm** | Tap sealed person → Look | Facts + Look. Dismiss → same Home with live pin. |
-| **Invite / Join** | Empty Home | “I trust you with my location.” Create or enter code. |
-| **Look log** | Masthead LOG | Who looked, when. No coordinates. |
+| **Look confirm** | Tap Look / sealed row | They will be notified. Cancel / Confirm. Then place reveals on Circle. |
+| **Timed duration** | Sharing → While | 1 hour / Tonight / 4 hours. |
+| **Look log** | You → Look log | Who looked, when. |
+| **Map (optional)** | Live / after Look row | Secondary full-screen MapKit — not default Home. |
 
 ---
 
-## States (not screens)
+## Cut / unused vs map-first IA
 
-- Empty circle → Home empty + Invite sheet chrome
-- After Look → Home live pin (no second map as the product)
-- Look closed / receipt → quiet banner on Home
-- Sign-in failed → notice on Login
-- OS permissions → system dialogs
-
----
-
-## Cut
-
-Place ping as a page · separate TimedShare route · Circle as its own destination · profile wizard · onboarding tips · places list · tab bar · people-list home
+- Map-first Home + horizontal people strip
+- Person share sheet as primary outbound editor (Sharing tab replaces it; `PersonShareSheet` kept unused for compile)
+- Settings-as-only-sheet for You (now a tab; sheet flag retained)
+- Orphan map-centric chrome on Home
 
 ---
 
@@ -48,8 +49,10 @@ Place ping as a page · separate TimedShare route · Circle as its own destinati
 
 Offline via `DemoTrustService.startLeanDemo()`:
 
-- **Alex** — partner, sealed, Away
+- **Alex** — partner, sealed Until they look, Away
 - **Maya** — sealed, Away, **overdue** promise
-- **Eli** — Always / live pin, Home
+- **Eli** — Always / live, Home · Capitol Hill → **View** opens MapKit
+- **Jordan** — Timed (live), Away · Mission → **View** opens MapKit
+- **Nora** — sealed Until they look, Home
 
-Tap Maya → Look confirm → live on Home. Tap strip → Person sheet.
+Tap **View** on a live row (or Look → Confirm on sealed, then View) for that person’s map. Footer → Sharing / Invite / You.

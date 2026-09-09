@@ -7,14 +7,18 @@ struct SettingsView: View {
     @Environment(\.trustPalette) private var palette
     @State private var revokeTarget: Person?
     @State private var showingDeleteAccount = false
+    /// When true, shown as the You tab (no sheet chrome / Done).
+    var embedded = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    Text(TrustCopy.appName)
-                        .font(TrustTheme.display(28))
-                        .foregroundStyle(palette.ink)
+                    if !embedded {
+                        Text(TrustCopy.appName)
+                            .font(TrustTheme.display(28))
+                            .foregroundStyle(palette.ink)
+                    }
                     Text(model.signedInSummary)
                         .font(TrustTheme.ui(14))
                         .foregroundStyle(palette.muted)
@@ -31,17 +35,20 @@ struct SettingsView: View {
                 .padding(20)
             }
             .background(palette.paper.ignoresSafeArea())
-            .navigationTitle(TrustCopy.settings)
+            .navigationTitle(embedded ? "" : TrustCopy.settings)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(TrustCopy.done) { model.showingSettings = false }
-                        .font(TrustTheme.folio(12))
-                        .tracking(1)
-                        .textCase(.uppercase)
-                        .foregroundStyle(palette.ink)
+                if !embedded {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(TrustCopy.done) { model.showingSettings = false }
+                            .font(TrustTheme.folio(12))
+                            .tracking(1)
+                            .textCase(.uppercase)
+                            .foregroundStyle(palette.ink)
+                    }
                 }
             }
+            .toolbar(embedded ? .hidden : .automatic, for: .navigationBar)
         }
         .confirmationDialog(
             TrustCopy.revokePersonConfirm,
@@ -192,11 +199,14 @@ struct SettingsView: View {
                     HStack {
                         stateRow(TrustCopy.member, member.displayName)
                         Button(TrustCopy.revoke) { revokeTarget = member.person }
-                            .font(TrustTheme.folio(10))
+                            .font(TrustTheme.folio(11))
                             .foregroundStyle(palette.accent)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                            .accessibilityLabel("\(TrustCopy.revoke) \(member.displayName)")
                     }
                 }
-                Text(TrustCopy.inviteFromMap)
+                Text(TrustCopy.inviteFromCircle)
                     .font(TrustTheme.ui(13))
                     .foregroundStyle(palette.muted)
                     .padding(.top, 10)

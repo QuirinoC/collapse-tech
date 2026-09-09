@@ -306,6 +306,8 @@ struct TrustTextButtonStyle: ButtonStyle {
             .tracking(1.0)
             .textCase(.uppercase)
             .foregroundStyle(palette.muted.opacity(configuration.isPressed ? 0.5 : 1))
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
     }
 }
 
@@ -356,17 +358,19 @@ struct TrustAppleButtonStyle: ButtonStyle {
 }
 
 struct TrustHardButtonStyle: ButtonStyle {
-    var minHeight: CGFloat = 36
+    /// HIG / UI Design tips: interactive controls ≥ 44×44 pt.
+    var minHeight: CGFloat = 44
     @Environment(\.trustPalette) private var palette
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(TrustTheme.folio(minHeight >= 44 ? 12 : 11))
+            .font(TrustTheme.folio(12))
             .tracking(0.9)
             .textCase(.uppercase)
             .foregroundStyle(palette.ink.opacity(configuration.isPressed ? 0.55 : 1))
-            .padding(.horizontal, minHeight >= 44 ? 16 : 12)
+            .padding(.horizontal, 16)
             .frame(minHeight: minHeight)
+            .contentShape(Rectangle())
             .overlay(Rectangle().stroke(palette.line, lineWidth: 1))
     }
 }

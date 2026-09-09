@@ -1,6 +1,8 @@
 import SwiftUI
 import TrustCore
 
+/// Legacy person-level share sheet. Outbound editing lives on Sharing tab now.
+/// Kept so screenshot / compile paths stay green; not presented from RootView.
 struct PersonShareSheet: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.trustPalette) private var palette

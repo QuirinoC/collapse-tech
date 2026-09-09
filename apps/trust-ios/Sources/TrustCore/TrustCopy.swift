@@ -100,6 +100,37 @@ public enum TrustCopy {
     public static var close: String { value("close", defaultValue: "Close") }
     public static var done: String { value("done", defaultValue: "Done") }
     public static var look: String { value("look", defaultValue: "Look") }
+    public static var confirm: String { value("confirm", defaultValue: "Confirm") }
+    public static var inviteTab: String { value("invite_tab", defaultValue: "Invite") }
+    public static var peopleITrust: String { value("people_i_trust", defaultValue: "People I trust") }
+    public static var peopleITrustSub: String {
+        value("people_i_trust_sub", defaultValue: "Who can see your location — and how.")
+    }
+    public static var setAllUntilTheyLook: String {
+        value("set_all_until_they_look", defaultValue: "Set all to Until they look")
+    }
+    public static var untilShort: String { value("until_short", defaultValue: "Until") }
+    public static var whileShort: String { value("while_short", defaultValue: "While") }
+    public static var homePresenceShort: String {
+        value("home_presence_short", defaultValue: "Home presence")
+    }
+    public static var yourCode: String { value("your_code", defaultValue: "Your code") }
+    public static var enterACode: String { value("enter_a_code", defaultValue: "Enter a code") }
+    public static var inviteBody: String {
+        value(
+            "invite_body",
+            defaultValue: "They join your circle. Location stays sealed until someone Looks — unless you set Always or For a while."
+        )
+    }
+    public static var lookWillNotify: String {
+        value(
+            "look_will_notify",
+            defaultValue: "Looking is never silent. They get a quiet receipt."
+        )
+    }
+    public static func livePlaceLine(strong: String, rest: String) -> String {
+        format("live_place_line", defaultValue: "%@ · %@", strong, rest)
+    }
     public static var whatItIs: String {
         value("what_it_is", defaultValue: "Location stays hidden until someone looks.")
     }
@@ -147,7 +178,7 @@ public enum TrustCopy {
     public static var demoBannerBody: String {
         value(
             "demo_banner_body",
-            defaultValue: "Alex (partner), Maya (away · overdue), Eli (live). Offline — no Sign in with Apple."
+            defaultValue: "Five people — sealed, live, timed, Home/Away, overdue. Tap View for the map. Offline — no Sign in with Apple."
         )
     }
     public static var signingIn: String { value("signing_in", defaultValue: "Signing in…") }
@@ -216,6 +247,10 @@ public enum TrustCopy {
     public static var openSettings: String { value("open_settings", defaultValue: "Open Settings") }
     public static var allowAlways: String { value("allow_always", defaultValue: "Allow always") }
     public static var openMap: String { value("open_map", defaultValue: "Open map") }
+    public static var view: String { value("view", defaultValue: "View") }
+    public static func mapLiveBody(name: String) -> String {
+        format("map_live_body", defaultValue: "%@ is sharing live location with you.", name)
+    }
     public static var circleMapAccessibility: String {
         value(
             "circle_map_accessibility",
@@ -260,7 +295,7 @@ public enum TrustCopy {
     }
 
     public static func confirmTitle(subject: String) -> String {
-        format("confirm_title", defaultValue: "Open %@’s location?", subject)
+        format("confirm_title", defaultValue: "Look at %@?", subject)
     }
 
     public static func confirmBody(subject: String, looksToday: Int) -> String {
@@ -646,7 +681,13 @@ public enum TrustCopy {
     public static var inviteFromMap: String {
         value(
             "invite_from_map",
-            defaultValue: "Invite from the map. Free is one trusted person. Circle adds seats. Looking does not need Circle."
+            defaultValue: "Invite from the Invite tab. Free is one trusted person. Circle adds seats. Looking does not need Circle."
+        )
+    }
+    public static var inviteFromCircle: String {
+        value(
+            "invite_from_circle",
+            defaultValue: "Invite from the Invite tab. Free is one trusted person. Circle adds seats. Looking does not need Circle."
         )
     }
     public static var placePingGotHome: String { value("place_ping_got_home", defaultValue: "Place ping — got home") }

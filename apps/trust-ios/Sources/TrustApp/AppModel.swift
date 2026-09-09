@@ -11,6 +11,34 @@ enum AppPhase: Equatable {
     case home
 }
 
+enum MainTab: String, CaseIterable, Identifiable {
+    case circle
+    case sharing
+    case invite
+    case you
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .circle: return TrustCopy.circle
+        case .sharing: return TrustCopy.sharing
+        case .invite: return TrustCopy.inviteTab
+        case .you: return TrustCopy.you
+        }
+    }
+
+    /// Filled SF Symbols — HIG prefers familiar, scalable tab icons.
+    var systemImage: String {
+        switch self {
+        case .circle: return "person.2.fill"
+        case .sharing: return "location.fill"
+        case .invite: return "person.badge.plus"
+        case .you: return "person.crop.circle.fill"
+        }
+    }
+}
+
 @MainActor
 final class AppearanceStore: ObservableObject {
     @Published var nightEdition: Bool {
@@ -37,13 +65,17 @@ final class AppModel: ObservableObject {
     private var ingestFlushTask: Task<Void, Never>?
 
     @Published var phase: AppPhase
+    @Published var selectedTab: MainTab = .circle
     @Published var showingSettings = false
     @Published var showingLookLog = false
     @Published var showingLookConfirm = false
     @Published var showingMap = false
+    /// Person whose live location the optional map is showing (Always / after Look).
+    @Published var mapSubjectID: UUID?
     @Published var showingPaywall = false
     @Published var showingShareSheet = false
     @Published var showingTimedShare = false
+    @Published var timedSharePersonID: UUID?
     @Published var shareSubject: Person?
     @Published var lookSubject: Person?
     @Published var inviteCodeDraft = ""
@@ -155,12 +187,17 @@ final class AppModel: ObservableObject {
         case "log":
             showingLookLog = true
         case "share":
-            shareSubject = circle.first?.person
-            showingShareSheet = true
+            selectedTab = .sharing
+            showingShareSheet = false
         case "settings":
-            showingSettings = true
+            selectedTab = .you
+            showingSettings = false
         case "map":
-            if activeSession != nil {
+            if let live = circle.first(where: { $0.inboundLive }) {
+                mapSubjectID = live.id
+                showingMap = true
+            } else if let session = activeSession {
+                mapSubjectID = session.event.subjectID
                 showingMap = true
             }
         default:
@@ -288,6 +325,7 @@ final class AppModel: ObservableObject {
         showingSettings = false
         showingLookLog = false
         showingMap = false
+        mapSubjectID = nil
         showingLookConfirm = false
         showingShareSheet = false
         showingTimedShare = false
@@ -584,6 +622,39 @@ final class AppModel: ObservableObject {
         showingLookConfirm = true
     }
 
+    /// Secondary MapKit cover for someone already live (Always / Timed / after Look).
+    func openMap(for member: TrustedPerson) {
+        guard member.inboundLive || activeSession?.event.subjectID == member.id else { return }
+        let hasPoint = member.livePoint != nil
+            || activeSession?.event.subjectID == member.id
+            || (demo?.visibleMapContent(for: member.id) != nil)
+        guard hasPoint else { return }
+        mapSubjectID = member.id
+        showingMap = true
+    }
+
+    /// Map content for the optional cover — Look session when present, else live vault pin.
+    func mapDisplay(for personID: UUID) -> (name: String, live: LocationPoint, trail: [LocationPoint], watching: Bool)? {
+        if let session = activeSession, session.event.subjectID == personID {
+            return (
+                session.event.subjectName,
+                session.live,
+                session.trail.isEmpty ? [session.live] : session.trail,
+                true
+            )
+        }
+        if let demo, let content = demo.visibleMapContent(for: personID) {
+            let name = circle.first(where: { $0.id == personID })?.person.displayName
+                ?? demo.circle.first(where: { $0.id == personID })?.person.displayName
+                ?? "Them"
+            return (name, content.live, content.trail, false)
+        }
+        if let member = circle.first(where: { $0.id == personID }), let live = member.livePoint {
+            return (member.person.displayName, live, [live], false)
+        }
+        return nil
+    }
+
     func confirmLook() {
         guard let subject = lookSubject else { return }
         if let demo {
@@ -593,6 +664,7 @@ final class AppModel: ObservableObject {
                 showingLookConfirm = false
                 // Lean: After Look is Home with a live pin — not a second map screen.
                 showingMap = false
+                mapSubjectID = nil
                 publishDemoSnapshot()
                 if let receipt = demo.lastReceipt {
                     quietBanner = receipt
@@ -608,6 +680,7 @@ final class AppModel: ObservableObject {
                 localSession = session
                 showingLookConfirm = false
                 showingMap = false
+                mapSubjectID = nil
                 await refresh()
             } catch {
                 pairingNotice = error.localizedDescription
@@ -617,6 +690,10 @@ final class AppModel: ObservableObject {
 
     func closeMap() {
         showingMap = false
+        mapSubjectID = nil
+        // Dismissing the optional map does not end Always / post-Look visibility.
+        // Only clear an active Look session when one is open.
+        guard activeSession != nil else { return }
         let subjectID = localSession?.event.subjectID ?? snapshot?.activeSession?.event.subjectID
         localSession = nil
         if let demo {
@@ -667,6 +744,22 @@ final class AppModel: ObservableObject {
             try? await client.setShare(personID: personID, resting: nil, timed: duration.rawValue)
             await refresh()
         }
+    }
+
+    func setAllUntilTheyLook() {
+        for member in circle {
+            setUntilTheyLook(personID: member.id)
+        }
+    }
+
+    func openTimedSharePicker(personID: UUID) {
+        timedSharePersonID = personID
+        showingTimedShare = true
+    }
+
+    func dismissTimedSharePicker() {
+        showingTimedShare = false
+        timedSharePersonID = nil
     }
 
     func setPresenceGrant(personID: UUID, enabled: Bool) {
@@ -761,6 +854,7 @@ final class AppModel: ObservableObject {
         if let demo {
             demo.revoke(personID: person.id)
             showingMap = false
+            mapSubjectID = nil
             showingLookConfirm = false
             showingShareSheet = false
             publishDemoSnapshot()
@@ -769,6 +863,7 @@ final class AppModel: ObservableObject {
         Task {
             try? await client.revoke(personID: person.id)
             showingMap = false
+            mapSubjectID = nil
             showingLookConfirm = false
             await refresh()
         }

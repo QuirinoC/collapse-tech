@@ -1,393 +1,255 @@
-import MapKit
 import SwiftUI
 import TrustCore
 
+/// Circle — vertical list of people who share with you. No map-first home.
 struct HomeView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.trustPalette) private var palette
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var position: MapCameraPosition = .automatic
-    @Namespace private var stripSelect
 
     var body: some View {
-        ZStack(alignment: .top) {
-            map
-                .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                chrome
-                Spacer(minLength: 0)
-                if model.pairIsActive {
-                    sealedMarks
-                    peopleIndex
-                } else {
-                    PairingView()
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 8)
+        Group {
+            if model.pairIsActive {
+                circleList
+            } else {
+                ScrollView {
+                    InviteView(compactEmptyState: true)
+                        .padding(.top, 8)
                 }
             }
         }
         .background(palette.paper.ignoresSafeArea())
         .onAppear {
-            frameMap()
-            model.prepareMapLocation()
-            Task { await model.refresh() }
-        }
-        .onDisappear {
             model.location.setMapActive(false)
         }
-        .onChange(of: model.activeSession?.id) { _, _ in frameMap() }
-        .onChange(of: model.circle.count) { _, _ in frameMap() }
-        .onChange(of: model.location.lastFix?.latitude) { _, _ in frameMap() }
     }
 
-    private var chrome: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .lastTextBaseline, spacing: 14) {
-                Text(TrustCopy.mastheadName)
-                    .font(TrustTheme.display(26))
-                    .foregroundStyle(palette.ink)
-                    .accessibilityLabel(TrustCopy.appName)
-                if model.isDemoMode {
-                    TrustFolio(text: TrustCopy.demoBannerTitle, color: palette.accent, size: 9)
-                }
-                Spacer()
-                Button {
-                    model.showingSettings = true
-                } label: {
-                    TrustFolio(text: model.you.identity, color: palette.muted, size: 10)
-                }
-                .accessibilityLabel(TrustCopy.settings)
-                Button {
-                    model.showingLookLog = true
-                } label: {
-                    Text(logLabel)
-                        .font(TrustTheme.folio(11))
-                        .tracking(1.1)
-                        .foregroundStyle(palette.ink)
-                }
-                .accessibilityLabel(TrustCopy.lookLog)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 6)
-            .padding(.bottom, 8)
-
-            if model.beingWatched != nil {
-                HStack {
-                    TrustFolio(text: TrustCopy.theyAreLooking, color: palette.accent, size: 10)
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-            }
-
+    /// Native `List` for scannable people rows (HIG: Prefer displaying text in a list).
+    private var circleList: some View {
+        List {
             if model.isSharingLocation && model.location.needsAlwaysForSharing {
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    TrustFolio(text: TrustCopy.alwaysForSharing, color: palette.accent, size: 10)
-                    Spacer()
-                    Button(model.location.needsSystemSettings ? TrustCopy.openSettings : TrustCopy.allowAlways) {
-                        if model.location.needsSystemSettings {
-                            model.openSystemSettings()
-                        } else {
-                            model.requestAlwaysLocation()
-                        }
-                    }
-                    .font(TrustTheme.folio(10))
-                    .tracking(1.0)
-                    .textCase(.uppercase)
-                    .foregroundStyle(palette.ink)
-                    .accessibilityHint(TrustCopy.alwaysNeededForSharing)
+                Section {
+                    alwaysBanner
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                .listRowBackground(palette.paper)
+                .listRowSeparator(.hidden)
             }
 
             if let banner = model.coverage.banner {
-                Text(banner.uppercased())
-                    .font(TrustTheme.folio(10))
-                    .tracking(1.1)
-                    .foregroundStyle(palette.accent)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
+                Section {
+                    Text(banner.uppercased())
+                        .font(TrustTheme.folio(10))
+                        .tracking(1.1)
+                        .foregroundStyle(palette.accent)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityAddTraits(.isStaticText)
+                }
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                .listRowBackground(palette.paper)
+                .listRowSeparator(.hidden)
+            }
+
+            Section {
+                ForEach(model.circle) { member in
+                    personRow(member)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        .listRowBackground(palette.paper)
+                        .listRowSeparatorTint(palette.ink.opacity(0.08))
+                }
             }
         }
-        .background(palette.paper.opacity(0.94))
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(palette.paper.ignoresSafeArea())
+    }
+
+    private var alwaysBanner: some View {
+        HStack(alignment: .center, spacing: 10) {
+            TrustFolio(text: TrustCopy.alwaysForSharing, color: palette.accent, size: 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button(model.location.needsSystemSettings ? TrustCopy.openSettings : TrustCopy.allowAlways) {
+                if model.location.needsSystemSettings {
+                    model.openSystemSettings()
+                } else {
+                    model.requestAlwaysLocation()
+                }
+            }
+            .font(TrustTheme.folio(11))
+            .tracking(1.0)
+            .textCase(.uppercase)
+            .foregroundStyle(palette.ink)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .accessibilityLabel(model.location.needsSystemSettings ? TrustCopy.openSettings : TrustCopy.allowAlways)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 8)
         .overlay(alignment: .bottom) { TrustHairline() }
     }
 
-    private var map: some View {
-        Map(position: $position) {
-            if let coordinate = youCoordinate {
-                Annotation(TrustCopy.you, coordinate: coordinate) {
-                    TrustLivePin(initials: "Y", caption: TrustCopy.you, you: true)
-                }
-            }
-            ForEach(liveMembers) { member in
-                if let coordinate = liveCoordinate(for: member) {
-                    Annotation(member.displayName, coordinate: coordinate) {
-                        Button {
-                            activate(member)
-                        } label: {
-                            TrustLivePin(
-                                initials: member.displayName.trustInitials,
-                                caption: caption(for: member)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(accessibilityLabel(for: member))
-                    }
-                }
-            }
-        }
-        .mapStyle(mapStyle)
-        .mapControls { }
-        .colorScheme(model.appearance.nightEdition ? .dark : .light)
-        .accessibilityLabel(TrustCopy.circleMapAccessibility)
-    }
-
-    private var mapStyle: MapStyle {
-        if #available(iOS 18.0, *) {
-            return .standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll)
-        }
-        return .standard(elevation: .flat, pointsOfInterest: .excludingAll)
-    }
-
-    /// Lock chips on the map surface — never a coordinate for sealed people.
-    private var sealedMarks: some View {
-        Group {
-            if sealedMembers.isEmpty {
-                EmptyView()
-            } else {
-                HStack(alignment: .bottom, spacing: 8) {
-                    ForEach(sealedMembers) { member in
-                        Button {
-                            model.openLook(for: member.person)
-                        } label: {
-                            TrustSealedMark(initials: member.displayName.trustInitials)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(accessibilityLabel(for: member))
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 12)
-                .padding(.bottom, 10)
-            }
-        }
-    }
-
-    /// Thin horizontal index — not a column roster.
-    private var peopleIndex: some View {
-        VStack(spacing: 0) {
-            TrustHairline()
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(model.circle) { member in
-                        personChip(member)
-                    }
-                    ShareLink(item: TrustCopy.inviteMessage(code: model.pendingInviteCode ?? "TRUST")) {
-                        Text(TrustCopy.inviteLine)
-                            .font(TrustTheme.display(15))
-                            .foregroundStyle(palette.muted)
-                            .padding(.horizontal, 6)
-                    }
-                    .accessibilityLabel(TrustCopy.inviteAccessibility(line: TrustCopy.inviteLine))
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-            }
-        }
-        .background(palette.paper)
-    }
-
-    private func personChip(_ member: TrustedPerson) -> some View {
-        let share = member.share.presentation(at: Date())
-        let selected = isStripSelected(member)
-        let overdue = isOverdue(member)
-        let verbColor: Color = {
-            if overdue || lookingAt(member) || !member.inboundLive { return palette.accent }
-            return palette.ink
-        }()
+    private func personRow(_ member: TrustedPerson) -> some View {
+        let subtitle = inboundSubtitle(for: member)
+        let accentVerb = isAccentSubtitle(member)
+        let action = lookingAt(member) || member.inboundLive ? TrustCopy.view : TrustCopy.look
         return Button {
             activate(member)
         } label: {
-            HStack(alignment: .center, spacing: 8) {
-                stripMark(for: member)
-                Text(member.displayName)
-                    .font(TrustTheme.display(17, italic: true))
-                    .foregroundStyle(palette.ink)
-                    .lineLimit(1)
-                Text(verb(for: member, share: share))
-                    .font(TrustTheme.folio(10))
-                    .tracking(1.0)
-                    .foregroundStyle(verbColor)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .overlay(Rectangle().stroke(palette.line, lineWidth: 1))
-            .overlay(alignment: .bottom) {
-                if selected {
-                    Rectangle()
-                        .fill(palette.accent)
-                        .frame(height: 1)
-                        .padding(.horizontal, 10)
-                        .padding(.bottom, 2)
-                        .matchedGeometryEffect(id: "stripSelect", in: stripSelect)
+            HStack(alignment: .center, spacing: 14) {
+                TrustPersonAvatar(name: member.displayName, index: avatarIndex(for: member))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(member.person.displayName)
+                        .font(TrustTheme.display(22))
+                        .foregroundStyle(palette.ink)
+                        .lineLimit(1)
+                    Text(subtitle)
+                        .font(TrustTheme.ui(14))
+                        .foregroundStyle(accentVerb ? palette.accent : palette.muted)
+                        .lineLimit(2)
                 }
+
+                Spacer(minLength: 8)
+
+                trailingControl(for: member)
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .frame(minHeight: 72)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.28), value: selectedMemberID)
-        .accessibilityLabel(accessibilityLabel(for: member))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(member.person.displayName), \(subtitle)")
+        .accessibilityHint(action == TrustCopy.look
+            ? TrustCopy.lookWillNotify
+            : TrustCopy.view)
+        .accessibilityAddTraits(.isButton)
     }
 
     @ViewBuilder
-    private func stripMark(for member: TrustedPerson) -> some View {
-        if let home = member.homePresence {
-            switch home.state {
-            case .home:
-                TrustHomeGlyph(filled: true)
-            case .away:
-                TrustHomeGlyph(filled: false)
-            case .unknown:
-                if !member.inboundLive {
-                    TrustSealedLock()
-                }
-            }
-        } else if !member.inboundLive {
-            TrustSealedLock()
+    private func trailingControl(for member: TrustedPerson) -> some View {
+        if lookingAt(member) || member.inboundLive {
+            Text(TrustCopy.view.uppercased())
+                .font(TrustTheme.folio(11))
+                .tracking(1.0)
+                .foregroundStyle(palette.ink)
+                .padding(.horizontal, 14)
+                .frame(minWidth: 64, minHeight: 44)
+                .overlay(Rectangle().stroke(palette.ink, lineWidth: 1))
+                .accessibilityHidden(true)
+        } else {
+            Text(TrustCopy.look.uppercased())
+                .font(TrustTheme.folio(11))
+                .tracking(1.0)
+                .foregroundStyle(palette.accentOn)
+                .padding(.horizontal, 14)
+                .frame(minWidth: 64, minHeight: 44)
+                .background(palette.accent)
+                .accessibilityHidden(true)
         }
     }
 
-    private func isOverdue(_ member: TrustedPerson) -> Bool {
-        guard let promise = member.promise, !promise.youAreSubject else { return false }
-        return promise.status == .overdue
-    }
-
-    private func isStripSelected(_ member: TrustedPerson) -> Bool {
-        if lookingAt(member) { return true }
-        if model.lookSubject?.id == member.id { return true }
-        if model.shareSubject?.id == member.id { return true }
-        return false
-    }
-
-    private var selectedMemberID: UUID? {
-        if let id = model.activeSession?.event.subjectID { return id }
-        if let id = model.lookSubject?.id { return id }
-        return model.shareSubject?.id
-    }
-
-    private var liveMembers: [TrustedPerson] {
-        model.circle.filter(\.inboundLive)
-    }
-
-    private var sealedMembers: [TrustedPerson] {
-        model.circle.filter { !$0.inboundLive }
+    private func activate(_ member: TrustedPerson) {
+        if lookingAt(member) || member.inboundLive {
+            model.openMap(for: member)
+        } else {
+            model.openLook(for: member.person)
+        }
     }
 
     private func lookingAt(_ member: TrustedPerson) -> Bool {
         model.activeSession?.event.subjectID == member.id
     }
 
-    private func activate(_ member: TrustedPerson) {
-        if lookingAt(member) {
-            model.showingMap = true
-        } else if member.inboundLive {
-            model.openShare(for: member.person)
-        } else {
-            model.openLook(for: member.person)
+    private func isAccentSubtitle(_ member: TrustedPerson) -> Bool {
+        if let promise = member.promise, !promise.youAreSubject, promise.status == .overdue {
+            return true
         }
+        return !member.inboundLive
     }
 
-    private func verb(for member: TrustedPerson, share: SharePresentation) -> String {
-        if lookingAt(member) { return TrustCopy.openMap.uppercased() }
+    /// Permission-aware: sealed → Home/Away only; live → place OK.
+    private func inboundSubtitle(for member: TrustedPerson) -> String {
         if let promise = member.promise, !promise.youAreSubject {
             switch promise.status {
             case .overdue:
-                return TrustCopy.promiseOverdue.uppercased()
+                return TrustCopy.promiseOverdue
             case .noSignal:
-                return TrustCopy.promiseNoSignal.uppercased()
-            case .resolved:
-                return TrustCopy.homeChip.uppercased()
-            case .active:
+                return TrustCopy.promiseNoSignal
+            case .resolved, .active:
                 break
             }
         }
+
+        let presence = presenceLabel(for: member)
+
+        if member.inboundLive {
+            if let place = livePlaceContext(for: member) {
+                return "\(presence) · \(place)"
+            }
+            return presence
+        }
+
+        // Sealed / Until they look: Home/Away only — never neighborhood·distance.
+        return presence
+    }
+
+    private func presenceLabel(for member: TrustedPerson) -> String {
+        guard member.inboundPresenceGranted, let home = member.homePresence else {
+            return member.inboundLive ? TrustCopy.live : TrustCopy.sealed.capitalized
+        }
+        switch home.state {
+        case .home: return TrustCopy.homeChip
+        case .away: return TrustCopy.awayChip
+        case .unknown: return member.inboundLive ? TrustCopy.live : TrustCopy.sealed.capitalized
+        }
+    }
+
+    private func livePlaceContext(for member: TrustedPerson) -> String? {
+        guard member.inboundLive else { return nil }
         if let home = member.homePresence {
             switch home.state {
-            case .home: return TrustCopy.homeChip.uppercased()
-            case .away: return TrustCopy.awayChip.uppercased()
-            case .unknown: break
+            case .home:
+                if let label = home.placeLabel, label != "Home", !label.isEmpty {
+                    return label
+                }
+                return nil
+            case .away, .unknown:
+                if let label = home.placeLabel, label != "Home", !label.isEmpty {
+                    return label
+                }
             }
         }
-        if !member.inboundLive { return TrustCopy.look.uppercased() }
-        switch share {
-        case .always: return TrustCopy.always.uppercased()
-        case .timed:
-            return member.share.chipLabel(at: Date()).uppercased()
-        case .untilTheyLook:
-            return TrustCopy.look.uppercased()
-        }
+        return nil
     }
 
-    private func caption(for member: TrustedPerson) -> String {
-        switch member.share.presentation(at: Date()) {
-        case .always: return TrustCopy.always
-        case .timed: return member.share.chipLabel(at: Date())
-        case .untilTheyLook: return TrustCopy.live
-        }
+    private func avatarIndex(for member: TrustedPerson) -> Int {
+        model.circle.firstIndex(where: { $0.id == member.id }) ?? 0
     }
+}
 
-    private func accessibilityLabel(for member: TrustedPerson) -> String {
-        let share = member.share.presentation(at: Date())
-        if member.inboundLive {
-            return TrustCopy.visibleNowAccessibility(name: member.displayName, verb: verb(for: member, share: share))
-        }
-        return TrustCopy.sealedAccessibility(name: member.displayName, verb: verb(for: member, share: share))
-    }
+struct TrustPersonAvatar: View {
+    let name: String
+    var index: Int = 0
+    @Environment(\.trustPalette) private var palette
 
-    private var youCoordinate: CLLocationCoordinate2D? {
-        model.location.lastFix?.coordinate
-    }
+    private static let fills: [Color] = [
+        Color(red: 0.12, green: 0.12, blue: 0.12),
+        Color(red: 0.28, green: 0.28, blue: 0.28),
+        Color(red: 0.42, green: 0.42, blue: 0.42),
+        Color(red: 0.18, green: 0.22, blue: 0.20),
+        Color(red: 0.22, green: 0.18, blue: 0.18)
+    ]
 
-    private func liveCoordinate(for member: TrustedPerson) -> CLLocationCoordinate2D? {
-        guard member.inboundLive else { return nil }
-        if let session = model.activeSession, session.event.subjectID == member.id {
-            return session.live.coordinate
-        }
-        return member.livePoint?.coordinate
-    }
-
-    private func frameMap() {
-        var coordinates: [CLLocationCoordinate2D] = []
-        if let you = youCoordinate {
-            coordinates.append(you)
-        }
-        coordinates.append(contentsOf: liveMembers.compactMap(liveCoordinate))
-        guard let first = coordinates.first else { return }
-        var minLat = first.latitude
-        var maxLat = first.latitude
-        var minLon = first.longitude
-        var maxLon = first.longitude
-        for coordinate in coordinates {
-            minLat = min(minLat, coordinate.latitude)
-            maxLat = max(maxLat, coordinate.latitude)
-            minLon = min(minLon, coordinate.longitude)
-            maxLon = max(maxLon, coordinate.longitude)
-        }
-        let center = CLLocationCoordinate2D(
-            latitude: (minLat + maxLat) / 2,
-            longitude: (minLon + maxLon) / 2
-        )
-        let span = MKCoordinateSpan(
-            latitudeDelta: max(0.02, (maxLat - minLat) * 1.8 + 0.01),
-            longitudeDelta: max(0.02, (maxLon - minLon) * 1.8 + 0.01)
-        )
-        position = .region(MKCoordinateRegion(center: center, span: span))
-    }
-
-    private var logLabel: String {
-        TrustCopy.lookLogChrome()
+    var body: some View {
+        Text(name.trustInitials)
+            .font(TrustTheme.label(14))
+            .foregroundStyle(palette.paper)
+            .frame(width: 48, height: 48)
+            .background(Self.fills[abs(index) % Self.fills.count])
+            .clipShape(Circle())
+            .accessibilityHidden(true)
     }
 }
