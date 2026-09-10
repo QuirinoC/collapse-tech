@@ -32,27 +32,45 @@ iOS invite sharing uses the existing `pixelboard://invite/<code>` URL scheme bec
 
 ## Ship to TestFlight / App Store
 
-**Current ship target:** `1.0.2` (build `7`), bumped in PR #45 for special-code redeem on Account. Live App Store may still be `1.0` / `1.0.1` until you archive and submit. Web special codes are already live; iOS needs a new archive + App Store Connect submit for the redeem UI.
+**Current ship target:** `1.0.2` (build `8`) — iPhone Duo adaptive layout support plus special-code redeem, seamless tiles, and full iPad palette. Live App Store is `1.0` build `5` until this update is uploaded and approved. Web special codes are already live; iOS needs archive + App Store Connect submit.
 
-There is no Fastlane lane in this repo. Archive from Xcode (or `xcodebuild` once full Xcode is selected with `xcode-select -s /Applications/Xcode.app`).
+There is no Fastlane lane in this repo. Archive from Xcode (or `xcodebuild` with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`).
 
-### Release 1.0.2 (build 7) — what you do
+### iPhone Duo notes
 
-1. Confirm `main` includes special-code redeem (`08ce78a` / PR #45) plus earlier seamless tiles + iPad palette.
+Apple’s foldable iPhone Duo (outer ~5.4″ / inner ~7.6″) sizes apps from the **scene**, not a single `UIScreen`. Full edge-to-edge Duo mode requires linking the **iOS 27.1 SDK** (Xcode 27.1; listed as coming later in September 2026 on [developer.apple.com/iphone-duo](https://developer.apple.com/iphone-duo/)). Until then:
+
+- This app already uses SwiftUI `WindowGroup` scene lifecycle, `GeometryReader`-driven board sizing, and `horizontalSizeClass` for the expanded palette (Duo inner ≈ regular × regular).
+- `UIRequiresFullScreen` is intentionally **absent** so continuous resizing stays available when built with newer SDKs.
+- Do **not** branch layout on interface orientation; Duo’s inner display ignores orientation preferences.
+
+### Release 1.0.2 (build 8) — what you do
+
+1. Confirm `main` includes Duo adaptive UI + special-code redeem + seamless tiles + iPad palette.
 2. On a Mac with full Xcode:
 
 ```bash
 cd apps/infinite-pixelboard-ios
+export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 xcodegen generate
 open InfinitePixelboard.xcodeproj
 ```
 
-3. Select any iOS device / **Any iOS Device (arm64)** → **Product → Archive**.
-4. In Organizer: **Distribute App → App Store Connect → Upload**. Wait for processing in App Store Connect (app id `6804066543`, bundle `com.collapsetechnologies.pixelboard`).
-5. In App Store Connect → Infinite Pixelboard → **+ Version** `1.0.2`: attach build **7**, short “What’s New” noting special/event code redeem (and seamless tiles / full iPad palette if those never shipped on device), then **Submit for Review**.
+3. Select **Any iOS Device (arm64)** → **Product → Archive**.
+4. In Organizer: **Distribute App → App Store Connect → Upload**. If Keychain prompts **Allow**, approve so codesign/upload can finish. Wait for processing (app id `6804066543`, bundle `com.collapsetechnologies.pixelboard`).
+5. In App Store Connect → Infinite Pixelboard → **+ Version** `1.0.2`: attach build **8**, What’s New covering iPhone Duo adaptive support, special/event code redeem, seamless tiles, and full iPad palette, then **Submit for Review**.
 6. After approval, release manually or automatically per your Connect setting.
 
-Do not reuse an earlier `CFBundleVersion`; Apple requires a higher build for each upload. Marketing version is already `1.0.2` / build `7` in `project.yml`.
+Do not reuse an earlier `CFBundleVersion`; Apple requires a higher build for each upload. Marketing version is `1.0.2` / build `8` in `project.yml`.
+
+**Suggested What’s New (EN):**
+
+```
+• Support for iPhone Duo with adaptive layouts on compact and expanded displays
+• Redeem special/event codes from Settings
+• Seamless tile rendering across the board
+• Full color palette on iPad and other regular-width layouts
+```
 
 The app code is ready to archive. Broader console setup (Firebase, StoreKit, APNs) is below if anything is still incomplete.
 
