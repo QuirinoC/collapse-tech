@@ -48,4 +48,14 @@ final class BoardGeometryTests: XCTestCase {
         viewport.zoom(atX: 80, y: 90, factor: 2)
         XCTAssertEqual(viewport.screenToBoard(x: 80, y: 90), before)
     }
+
+    func testResizeRecentersPreviousFocusForDuoPoseChanges() {
+        var viewport = BoardViewport(width: 390, height: 844)
+        let focus = BoardPosition(row: 12, column: -4)
+        viewport.center(on: focus, width: 390, height: 844)
+        // Open-inner / Split View style width jump (scene geometry, not orientation).
+        viewport.center(on: focus, width: 700, height: 900)
+        let recentered = viewport.screenToBoard(x: 350, y: 450)
+        XCTAssertEqual(recentered, focus)
+    }
 }
