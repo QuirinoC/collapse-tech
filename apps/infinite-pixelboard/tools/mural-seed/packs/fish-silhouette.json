@@ -1,0 +1,257 @@
+{
+  "id": "fish-silhouette",
+  "title": "Abstract fish",
+  "license": "CC0-1.0 (original)",
+  "origin": {
+    "row": -15,
+    "column": -80
+  },
+  "note": "W — simple fish silhouette",
+  "pixels": [
+    {
+      "row": -15,
+      "column": -76,
+      "color": "#356B76"
+    },
+    {
+      "row": -15,
+      "column": -75,
+      "color": "#356B76"
+    },
+    {
+      "row": -15,
+      "column": -74,
+      "color": "#356B76"
+    },
+    {
+      "row": -15,
+      "column": -73,
+      "color": "#356B76"
+    },
+    {
+      "row": -14,
+      "column": -78,
+      "color": "#356B76"
+    },
+    {
+      "row": -14,
+      "column": -77,
+      "color": "#356B76"
+    },
+    {
+      "row": -14,
+      "column": -76,
+      "color": "#356B76"
+    },
+    {
+      "row": -14,
+      "column": -75,
+      "color": "#356B76"
+    },
+    {
+      "row": -14,
+      "column": -74,
+      "color": "#356B76"
+    },
+    {
+      "row": -14,
+      "column": -73,
+      "color": "#356B76"
+    },
+    {
+      "row": -14,
+      "column": -72,
+      "color": "#356B76"
+    },
+    {
+      "row": -14,
+      "column": -71,
+      "color": "#356B76"
+    },
+    {
+      "row": -14,
+      "column": -69,
+      "color": "#356B76"
+    },
+    {
+      "row": -13,
+      "column": -79,
+      "color": "#356B76"
+    },
+    {
+      "row": -13,
+      "column": -78,
+      "color": "#356B76"
+    },
+    {
+      "row": -13,
+      "column": -77,
+      "color": "#356B76"
+    },
+    {
+      "row": -13,
+      "column": -76,
+      "color": "#171714"
+    },
+    {
+      "row": -13,
+      "column": -75,
+      "color": "#356B76"
+    },
+    {
+      "row": -13,
+      "column": -74,
+      "color": "#356B76"
+    },
+    {
+      "row": -13,
+      "column": -73,
+      "color": "#356B76"
+    },
+    {
+      "row": -13,
+      "column": -72,
+      "color": "#356B76"
+    },
+    {
+      "row": -13,
+      "column": -71,
+      "color": "#356B76"
+    },
+    {
+      "row": -13,
+      "column": -70,
+      "color": "#356B76"
+    },
+    {
+      "row": -13,
+      "column": -69,
+      "color": "#356B76"
+    },
+    {
+      "row": -12,
+      "column": -80,
+      "color": "#356B76"
+    },
+    {
+      "row": -12,
+      "column": -79,
+      "color": "#356B76"
+    },
+    {
+      "row": -12,
+      "column": -78,
+      "color": "#356B76"
+    },
+    {
+      "row": -12,
+      "column": -77,
+      "color": "#356B76"
+    },
+    {
+      "row": -12,
+      "column": -76,
+      "color": "#356B76"
+    },
+    {
+      "row": -12,
+      "column": -75,
+      "color": "#356B76"
+    },
+    {
+      "row": -12,
+      "column": -74,
+      "color": "#356B76"
+    },
+    {
+      "row": -12,
+      "column": -73,
+      "color": "#356B76"
+    },
+    {
+      "row": -12,
+      "column": -72,
+      "color": "#356B76"
+    },
+    {
+      "row": -12,
+      "column": -71,
+      "color": "#356B76"
+    },
+    {
+      "row": -11,
+      "column": -79,
+      "color": "#356B76"
+    },
+    {
+      "row": -11,
+      "column": -78,
+      "color": "#356B76"
+    },
+    {
+      "row": -11,
+      "column": -77,
+      "color": "#356B76"
+    },
+    {
+      "row": -11,
+      "column": -76,
+      "color": "#356B76"
+    },
+    {
+      "row": -11,
+      "column": -75,
+      "color": "#356B76"
+    },
+    {
+      "row": -11,
+      "column": -74,
+      "color": "#356B76"
+    },
+    {
+      "row": -11,
+      "column": -73,
+      "color": "#356B76"
+    },
+    {
+      "row": -11,
+      "column": -72,
+      "color": "#356B76"
+    },
+    {
+      "row": -11,
+      "column": -70,
+      "color": "#356B76"
+    },
+    {
+      "row": -10,
+      "column": -78,
+      "color": "#356B76"
+    },
+    {
+      "row": -10,
+      "column": -77,
+      "color": "#356B76"
+    },
+    {
+      "row": -10,
+      "column": -76,
+      "color": "#356B76"
+    },
+    {
+      "row": -10,
+      "column": -75,
+      "color": "#356B76"
+    },
+    {
+      "row": -10,
+      "column": -74,
+      "color": "#356B76"
+    },
+    {
+      "row": -10,
+      "column": -73,
+      "color": "#356B76"
+    }
+  ]
+}

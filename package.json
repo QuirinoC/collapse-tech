@@ -12,6 +12,8 @@
     "dev:studio": "npm --prefix apps/collapse-technologies run dev",
     "dev:pixelboard": "dotnet watch --project apps/infinite-pixelboard/PixelBoard.csproj run",
     "pixelboard:local-fill": "node apps/infinite-pixelboard/tools/local-pixel-art.mjs",
+    "pixelboard:generate-mural-seed": "node apps/infinite-pixelboard/tools/mural-seed/generate-packs.mjs",
+    "pixelboard:seed-mural": "node apps/infinite-pixelboard/tools/mural-seed/seed-mural.mjs",
     "provision:pixelboard-moderator": "node apps/infinite-pixelboard/tools/provision-moderator.mjs",
     "restore:coach": "dotnet restore apps/coach-gg/src/CoachGG.csproj",
     "restore:pixelboard": "dotnet restore apps/infinite-pixelboard/PixelBoard.sln",
@@ -35,7 +37,7 @@
     "test:dress": "npm --prefix apps/dress-like-me run test",
     "test:health": "npm --prefix apps/collapse-health run test",
     "test:coach:e2e": "npm --prefix apps/coach-gg run test:e2e",
-    "test:pixelboard:web": "node --test apps/infinite-pixelboard/wwwroot/js/pixelboard/tests/*.test.mjs apps/infinite-pixelboard/tools/*.test.mjs",
+    "test:pixelboard:web": "node --test apps/infinite-pixelboard/wwwroot/js/pixelboard/tests/*.test.mjs apps/infinite-pixelboard/tools/*.test.mjs apps/infinite-pixelboard/tools/mural-seed/*.test.mjs",
     "test:pixelboard": "dotnet test apps/infinite-pixelboard/PixelBoard.sln --no-restore"
   },
   "devDependencies": {

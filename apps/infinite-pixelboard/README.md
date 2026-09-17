@@ -1,6 +1,6 @@
 # Infinite Pixelboard
 
-Collaborative, infinite canvas drawing application built with ASP.NET Core 9 Razor Pages, SignalR, and Redis.
+Collaborative, infinite shared mural — everyone paints together. Built with ASP.NET Core 9 Razor Pages, SignalR, and Redis.
 
 ## Local development
 
@@ -13,6 +13,17 @@ npm run dev:pixelboard
 ```
 
 The development configuration connects to Redis at `localhost:6379`. The board is available at `/board`.
+
+### Seed original mural art
+
+Original CC0-style geometric / nature packs live under `tools/mural-seed/`. Generate and paint locally (no auth):
+
+```bash
+npm run pixelboard:generate-mural-seed
+npm run pixelboard:seed-mural
+```
+
+Production seeding uses the moderator pixel-art route; see [`tools/mural-seed/README.md`](tools/mural-seed/README.md).
 
 ## Validation
 

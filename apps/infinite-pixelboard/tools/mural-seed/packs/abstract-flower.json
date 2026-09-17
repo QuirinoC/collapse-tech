@@ -1,0 +1,312 @@
+{
+  "id": "abstract-flower",
+  "title": "Abstract six-petal",
+  "license": "CC0-1.0 (original)",
+  "origin": {
+    "row": -20,
+    "column": 50
+  },
+  "note": "NE — geometric flower, not franchise-like",
+  "pixels": [
+    {
+      "row": -20,
+      "column": 54,
+      "color": "#7E5078"
+    },
+    {
+      "row": -20,
+      "column": 58,
+      "color": "#7E5078"
+    },
+    {
+      "row": -19,
+      "column": 52,
+      "color": "#7E5078"
+    },
+    {
+      "row": -19,
+      "column": 53,
+      "color": "#7E5078"
+    },
+    {
+      "row": -19,
+      "column": 54,
+      "color": "#7E5078"
+    },
+    {
+      "row": -19,
+      "column": 58,
+      "color": "#7E5078"
+    },
+    {
+      "row": -19,
+      "column": 59,
+      "color": "#7E5078"
+    },
+    {
+      "row": -19,
+      "column": 60,
+      "color": "#7E5078"
+    },
+    {
+      "row": -18,
+      "column": 52,
+      "color": "#7E5078"
+    },
+    {
+      "row": -18,
+      "column": 53,
+      "color": "#7E5078"
+    },
+    {
+      "row": -18,
+      "column": 54,
+      "color": "#7E5078"
+    },
+    {
+      "row": -18,
+      "column": 56,
+      "color": "#D3523C"
+    },
+    {
+      "row": -18,
+      "column": 58,
+      "color": "#7E5078"
+    },
+    {
+      "row": -18,
+      "column": 59,
+      "color": "#7E5078"
+    },
+    {
+      "row": -18,
+      "column": 60,
+      "color": "#7E5078"
+    },
+    {
+      "row": -17,
+      "column": 54,
+      "color": "#7E5078"
+    },
+    {
+      "row": -17,
+      "column": 55,
+      "color": "#D3523C"
+    },
+    {
+      "row": -17,
+      "column": 56,
+      "color": "#D3523C"
+    },
+    {
+      "row": -17,
+      "column": 57,
+      "color": "#D3523C"
+    },
+    {
+      "row": -17,
+      "column": 58,
+      "color": "#7E5078"
+    },
+    {
+      "row": -16,
+      "column": 50,
+      "color": "#7E5078"
+    },
+    {
+      "row": -16,
+      "column": 51,
+      "color": "#7E5078"
+    },
+    {
+      "row": -16,
+      "column": 52,
+      "color": "#7E5078"
+    },
+    {
+      "row": -16,
+      "column": 53,
+      "color": "#D3523C"
+    },
+    {
+      "row": -16,
+      "column": 54,
+      "color": "#D3523C"
+    },
+    {
+      "row": -16,
+      "column": 55,
+      "color": "#D3523C"
+    },
+    {
+      "row": -16,
+      "column": 56,
+      "color": "#E1C94A"
+    },
+    {
+      "row": -16,
+      "column": 57,
+      "color": "#E1C94A"
+    },
+    {
+      "row": -16,
+      "column": 58,
+      "color": "#D3523C"
+    },
+    {
+      "row": -16,
+      "column": 59,
+      "color": "#D3523C"
+    },
+    {
+      "row": -16,
+      "column": 60,
+      "color": "#7E5078"
+    },
+    {
+      "row": -16,
+      "column": 61,
+      "color": "#7E5078"
+    },
+    {
+      "row": -16,
+      "column": 62,
+      "color": "#7E5078"
+    },
+    {
+      "row": -15,
+      "column": 52,
+      "color": "#7E5078"
+    },
+    {
+      "row": -15,
+      "column": 54,
+      "color": "#D3523C"
+    },
+    {
+      "row": -15,
+      "column": 55,
+      "color": "#D3523C"
+    },
+    {
+      "row": -15,
+      "column": 56,
+      "color": "#E1C94A"
+    },
+    {
+      "row": -15,
+      "column": 57,
+      "color": "#E1C94A"
+    },
+    {
+      "row": -15,
+      "column": 58,
+      "color": "#D3523C"
+    },
+    {
+      "row": -15,
+      "column": 60,
+      "color": "#7E5078"
+    },
+    {
+      "row": -14,
+      "column": 54,
+      "color": "#7E5078"
+    },
+    {
+      "row": -14,
+      "column": 55,
+      "color": "#D3523C"
+    },
+    {
+      "row": -14,
+      "column": 56,
+      "color": "#D3523C"
+    },
+    {
+      "row": -14,
+      "column": 57,
+      "color": "#D3523C"
+    },
+    {
+      "row": -14,
+      "column": 58,
+      "color": "#7E5078"
+    },
+    {
+      "row": -13,
+      "column": 52,
+      "color": "#7E5078"
+    },
+    {
+      "row": -13,
+      "column": 53,
+      "color": "#7E5078"
+    },
+    {
+      "row": -13,
+      "column": 54,
+      "color": "#7E5078"
+    },
+    {
+      "row": -13,
+      "column": 56,
+      "color": "#D3523C"
+    },
+    {
+      "row": -13,
+      "column": 58,
+      "color": "#7E5078"
+    },
+    {
+      "row": -13,
+      "column": 59,
+      "color": "#7E5078"
+    },
+    {
+      "row": -13,
+      "column": 60,
+      "color": "#7E5078"
+    },
+    {
+      "row": -12,
+      "column": 52,
+      "color": "#7E5078"
+    },
+    {
+      "row": -12,
+      "column": 53,
+      "color": "#7E5078"
+    },
+    {
+      "row": -12,
+      "column": 54,
+      "color": "#7E5078"
+    },
+    {
+      "row": -12,
+      "column": 58,
+      "color": "#7E5078"
+    },
+    {
+      "row": -12,
+      "column": 59,
+      "color": "#7E5078"
+    },
+    {
+      "row": -12,
+      "column": 60,
+      "color": "#7E5078"
+    },
+    {
+      "row": -11,
+      "column": 54,
+      "color": "#7E5078"
+    },
+    {
+      "row": -11,
+      "column": 58,
+      "color": "#7E5078"
+    }
+  ]
+}

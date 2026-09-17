@@ -1,0 +1,197 @@
+{
+  "id": "simple-heart",
+  "title": "Classic heart motif",
+  "license": "CC0-1.0 (public-domain motif, original pixels)",
+  "origin": {
+    "row": 10,
+    "column": 10
+  },
+  "note": "Near origin SE — classic heart",
+  "pixels": [
+    {
+      "row": 10,
+      "column": 11,
+      "color": "#D3523C"
+    },
+    {
+      "row": 10,
+      "column": 12,
+      "color": "#D3523C"
+    },
+    {
+      "row": 10,
+      "column": 16,
+      "color": "#D3523C"
+    },
+    {
+      "row": 10,
+      "column": 17,
+      "color": "#D3523C"
+    },
+    {
+      "row": 11,
+      "column": 10,
+      "color": "#D3523C"
+    },
+    {
+      "row": 11,
+      "column": 11,
+      "color": "#D3523C"
+    },
+    {
+      "row": 11,
+      "column": 12,
+      "color": "#D3523C"
+    },
+    {
+      "row": 11,
+      "column": 13,
+      "color": "#D3523C"
+    },
+    {
+      "row": 11,
+      "column": 15,
+      "color": "#D3523C"
+    },
+    {
+      "row": 11,
+      "column": 16,
+      "color": "#D3523C"
+    },
+    {
+      "row": 11,
+      "column": 17,
+      "color": "#D3523C"
+    },
+    {
+      "row": 11,
+      "column": 18,
+      "color": "#D3523C"
+    },
+    {
+      "row": 12,
+      "column": 10,
+      "color": "#D3523C"
+    },
+    {
+      "row": 12,
+      "column": 11,
+      "color": "#D3523C"
+    },
+    {
+      "row": 12,
+      "column": 12,
+      "color": "#D3523C"
+    },
+    {
+      "row": 12,
+      "column": 13,
+      "color": "#D3523C"
+    },
+    {
+      "row": 12,
+      "column": 14,
+      "color": "#D3523C"
+    },
+    {
+      "row": 12,
+      "column": 15,
+      "color": "#D3523C"
+    },
+    {
+      "row": 12,
+      "column": 16,
+      "color": "#D3523C"
+    },
+    {
+      "row": 12,
+      "column": 17,
+      "color": "#D3523C"
+    },
+    {
+      "row": 12,
+      "column": 18,
+      "color": "#D3523C"
+    },
+    {
+      "row": 13,
+      "column": 11,
+      "color": "#D3523C"
+    },
+    {
+      "row": 13,
+      "column": 12,
+      "color": "#D3523C"
+    },
+    {
+      "row": 13,
+      "column": 13,
+      "color": "#D3523C"
+    },
+    {
+      "row": 13,
+      "column": 14,
+      "color": "#D3523C"
+    },
+    {
+      "row": 13,
+      "column": 15,
+      "color": "#D3523C"
+    },
+    {
+      "row": 13,
+      "column": 16,
+      "color": "#D3523C"
+    },
+    {
+      "row": 13,
+      "column": 17,
+      "color": "#D3523C"
+    },
+    {
+      "row": 14,
+      "column": 12,
+      "color": "#D3523C"
+    },
+    {
+      "row": 14,
+      "column": 13,
+      "color": "#D3523C"
+    },
+    {
+      "row": 14,
+      "column": 14,
+      "color": "#D3523C"
+    },
+    {
+      "row": 14,
+      "column": 15,
+      "color": "#D3523C"
+    },
+    {
+      "row": 14,
+      "column": 16,
+      "color": "#D3523C"
+    },
+    {
+      "row": 15,
+      "column": 13,
+      "color": "#D3523C"
+    },
+    {
+      "row": 15,
+      "column": 14,
+      "color": "#D3523C"
+    },
+    {
+      "row": 15,
+      "column": 15,
+      "color": "#D3523C"
+    },
+    {
+      "row": 16,
+      "column": 14,
+      "color": "#D3523C"
+    }
+  ]
+}

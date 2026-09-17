@@ -1,0 +1,408 @@
+{
+  "generatedAt": "2026-09-17T21:48:38.225Z",
+  "license": "All packs are original CC0-1.0-style pixel art. No third-party IP.",
+  "palette": {
+    "k": "#171714",
+    "r": "#D3523C",
+    "o": "#DC9B32",
+    "y": "#E1C94A",
+    "g": "#587554",
+    "t": "#356B76",
+    "b": "#425B8C",
+    "p": "#7E5078",
+    "c": "#F7F3EA"
+  },
+  "packs": [
+    {
+      "id": "welcome-compass",
+      "title": "Welcome compass rose",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": -40,
+        "column": -40
+      },
+      "note": "NW of origin — geometric compass, original",
+      "pixelCount": 37,
+      "boundingBox": {
+        "rowMin": -40,
+        "rowMax": -28,
+        "columnMin": -40,
+        "columnMax": -28
+      }
+    },
+    {
+      "id": "geometric-sun",
+      "title": "Geometric sun",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": -55,
+        "column": 20
+      },
+      "note": "N of origin — original sunburst",
+      "pixelCount": 88,
+      "boundingBox": {
+        "rowMin": -55,
+        "rowMax": -45,
+        "columnMin": 20,
+        "columnMax": 33
+      }
+    },
+    {
+      "id": "pine-grove",
+      "title": "Pine grove",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": 25,
+        "column": -60
+      },
+      "note": "SW of origin — three original pines",
+      "pixelCount": 76,
+      "boundingBox": {
+        "rowMin": 25,
+        "rowMax": 31,
+        "columnMin": -58,
+        "columnMax": -37
+      }
+    },
+    {
+      "id": "crescent-sky",
+      "title": "Crescent and stars",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": -70,
+        "column": -10
+      },
+      "note": "Far N — night sky motif",
+      "pixelCount": 21,
+      "boundingBox": {
+        "rowMin": -70,
+        "rowMax": -62,
+        "columnMin": -10,
+        "columnMax": 4
+      }
+    },
+    {
+      "id": "mountain-range",
+      "title": "Mountain range",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": 40,
+        "column": 30
+      },
+      "note": "SE of origin — silhouette mountains",
+      "pixelCount": 103,
+      "boundingBox": {
+        "rowMin": 40,
+        "rowMax": 46,
+        "columnMin": 30,
+        "columnMax": 53
+      }
+    },
+    {
+      "id": "abstract-flower",
+      "title": "Abstract six-petal",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": -20,
+        "column": 50
+      },
+      "note": "NE — geometric flower, not franchise-like",
+      "pixelCount": 60,
+      "boundingBox": {
+        "rowMin": -20,
+        "rowMax": -11,
+        "columnMin": 50,
+        "columnMax": 62
+      }
+    },
+    {
+      "id": "simple-heart",
+      "title": "Classic heart motif",
+      "license": "CC0-1.0 (public-domain motif, original pixels)",
+      "origin": {
+        "row": 10,
+        "column": 10
+      },
+      "note": "Near origin SE — classic heart",
+      "pixelCount": 37,
+      "boundingBox": {
+        "rowMin": 10,
+        "rowMax": 16,
+        "columnMin": 10,
+        "columnMax": 18
+      }
+    },
+    {
+      "id": "leaf-pair",
+      "title": "Paired leaves",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": 55,
+        "column": -25
+      },
+      "note": "S — nature leaves",
+      "pixelCount": 47,
+      "boundingBox": {
+        "rowMin": 55,
+        "rowMax": 61,
+        "columnMin": -25,
+        "columnMax": -13
+      }
+    },
+    {
+      "id": "fish-silhouette",
+      "title": "Abstract fish",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": -15,
+        "column": -80
+      },
+      "note": "W — simple fish silhouette",
+      "pixelCount": 49,
+      "boundingBox": {
+        "rowMin": -15,
+        "rowMax": -10,
+        "columnMin": -80,
+        "columnMax": -69
+      }
+    },
+    {
+      "id": "bird-perch",
+      "title": "Geometric bird",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": -80,
+        "column": 45
+      },
+      "note": "NE far — perched bird silhouette",
+      "pixelCount": 45,
+      "boundingBox": {
+        "rowMin": -80,
+        "rowMax": -71,
+        "columnMin": 45,
+        "columnMax": 54
+      }
+    },
+    {
+      "id": "rainbow-arc",
+      "title": "Rainbow arc",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": 70,
+        "column": 50
+      },
+      "note": "Far SE — spectral arc",
+      "pixelCount": 77,
+      "boundingBox": {
+        "rowMin": 70,
+        "rowMax": 77,
+        "columnMin": 50,
+        "columnMax": 63
+      }
+    },
+    {
+      "id": "quilt-block",
+      "title": "Quilt checker 12×12",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": -30,
+        "column": 80
+      },
+      "note": "E — textile-style checker",
+      "pixelCount": 144,
+      "boundingBox": {
+        "rowMin": -30,
+        "rowMax": -19,
+        "columnMin": 80,
+        "columnMax": 91
+      }
+    },
+    {
+      "id": "concentric-nest",
+      "title": "Concentric nest",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": 80,
+        "column": -70
+      },
+      "note": "Far SW — nested squares",
+      "pixelCount": 225,
+      "boundingBox": {
+        "rowMin": 80,
+        "rowMax": 94,
+        "columnMin": -70,
+        "columnMax": -56
+      }
+    },
+    {
+      "id": "diamond-field",
+      "title": "Diamond tessellation",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": -100,
+        "column": -50
+      },
+      "note": "Far NW — abstract diamonds 16×12",
+      "pixelCount": 192,
+      "boundingBox": {
+        "rowMin": -100,
+        "rowMax": -89,
+        "columnMin": -50,
+        "columnMax": -35
+      }
+    },
+    {
+      "id": "wave-banner",
+      "title": "Wave banner",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": 100,
+        "column": -40
+      },
+      "note": "Far S — rolling waves 24×8",
+      "pixelCount": 192,
+      "boundingBox": {
+        "rowMin": 100,
+        "rowMax": 107,
+        "columnMin": -40,
+        "columnMax": -17
+      }
+    },
+    {
+      "id": "color-spiral",
+      "title": "Palette spiral",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": -5,
+        "column": 100
+      },
+      "note": "Far E — 15×15 rainbow spiral",
+      "pixelCount": 225,
+      "boundingBox": {
+        "rowMin": -5,
+        "rowMax": 9,
+        "columnMin": 100,
+        "columnMax": 114
+      }
+    },
+    {
+      "id": "house-silhouette",
+      "title": "Simple house",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": 20,
+        "column": -100
+      },
+      "note": "Far W — generic house",
+      "pixelCount": 62,
+      "boundingBox": {
+        "rowMin": 20,
+        "rowMax": 29,
+        "columnMin": -100,
+        "columnMax": -90
+      }
+    },
+    {
+      "id": "star-cluster",
+      "title": "Star cluster",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": -90,
+        "column": 80
+      },
+      "note": "Far NE — geometric stars",
+      "pixelCount": 67,
+      "boundingBox": {
+        "rowMin": -90,
+        "rowMax": -82,
+        "columnMin": 80,
+        "columnMax": 96
+      }
+    },
+    {
+      "id": "cross-stitch-frame",
+      "title": "Cross-stitch frame",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": 110,
+        "column": 20
+      },
+      "note": "Far S — embroidery-style border around open center",
+      "pixelCount": 57,
+      "boundingBox": {
+        "rowMin": 110,
+        "rowMax": 119,
+        "columnMin": 20,
+        "columnMax": 35
+      }
+    },
+    {
+      "id": "meander-border",
+      "title": "Greek-key meander",
+      "license": "CC0-1.0 (classic public-domain motif, original pixels)",
+      "origin": {
+        "row": -120,
+        "column": 10
+      },
+      "note": "Far N — classic meander pattern",
+      "pixelCount": 81,
+      "boundingBox": {
+        "rowMin": -120,
+        "rowMax": -112,
+        "columnMin": 10,
+        "columnMax": 25
+      }
+    },
+    {
+      "id": "tulip-row",
+      "title": "Tulip row",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": 5,
+        "column": -35
+      },
+      "note": "Near origin W — three tulips",
+      "pixelCount": 30,
+      "boundingBox": {
+        "rowMin": 5,
+        "rowMax": 10,
+        "columnMin": -34,
+        "columnMax": -24
+      }
+    },
+    {
+      "id": "boat-horizon",
+      "title": "Boat on horizon",
+      "license": "CC0-1.0 (original)",
+      "origin": {
+        "row": 90,
+        "column": 90
+      },
+      "note": "Far SE — sailboat",
+      "pixelCount": 52,
+      "boundingBox": {
+        "rowMin": 90,
+        "rowMax": 99,
+        "columnMin": 90,
+        "columnMax": 102
+      }
+    },
+    {
+      "id": "mushroom-pair",
+      "title": "Forest mushrooms",
+      "license": "CC0-1.0 (original geometric toadstools)",
+      "origin": {
+        "row": 35,
+        "column": 70
+      },
+      "note": "E — original toadstools (not franchise)",
+      "pixelCount": 46,
+      "boundingBox": {
+        "rowMin": 35,
+        "rowMax": 41,
+        "columnMin": 70,
+        "columnMax": 85
+      }
+    }
+  ]
+}
