@@ -34,7 +34,7 @@ public sealed class PostgresStripeBillingStoreIntegrationTests
         Assert.Equal("cus_a", await stripe.GetCustomerIdAsync(stripeAccount));
 
         var stripeToken = await storeKit.GetOrCreateAccountTokenAsync(stripeAccount);
-        Assert.Equal(StoreKitApplyOutcome.NotApplied, await storeKit.ApplyAsync(
+        Assert.Equal(StoreKitApplyOutcome.AccountAlreadyEntitled, await storeKit.ApplyAsync(
             stripeAccount,
             new VerifiedStoreKitTransaction(
                 $"transaction-blocked-{Guid.NewGuid():N}",

@@ -177,34 +177,14 @@ struct AccountView: View {
     private var subscriptionSections: some View {
         DisclosureGroup(isExpanded: $showingPro) {
             VStack(alignment: .leading, spacing: 10) {
-                if model.store.linkedToAnotherAccount {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(PixelboardL10n.subscriptionTransferReviewHeading)
-                            .font(PixelboardTheme.sans(17, weight: .semibold))
-                            .foregroundStyle(PixelboardTheme.ink)
-                        Text(PixelboardL10n.subscriptionTransferReviewNote)
-                            .font(PixelboardTheme.sans(14))
-                            .foregroundStyle(PixelboardTheme.ink)
-                            .lineSpacing(4)
-                        Link(
-                            PixelboardL10n.subscriptionContactSupport,
-                            destination: StoreManager.supportURL
-                        )
-                        .font(PixelboardTheme.mono(10))
-                        .foregroundStyle(PixelboardTheme.ink)
-                        .underline()
-                    }
-                    .padding(14)
-                    .background(PixelboardTheme.accent.opacity(0.14))
-                    .overlay(Rectangle().stroke(PixelboardTheme.accent, lineWidth: 1))
-                }
                 Text(subscriptionNote)
                     .font(PixelboardTheme.sans(14))
                     .foregroundStyle(PixelboardTheme.muted)
                     .lineSpacing(4)
                 if let account = model.account,
                    account.tier != .pro,
-                   !model.store.linkedToAnotherAccount {
+                   !model.store.linkedToAnotherAccount,
+                   !model.store.keptExistingEntitlement {
                     ForEach(model.store.products) { product in
                         Button {
                             Task {
@@ -254,7 +234,7 @@ struct AccountView: View {
                         .font(PixelboardTheme.mono(9.5))
                         .foregroundStyle(PixelboardTheme.muted)
                         .lineSpacing(3)
-                    if model.account?.tier == .pro || model.store.linkedToAnotherAccount {
+                    if model.account?.tier == .pro {
                         if model.account?.entitlementSource == "stripe" {
                             Button(PixelboardL10n.stripeSubscriptionSettings) {
                                 Task {
@@ -305,6 +285,9 @@ struct AccountView: View {
         }
         if model.store.linkedToAnotherAccount {
             return PixelboardL10n.subscriptionLinkedElsewhere
+        }
+        if model.store.keptExistingEntitlement {
+            return PixelboardL10n.subscriptionEntitlementKept
         }
         guard account.tier != .pro else {
             return account.entitlementSource == "stripe"

@@ -90,10 +90,18 @@ public static class StoreKitApi
                 new ApiError(
                     ApiErrorCodes.StoreKitAccountMismatch,
                     "This Apple subscription is linked to another Pixelboard account. "
-                    + "It was not transferred. An approved transfer would remove Pro access "
-                    + "from the previous Pixelboard account. Contact "
-                    + "hello@collapsetechnologies.com for verification."),
+                    + "It was not transferred. Your current account is unchanged, and "
+                    + "painting still works on the free tier."),
                 statusCode: StatusCodes.Status403Forbidden);
+        }
+        if (outcome == StoreKitApplyOutcome.AccountAlreadyEntitled)
+        {
+            return Results.Json(
+                new ApiError(
+                    ApiErrorCodes.StoreKitEntitlementKept,
+                    "This Pixelboard account already has an active Pro entitlement. "
+                    + "The existing entitlement was kept and was not overwritten."),
+                statusCode: StatusCodes.Status409Conflict);
         }
         if (outcome != StoreKitApplyOutcome.Applied)
         {

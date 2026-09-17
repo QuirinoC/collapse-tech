@@ -31,13 +31,11 @@
 "permanently_delete_account" = "Dieses Konto dauerhaft löschen?";
 "delete_account" = "Konto löschen";
 "try_pro_note" = "Teste Pro 7 Tage kostenlos. Wähle danach ein monatliches oder jährliches Abo. Pro ermöglicht 1 Sekunde zwischen Pixeln und schaltet die erweiterte Palette sowie eigene Farben frei; die Abklingzeit wird dadurch nicht entfernt.";
-"pro_available_note" = "Pro ist mit monatlicher oder jährlicher Abrechnung verfügbar. Es schaltet die erweiterte Palette und eigene Farben frei; die Abklingzeit bleibt bei einer Sekunde.";
+"pro_available_note" = "Pro ist optional. Malen funktioniert auf der kostenlosen Stufe. Pro schaltet die erweiterte Palette und eigene Farben frei und hat eine Abklingzeit von einer Sekunde.";
 "pro_active_note" = "Pro ist aktiv. Wenn verfügbar, kannst du unten von monatlicher auf jährliche Abrechnung wechseln.";
-"subscription_linked_elsewhere" = "Dieses Apple-Abo ist mit einem anderen Pixelboard-Konto verknüpft und wurde nicht übertragen.";
-"subscription_transfer_review_heading" = "Apple-Abo benötigt Supportprüfung";
-"subscription_transfer_review_note" = "Dieses Apple-Abo ist mit einem anderen Pixelboard-Konto verknüpft und wurde nicht übertragen. Käufe wiederherstellen synchronisiert ein Apple-Abo nur erneut; es verschiebt es nicht zwischen Apple-IDs, Google-Anmeldungen oder Pixelboard-Konten. Eine genehmigte Übertragung würde den Pro-Zugang des vorherigen Pixelboard-Kontos entfernen.";
-"subscription_contact_support" = "hello@collapsetechnologies.com zur Verifizierung kontaktieren";
-"restore_purchases_note" = "Käufe wiederherstellen synchronisiert dein Apple-Abo erneut. Es verschiebt es nicht zwischen Apple-IDs, Google-Anmeldungen oder Pixelboard-Konten.";
+"subscription_linked_elsewhere" = "Ein Apple-Kauf auf diesem Gerät gehört zu einem anderen Pixelboard-Konto. Dieses Konto bleibt unverändert, und Malen funktioniert weiterhin ohne Pro.";
+"subscription_entitlement_kept" = "Dieses Konto hat bereits Pro. Die bestehende Berechtigung wurde beibehalten und nicht durch einen anderen Apple-Kauf überschrieben.";
+"restore_purchases_note" = "Käufe wiederherstellen synchronisiert ein Apple-Abo nur für dieses angemeldete Konto, wenn es bereits passt. Es verschiebt Käufe nicht zwischen Konten und überschreibt keine andere aktive Berechtigung.";
 "stripe_pro_active_note" = "Pro ist über Stripe aktiv. Nutze unten die Stripe-Abo-Einstellungen.";
 "restore_purchases" = "Käufe wiederherstellen";
 "subscription_settings" = "Apple-Abo-Einstellungen";

@@ -127,7 +127,7 @@ enum PixelboardL10n {
     )
     static let proAvailableNote = value(
         "pro_available_note",
-        defaultValue: "Pro is available with monthly or annual billing. It unlocks the extended palette and custom colors; the cooldown remains one second."
+        defaultValue: "Pro is optional. Painting works on the free tier. Pro unlocks the extended palette and custom colors with a one-second cooldown."
     )
     static let proActiveNote = value(
         "pro_active_note",
@@ -139,23 +139,15 @@ enum PixelboardL10n {
     )
     static let subscriptionLinkedElsewhere = value(
         "subscription_linked_elsewhere",
-        defaultValue: "This Apple subscription is linked to another Pixelboard account and was not transferred."
+        defaultValue: "An Apple purchase on this device belongs to another Pixelboard account. This account is unchanged, and painting still works without Pro."
     )
-    static let subscriptionTransferReviewHeading = value(
-        "subscription_transfer_review_heading",
-        defaultValue: "Apple subscription needs support review"
-    )
-    static let subscriptionTransferReviewNote = value(
-        "subscription_transfer_review_note",
-        defaultValue: "This Apple subscription is linked to another Pixelboard account and was not transferred. Restore Purchases only re-syncs an Apple subscription; it does not move it between Apple IDs, Google sign-in, or Pixelboard accounts. An approved transfer would remove Pro access from the previous Pixelboard account."
-    )
-    static let subscriptionContactSupport = value(
-        "subscription_contact_support",
-        defaultValue: "Contact hello@collapsetechnologies.com for verification"
+    static let subscriptionEntitlementKept = value(
+        "subscription_entitlement_kept",
+        defaultValue: "This account already has Pro. The existing entitlement was kept and was not overwritten by another Apple purchase."
     )
     static let restorePurchasesNote = value(
         "restore_purchases_note",
-        defaultValue: "Restore Purchases re-syncs your Apple subscription. It does not move it between Apple IDs, Google sign-in, or Pixelboard accounts."
+        defaultValue: "Restore Purchases re-syncs an Apple subscription for this signed-in account when it already matches. It does not move purchases between accounts or overwrite a different active entitlement."
     )
     static let restorePurchases = value(
         "restore_purchases",

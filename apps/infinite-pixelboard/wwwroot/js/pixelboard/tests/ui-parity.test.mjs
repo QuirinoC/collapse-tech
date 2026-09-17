@@ -45,11 +45,13 @@ test("web palette exposes the Pro color-grid affordance", () => {
   assert.match(app, /elements\.proColor\.hidden = isPro/);
 });
 
-test("web repeats Apple restore and transfer safety copy", () => {
-  assert.match(razor, /Restore Purchases.*re-syncs/s);
-  assert.match(razor, /does not move it between Apple IDs, Google/);
-  assert.match(razor, /previous Pixelboard account/);
-  assert.match(razor, /hello@collapsetechnologies\.com/);
+test("web repeats Apple restore conflict policy without support-review limbo", () => {
+  assert.match(razor, /Painting works without Pro/);
+  assert.match(razor, /Restore Purchases only/);
+  assert.match(razor, /never overwrites a different active/);
+  assert.match(razor, /belongs to another/);
+  assert.doesNotMatch(razor, /support review/i);
+  assert.doesNotMatch(razor, /Contact support/);
 });
 
 test("iOS localization omits removed account status copy", () => {

@@ -53,7 +53,7 @@ test("subscription copy is state-aware", () => {
   );
   assert.match(
     subscriptionMessage({ isPro: false, trialAvailable: false }),
-    /monthly or annual billing/i,
+    /Pro is optional/i,
   );
   assert.doesNotMatch(
     subscriptionMessage({ isPro: false, trialAvailable: false }),

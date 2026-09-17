@@ -15,6 +15,7 @@ final class StoreManager: ObservableObject {
     @Published private(set) var trialEligibility: TrialEligibility = .unknown
     @Published private(set) var activeProductID: String?
     @Published private(set) var linkedToAnotherAccount = false
+    @Published private(set) var keptExistingEntitlement = false
     @Published var errorMessage: String?
 
     var onEntitlementChanged: (@MainActor @Sendable () async -> Void)?
@@ -37,7 +38,6 @@ final class StoreManager: ObservableObject {
     private var expectedAppAccountToken: UUID?
 
     static let manageSubscriptionsURL = URL(string: "https://apps.apple.com/account/subscriptions")!
-    static let supportURL = URL(string: "mailto:hello@collapsetechnologies.com")!
 
     init(api: PixelboardAPIClient) {
         self.api = api
@@ -78,6 +78,7 @@ final class StoreManager: ObservableObject {
         expectedAppAccountToken = nil
         activeProductID = nil
         linkedToAnotherAccount = false
+        keptExistingEntitlement = false
         reconciliationTask?.cancel()
         reconciliationTask = nil
         deliveryTasks.values.forEach { $0.cancel() }
@@ -204,6 +205,7 @@ final class StoreManager: ObservableObject {
     private func refreshActiveProduct(for appAccountToken: UUID) async {
         activeProductID = nil
         linkedToAnotherAccount = false
+        keptExistingEntitlement = false
         for await result in StoreKit.Transaction.currentEntitlements {
             guard case let .verified(transaction) = result,
                   productIDs.contains(transaction.productID),
@@ -293,6 +295,9 @@ final class StoreManager: ObservableObject {
             if error.isStoreKitAccountMismatch {
                 linkedToAnotherAccount = true
                 activeProductID = nil
+                errorMessage = nil
+            } else if error.isStoreKitEntitlementKept {
+                keptExistingEntitlement = true
                 errorMessage = nil
             } else {
                 errorMessage = error.localizedDescription
@@ -461,6 +466,11 @@ private extension APIClientError {
     var isStoreKitAccountMismatch: Bool {
         guard case let .server(_, payload) = self else { return false }
         return payload?.code == "storekit_account_mismatch"
+    }
+
+    var isStoreKitEntitlementKept: Bool {
+        guard case let .server(_, payload) = self else { return false }
+        return payload?.code == "storekit_entitlement_kept"
     }
 
     var isPermanentStoreKitDeliveryFailure: Bool {
