@@ -1,0 +1,237 @@
+{
+  "id": "bird-perch",
+  "title": "Geometric bird",
+  "license": "CC0-1.0 (original)",
+  "origin": {
+    "row": -80,
+    "column": 45
+  },
+  "note": "NE far — perched bird silhouette",
+  "pixels": [
+    {
+      "row": -80,
+      "column": 50,
+      "color": "#171714"
+    },
+    {
+      "row": -80,
+      "column": 51,
+      "color": "#171714"
+    },
+    {
+      "row": -79,
+      "column": 49,
+      "color": "#171714"
+    },
+    {
+      "row": -79,
+      "column": 50,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -79,
+      "column": 51,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -79,
+      "column": 52,
+      "color": "#171714"
+    },
+    {
+      "row": -78,
+      "column": 48,
+      "color": "#171714"
+    },
+    {
+      "row": -78,
+      "column": 49,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -78,
+      "column": 50,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -78,
+      "column": 51,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -78,
+      "column": 52,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -78,
+      "column": 53,
+      "color": "#171714"
+    },
+    {
+      "row": -77,
+      "column": 47,
+      "color": "#171714"
+    },
+    {
+      "row": -77,
+      "column": 48,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -77,
+      "column": 49,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -77,
+      "column": 50,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -77,
+      "column": 51,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -77,
+      "column": 52,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -77,
+      "column": 53,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -77,
+      "column": 54,
+      "color": "#171714"
+    },
+    {
+      "row": -76,
+      "column": 46,
+      "color": "#171714"
+    },
+    {
+      "row": -76,
+      "column": 47,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -76,
+      "column": 48,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -76,
+      "column": 49,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -76,
+      "column": 50,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -76,
+      "column": 51,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -76,
+      "column": 52,
+      "color": "#171714"
+    },
+    {
+      "row": -76,
+      "column": 53,
+      "color": "#171714"
+    },
+    {
+      "row": -75,
+      "column": 45,
+      "color": "#171714"
+    },
+    {
+      "row": -75,
+      "column": 46,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -75,
+      "column": 47,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -75,
+      "column": 48,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -75,
+      "column": 49,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -75,
+      "column": 50,
+      "color": "#DC9B32"
+    },
+    {
+      "row": -75,
+      "column": 51,
+      "color": "#171714"
+    },
+    {
+      "row": -74,
+      "column": 46,
+      "color": "#171714"
+    },
+    {
+      "row": -74,
+      "column": 47,
+      "color": "#171714"
+    },
+    {
+      "row": -74,
+      "column": 48,
+      "color": "#171714"
+    },
+    {
+      "row": -74,
+      "column": 49,
+      "color": "#171714"
+    },
+    {
+      "row": -74,
+      "column": 50,
+      "color": "#171714"
+    },
+    {
+      "row": -73,
+      "column": 49,
+      "color": "#171714"
+    },
+    {
+      "row": -72,
+      "column": 48,
+      "color": "#171714"
+    },
+    {
+      "row": -72,
+      "column": 49,
+      "color": "#171714"
+    },
+    {
+      "row": -71,
+      "column": 47,
+      "color": "#171714"
+    },
+    {
+      "row": -71,
+      "column": 50,
+      "color": "#171714"
+    }
+  ]
+}

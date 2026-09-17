@@ -1,0 +1,247 @@
+{
+  "id": "leaf-pair",
+  "title": "Paired leaves",
+  "license": "CC0-1.0 (original)",
+  "origin": {
+    "row": 55,
+    "column": -25
+  },
+  "note": "S — nature leaves",
+  "pixels": [
+    {
+      "row": 55,
+      "column": -22,
+      "color": "#587554"
+    },
+    {
+      "row": 55,
+      "column": -15,
+      "color": "#587554"
+    },
+    {
+      "row": 56,
+      "column": -23,
+      "color": "#587554"
+    },
+    {
+      "row": 56,
+      "column": -22,
+      "color": "#587554"
+    },
+    {
+      "row": 56,
+      "column": -21,
+      "color": "#587554"
+    },
+    {
+      "row": 56,
+      "column": -16,
+      "color": "#587554"
+    },
+    {
+      "row": 56,
+      "column": -15,
+      "color": "#587554"
+    },
+    {
+      "row": 56,
+      "column": -14,
+      "color": "#587554"
+    },
+    {
+      "row": 57,
+      "column": -24,
+      "color": "#587554"
+    },
+    {
+      "row": 57,
+      "column": -23,
+      "color": "#587554"
+    },
+    {
+      "row": 57,
+      "column": -22,
+      "color": "#587554"
+    },
+    {
+      "row": 57,
+      "column": -21,
+      "color": "#587554"
+    },
+    {
+      "row": 57,
+      "column": -20,
+      "color": "#587554"
+    },
+    {
+      "row": 57,
+      "column": -17,
+      "color": "#587554"
+    },
+    {
+      "row": 57,
+      "column": -16,
+      "color": "#587554"
+    },
+    {
+      "row": 57,
+      "column": -15,
+      "color": "#587554"
+    },
+    {
+      "row": 57,
+      "column": -14,
+      "color": "#587554"
+    },
+    {
+      "row": 57,
+      "column": -13,
+      "color": "#587554"
+    },
+    {
+      "row": 58,
+      "column": -25,
+      "color": "#587554"
+    },
+    {
+      "row": 58,
+      "column": -24,
+      "color": "#587554"
+    },
+    {
+      "row": 58,
+      "column": -23,
+      "color": "#587554"
+    },
+    {
+      "row": 58,
+      "column": -22,
+      "color": "#587554"
+    },
+    {
+      "row": 58,
+      "column": -21,
+      "color": "#587554"
+    },
+    {
+      "row": 58,
+      "column": -20,
+      "color": "#587554"
+    },
+    {
+      "row": 58,
+      "column": -19,
+      "color": "#587554"
+    },
+    {
+      "row": 58,
+      "column": -18,
+      "color": "#587554"
+    },
+    {
+      "row": 58,
+      "column": -17,
+      "color": "#587554"
+    },
+    {
+      "row": 58,
+      "column": -16,
+      "color": "#587554"
+    },
+    {
+      "row": 58,
+      "column": -15,
+      "color": "#587554"
+    },
+    {
+      "row": 58,
+      "column": -14,
+      "color": "#587554"
+    },
+    {
+      "row": 58,
+      "column": -13,
+      "color": "#587554"
+    },
+    {
+      "row": 59,
+      "column": -24,
+      "color": "#587554"
+    },
+    {
+      "row": 59,
+      "column": -23,
+      "color": "#587554"
+    },
+    {
+      "row": 59,
+      "column": -22,
+      "color": "#587554"
+    },
+    {
+      "row": 59,
+      "column": -21,
+      "color": "#587554"
+    },
+    {
+      "row": 59,
+      "column": -20,
+      "color": "#171714"
+    },
+    {
+      "row": 59,
+      "column": -19,
+      "color": "#171714"
+    },
+    {
+      "row": 59,
+      "column": -18,
+      "color": "#587554"
+    },
+    {
+      "row": 59,
+      "column": -17,
+      "color": "#587554"
+    },
+    {
+      "row": 59,
+      "column": -16,
+      "color": "#587554"
+    },
+    {
+      "row": 59,
+      "column": -15,
+      "color": "#587554"
+    },
+    {
+      "row": 60,
+      "column": -23,
+      "color": "#587554"
+    },
+    {
+      "row": 60,
+      "column": -22,
+      "color": "#587554"
+    },
+    {
+      "row": 60,
+      "column": -20,
+      "color": "#171714"
+    },
+    {
+      "row": 60,
+      "column": -18,
+      "color": "#587554"
+    },
+    {
+      "row": 60,
+      "column": -17,
+      "color": "#587554"
+    },
+    {
+      "row": 61,
+      "column": -20,
+      "color": "#171714"
+    }
+  ]
+}

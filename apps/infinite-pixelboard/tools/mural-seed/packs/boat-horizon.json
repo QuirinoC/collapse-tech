@@ -1,0 +1,272 @@
+{
+  "id": "boat-horizon",
+  "title": "Boat on horizon",
+  "license": "CC0-1.0 (original)",
+  "origin": {
+    "row": 90,
+    "column": 90
+  },
+  "note": "Far SE — sailboat",
+  "pixels": [
+    {
+      "row": 90,
+      "column": 96,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 91,
+      "column": 95,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 91,
+      "column": 96,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 92,
+      "column": 94,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 92,
+      "column": 96,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 93,
+      "column": 93,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 93,
+      "column": 96,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 94,
+      "column": 92,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 94,
+      "column": 96,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 95,
+      "column": 91,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 95,
+      "column": 92,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 95,
+      "column": 93,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 95,
+      "column": 94,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 95,
+      "column": 95,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 95,
+      "column": 96,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 95,
+      "column": 97,
+      "color": "#171714"
+    },
+    {
+      "row": 96,
+      "column": 97,
+      "color": "#171714"
+    },
+    {
+      "row": 97,
+      "column": 92,
+      "color": "#425B8C"
+    },
+    {
+      "row": 97,
+      "column": 93,
+      "color": "#425B8C"
+    },
+    {
+      "row": 97,
+      "column": 94,
+      "color": "#425B8C"
+    },
+    {
+      "row": 97,
+      "column": 95,
+      "color": "#425B8C"
+    },
+    {
+      "row": 97,
+      "column": 96,
+      "color": "#425B8C"
+    },
+    {
+      "row": 97,
+      "column": 97,
+      "color": "#171714"
+    },
+    {
+      "row": 97,
+      "column": 98,
+      "color": "#425B8C"
+    },
+    {
+      "row": 97,
+      "column": 99,
+      "color": "#425B8C"
+    },
+    {
+      "row": 97,
+      "column": 100,
+      "color": "#425B8C"
+    },
+    {
+      "row": 97,
+      "column": 101,
+      "color": "#425B8C"
+    },
+    {
+      "row": 98,
+      "column": 91,
+      "color": "#425B8C"
+    },
+    {
+      "row": 98,
+      "column": 92,
+      "color": "#356B76"
+    },
+    {
+      "row": 98,
+      "column": 93,
+      "color": "#356B76"
+    },
+    {
+      "row": 98,
+      "column": 94,
+      "color": "#356B76"
+    },
+    {
+      "row": 98,
+      "column": 95,
+      "color": "#356B76"
+    },
+    {
+      "row": 98,
+      "column": 96,
+      "color": "#356B76"
+    },
+    {
+      "row": 98,
+      "column": 97,
+      "color": "#356B76"
+    },
+    {
+      "row": 98,
+      "column": 98,
+      "color": "#356B76"
+    },
+    {
+      "row": 98,
+      "column": 99,
+      "color": "#356B76"
+    },
+    {
+      "row": 98,
+      "column": 100,
+      "color": "#356B76"
+    },
+    {
+      "row": 98,
+      "column": 101,
+      "color": "#356B76"
+    },
+    {
+      "row": 98,
+      "column": 102,
+      "color": "#425B8C"
+    },
+    {
+      "row": 99,
+      "column": 90,
+      "color": "#356B76"
+    },
+    {
+      "row": 99,
+      "column": 91,
+      "color": "#356B76"
+    },
+    {
+      "row": 99,
+      "column": 92,
+      "color": "#356B76"
+    },
+    {
+      "row": 99,
+      "column": 93,
+      "color": "#356B76"
+    },
+    {
+      "row": 99,
+      "column": 94,
+      "color": "#356B76"
+    },
+    {
+      "row": 99,
+      "column": 95,
+      "color": "#356B76"
+    },
+    {
+      "row": 99,
+      "column": 96,
+      "color": "#356B76"
+    },
+    {
+      "row": 99,
+      "column": 97,
+      "color": "#356B76"
+    },
+    {
+      "row": 99,
+      "column": 98,
+      "color": "#356B76"
+    },
+    {
+      "row": 99,
+      "column": 99,
+      "color": "#356B76"
+    },
+    {
+      "row": 99,
+      "column": 100,
+      "color": "#356B76"
+    },
+    {
+      "row": 99,
+      "column": 101,
+      "color": "#356B76"
+    },
+    {
+      "row": 99,
+      "column": 102,
+      "color": "#356B76"
+    }
+  ]
+}

@@ -1,0 +1,117 @@
+{
+  "id": "crescent-sky",
+  "title": "Crescent and stars",
+  "license": "CC0-1.0 (original)",
+  "origin": {
+    "row": -70,
+    "column": -10
+  },
+  "note": "Far N — night sky motif",
+  "pixels": [
+    {
+      "row": -70,
+      "column": -8,
+      "color": "#E1C94A"
+    },
+    {
+      "row": -70,
+      "column": -2,
+      "color": "#E1C94A"
+    },
+    {
+      "row": -69,
+      "column": 3,
+      "color": "#E1C94A"
+    },
+    {
+      "row": -68,
+      "column": -6,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": -68,
+      "column": -5,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": -67,
+      "column": -7,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": -67,
+      "column": -4,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": -67,
+      "column": 1,
+      "color": "#E1C94A"
+    },
+    {
+      "row": -66,
+      "column": -8,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": -66,
+      "column": -3,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": -65,
+      "column": -8,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": -65,
+      "column": -3,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": -65,
+      "column": 4,
+      "color": "#E1C94A"
+    },
+    {
+      "row": -64,
+      "column": -7,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": -64,
+      "column": -4,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": -64,
+      "column": -1,
+      "color": "#E1C94A"
+    },
+    {
+      "row": -63,
+      "column": -6,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": -63,
+      "column": -5,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": -62,
+      "column": -10,
+      "color": "#E1C94A"
+    },
+    {
+      "row": -62,
+      "column": 0,
+      "color": "#E1C94A"
+    },
+    {
+      "row": -62,
+      "column": 4,
+      "color": "#E1C94A"
+    }
+  ]
+}

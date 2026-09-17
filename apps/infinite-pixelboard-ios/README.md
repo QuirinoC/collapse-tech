@@ -32,7 +32,7 @@ iOS invite sharing uses the existing `pixelboard://invite/<code>` URL scheme bec
 
 ## Ship to TestFlight / App Store
 
-**Current ship target:** `1.0.2` (build `8`) — iPhone Duo adaptive layout support plus special-code redeem, seamless tiles, and full iPad palette. Live App Store is `1.0` build `5` until this update is uploaded and approved. Web special codes are already live; iOS needs archive + App Store Connect submit.
+**Current ship target:** `1.0.2` (build `8`) — shared-mural experience polish: special-code redeem, seamless tiles, full iPad palette, plus iPhone Duo adaptive layout already shipped in this build. Live App Store is `1.0` build `5` until this update is uploaded and approved. Web special codes are already live; iOS needs archive + App Store Connect submit.
 
 There is no Fastlane lane in this repo. Archive from Xcode (or `xcodebuild` with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`).
 
@@ -43,6 +43,8 @@ Apple’s foldable iPhone Duo (outer ~5.4″ / inner ~7.6″) sizes apps from th
 - This app already uses SwiftUI `WindowGroup` scene lifecycle, `GeometryReader`-driven board sizing, and `horizontalSizeClass` for the expanded palette (Duo inner ≈ regular × regular).
 - `UIRequiresFullScreen` is intentionally **absent** so continuous resizing stays available when built with newer SDKs.
 - Do **not** branch layout on interface orientation; Duo’s inner display ignores orientation preferences.
+
+Promo and App Store media should emphasize the **shared mural** (people painting together), not multi-device Duo screenshot theater. Duo support is fine to mention once in What’s New.
 
 ### Release 1.0.2 (build 8) — what you do
 
@@ -58,7 +60,7 @@ open InfinitePixelboard.xcodeproj
 
 3. Select **Any iOS Device (arm64)** → **Product → Archive**.
 4. In Organizer: **Distribute App → App Store Connect → Upload**. If Keychain prompts **Allow**, approve so codesign/upload can finish. Wait for processing (app id `6804066543`, bundle `com.collapsetechnologies.pixelboard`).
-5. In App Store Connect → Infinite Pixelboard → **+ Version** `1.0.2`: attach build **8**, What’s New covering iPhone Duo adaptive support, special/event code redeem, seamless tiles, and full iPad palette, then **Submit for Review**.
+5. In App Store Connect → Infinite Pixelboard → **+ Version** `1.0.2`: attach build **8**, What’s New leading with shared mural + redeem/seamless/iPad (Duo as a short bullet), then **Submit for Review**.
 6. After approval, release manually or automatically per your Connect setting.
 
 Do not reuse an earlier `CFBundleVersion`; Apple requires a higher build for each upload. Marketing version is `1.0.2` / build `8` in `project.yml`.
@@ -66,10 +68,11 @@ Do not reuse an earlier `CFBundleVersion`; Apple requires a higher build for eac
 **Suggested What’s New (EN):**
 
 ```
-• Support for iPhone Duo with adaptive layouts on compact and expanded displays
+• Shared infinite mural — paint together on one live board (web + iOS)
 • Redeem special/event codes from Settings
 • Seamless tile rendering across the board
 • Full color palette on iPad and other regular-width layouts
+• Adaptive layout support for iPhone Duo compact and expanded displays
 ```
 
 The app code is ready to archive. Broader console setup (Firebase, StoreKit, APNs) is below if anything is still incomplete.
@@ -81,7 +84,7 @@ The app code is ready to archive. Broader console setup (Firebase, StoreKit, APN
 - Support: `mailto:hello@collapsetechnologies.com`
 - Bundle ID: `com.collapsetechnologies.pixelboard`
 
-**App Store listing copy (do not copy Everyone Draw):** never write “no limits”, “unlimited”, “draw freely”, or “private space far from the center.” Subtitle: `Shared mural. 5s per pixel.` Description must say 5 seconds free / 1 second Pro, that anyone can overwrite a pixel, and that Syncing is live updates — painting still works.
+**App Store listing copy (do not copy Everyone Draw):** never write “no limits”, “unlimited”, “draw freely”, or “private space far from the center.” Subtitle: `Shared mural. Everyone paints.` Description must say 5 seconds free / 1 second Pro, that anyone can overwrite a pixel, and that Syncing is live updates — painting still works. Lead with collaborative mural framing, not device hardware theater.
 
 **1. Firebase (required to paint)**
 

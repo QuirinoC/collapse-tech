@@ -1,0 +1,242 @@
+{
+  "id": "mushroom-pair",
+  "title": "Forest mushrooms",
+  "license": "CC0-1.0 (original geometric toadstools)",
+  "origin": {
+    "row": 35,
+    "column": 70
+  },
+  "note": "E — original toadstools (not franchise)",
+  "pixels": [
+    {
+      "row": 35,
+      "column": 72,
+      "color": "#D3523C"
+    },
+    {
+      "row": 35,
+      "column": 73,
+      "color": "#D3523C"
+    },
+    {
+      "row": 35,
+      "column": 74,
+      "color": "#D3523C"
+    },
+    {
+      "row": 35,
+      "column": 81,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 35,
+      "column": 82,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 35,
+      "column": 83,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 36,
+      "column": 71,
+      "color": "#D3523C"
+    },
+    {
+      "row": 36,
+      "column": 72,
+      "color": "#D3523C"
+    },
+    {
+      "row": 36,
+      "column": 73,
+      "color": "#D3523C"
+    },
+    {
+      "row": 36,
+      "column": 74,
+      "color": "#D3523C"
+    },
+    {
+      "row": 36,
+      "column": 75,
+      "color": "#D3523C"
+    },
+    {
+      "row": 36,
+      "column": 80,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 36,
+      "column": 81,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 36,
+      "column": 82,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 36,
+      "column": 83,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 36,
+      "column": 84,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 37,
+      "column": 70,
+      "color": "#D3523C"
+    },
+    {
+      "row": 37,
+      "column": 71,
+      "color": "#D3523C"
+    },
+    {
+      "row": 37,
+      "column": 72,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 37,
+      "column": 73,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 37,
+      "column": 74,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 37,
+      "column": 75,
+      "color": "#D3523C"
+    },
+    {
+      "row": 37,
+      "column": 76,
+      "color": "#D3523C"
+    },
+    {
+      "row": 37,
+      "column": 79,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 37,
+      "column": 80,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 37,
+      "column": 81,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 37,
+      "column": 82,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 37,
+      "column": 83,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 37,
+      "column": 84,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 37,
+      "column": 85,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 38,
+      "column": 71,
+      "color": "#D3523C"
+    },
+    {
+      "row": 38,
+      "column": 72,
+      "color": "#D3523C"
+    },
+    {
+      "row": 38,
+      "column": 73,
+      "color": "#D3523C"
+    },
+    {
+      "row": 38,
+      "column": 74,
+      "color": "#D3523C"
+    },
+    {
+      "row": 38,
+      "column": 75,
+      "color": "#D3523C"
+    },
+    {
+      "row": 38,
+      "column": 80,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 38,
+      "column": 81,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 38,
+      "column": 82,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 38,
+      "column": 83,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 38,
+      "column": 84,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 39,
+      "column": 73,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 39,
+      "column": 82,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 40,
+      "column": 73,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 40,
+      "column": 82,
+      "color": "#DC9B32"
+    },
+    {
+      "row": 41,
+      "column": 73,
+      "color": "#F7F3EA"
+    },
+    {
+      "row": 41,
+      "column": 82,
+      "color": "#DC9B32"
+    }
+  ]
+}
