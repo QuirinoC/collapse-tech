@@ -45,6 +45,7 @@ public static class ApiErrorCodes
     public const string ModerationConflict = "moderation_conflict";
     public const string StoreKitAccountMismatch = "storekit_account_mismatch";
     public const string StoreKitTransactionNotLinked = "storekit_transaction_not_linked";
+    public const string StoreKitEntitlementKept = "storekit_entitlement_kept";
     public const string InvalidStripeInterval = "invalid_stripe_interval";
     public const string SubscriptionAlreadyActive = "subscription_already_active";
     public const string StripeCustomerMissing = "stripe_customer_missing";

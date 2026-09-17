@@ -31,13 +31,11 @@
 "permanently_delete_account" = "Supprimer définitivement ce compte ?";
 "delete_account" = "Supprimer le compte";
 "try_pro_note" = "Essayez Pro gratuitement pendant 7 jours. Choisissez ensuite une facturation mensuelle ou annuelle. Pro réduit l’intervalle entre les pixels à 1 seconde et déverrouille la palette étendue ainsi que les couleurs personnalisées ; le délai n’est pas supprimé.";
-"pro_available_note" = "Pro est disponible avec une facturation mensuelle ou annuelle. Il déverrouille la palette étendue et les couleurs personnalisées ; le délai reste d’une seconde.";
+"pro_available_note" = "Pro est facultatif. Peindre fonctionne sur le niveau gratuit. Pro débloque la palette étendue et les couleurs personnalisées avec un délai d’une seconde.";
 "pro_active_note" = "Pro est actif. Vous pouvez passer de la facturation mensuelle à annuelle ci-dessous si l’option est disponible.";
-"subscription_linked_elsewhere" = "Cet abonnement Apple est lié à un autre compte Pixelboard et n’a pas été transféré.";
-"subscription_transfer_review_heading" = "Abonnement Apple : vérification par le support requise";
-"subscription_transfer_review_note" = "Cet abonnement Apple est lié à un autre compte Pixelboard et n’a pas été transféré. Restaurer les achats resynchronise seulement un abonnement Apple ; cela ne le déplace pas entre des identifiants Apple, une connexion Google ou des comptes Pixelboard. Un transfert approuvé supprimerait l’accès Pro de l’ancien compte Pixelboard.";
-"subscription_contact_support" = "Contacter hello@collapsetechnologies.com pour vérification";
-"restore_purchases_note" = "Restaurer les achats resynchronise votre abonnement Apple. Cela ne le déplace pas entre des identifiants Apple, une connexion Google ou des comptes Pixelboard.";
+"subscription_linked_elsewhere" = "Un achat Apple sur cet appareil appartient à un autre compte Pixelboard. Ce compte reste inchangé, et peindre fonctionne toujours sans Pro.";
+"subscription_entitlement_kept" = "Ce compte a déjà Pro. L’accès existant a été conservé et n’a pas été remplacé par un autre achat Apple.";
+"restore_purchases_note" = "Restaurer les achats resynchronise un abonnement Apple pour ce compte connecté lorsqu’il correspond déjà. Cela ne déplace pas les achats entre comptes et n’écrase pas une autre offre active.";
 "stripe_pro_active_note" = "Pro est actif via Stripe. Utilisez les réglages d’abonnement Stripe ci-dessous.";
 "restore_purchases" = "Restaurer les achats";
 "subscription_settings" = "Réglages des abonnements Apple";

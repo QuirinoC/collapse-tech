@@ -31,13 +31,11 @@
 "permanently_delete_account" = "このアカウントを完全に削除しますか？";
 "delete_account" = "アカウントを削除";
 "try_pro_note" = "Proを7日間無料でお試しください。その後、月額または年額を選択できます。Proではピクセル間隔が1秒になり、拡張パレットとカスタムカラーが使えます。クールダウンはなくなりません。";
-"pro_available_note" = "Proは月額または年額で利用できます。拡張パレットとカスタムカラーが使えます。クールダウンは1秒のままです。";
+"pro_available_note" = "Proは任意です。無料枠でも描画できます。Proは拡張パレットとカスタムカラーを解放し、クールダウンは1秒です。";
 "pro_active_note" = "Proは有効です。利用可能な場合は、下で月額から年額に変更できます。";
-"subscription_linked_elsewhere" = "このAppleサブスクリプションは別のPixelboardアカウントに紐付いているため、移行されませんでした。";
-"subscription_transfer_review_heading" = "Appleサブスクリプションのサポート確認が必要です";
-"subscription_transfer_review_note" = "このAppleサブスクリプションは別のPixelboardアカウントに紐付いており、移行されませんでした。「購入を復元」はAppleサブスクリプションを再同期するだけで、Apple ID、Googleサインイン、Pixelboardアカウント間で移動するものではありません。承認された移行を行うと、以前のPixelboardアカウントからProアクセスが削除されます。";
-"subscription_contact_support" = "確認のため hello@collapsetechnologies.com に連絡";
-"restore_purchases_note" = "「購入を復元」はAppleサブスクリプションを再同期します。Apple ID、Googleサインイン、Pixelboardアカウント間で移動するものではありません。";
+"subscription_linked_elsewhere" = "このデバイス上のApple購入は別のPixelboardアカウントに属しています。このアカウントは変更されず、Proなしでも描画できます。";
+"subscription_entitlement_kept" = "このアカウントは既にProです。既存の権利は保持され、別のApple購入で上書きされませんでした。";
+"restore_purchases_note" = "「購入を復元」は、既に一致している場合に限り、このサインイン中のアカウント向けにAppleサブスクリプションを再同期します。アカウント間で購入を移動せず、別の有効な権利を上書きしません。";
 "stripe_pro_active_note" = "ProはStripeで有効です。下のStripeサブスクリプション設定をご利用ください。";
 "restore_purchases" = "購入を復元";
 "subscription_settings" = "Appleサブスクリプション設定";

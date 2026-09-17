@@ -31,13 +31,11 @@
 "permanently_delete_account" = "永久删除此账户？";
 "delete_account" = "删除账户";
 "try_pro_note" = "Pro 现在可免费试用 7 天。之后可选择按月或按年计费。Pro 可将像素间隔缩短至 1 秒，并解锁扩展调色板和自定义颜色；不会移除冷却时间。";
-"pro_available_note" = "Pro 提供按月或按年计费。它会解锁扩展调色板和自定义颜色；冷却时间仍为 1 秒。";
+"pro_available_note" = "Pro 为可选项。免费档也可以绘制。Pro 解锁扩展色板与自定义颜色，冷却为 1 秒。";
 "pro_active_note" = "Pro 已启用。可用时，你可以在下方从按月计费切换为按年计费。";
-"subscription_linked_elsewhere" = "此 Apple 订阅已关联到其他 Pixelboard 账户，未转移。";
-"subscription_transfer_review_heading" = "Apple 订阅需要支持审核";
-"subscription_transfer_review_note" = "此 Apple 订阅已关联到其他 Pixelboard 账户，未转移。恢复购买只会重新同步 Apple 订阅，不会在 Apple ID、Google 登录或 Pixelboard 账户之间移动订阅。获批的转移会移除之前 Pixelboard 账户的 Pro 权限。";
-"subscription_contact_support" = "联系 hello@collapsetechnologies.com 进行验证";
-"restore_purchases_note" = "恢复购买会重新同步 Apple 订阅，不会在 Apple ID、Google 登录或 Pixelboard 账户之间移动订阅。";
+"subscription_linked_elsewhere" = "此设备上的 Apple 购买属于另一个 Pixelboard 账户。当前账户不变，没有 Pro 也可以继续绘制。";
+"subscription_entitlement_kept" = "此账户已有 Pro。现有权益已保留，未被另一笔 Apple 购买覆盖。";
+"restore_purchases_note" = "恢复购买仅在已匹配时，为当前登录账户重新同步 Apple 订阅。它不会在账户间转移购买，也不会覆盖另一项有效权益。";
 "stripe_pro_active_note" = "Pro 已通过 Stripe 启用。请使用下方的 Stripe 订阅设置。";
 "restore_purchases" = "恢复购买";
 "subscription_settings" = "Apple 订阅设置";
