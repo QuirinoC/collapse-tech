@@ -7,7 +7,8 @@ import UIKit
 
 enum AppPhase: Equatable {
     case login
-    case onboarding
+    /// A2 — pick `@handle` once after the first Sign in with Apple.
+    case handle
     case home
 }
 
@@ -39,17 +40,17 @@ enum MainTab: String, CaseIterable, Identifiable {
     }
 }
 
-@MainActor
-final class AppearanceStore: ObservableObject {
-    @Published var nightEdition: Bool {
-        didSet { UserDefaults.standard.set(nightEdition, forKey: Self.key) }
-    }
+/// Destinations pushed over the Circle tab: D1 View for one person, D2 Map.
+enum CircleRoute: Hashable {
+    case view(UUID)
+    case map
+}
 
-    private static let key = "trust.nightEdition"
-
-    init() {
-        nightEdition = UserDefaults.standard.bool(forKey: Self.key)
-    }
+/// One-line status the shell shows for ~4 s. Replaces alerts for non-blocking outcomes.
+struct TrustToast: Equatable, Identifiable {
+    let id = UUID()
+    let message: String
+    let at = Date()
 }
 
 @MainActor
@@ -59,32 +60,45 @@ final class AppModel: ObservableObject {
     let location: LocationCoordinator
     let receipts: LookReceiptNotifier
     let auth: AuthSession
-    let appearance: AppearanceStore
     private let ingestStore: LocationIngestStore
     private var isFlushingIngest = false
     private var ingestFlushTask: Task<Void, Never>?
 
     @Published var phase: AppPhase
     @Published var selectedTab: MainTab = .circle
-    @Published var showingSettings = false
-    @Published var showingLookLog = false
-    @Published var showingLookConfirm = false
-    @Published var showingMap = false
-    /// Person whose live location the optional map is showing (Always / after Look).
-    @Published var mapSubjectID: UUID?
+    @Published var circlePath: [CircleRoute] = []
+    @Published var snapshot: CircleSnapshot?
+    /// True while the last `/circle` refresh failed on connectivity; `snapshot` is then the disk cache.
+    @Published private(set) var isOffline = false
+    @Published private(set) var isRefreshing = false
+    @Published var toast: TrustToast?
+
+    /// Look confirm sheet subject (Sealed rows only).
+    @Published var lookSubject: TrustedPerson?
+    @Published private(set) var isLooking = false
+    /// Snapshots opened this session, by subject. A Look never flips a Sealed row Available.
+    @Published private(set) var openedSnapshots: [UUID: LookSession] = [:]
+    /// People whose share toward you is Off — learned when a Look answers `share_off`.
+    /// Used when `/circle` has no `inboundShare` (current API). Demo and a future field
+    /// set `TrustedPerson.inboundPresentation` instead.
+    @Published private(set) var notSharingWithYou: Set<UUID> = []
+
+    @Published var showingViewLog = false
     @Published var showingPaywall = false
-    @Published var showingShareSheet = false
-    @Published var showingTimedShare = false
+    @Published var showingAlwaysExplainer = false
     @Published var timedSharePersonID: UUID?
-    @Published var shareSubject: Person?
-    @Published var lookSubject: Person?
+    @Published var stopAllRequested = false
+
     @Published var inviteCodeDraft = ""
-    @Published var pairingNotice: String?
-    @Published var quietBanner: LookReceipt?
+    @Published var inviteNotice: String?
+    @Published private(set) var isJoining = false
+
     @Published var isSigningIn = false
     @Published var isDemoMode = false
-    @Published var snapshot: CircleSnapshot?
-    @Published var localSession: LookSession?
+
+    /// Optimistic presence while the POST is in flight; falls back to the snapshot.
+    @Published private var presenceOverride: HomePresenceKind?
+
     @Published var onboardingHandle = ""
     @Published var onboardingNotice: String?
     @Published var handleAvailability: Bool?
@@ -92,40 +106,80 @@ final class AppModel: ObservableObject {
     private var handleCheckTask: Task<Void, Never>?
     private var demo: DemoTrustService?
     private var demoTickTask: Task<Void, Never>?
+    private var toastTask: Task<Void, Never>?
+    private var grantedPresenceTo: Set<UUID> = []
+    private var lastBeingWatchedID: UUID?
 
     private var cancellables: Set<AnyCancellable> = []
 
     var authNotice: String? { auth.notice }
 
     var you: Person {
-        snapshot?.you ?? Person(displayName: auth.account?.displayName ?? "You")
+        snapshot?.you ?? Person(displayName: auth.account?.displayName ?? TrustCopy.you)
     }
 
     var circle: [TrustedPerson] { snapshot?.members ?? [] }
+
     var coverage: CircleCoverage {
         snapshot?.coverage ?? CircleCoverage(isCovered: false, sponsorName: nil, actingIsSponsor: false)
     }
 
-    var pairIsActive: Bool { !circle.isEmpty }
-    var isSharingLocation: Bool { OutboundLocationSharing.isActive(trustedCount: circle.count) }
-    var activeSession: LookSession? { localSession ?? snapshot?.activeSession }
     var lookLog: [LookEvent] { snapshot?.lookLog ?? [] }
     var pendingInviteCode: String? { snapshot?.pendingInviteCode }
-    var beingWatched: LookEvent? { snapshot?.beingWatched }
 
-    var nightEditionBinding: Binding<Bool> {
-        Binding(
-            get: { self.appearance.nightEdition },
-            set: { self.appearance.nightEdition = $0 }
+    /// Track only while any outbound share ≠ Off.
+    var isSharingLocation: Bool {
+        locationSharingTier != .off
+    }
+
+    /// Sealed-only circles stay coarse; Available or a live Look at you is finer.
+    var locationSharingTier: LocationSharingTier {
+        OutboundLocationSharing.tier(
+            shares: circle.map(\.share),
+            beingWatched: snapshot?.beingWatched != nil
         )
     }
 
-    var signedInSummary: String {
-        guard let account = auth.account else {
-            return TrustCopy.signedOutSummary
+    var outboundActiveCount: Int {
+        let now = Date()
+        return circle.filter { !$0.share.presentation(at: now).isOff }.count
+    }
+
+    var myPresence: HomePresenceKind {
+        presenceOverride ?? snapshot?.yourHomeState ?? .unknown
+    }
+
+    func member(_ id: UUID) -> TrustedPerson? {
+        circle.first { $0.id == id }
+    }
+
+    func openedSnapshot(for id: UUID) -> LookSession? {
+        openedSnapshots[id] ?? (snapshot?.activeSession?.event.subjectID == id ? snapshot?.activeSession : nil)
+    }
+
+    /// Row state for Circle (design SoT Round 7).
+    func isOpened(_ member: TrustedPerson) -> Bool {
+        openedSnapshot(for: member.id) != nil
+    }
+
+    /// Pins for the Map: Available people plus snapshots opened this session.
+    var mapPins: [MapPin] {
+        circle.compactMap { member in
+            if member.isAvailable, let live = member.livePoint {
+                return MapPin(id: member.id, name: member.person.displayName, point: live, live: true)
+            }
+            if let session = openedSnapshot(for: member.id) {
+                return MapPin(id: member.id, name: member.person.displayName, point: session.live, live: false)
+            }
+            return nil
         }
-        let method = account.provider == .apple ? "Apple" : "Google"
-        return TrustCopy.signedInSummary(method: method, name: you.identity)
+    }
+
+    struct MapPin: Identifiable, Equatable {
+        let id: UUID
+        let name: String
+        let point: LocationPoint
+        let live: Bool
     }
 
     init() {
@@ -135,19 +189,45 @@ final class AppModel: ObservableObject {
         location = LocationCoordinator()
         receipts = LookReceiptNotifier()
         LookReceiptNotifier.shared = receipts
-        appearance = AppearanceStore()
         ingestStore = LocationIngestStore()
         client.token = auth.sessionToken
+        #if DEBUG
+        // Demo is opt-in only. When requested, hold on Login until start() seeds the
+        // fixture so Circle never paints empty; otherwise Debug behaves exactly like Release.
+        phase = Self.debugDemoRequested(sessionToken: auth.sessionToken)
+            ? .login
+            : (auth.isAuthenticated ? .home : .login)
+        #else
         phase = auth.isAuthenticated ? .home : .login
+        #endif
+        if auth.isAuthenticated, !isDemoMode, let cached = client.cachedCircle() {
+            // Paint the last good circle immediately; refresh() decides whether it is stale.
+            snapshot = cached
+        }
         bind()
     }
+
+    /// The offline demo runs only when explicitly asked for: the persisted “See the app”
+    /// session token, or `TRUST_DEMO=1` in the scheme / `SIMCTL_CHILD_TRUST_DEMO=1` via simctl.
+    private static func debugDemoRequested(sessionToken: String?) -> Bool {
+        sessionToken == "demo" || ProcessInfo.processInfo.environment["TRUST_DEMO"] == "1"
+    }
+
+    /// App Store shot launch (`SIMCTL_CHILD_TRUST_SCREENSHOT=…`). Hides demo chrome and
+    /// skips permission prompts so captures are listing-safe.
+    var isScreenshotLaunch: Bool {
+        !(ProcessInfo.processInfo.environment["TRUST_SCREENSHOT"] ?? "").isEmpty
+    }
+
+    // MARK: Lifecycle
 
     func start() async {
         await client.prepare()
         #if DEBUG
-        if auth.sessionToken == "demo" {
+        if Self.debugDemoRequested(sessionToken: auth.sessionToken) {
             enterDemo()
             await store.loadProducts()
+            applyScreenshotLaunch()
             return
         }
         #endif
@@ -162,44 +242,41 @@ final class AppModel: ObservableObject {
         }
         await store.loadProducts()
         receipts.prepare(client: client)
-        await store.refreshEntitlement()
+        _ = await store.refreshEntitlement()
         if auth.isAuthenticated {
             await refreshStoreKitToken()
             await syncCircleEntitlement()
         }
         receipts.refreshStatus()
         UIDevice.current.isBatteryMonitoringEnabled = true
-        if phase == .home, ProcessInfo.processInfo.environment["TRUST_SCREENSHOT"] == nil {
+        if phase == .home, !circle.isEmpty, ProcessInfo.processInfo.environment["TRUST_SCREENSHOT"] == nil {
             await receipts.requestPermission()
         }
         applyScreenshotLaunch()
     }
 
-    /// Simulator App Store shots. `SIMCTL_CHILD_TRUST_SCREENSHOT=look|log|share|settings|map`
+    /// Simulator App Store shots. `SIMCTL_CHILD_TRUST_SCREENSHOT=circle|look|view|share|you|map|invite`
     private func applyScreenshotLaunch() {
         #if DEBUG
         let shot = ProcessInfo.processInfo.environment["TRUST_SCREENSHOT"] ?? ""
         guard !shot.isEmpty, auth.isAuthenticated else { return }
         switch shot {
+        case "circle":
+            selectedTab = .circle
         case "look":
-            lookSubject = circle.first(where: { !$0.inboundLive })?.person ?? circle.first?.person
-            showingLookConfirm = true
+            if let sealed = circle.first(where: \.isSealed) { openLook(sealed) }
+        case "view":
+            if let available = circle.first(where: \.isAvailable) { openView(available) }
         case "log":
-            showingLookLog = true
+            showingViewLog = true
         case "share":
             selectedTab = .sharing
-            showingShareSheet = false
-        case "settings":
+        case "you", "settings":
             selectedTab = .you
-            showingSettings = false
         case "map":
-            if let live = circle.first(where: { $0.inboundLive }) {
-                mapSubjectID = live.id
-                showingMap = true
-            } else if let session = activeSession {
-                mapSubjectID = session.event.subjectID
-                showingMap = true
-            }
+            openMap()
+        case "invite":
+            selectedTab = .invite
         default:
             break
         }
@@ -213,25 +290,26 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Offline lean demo — Login → Home with couple / child / elder. DEBUG and Simulator-friendly.
+    // MARK: Demo (DEBUG)
+
+    /// Offline fixture from the design SoT. DEBUG only; entered from “See the app” or `TRUST_DEMO=1`.
     func enterDemo() {
         #if DEBUG
-        let service = DemoTrustService(displayName: "Sam")
+        let service = DemoTrustService()
         service.startLeanDemo()
         demo = service
         isDemoMode = true
         auth.persist(
-            account: AuthAccount(provider: .apple, displayName: "Sam", appleUserID: "demo.sam"),
+            account: AuthAccount(provider: .apple, displayName: service.you.displayName, appleUserID: "demo.alex"),
             token: "demo"
         )
         client.token = "demo"
         publishDemoSnapshot()
+        selectedTab = .circle
         phase = .home
-        quietBanner = LookReceipt(
-            title: TrustCopy.demoBannerTitle,
-            body: TrustCopy.demoBannerBody,
-            at: Date()
-        )
+        if !isScreenshotLaunch {
+            showToast(TrustCopy.demoBannerBody)
+        }
         startDemoTicks()
         #endif
     }
@@ -244,19 +322,20 @@ final class AppModel: ObservableObject {
             members: pack.members,
             coverage: pack.coverage,
             pendingInviteCode: pack.invite,
-            activeSession: pack.session,
+            activeSession: nil,
             beingWatched: nil,
             lookLog: pack.log,
             retainedLookLogCount: pack.retained,
             allowsDevelopmentSignIn: true,
-            allowsReviewUnlock: true,
+            allowsReviewUnlock: false,
             yourHomePlaceID: nil,
-            yourHomeLabel: "Home",
-            yourHomeState: .home
+            yourHomeLabel: nil,
+            yourHomeState: pack.presence
         )
-        localSession = pack.session
-        if let receipt = demo.lastReceipt {
-            quietBanner = receipt
+        openedSnapshots = demo.snapshots
+        isOffline = false
+        if !isScreenshotLaunch {
+            syncLocationSharing()
         }
     }
 
@@ -278,6 +357,8 @@ final class AppModel: ObservableObject {
         isDemoMode = false
     }
 
+    // MARK: Auth
+
     func signIn(with provider: AuthenticationProvider) async {
         guard !isSigningIn else { return }
         isSigningIn = true
@@ -287,11 +368,15 @@ final class AppModel: ObservableObject {
             case .apple:
                 let apple = try await auth.signInWithApple()
                 await client.prepare()
-                let session = try await client.appleSession(identityToken: apple.identityToken, displayName: apple.displayName)
+                let session = try await client.appleSession(
+                    identityToken: apple.identityToken,
+                    displayName: apple.displayName,
+                    nonce: apple.nonce
+                )
                 auth.persist(
                     account: AuthAccount(
                         provider: .apple,
-                        displayName: apple.displayName ?? "You",
+                        displayName: apple.displayName ?? session.you.displayName,
                         appleUserID: apple.userID
                     ),
                     token: client.token ?? ""
@@ -303,13 +388,10 @@ final class AppModel: ObservableObject {
             }
             receipts.prepare(client: client)
             await refreshStoreKitToken()
-            if phase == .home {
-                await receipts.requestPermission()
-            }
         } catch is CancellationError {
             return
         } catch {
-            auth.notice = error.localizedDescription
+            auth.notice = plainMessage(for: error)
         }
     }
 
@@ -318,27 +400,47 @@ final class AppModel: ObservableObject {
         store.clearAfterSignOut()
         auth.signOut()
         client.token = nil
+        client.clearCache()
         stopDemo()
         snapshot = nil
-        localSession = nil
+        openedSnapshots = [:]
+        notSharingWithYou = []
+        grantedPresenceTo = []
+        presenceOverride = nil
+        isOffline = false
         phase = .login
-        showingSettings = false
-        showingLookLog = false
-        showingMap = false
-        mapSubjectID = nil
-        showingLookConfirm = false
-        showingShareSheet = false
-        showingTimedShare = false
-        shareSubject = nil
+        selectedTab = .circle
+        circlePath = []
+        showingViewLog = false
+        showingPaywall = false
+        showingAlwaysExplainer = false
         lookSubject = nil
-        pairingNotice = nil
-        quietBanner = nil
+        timedSharePersonID = nil
+        inviteNotice = nil
+        toast = nil
         resetOnboardingDraft()
         ingestStore.clear()
         location.setSharing(false)
         location.setHomeMonitoring(false)
         location.setMapActive(false)
     }
+
+    func deleteAccount() async {
+        if isDemoMode {
+            signOut()
+            return
+        }
+        do {
+            try await client.deleteAccount()
+            await receipts.unregister()
+            store.clearAfterSignOut()
+            signOut()
+        } catch {
+            showToast(plainMessage(for: error))
+        }
+    }
+
+    // MARK: Refresh / offline
 
     func refresh(enterHome: Bool = false, fallbackOnboardingComplete: Bool? = nil) async {
         if isDemoMode {
@@ -347,60 +449,423 @@ final class AppModel: ObservableObject {
             return
         }
         client.token = auth.sessionToken
+        isRefreshing = true
+        defer { isRefreshing = false }
         do {
-            snapshot = try await client.refreshCircle()
+            let fresh = try await client.refreshCircle()
+            snapshot = fresh
+            isOffline = false
+            presenceOverride = nil
             if enterHome {
-                routeAfterAuth(onboardingComplete: snapshot?.you.onboardingComplete ?? fallbackOnboardingComplete ?? true)
+                routeAfterAuth(onboardingComplete: fresh.you.onboardingComplete)
+            }
+            // Prefer `/circle` inboundShare; keep Look-probe ids only when presentation is still unknown.
+            notSharingWithYou = notSharingWithYou.filter { id in
+                guard let member = fresh.members.first(where: { $0.id == id }) else { return false }
+                if let inbound = member.inboundPresentation { return inbound.isOff }
+                return !member.isAvailable
             }
             syncLocationSharing()
-            syncHomePresenceMonitoring()
             await flushIngestQueue()
-            if let watched = snapshot?.beingWatched {
-                quietBanner = LookReceipt(
-                    title: TrustCopy.receiptTitle(viewer: watched.viewerName),
-                    body: TrustCopy.receiptBody(),
-                    at: watched.at
-                )
+            await reconcilePresenceGrants()
+            if let watched = fresh.beingWatched, watched.id != lastBeingWatchedID {
+                lastBeingWatchedID = watched.id
+                showToast(TrustCopy.receiptTitle(viewer: watched.viewerName))
             }
         } catch TrustClientError.unauthorized {
             signOut()
-        } catch {
-            pairingNotice = error.localizedDescription
+        } catch let error as TrustClientError where error.isConnectivity {
+            if snapshot == nil, let cached = client.cachedCircle() {
+                snapshot = cached
+            }
+            isOffline = snapshot != nil
+            if snapshot == nil {
+                showToast(error.localizedDescription)
+            }
             syncLocationSharing()
-            syncHomePresenceMonitoring()
+            if enterHome, auth.isAuthenticated {
+                routeAfterAuth(onboardingComplete: fallbackOnboardingComplete ?? snapshot?.you.onboardingComplete ?? true)
+            }
+        } catch {
+            showToast(plainMessage(for: error))
+            syncLocationSharing()
             if enterHome, auth.isAuthenticated {
                 routeAfterAuth(onboardingComplete: fallbackOnboardingComplete ?? snapshot?.you.onboardingComplete ?? true)
             }
         }
     }
 
-    func syncCircleEntitlement(signedTransactionInfo: String? = nil) async {
-        do {
-            if let signed = signedTransactionInfo, !signed.isEmpty {
-                try await client.verifyStoreKitTransaction(signed)
-                await refresh()
-                return
-            }
-            if store.reviewUnlocked, snapshot?.allowsReviewUnlock == true {
-                try await client.grantCircle(reviewUnlock: true, productID: nil, signedTransactionInfo: nil)
-                await refresh()
-            }
-        } catch {
-            pairingNotice = error.localizedDescription
+    /// Offline is a state, not a screen. Mutations need the server; reads use the cache.
+    private func requireOnline() -> Bool {
+        guard isOffline, !isDemoMode else { return true }
+        showToast(TrustCopy.offlineAction)
+        return false
+    }
+
+    // MARK: Toast
+
+    func showToast(_ message: String) {
+        if isScreenshotLaunch { return }
+        toastTask?.cancel()
+        toast = TrustToast(message: message)
+        toastTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(4.2))
+            guard !Task.isCancelled else { return }
+            self?.toast = nil
         }
     }
 
-    func refreshStoreKitToken() async {
-        do {
-            let token = try await client.storeKitAccountToken()
-            store.setAppAccountToken(token)
-            if let signed = await store.refreshEntitlement() {
-                await syncCircleEntitlement(signedTransactionInfo: signed)
+    // MARK: Look (Sealed) — notify first, one snapshot
+
+    func openLook(_ member: TrustedPerson) {
+        guard requireOnline() else { return }
+        if member.isAvailable {
+            openView(member)
+            return
+        }
+        lookSubject = member
+    }
+
+    func cancelLook() {
+        lookSubject = nil
+    }
+
+    func confirmLook() {
+        guard let subject = lookSubject, !isLooking else { return }
+        isLooking = true
+        Task {
+            defer { isLooking = false }
+            do {
+                let session: LookSession
+                if let demo {
+                    session = try demo.look(confirmed: true, subjectID: subject.id)
+                    publishDemoSnapshot()
+                } else {
+                    session = try await client.look(subjectID: subject.id, confirmed: true)
+                }
+                openedSnapshots[subject.id] = session
+                notSharingWithYou.remove(subject.id)
+                lookSubject = nil
+                // Let the sheet finish dismissing before pushing D1 View.
+                try? await Task.sleep(for: .milliseconds(320))
+                selectedTab = .circle
+                circlePath = [.view(subject.id)]
+                showToast(TrustCopy.lookSaved(name: subject.firstName))
+                if demo == nil { await refresh() }
+            } catch {
+                lookSubject = nil
+                if error.isShareOff {
+                    notSharingWithYou.insert(subject.id)
+                } else if error.isLookRequiresSealed {
+                    openView(subject)
+                    return
+                }
+                showToast(plainMessage(for: error))
             }
-        } catch {
-            store.setAppAccountToken(nil)
         }
     }
+
+    // MARK: View (Available) — no sheet, logged, no push
+
+    func openView(_ member: TrustedPerson) {
+        if member.isSealed, let _ = openedSnapshot(for: member.id) {
+            selectedTab = .circle
+            circlePath = [.view(member.id)]
+            return
+        }
+        guard member.isAvailable else {
+            openLook(member)
+            return
+        }
+        selectedTab = .circle
+        circlePath = [.view(member.id)]
+        guard !isOffline || isDemoMode else { return }
+        Task {
+            do {
+                let logged: Bool
+                if let demo {
+                    logged = try demo.view(subjectID: member.id) != nil
+                    publishDemoSnapshot()
+                } else {
+                    logged = try await client.view(subjectID: member.id).logged
+                }
+                if logged {
+                    showToast(TrustCopy.viewLogged(name: member.firstName))
+                    if demo == nil { await refresh() }
+                }
+            } catch where error.isViewRequiresAvailable {
+                // Their share sealed between refreshes — fall back to the notify-first Look.
+                circlePath = []
+                await refresh()
+                if let current = self.member(member.id) { lookSubject = current }
+            } catch {
+                showToast(plainMessage(for: error))
+            }
+        }
+    }
+
+    func openMap() {
+        selectedTab = .circle
+        circlePath = [.map]
+    }
+
+    func closeSnapshot(for personID: UUID) {
+        openedSnapshots[personID] = nil
+        if let demo {
+            demo.closeLook(subjectID: personID)
+            publishDemoSnapshot()
+            return
+        }
+        Task {
+            try? await client.closeLook(subjectID: personID)
+        }
+    }
+
+    /// While-Using location only when View / Map needs “miles from you”.
+    func prepareMapLocation() {
+        location.setMapActive(true)
+        if !isScreenshotLaunch {
+            location.requestWhenInUse()
+        }
+    }
+
+    func releaseMapLocation() {
+        location.setMapActive(false)
+    }
+
+    // MARK: Sharing (outbound)
+
+    func shareState(for personID: UUID) -> PersonShareState {
+        if let demo { return demo.shareState(for: personID) }
+        return member(personID)?.share ?? PersonShareState()
+    }
+
+    func setResting(_ mode: ShareRestingMode, for personID: UUID) {
+        guard requireOnline() else { return }
+        let name = member(personID)?.firstName ?? TrustCopy.them
+        Task {
+            do {
+                if let demo {
+                    switch mode {
+                    case .off: demo.setOff(personID: personID)
+                    case .untilTheyLook: demo.setUntilTheyLook(personID: personID)
+                    case .always: try demo.setAlways(personID: personID)
+                    }
+                    publishDemoSnapshot()
+                } else {
+                    try await client.setShare(personID: personID, resting: mode, timed: nil)
+                    await refresh()
+                }
+                switch mode {
+                case .off:
+                    showToast(TrustCopy.sharingStopped(name: name))
+                case .untilTheyLook:
+                    showToast(TrustCopy.modeUpdated(name: name, mode: TrustCopy.untilTheyLook))
+                    afterFirstShare()
+                case .always:
+                    showToast(TrustCopy.modeUpdated(name: name, mode: TrustCopy.always))
+                    afterFirstShare()
+                }
+            } catch {
+                handleShareError(error)
+            }
+        }
+    }
+
+    func openTimedSharePicker(personID: UUID) {
+        guard requireOnline() else { return }
+        timedSharePersonID = personID
+    }
+
+    func setTimedShare(personID: UUID, duration: TimedShareDuration) {
+        timedSharePersonID = nil
+        let name = member(personID)?.firstName ?? TrustCopy.them
+        Task {
+            do {
+                if let demo {
+                    try demo.setTimedShare(personID: personID, duration: duration)
+                    publishDemoSnapshot()
+                } else {
+                    try await client.setShare(personID: personID, resting: nil, timed: duration)
+                    await refresh()
+                }
+                showToast(TrustCopy.modeUpdated(name: name, mode: "\(TrustCopy.forAWhile) · \(duration.label)"))
+                receipts.scheduleTimedEnd(at: duration.endDate(from: Date()))
+                afterFirstShare()
+            } catch {
+                handleShareError(error)
+            }
+        }
+    }
+
+    func stopSharing(personID: UUID) {
+        setResting(.off, for: personID)
+    }
+
+    func stopAll() {
+        guard requireOnline() else { return }
+        Task {
+            if let demo {
+                demo.stopAll()
+                publishDemoSnapshot()
+            } else {
+                for member in circle where !member.share.presentation(at: Date()).isOff {
+                    try? await client.setShare(personID: member.id, resting: .off, timed: nil)
+                }
+                await refresh()
+            }
+            receipts.cancelTimedEnd()
+            showToast(TrustCopy.stopAllToast)
+        }
+    }
+
+    /// Always / For a while without Plus → intent-triggered paywall placement.
+    private func handleShareError(_ error: Error) {
+        if error.isProRequired {
+            showingPaywall = true
+            return
+        }
+        showToast(plainMessage(for: error))
+    }
+
+    /// First non-Off share: your location is now in the product → Always explainer → system prompt.
+    private func afterFirstShare() {
+        syncLocationSharing()
+        guard !location.hasAlways else { return }
+        if location.isDenied || location.needsSystemSettings || location.authorization == .notDetermined
+            || location.authorization == .authorizedWhenInUse {
+            showingAlwaysExplainer = true
+        }
+    }
+
+    func allowAlwaysFromExplainer() {
+        showingAlwaysExplainer = false
+        if location.needsSystemSettings {
+            openSystemSettings()
+        } else {
+            location.requestAlways()
+        }
+    }
+
+    // MARK: Presence triad (global, free)
+
+    func setPresence(_ kind: HomePresenceKind) {
+        guard kind != .unknown, kind != myPresence else { return }
+        if let demo {
+            demo.setMyPresence(kind)
+            publishDemoSnapshot()
+            showToast(kind == .hidden ? TrustCopy.presenceHiddenToast : TrustCopy.presenceSetToast(label: kind.label))
+            return
+        }
+        guard requireOnline() else { return }
+        presenceOverride = kind
+        Task {
+            do {
+                try await client.postHomePresence(state: kind)
+                await reconcilePresenceGrants(force: true)
+                showToast(kind == .hidden ? TrustCopy.presenceHiddenToast : TrustCopy.presenceSetToast(label: kind.label))
+                await refresh()
+            } catch {
+                presenceOverride = nil
+                showToast(plainMessage(for: error))
+            }
+        }
+    }
+
+    /// Presence is a global triad in 1.0; the API still keeps a per-edge grant. Keep every
+    /// connected person granted so Home / Away shows for the whole circle; Hidden is withheld
+    /// server-side regardless of grants.
+    private func reconcilePresenceGrants(force: Bool = false) async {
+        guard !isDemoMode, !isOffline else { return }
+        let missing = circle.filter { !$0.outboundPresenceGranted && (force || !grantedPresenceTo.contains($0.id)) }
+        guard !missing.isEmpty else { return }
+        for member in missing {
+            grantedPresenceTo.insert(member.id)
+            try? await client.setPresenceGrant(personID: member.id, enabled: true)
+        }
+    }
+
+    // MARK: Invite
+
+    func createInvite() {
+        guard requireOnline() else { return }
+        if let demo {
+            demo.createInvite()
+            publishDemoSnapshot()
+            return
+        }
+        Task {
+            do {
+                _ = try await client.createInvite()
+                inviteNotice = nil
+                await refresh()
+            } catch {
+                inviteNotice = plainMessage(for: error)
+            }
+        }
+    }
+
+    func joinInvite() {
+        let code = inviteCodeDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !code.isEmpty, !isJoining else { return }
+        guard requireOnline() else { return }
+        if let demo {
+            do {
+                try demo.joinInvite(code: code)
+                inviteCodeDraft = ""
+                inviteNotice = nil
+                publishDemoSnapshot()
+                showToast(TrustCopy.joined)
+                selectedTab = .sharing
+            } catch {
+                inviteNotice = plainMessage(for: error)
+            }
+            return
+        }
+        isJoining = true
+        Task {
+            defer { isJoining = false }
+            do {
+                try await client.acceptInvite(code: code)
+                inviteCodeDraft = ""
+                inviteNotice = nil
+                await refresh(enterHome: true)
+                showToast(TrustCopy.joined)
+                selectedTab = .sharing
+                await receipts.requestPermission()
+            } catch {
+                inviteNotice = plainMessage(for: error)
+            }
+        }
+    }
+
+    func handleIncomingURL(_ url: URL) {
+        guard auth.isAuthenticated else { return }
+        let code: String?
+        if url.scheme == "https",
+           url.host == "trust.collapsetechnologies.com",
+           url.path.hasPrefix("/i/") {
+            code = url.lastPathComponent
+        } else if url.scheme == "trust" {
+            let parts = url.pathComponents.filter { $0 != "/" }
+            if url.host == "invite" {
+                code = parts.first
+            } else if parts.first == "invite", parts.count > 1 {
+                code = parts[1]
+            } else {
+                code = nil
+            }
+        } else {
+            code = nil
+        }
+        guard let code, !code.isEmpty else { return }
+        inviteCodeDraft = code
+        selectedTab = .invite
+        guard phase == .home else { return }
+        joinInvite()
+    }
+
+    // MARK: Handle (A2)
 
     var onboardingHandleIsValid: Bool {
         if case .valid = TrustHandle.status(of: onboardingHandle) { return true }
@@ -435,7 +900,7 @@ final class AppModel: ObservableObject {
                     onboardingNotice = TrustCopy.enterHandle
                 }
             } catch {
-                onboardingNotice = error.localizedDescription
+                onboardingNotice = plainMessage(for: error)
             }
         }
     }
@@ -469,11 +934,8 @@ final class AppModel: ObservableObject {
         let complete = snapshot?.you.onboardingComplete == true
         if complete {
             routeAfterAuth(onboardingComplete: true)
-            if phase == .home {
-                await receipts.requestPermission()
-                if !inviteCodeDraft.isEmpty {
-                    joinInvite()
-                }
+            if phase == .home, !inviteCodeDraft.isEmpty {
+                joinInvite()
             }
         }
     }
@@ -499,7 +961,7 @@ final class AppModel: ObservableObject {
             onboardingHandle = suggestion
             scheduleHandleAvailabilityCheck()
         }
-        phase = .onboarding
+        phase = .handle
     }
 
     private func resetOnboardingDraft() {
@@ -510,96 +972,70 @@ final class AppModel: ObservableObject {
         isOnboardingBusy = false
     }
 
-    func createInvite() {
-        beginSharingLocation()
-        if let demo {
-            demo.createInvite()
-            pairingNotice = TrustCopy.shareThisCode
-            publishDemoSnapshot()
-            return
-        }
-        Task {
-            do {
-                let code = try await client.createInvite()
-                pairingNotice = TrustCopy.shareThisCode
+    // MARK: Plus (StoreKit 2 — SubscriptionStoreView submits JWS here)
+
+    func syncCircleEntitlement(signedTransactionInfo: String? = nil) async {
+        do {
+            if let signed = signedTransactionInfo, !signed.isEmpty {
+                try await client.verifyStoreKitTransaction(signed)
                 await refresh()
-                _ = code
-            } catch {
-                pairingNotice = error.localizedDescription
+                return
             }
+            if store.reviewUnlocked, snapshot?.allowsReviewUnlock == true {
+                try await client.grantCircle(reviewUnlock: true, productID: nil, signedTransactionInfo: nil)
+                await refresh()
+            }
+        } catch {
+            if error.trustAPICode == "storekit_account_mismatch" {
+                store.linkedToAnotherAccount = true
+            }
+            showToast(plainMessage(for: error))
         }
     }
 
-    func joinInvite() {
-        beginSharingLocation()
-        if let demo {
-            do {
-                try demo.joinInvite(code: inviteCodeDraft)
-                inviteCodeDraft = ""
-                pairingNotice = nil
-                publishDemoSnapshot()
-                phase = .home
-            } catch {
-                pairingNotice = error.localizedDescription
+    func refreshStoreKitToken() async {
+        do {
+            let token = try await client.storeKitAccountToken()
+            store.setAppAccountToken(token)
+            if let signed = await store.refreshEntitlement() {
+                await syncCircleEntitlement(signedTransactionInfo: signed)
             }
-            return
-        }
-        Task {
-            do {
-                try await client.acceptInvite(code: inviteCodeDraft)
-                inviteCodeDraft = ""
-                pairingNotice = nil
-                await refresh(enterHome: true)
-            } catch {
-                pairingNotice = error.localizedDescription
-            }
+        } catch {
+            store.setAppAccountToken(nil)
         }
     }
 
-    func handleIncomingURL(_ url: URL) {
-        guard auth.isAuthenticated else { return }
-        let code: String?
-        if url.scheme == "https",
-           url.host == "trust.collapsetechnologies.com",
-           url.path.hasPrefix("/i/") {
-            code = url.lastPathComponent
-        } else if url.scheme == "trust" {
-            let parts = url.pathComponents.filter { $0 != "/" }
-            if url.host == "invite" {
-                code = parts.first
-            } else if parts.first == "invite", parts.count > 1 {
-                code = parts[1]
-            } else {
-                code = nil
-            }
-        } else {
-            code = nil
+    func purchase(_ product: Product) async {
+        if let signed = await store.purchase(product) {
+            await syncCircleEntitlement(signedTransactionInfo: signed)
+            if coverage.isCovered { showingPaywall = false }
         }
-        guard let code, !code.isEmpty else { return }
-        inviteCodeDraft = code
-        guard phase == .home else { return }
-        joinInvite()
     }
 
-    func prepareMapLocation() {
-        location.setMapActive(true)
-        location.requestWhenInUse()
+    func handleStorePurchase(_ result: Result<Product.PurchaseResult, Error>) async {
+        if let signed = await store.ingestPurchaseResult(result) {
+            await syncCircleEntitlement(signedTransactionInfo: signed)
+            if coverage.isCovered { showingPaywall = false }
+        }
     }
 
-    func requestWhenInUseLocation() {
-        location.requestWhenInUse()
+    func restorePurchases() async {
+        if let signed = await store.restorePurchases() {
+            await syncCircleEntitlement(signedTransactionInfo: signed)
+            if coverage.isCovered { showingPaywall = false }
+        }
     }
+
+    func unlockPlusForReview() {
+        guard snapshot?.allowsReviewUnlock == true else { return }
+        store.unlockForReview()
+        Task { await syncCircleEntitlement() }
+    }
+
+    // MARK: System
 
     func requestAlwaysLocation() {
         location.requestAlways()
-    }
-
-    func beginSharingLocation() {
-        location.requestAlways()
-    }
-
-    func requestPreciseLocation() {
-        location.requestPrecise()
     }
 
     func openSystemSettings() {
@@ -611,296 +1047,52 @@ final class AppModel: ObservableObject {
         await receipts.requestPermission()
     }
 
-    func openShare(for person: Person) {
-        shareSubject = person
-        showingShareSheet = true
-    }
-
-    func openLook(for person: Person? = nil) {
-        lookSubject = person ?? circle.first?.person
-        guard lookSubject != nil else { return }
-        showingLookConfirm = true
-    }
-
-    /// Secondary MapKit cover for someone already live (Always / Timed / after Look).
-    func openMap(for member: TrustedPerson) {
-        guard member.inboundLive || activeSession?.event.subjectID == member.id else { return }
-        let hasPoint = member.livePoint != nil
-            || activeSession?.event.subjectID == member.id
-            || (demo?.visibleMapContent(for: member.id) != nil)
-        guard hasPoint else { return }
-        mapSubjectID = member.id
-        showingMap = true
-    }
-
-    /// Map content for the optional cover — Look session when present, else live vault pin.
-    func mapDisplay(for personID: UUID) -> (name: String, live: LocationPoint, trail: [LocationPoint], watching: Bool)? {
-        if let session = activeSession, session.event.subjectID == personID {
-            return (
-                session.event.subjectName,
-                session.live,
-                session.trail.isEmpty ? [session.live] : session.trail,
-                true
-            )
-        }
-        if let demo, let content = demo.visibleMapContent(for: personID) {
-            let name = circle.first(where: { $0.id == personID })?.person.displayName
-                ?? demo.circle.first(where: { $0.id == personID })?.person.displayName
-                ?? "Them"
-            return (name, content.live, content.trail, false)
-        }
-        if let member = circle.first(where: { $0.id == personID }), let live = member.livePoint {
-            return (member.person.displayName, live, [live], false)
-        }
-        return nil
-    }
-
-    func confirmLook() {
-        guard let subject = lookSubject else { return }
-        if let demo {
-            do {
-                let session = try demo.breakTrust(confirmed: true, subjectID: subject.id)
-                localSession = session
-                showingLookConfirm = false
-                // Lean: After Look is Home with a live pin — not a second map screen.
-                showingMap = false
-                mapSubjectID = nil
-                publishDemoSnapshot()
-                if let receipt = demo.lastReceipt {
-                    quietBanner = receipt
-                }
-            } catch {
-                pairingNotice = error.localizedDescription
-            }
-            return
-        }
-        Task {
-            do {
-                let session = try await client.look(subjectID: subject.id, confirmed: true)
-                localSession = session
-                showingLookConfirm = false
-                showingMap = false
-                mapSubjectID = nil
-                await refresh()
-            } catch {
-                pairingNotice = error.localizedDescription
-            }
-        }
-    }
-
-    func closeMap() {
-        showingMap = false
-        mapSubjectID = nil
-        // Dismissing the optional map does not end Always / post-Look visibility.
-        // Only clear an active Look session when one is open.
-        guard activeSession != nil else { return }
-        let subjectID = localSession?.event.subjectID ?? snapshot?.activeSession?.event.subjectID
-        localSession = nil
-        if let demo {
-            demo.closeLook()
-            publishDemoSnapshot()
-            return
-        }
-        Task {
-            try? await client.closeLook(subjectID: subjectID)
-            await refresh()
-        }
-    }
-
-    func setUntilTheyLook(personID: UUID) {
-        beginSharingLocation()
-        if let demo {
-            demo.setUntilTheyLook(personID: personID)
-            publishDemoSnapshot()
-            return
-        }
-        Task {
-            try? await client.setShare(personID: personID, resting: "untilTheyLook", timed: nil)
-            await refresh()
-        }
-    }
-
-    func setAlways(personID: UUID) {
-        beginSharingLocation()
-        if let demo {
-            demo.setAlways(personID: personID)
-            publishDemoSnapshot()
-            return
-        }
-        Task {
-            try? await client.setShare(personID: personID, resting: "always", timed: nil)
-            await refresh()
-        }
-    }
-
-    func setTimedShare(personID: UUID, duration: TimedShareDuration) {
-        beginSharingLocation()
-        if let demo {
-            demo.setTimedShare(personID: personID, duration: duration)
-            publishDemoSnapshot()
-            return
-        }
-        Task {
-            try? await client.setShare(personID: personID, resting: nil, timed: duration.rawValue)
-            await refresh()
-        }
-    }
-
-    func setAllUntilTheyLook() {
-        for member in circle {
-            setUntilTheyLook(personID: member.id)
-        }
-    }
-
-    func openTimedSharePicker(personID: UUID) {
-        timedSharePersonID = personID
-        showingTimedShare = true
-    }
-
-    func dismissTimedSharePicker() {
-        showingTimedShare = false
-        timedSharePersonID = nil
-    }
-
-    func setPresenceGrant(personID: UUID, enabled: Bool) {
-        if enabled {
-            beginSharingLocation()
-            ensureHomeConfigured()
-        }
-        if let demo {
-            demo.setPresenceGrant(personID: personID, enabled: enabled)
-            publishDemoSnapshot()
-            return
-        }
-        Task {
-            do {
-                try await client.setPresenceGrant(personID: personID, enabled: enabled)
-                await refresh()
-            } catch {
-                pairingNotice = error.localizedDescription
-            }
-        }
-    }
-
-    func setHomeHere() {
-        beginSharingLocation()
-        guard let saved = location.setHomeFromCurrentFix() else {
-            pairingNotice = TrustCopy.homeNeedsLocation
-            return
-        }
-        Task {
-            do {
-                try await client.setHomePlace(placeID: saved.placeID, label: saved.label)
-                await refresh()
-            } catch {
-                pairingNotice = error.localizedDescription
-            }
-        }
-    }
-
-    func createPromise(trusteeID: UUID, deadlineAt: Date) {
-        beginSharingLocation()
-        ensureHomeConfigured()
-        Task {
-            do {
-                try await client.createPromise(trusteeID: trusteeID, deadlineAt: deadlineAt)
-                await refresh()
-            } catch {
-                pairingNotice = error.localizedDescription
-            }
-        }
-    }
-
-    func extendLookHistory() {
-        guard let subjectID = activeSession?.event.subjectID else { return }
-        Task {
-            do {
-                localSession = try await client.extendLook(subjectID: subjectID)
-                await refresh()
-            } catch {
-                pairingNotice = error.localizedDescription
-            }
-        }
-    }
-
-    func purchase(_ product: Product) async {
-        if let signed = await store.purchase(product) {
-            await syncCircleEntitlement(signedTransactionInfo: signed)
-        }
-    }
-
-    func unlockCircleForReview() {
-        guard snapshot?.allowsReviewUnlock == true else { return }
-        store.unlockForReview()
-        Task { await syncCircleEntitlement() }
-    }
-
-    func deleteAccount() async {
-        if isDemoMode {
-            signOut()
-            return
-        }
-        do {
-            try await client.deleteAccount()
-            await receipts.unregister()
-            store.clearAfterSignOut()
-            signOut()
-        } catch {
-            pairingNotice = error.localizedDescription
-        }
-    }
-
-    func revoke(_ person: Person) {
-        if let demo {
-            demo.revoke(personID: person.id)
-            showingMap = false
-            mapSubjectID = nil
-            showingLookConfirm = false
-            showingShareSheet = false
-            publishDemoSnapshot()
-            return
-        }
-        Task {
-            try? await client.revoke(personID: person.id)
-            showingMap = false
-            mapSubjectID = nil
-            showingLookConfirm = false
-            await refresh()
-        }
-    }
-
-    func shareState(for personID: UUID) -> PersonShareState {
-        if let demo {
-            return demo.shareState(for: personID)
-        }
-        return circle.first { $0.id == personID }?.share ?? PersonShareState()
-    }
-
-    func confirmCopy(for personID: UUID?) -> (title: String, body: String) {
-        let subject = circle.first { $0.id == personID }?.displayName
-            ?? lookSubject?.identity
-            ?? TrustCopy.them
-        let looksToday = lookLog.filter {
-            $0.viewerID == you.id && Calendar.current.isDateInToday($0.at)
-        }.count
-        return (
-            TrustCopy.confirmTitle(subject: subject),
-            TrustCopy.confirmBody(subject: subject, looksToday: looksToday)
-        )
-    }
+    // MARK: View log export
 
     var lookLogExportText: String {
-        lookLog.map { event in
-            return TrustCopy.lookLogExportRow(
+        let youID = you.id
+        return lookLog.map { event in
+            TrustCopy.lookLogExportRow(
                 timestamp: event.at.ISO8601Format(),
-                viewer: event.viewerName,
-                subject: event.subjectName,
-                live: event.includedLive,
-                hours: event.historyWindowHours
+                line: event.logLine(youID: youID),
+                kind: event.kind == .view ? TrustCopy.kindView : TrustCopy.kindLook
             )
         }
         .joined(separator: "\n")
     }
+
+    // MARK: Errors → plain copy
+
+    func plainMessage(for error: Error) -> String {
+        if let lookError = error as? LookError {
+            switch lookError {
+            case .confirmationRequired: return TrustCopy.apiError(code: "confirmation_required", fallback: nil)
+            case .pairInactive: return TrustCopy.apiError(code: "not_connected", fallback: nil)
+            case .noPartner: return TrustCopy.apiError(code: "no_location", fallback: nil)
+            case .shareOff: return TrustCopy.apiError(code: "share_off", fallback: nil)
+            case .lookRequiresSealed: return TrustCopy.apiError(code: "look_requires_sealed", fallback: nil)
+            case .viewRequiresAvailable: return TrustCopy.apiError(code: "view_requires_available", fallback: nil)
+            }
+        }
+        if let circleError = error as? CircleError {
+            switch circleError {
+            case .proRequired: return TrustCopy.apiError(code: "pro_required", fallback: nil)
+            case .seatLimitReached: return TrustCopy.apiError(code: "seat_limit", fallback: nil)
+            }
+        }
+        if let pairing = error as? PairingError {
+            switch pairing {
+            case .invalidCode: return TrustCopy.apiError(code: "invalid_code", fallback: nil)
+            case .alreadyPaired: return TrustCopy.apiError(code: "not_connected", fallback: nil)
+            }
+        }
+        if let described = (error as? LocalizedError)?.errorDescription, !described.isEmpty {
+            return described
+        }
+        return TrustCopy.requestFailed
+    }
+
+    // MARK: Plumbing
 
     private func bind() {
         auth.objectWillChange
@@ -911,6 +1103,9 @@ final class AppModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
+        store.onVerifiedJWS = { [weak self] jws in
+            await self?.syncCircleEntitlement(signedTransactionInfo: jws)
+        }
         location.objectWillChange
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.objectWillChange.send() }
@@ -919,54 +1114,22 @@ final class AppModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
-        appearance.objectWillChange
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.objectWillChange.send() }
-            .store(in: &cancellables)
 
         location.onLocations = { [weak self] points in
             self?.enqueueLocations(points)
         }
-        location.onHomePresence = { [weak self] state in
-            Task { await self?.postHomePresence(state) }
-        }
-    }
-
-    private func ensureHomeConfigured() {
-        if !location.homeIsSet {
-            _ = location.setHomeFromCurrentFix()
-        }
-        if let placeID = location.homePlaceID {
-            Task {
-                try? await client.setHomePlace(placeID: placeID, label: location.homeLabel)
-            }
-        }
-    }
-
-    private func syncHomePresenceMonitoring() {
-        let grantsPresence = circle.contains(where: \.outboundPresenceGranted)
-        let hasPromise = circle.contains { member in
-            guard let promise = member.promise else { return false }
-            return promise.youAreSubject && (promise.status == .active || promise.status == .overdue || promise.status == .noSignal)
-        }
-        let shouldMonitor = location.homeIsSet && (grantsPresence || hasPromise)
-        location.setHomeMonitoring(shouldMonitor)
-    }
-
-    private func postHomePresence(_ state: HomePresenceKind) async {
-        guard auth.isAuthenticated else { return }
-        do {
-            try await client.postHomePresence(state: state)
-        } catch {
-            // Offline — next transition or refresh will catch up.
-        }
+        // Presence is manual in 1.0. Geofenced Home/Away (Places) is the 1.1 Plus item, so the
+        // coordinator's region callbacks stay unwired here.
+        location.onHomePresence = nil
+        location.setHomeMonitoring(false)
     }
 
     private func syncLocationSharing() {
-        location.setSharing(isSharingLocation)
-        if isSharingLocation, let point = location.lastFix {
+        let tier = locationSharingTier
+        location.setSharingTier(tier)
+        if tier != .off, let point = location.lastFix {
             enqueueLocations([point])
-        } else if !isSharingLocation {
+        } else if tier == .off {
             ingestStore.clear()
         }
     }
@@ -983,7 +1146,7 @@ final class AppModel: ObservableObject {
     }
 
     private func flushIngestQueue() async {
-        guard isSharingLocation, location.hasAccess, auth.isAuthenticated, !isFlushingIngest else { return }
+        guard isSharingLocation, location.hasAccess, auth.isAuthenticated, !isDemoMode, !isFlushingIngest else { return }
         let pending = ingestStore.points
         guard !pending.isEmpty else { return }
         isFlushingIngest = true
@@ -1001,5 +1164,25 @@ final class AppModel: ObservableObject {
         } catch {
             // Keep pending points; the next fix or refresh retries.
         }
+    }
+}
+
+extension Error {
+    var trustAPICode: String? { (self as? TrustClientError)?.apiCode }
+
+    var isProRequired: Bool {
+        trustAPICode == "pro_required" || (self as? CircleError) == .proRequired
+    }
+
+    var isShareOff: Bool {
+        trustAPICode == "share_off" || (self as? LookError) == .shareOff
+    }
+
+    var isLookRequiresSealed: Bool {
+        trustAPICode == "look_requires_sealed" || (self as? LookError) == .lookRequiresSealed
+    }
+
+    var isViewRequiresAvailable: Bool {
+        trustAPICode == "view_requires_available" || (self as? LookError) == .viewRequiresAvailable
     }
 }

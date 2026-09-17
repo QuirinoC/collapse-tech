@@ -31,6 +31,9 @@ public sealed class PostgresHistoryTests
         var jordan = await engine.SignInAsync("development", $"pg-jordan-{suffix}", "Jordan", CancellationToken.None);
         var invite = await engine.CreateInviteAsync(sam.Id, CancellationToken.None);
         await engine.AcceptInviteAsync(jordan.Id, invite.Code, CancellationToken.None);
+        // Join defaults to Off/Off in M1 — Sam must explicitly seal sharing toward Jordan
+        // before location ingest is allowed to persist anything.
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.UntilTheyLook, null, CancellationToken.None);
 
         for (var i = 0; i < 4; i++)
         {
@@ -45,8 +48,10 @@ public sealed class PostgresHistoryTests
 
         var lookResult = await engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
         var look = lookResult.Session;
-        Assert.Equal(4, look.Trail.Count);
-        Assert.Equal(2, look.Event.HistoryWindowHours);
+        // Snapshot semantics: Look returns the latest point only, not a trail.
+        Assert.Single(look.Trail);
+        Assert.Equal(0, look.Event.HistoryWindowHours);
+        Assert.Equal(37.754, look.Live.Latitude, 3);
 
         var restarted = new PostgresTrustStore(Connection);
         var afterRestart = new TrustEngine(restarted, time);
@@ -62,19 +67,23 @@ public sealed class PostgresHistoryTests
         var rebuiltResult = await afterRestart.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
         var rebuilt = rebuiltResult.Session;
         Assert.Equal(look.Event.Id, rebuilt.Event.Id);
-        Assert.Equal(4, rebuilt.Trail.Count);
+        Assert.Single(rebuilt.Trail);
         Assert.False(rebuiltResult.IsNew);
 
         var receipts = await restarted.ListLooksAsync(sam.Id, time.UtcNow.AddDays(-1), CancellationToken.None);
-        Assert.Contains(receipts, item => item.Id == look.Event.Id && item.IncludedLive);
+        Assert.Contains(receipts, item => item.Id == look.Event.Id && item.IncludedLive && item.Kind == LookKind.Look);
 
+        // Sealed never flips "live" from an active Look — Sam stays not-live in the circle
+        // listing even while Jordan's snapshot/active-look session exists.
         var sealedView = await afterRestart.GetCircleAsync(jordan.Id, CancellationToken.None);
-        Assert.NotNull(sealedView.Members.Single(member => member.Person.Id == sam.Id).Live);
-        Assert.Equal(4, sealedView.ActiveSession?.Trail.Count);
+        Assert.Null(sealedView.Members.Single(member => member.Person.Id == sam.Id).Live);
+        Assert.False(sealedView.Members.Single(member => member.Person.Id == sam.Id).InboundLive);
+        Assert.Single(sealedView.ActiveSession!.Trail);
 
         await afterRestart.CloseLookAsync(jordan.Id, sam.Id, CancellationToken.None);
         var sealedAgain = await afterRestart.GetCircleAsync(jordan.Id, CancellationToken.None);
         Assert.Null(sealedAgain.Members.Single(member => member.Person.Id == sam.Id).Live);
+        Assert.Null(sealedAgain.ActiveSession);
 
         await afterRestart.DeleteAccountAsync(sam.Id, CancellationToken.None);
         await afterRestart.DeleteAccountAsync(jordan.Id, CancellationToken.None);

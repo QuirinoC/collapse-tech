@@ -1,7 +1,8 @@
 import SwiftUI
 import TrustCore
 
-struct OnboardingView: View {
+/// A2 Handle — `@handle` once after the first Sign in with Apple (`PUT /me/handle`).
+struct HandleView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.trustPalette) private var palette
     @FocusState private var handleFocused: Bool
@@ -13,18 +14,20 @@ struct OnboardingView: View {
                     .padding(.bottom, 28)
 
                 Text(TrustCopy.yourHandle)
-                    .font(TrustTheme.display(40))
+                    .font(TrustTheme.display(38))
+                    .tracking(-1)
                     .foregroundStyle(palette.ink)
                     .accessibilityAddTraits(.isHeader)
                 TrustRule()
                     .padding(.top, 12)
                     .padding(.bottom, 18)
-                Text(TrustCopy.onboardingIntro)
-                    .font(TrustTheme.ui(15))
+                Text(TrustCopy.handleIntro)
+                    .trustFont(15)
+                    .lineSpacing(3)
                     .foregroundStyle(palette.muted)
                     .fixedSize(horizontal: false, vertical: true)
 
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 18) {
                     TrustFieldLabel(title: TrustCopy.handle, hint: handleHint) {
                         HStack(spacing: 8) {
                             Text("@")
@@ -35,12 +38,15 @@ struct OnboardingView: View {
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                                 .keyboardType(.asciiCapable)
+                                .submitLabel(.continue)
                                 .font(TrustTheme.ui(17))
                                 .foregroundStyle(palette.ink)
                                 .focused($handleFocused)
+                                .onSubmit { Task { await model.completeOnboarding() } }
                         }
-                        .padding(12)
-                        .overlay(Rectangle().stroke(palette.line, lineWidth: 1))
+                        .padding(14)
+                        .background(palette.paper)
+                        .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(Color(hex: 0xDEDFD5), lineWidth: 1))
                     }
 
                     Text(TrustCopy.handleRules)
@@ -57,7 +63,7 @@ struct OnboardingView: View {
                     if let notice = model.onboardingNotice, !notice.isEmpty {
                         Text(notice)
                             .font(TrustTheme.ui(13))
-                            .foregroundStyle(palette.muted)
+                            .foregroundStyle(palette.accent)
                     }
                 }
                 .padding(.top, 28)
@@ -68,11 +74,13 @@ struct OnboardingView: View {
                     model.signOut()
                 }
                 .buttonStyle(TrustTextButtonStyle())
+                .frame(maxWidth: .infinity)
                 .padding(.bottom, 12)
             }
             .padding(.horizontal, 24)
             .padding(.top, 12)
             .padding(.bottom, 24)
+            .trustReadableWidth()
         }
         .scrollDismissesKeyboard(.interactively)
         .background(palette.paper.ignoresSafeArea())

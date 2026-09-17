@@ -53,267 +53,324 @@ final class LocationIngestBufferTests: XCTestCase {
 
 final class LookServiceTests: XCTestCase {
     @MainActor
-    func testLookRequiresConfirmAndAppendsLog() throws {
+    private func sealedPair() -> (DemoTrustService, UUID) {
         let service = DemoTrustService(displayName: "Sam")
-        service.startDemoPair(partnerName: "Jordan")
+        service.startPair(with: "Jordan")
+        let jordan = service.members.first!.id
+        service.setInboundForTesting(personID: jordan, PersonShareState(resting: .untilTheyLook))
+        return (service, jordan)
+    }
 
-        XCTAssertThrowsError(try service.breakTrust(confirmed: false)) { error in
+    @MainActor
+    func testJoinIsOffBothWaysAndLookIsRefused() {
+        let service = DemoTrustService(displayName: "Sam")
+        service.startPair(with: "Jordan")
+        let jordan = service.members.first!.id
+        XCTAssertEqual(service.shareState(for: jordan).presentation(at: Date()), .off)
+        XCTAssertFalse(service.isSharingLocation)
+        XCTAssertThrowsError(try service.look(confirmed: true, subjectID: jordan)) { error in
+            XCTAssertEqual(error as? LookError, .shareOff)
+        }
+        XCTAssertTrue(service.lookLog.isEmpty)
+    }
+
+    @MainActor
+    func testLookRequiresConfirmReturnsOneSnapshotAndAppendsLog() throws {
+        let (service, jordan) = sealedPair()
+
+        XCTAssertThrowsError(try service.look(confirmed: false, subjectID: jordan)) { error in
             XCTAssertEqual(error as? LookError, .confirmationRequired)
         }
         XCTAssertTrue(service.lookLog.isEmpty)
-        XCTAssertTrue(service.peekEscrow(for: service.partner!.id).isEmpty)
+        XCTAssertTrue(service.peekEscrow(for: jordan).isEmpty)
 
-        let session = try service.breakTrust(confirmed: true)
+        let session = try service.look(confirmed: true, subjectID: jordan)
         XCTAssertEqual(session.event.viewerName, "Sam")
         XCTAssertEqual(session.event.subjectName, "Jordan")
-        XCTAssertTrue(session.event.includedLive)
-        XCTAssertEqual(session.event.historyWindowHours, 2)
-        XCTAssertFalse(session.trail.isEmpty)
+        XCTAssertEqual(session.event.kind, .look)
+        XCTAssertEqual(session.event.historyWindowHours, 0, "Sealed Look is one snapshot, not a trail")
+        XCTAssertEqual(session.trail.count, 1)
+        XCTAssertEqual(session.trail.first, session.live)
         XCTAssertEqual(service.lookLog.count, 1)
 
-        let oldest = session.trail.first!
-        XCTAssertLessThanOrEqual(
-            session.event.at.timeIntervalSince(oldest.timestamp),
-            EscrowVault.defaultHistoryWindow + 1
-        )
+        // The subject's share stays sealed — an opened snapshot never flips them Available.
+        XCTAssertTrue(service.circle.first { $0.id == jordan }!.isSealed)
+        XCTAssertTrue(service.isLocationVisible(jordan))
     }
 
     @MainActor
-    func testReceiptCopyIsQuietAndNamesHistory() throws {
-        let service = DemoTrustService(displayName: "Sam")
-        service.startDemoPair(partnerName: "Jordan")
-        _ = try service.breakTrust(confirmed: true)
-        XCTAssertEqual(service.lastReceipt?.title, "Sam viewed your location")
-        XCTAssertEqual(
-            service.lastReceipt?.body,
-            "They can see your live location and the last 2 hours of history."
-        )
+    func testReceiptCopyIsPlain() throws {
+        let (service, jordan) = sealedPair()
+        _ = try service.look(confirmed: true, subjectID: jordan)
+        XCTAssertEqual(service.lastReceipt?.title, "Sam looked at your location.")
+        XCTAssertEqual(service.lastReceipt?.body, "One snapshot. This is your receipt.")
     }
 
     @MainActor
-    func testConfirmCopyStrengthensAfterRepeatedLooks() throws {
-        let service = DemoTrustService(displayName: "Sam")
-        service.startDemoPair(partnerName: "Jordan")
-        XCTAssertFalse(service.confirmCopy().body.contains("times today"))
-        _ = try service.breakTrust(confirmed: true)
-        service.closeLook()
-        _ = try service.breakTrust(confirmed: true)
-        service.closeLook()
-        XCTAssertTrue(service.confirmCopy().body.contains("2 times today"))
-        XCTAssertTrue(service.confirmCopy().body.contains("will be notified immediately"))
-        XCTAssertTrue(service.confirmCopy().title.contains("Jordan"))
-    }
+    func testClosingASnapshotRequiresANewConfirmAndRevokeKeepsTheLog() throws {
+        let (service, jordan) = sealedPair()
+        _ = try service.look(confirmed: true, subjectID: jordan)
+        service.closeLook(subjectID: jordan)
+        XCTAssertNil(service.snapshot(for: jordan))
 
-    @MainActor
-    func testClosingRequiresANewConfirmAndRevokeKeepsTheLog() throws {
-        let service = DemoTrustService(displayName: "Sam")
-        service.startDemoPair(partnerName: "Jordan")
-        _ = try service.breakTrust(confirmed: true)
-        service.closeLook()
-        XCTAssertNil(service.activeSession)
-
-        let again = try service.breakTrust(confirmed: true)
+        _ = try service.look(confirmed: true, subjectID: jordan)
         XCTAssertEqual(service.lookLog.count, 2)
-        XCTAssertEqual(again.event.historyWindowHours, 2)
 
-        service.revoke()
-        XCTAssertEqual(service.pair?.status, .revoked)
-        XCTAssertNil(service.activeSession)
+        service.revoke(personID: jordan)
+        XCTAssertTrue(service.members.isEmpty)
         XCTAssertEqual(service.lookLog.count, 2)
-        XCTAssertThrowsError(try service.breakTrust(confirmed: true)) { error in
+        XCTAssertThrowsError(try service.look(confirmed: true, subjectID: jordan)) { error in
             XCTAssertEqual(error as? LookError, .pairInactive)
         }
     }
 
     @MainActor
+    func testViewNeedsAvailableLogsOnceAndLookIsRefused() throws {
+        let (service, jordan) = sealedPair()
+        XCTAssertThrowsError(try service.view(subjectID: jordan)) { error in
+            XCTAssertEqual(error as? LookError, .viewRequiresAvailable)
+        }
+
+        service.setInboundForTesting(personID: jordan, PersonShareState(resting: .always))
+        XCTAssertTrue(service.circle.first { $0.id == jordan }!.isAvailable)
+        XCTAssertThrowsError(try service.look(confirmed: true, subjectID: jordan)) { error in
+            XCTAssertEqual(error as? LookError, .lookRequiresSealed)
+        }
+
+        let first = try service.view(subjectID: jordan)
+        XCTAssertEqual(first?.kind, .view)
+        XCTAssertNil(try service.view(subjectID: jordan), "repeat views dedupe within the window")
+        XCTAssertEqual(service.lookLog.filter { $0.kind == .view }.count, 1)
+        XCTAssertNil(service.lastReceipt, "View never notifies")
+    }
+
+    @MainActor
+    func testViewLogLinesReadBothDirections() {
+        let you = UUID()
+        let leo = UUID()
+        let theyLooked = LookEvent(viewerID: leo, viewerName: "Leo", subjectID: you, subjectName: "Alex", at: Date(), kind: .look)
+        let youViewed = LookEvent(viewerID: you, viewerName: "Alex", subjectID: leo, subjectName: "Leo", at: Date(), kind: .view)
+        XCTAssertEqual(theyLooked.logLine(youID: you), "Leo looked at you.")
+        XCTAssertEqual(youViewed.logLine(youID: you), "You viewed Leo.")
+    }
+
+    @MainActor
     func testPresenceHasNoCoordinates() {
-        let presence = PresenceSnapshot(
-            lastActiveAt: Date(),
-            batteryPercent: 64,
-            isCharging: false,
-            gotHomeAt: Date()
-        )
+        let presence = PresenceSnapshot(lastActiveAt: Date(), batteryPercent: 64, isCharging: false, gotHomeAt: Date())
         let keys = Mirror(reflecting: presence).children.compactMap(\.label)
         XCTAssertFalse(keys.contains { $0.lowercased().contains("lat") })
         XCTAssertFalse(keys.contains { $0.lowercased().contains("lon") })
         XCTAssertFalse(keys.contains { $0.lowercased().contains("coord") })
+        let home = HomePresenceSnapshot(state: .home, changedAt: Date())
+        let homeKeys = Mirror(reflecting: home).children.compactMap(\.label)
+        XCTAssertFalse(homeKeys.contains { $0.lowercased().contains("lat") })
     }
 
     @MainActor
-    func testJoinInviteRequiresMatchingCode() {
+    func testHiddenPresenceNeverReachesTheCircle() {
+        let (service, jordan) = sealedPair()
+        service.setPresenceForTesting(personID: jordan, .hidden)
+        let row = service.circle.first { $0.id == jordan }!
+        XCTAssertNil(row.homePresence)
+        XCTAssertNil(row.visiblePresence)
+
+        service.setPresenceForTesting(personID: jordan, .away)
+        XCTAssertEqual(service.circle.first { $0.id == jordan }!.visiblePresence, .away)
+        XCTAssertEqual(HomePresenceKind.triad, [.home, .away, .hidden])
+    }
+
+    @MainActor
+    func testJoinInviteRequiresMatchingCodeAndStaysOff() {
         let service = DemoTrustService(displayName: "Sam")
         service.createInvite()
         XCTAssertThrowsError(try service.joinInvite(code: "NOPE")) { error in
             XCTAssertEqual(error as? PairingError, .invalidCode)
         }
-        try? service.joinInvite(code: service.pair!.inviteCode)
-        XCTAssertEqual(service.pair?.status, .active)
-        XCTAssertEqual(service.partner?.displayName, "Jordan")
+        try? service.joinInvite(code: service.pendingInviteCode!)
+        XCTAssertEqual(service.members.first?.displayName, "Jordan")
+        XCTAssertNil(service.pendingInviteCode)
+        XCTAssertEqual(service.shareState(for: service.members.first!.id).presentation(at: Date()), .off)
     }
 
     @MainActor
-    func testFreeLookIsNotPaywalledAndSponsorCoversPartner() throws {
-        let service = DemoTrustService(displayName: "Sam")
-        service.startDemoPair(partnerName: "Jordan")
+    func testFreeSeatsAreFiveAndAvailableModesArePlus() throws {
+        let (service, jordan) = sealedPair()
         XCTAssertFalse(service.coverage.isCovered)
-        XCTAssertEqual(service.coverage.trustedPeopleLimit, 1)
+        XCTAssertEqual(service.coverage.trustedPeopleLimit, 5)
         XCTAssertEqual(service.coverage.lookLogRetentionDays, 30)
-        XCTAssertFalse(service.coverage.hasPlacePings)
+        XCTAssertFalse(service.coverage.canShareAvailable)
 
-        _ = try service.breakTrust(confirmed: true)
-        XCTAssertEqual(service.activeSession?.event.historyWindowHours, 2)
-        service.closeLook()
+        // Look is never paywalled.
+        _ = try service.look(confirmed: true, subjectID: jordan)
 
-        XCTAssertThrowsError(try service.extendActiveLook()) { error in
+        XCTAssertThrowsError(try service.setAlways(personID: jordan)) { error in
             XCTAssertEqual(error as? CircleError, .proRequired)
         }
-        XCTAssertThrowsError(try service.addExtraPerson()) { error in
+        XCTAssertThrowsError(try service.setTimedShare(personID: jordan, duration: .oneHour)) { error in
             XCTAssertEqual(error as? CircleError, .proRequired)
         }
+        service.setUntilTheyLook(personID: jordan)
+        XCTAssertEqual(service.shareState(for: jordan).presentation(at: Date()), .untilTheyLook)
 
-        service.setPro(personID: service.you.id, enabled: true)
+        for index in 0..<4 {
+            service.createInvite()
+            try service.joinInvite(code: service.pendingInviteCode!, name: "Person \(index)")
+        }
+        service.createInvite()
+        XCTAssertThrowsError(try service.joinInvite(code: service.pendingInviteCode!, name: "Sixth")) { error in
+            XCTAssertEqual(error as? CircleError, .seatLimitReached)
+        }
+
+        service.setPro(enabled: true)
         XCTAssertTrue(service.coverage.isCovered)
         XCTAssertTrue(service.coverage.actingIsSponsor)
-        XCTAssertEqual(service.coverage.banner, "Your Circle covers this pair")
-
-        service.previewAsPartner = true
-        XCTAssertTrue(service.coverage.isCovered)
-        XCTAssertFalse(service.coverage.actingIsSponsor)
-        XCTAssertEqual(service.coverage.banner, "Sam’s Pro covers this circle")
-        XCTAssertFalse(service.actingAs.hasPro)
-
-        _ = try service.breakTrust(confirmed: true)
-        try service.extendActiveLook()
-        XCTAssertEqual(service.activeSession?.event.historyWindowHours, 24)
-        XCTAssertGreaterThan(service.activeSession?.trail.count ?? 0, 8)
+        XCTAssertEqual(service.coverage.trustedPeopleLimit, 20)
+        XCTAssertEqual(service.coverage.banner, "You cover this circle")
+        try service.setAlways(personID: jordan)
+        XCTAssertEqual(service.shareState(for: jordan).presentation(at: Date()), .always)
     }
 
     @MainActor
-    func testLookLogRetentionAndExtraSeat() throws {
-        let service = DemoTrustService(displayName: "Sam")
-        service.startDemoPair(partnerName: "Jordan")
+    func testServerCoverageValuesWin() {
+        let coverage = CircleCoverage(isCovered: false, sponsorName: nil, actingIsSponsor: false, serverSeatLimit: 7, serverLookLogDays: 14)
+        XCTAssertEqual(coverage.trustedPeopleLimit, 7)
+        XCTAssertEqual(coverage.lookLogRetentionDays, 14)
+        XCTAssertEqual(TrustCopy.bannerSponsorCovers(name: "Sam"), "Sam’s Plus covers you")
+    }
+
+    @MainActor
+    func testViewLogRetention() throws {
+        let (service, jordan) = sealedPair()
         XCTAssertEqual(CircleCoverage.freeLookLogDays, 30)
         XCTAssertFalse(service.coverage.canExportLookLog)
 
-        let recent = LookEvent(
-            viewerID: service.you.id,
-            viewerName: "Sam",
-            subjectID: service.partner!.id,
-            subjectName: "Jordan",
-            at: Date().addingTimeInterval(-10 * 86_400),
-            historyWindowHours: 2,
-            includedLive: true
-        )
-        let old = LookEvent(
-            viewerID: service.you.id,
-            viewerName: "Sam",
-            subjectID: service.partner!.id,
-            subjectName: "Jordan",
-            at: Date().addingTimeInterval(-40 * 86_400),
-            historyWindowHours: 2,
-            includedLive: true
-        )
+        let recent = LookEvent(viewerID: service.you.id, viewerName: "Sam", subjectID: jordan, subjectName: "Jordan", at: Date().addingTimeInterval(-10 * 86_400))
+        let old = LookEvent(viewerID: service.you.id, viewerName: "Sam", subjectID: jordan, subjectName: "Jordan", at: Date().addingTimeInterval(-40 * 86_400))
         service.recordLookForTesting(recent)
         service.recordLookForTesting(old)
         XCTAssertEqual(service.visibleLookLog.map(\.id), [recent.id])
         XCTAssertEqual(service.retainedLookLogCount, 1)
 
-        service.setPro(personID: service.you.id, enabled: true)
+        service.setPro(enabled: true)
         XCTAssertTrue(service.coverage.canExportLookLog)
         XCTAssertEqual(service.visibleLookLog.count, 2)
-        try service.addExtraPerson(name: "Riley")
-        XCTAssertEqual(service.trustedCount, 2)
-        XCTAssertEqual(service.extraPeople.first?.displayName, "Riley")
     }
 
     @MainActor
-    func testShareDefaultsToUntilTheyLookAndTimedReverts() {
-        let service = DemoTrustService(displayName: "Sam")
-        service.startDemoPair(partnerName: "Alex")
-        let alex = service.partner!.id
+    func testTimedOverlaysAndRevertsToPriorMode() throws {
+        let (service, alex) = sealedPair()
+        service.setPro(enabled: true)
 
-        XCTAssertEqual(service.shareState(for: alex).presentation(at: Date()), .untilTheyLook)
-        XCTAssertEqual(
-            TrustCopy.timedShareSentence(after: "After 1 hour", name: "Alex", revertsToLook: true),
-            "After 1 hour, Alex will only see your location if they look — unless you’ve set something else for them."
-        )
-
-        service.setAlways(personID: alex)
-        XCTAssertEqual(service.shareState(for: alex).presentation(at: Date()), .always)
-        service.setTimedShare(personID: alex, duration: .hour)
+        try service.setAlways(personID: alex)
+        try service.setTimedShare(personID: alex, duration: .oneHour)
         if case .timed(_, let revert) = service.shareState(for: alex).presentation(at: Date()) {
             XCTAssertEqual(revert, .always)
         } else {
             XCTFail("expected timed overlay on Always")
         }
-        XCTAssertTrue(
-            TrustCopy.timedShareSentence(after: "After 1 hour", name: "Alex", revertsToLook: false)
-                .contains("goes back to Always")
-        )
 
         service.setUntilTheyLook(personID: alex)
-        service.setTimedShare(personID: alex, duration: .hour)
-        if case .timed(_, let revert) = service.shareState(for: alex).presentation(at: Date()) {
+        try service.setTimedShare(personID: alex, duration: .fifteenMinutes)
+        if case .timed(let ends, let revert) = service.shareState(for: alex).presentation(at: Date()) {
             XCTAssertEqual(revert, .untilTheyLook)
+            XCTAssertLessThanOrEqual(ends.timeIntervalSinceNow, 15 * 60 + 1)
         } else {
             XCTFail("expected timed overlay on Until they look")
         }
+        XCTAssertTrue(service.isSharingLocation)
+
+        service.setOff(personID: alex)
+        XCTAssertEqual(service.shareState(for: alex).presentation(at: Date()), .off)
+        XCTAssertFalse(service.isSharingLocation)
+        XCTAssertEqual(TimedShareDuration.allCases.map(\.rawValue), ["15m", "1h", "4h", "8h"])
     }
 
     @MainActor
-    func testReviewCircleSeedsShareModes() {
-        let service = DemoTrustService(displayName: "Sam")
-        service.startReviewCircle()
-        XCTAssertEqual(service.partner?.displayName, "Alex")
-        XCTAssertEqual(service.circle.count, 3)
-        XCTAssertEqual(service.shareState(for: service.partner!.id).presentation(at: Date()), .untilTheyLook)
-        let jordan = service.extraPeople.first { $0.displayName == "Jordan" }!
-        XCTAssertEqual(service.shareState(for: jordan.id).presentation(at: Date()), .always)
-        let riley = service.extraPeople.first { $0.displayName == "Riley" }!
-        if case .timed = service.shareState(for: riley.id).presentation(at: Date()) {
-            XCTAssertTrue(service.shareState(for: riley.id).chipLabel(at: Date()).contains("m"))
-        } else {
-            XCTFail("Riley should be on a timed share")
-        }
-    }
-
-    @MainActor
-    func testLeanDemoSeedsMixedCircleAndMapPins() {
-        let service = DemoTrustService(displayName: "Sam")
+    func testLeanDemoMatchesDesignFixture() throws {
+        let service = DemoTrustService()
         service.startLeanDemo()
-        XCTAssertEqual(service.circle.count, 5)
+        XCTAssertEqual(service.circle.count, 9)
+        XCTAssertFalse(service.coverage.isCovered, "the fixture account is on Free")
 
-        let alex = service.partner!
-        XCTAssertFalse(service.isLocationVisible(alex.id))
-        XCTAssertNil(service.visibleMapContent(for: alex.id))
-        XCTAssertEqual(service.circle.first { $0.id == alex.id }?.homePresence?.state, .away)
-
-        let maya = service.extraPeople.first { $0.displayName == "Maya" }!
-        XCTAssertEqual(service.circle.first { $0.id == maya.id }?.promise?.status, .overdue)
-        XCTAssertNil(service.visibleMapContent(for: maya.id))
-
-        let eli = service.extraPeople.first { $0.displayName == "Eli" }!
-        XCTAssertTrue(service.isLocationVisible(eli.id))
-        XCTAssertNotNil(service.visibleMapContent(for: eli.id))
-        XCTAssertEqual(service.circle.first { $0.id == eli.id }?.homePresence?.state, .home)
-
-        let jordan = service.extraPeople.first { $0.displayName == "Jordan" }!
-        if case .timed = service.shareState(for: jordan.id).presentation(at: Date()) {
-            XCTAssertNotNil(service.visibleMapContent(for: jordan.id))
-        } else {
-            XCTFail("Jordan should be on a timed share")
+        func row(_ name: String) -> TrustedPerson {
+            service.circle.first { $0.person.displayName == name }!
         }
+        XCTAssertTrue(row("Maya Chen").isSealed)
+        XCTAssertEqual(row("Maya Chen").visiblePresence, .home)
+        XCTAssertTrue(row("Leo Park").isAvailable)
+        XCTAssertNotNil(row("Leo Park").livePoint)
+        XCTAssertTrue(row("Jules Morgan").isAvailable, "For a while inbound is Available")
+        XCTAssertTrue(row("Eli Brooks").isAvailable)
+        XCTAssertNil(row("Eli Brooks").visiblePresence, "Hidden presence, location Available")
+        XCTAssertNil(row("Inês Costa").visiblePresence)
+        XCTAssertNil(row("Noah Wilson").visiblePresence)
+        XCTAssertNil(row("Maya Chen").livePoint, "sealed rows never carry coordinates")
 
-        let nora = service.extraPeople.first { $0.displayName == "Nora" }!
-        XCTAssertEqual(service.circle.first { $0.id == nora.id }?.homePresence?.state, .home)
-        XCTAssertNil(service.visibleMapContent(for: nora.id))
+        XCTAssertEqual(service.shareState(for: row("Maya Chen").id).presentation(at: Date()), .untilTheyLook)
+        XCTAssertEqual(service.shareState(for: row("Leo Park").id).presentation(at: Date()), .always)
+        XCTAssertEqual(service.shareState(for: row("Sam Rivera").id).presentation(at: Date()), .off)
+
+        XCTAssertEqual(service.visibleMapPins().count, 3, "Available only until someone Looks")
+        _ = try service.look(confirmed: true, subjectID: row("Maya Chen").id)
+        XCTAssertEqual(service.visibleMapPins().count, 4)
+        XCTAssertEqual(service.visibleLookLog.count, 3)
+        XCTAssertEqual(service.visibleLookLog.first?.logLine(youID: service.you.id), "You looked at Maya Chen.")
     }
 }
 
 final class LocationSharingTests: XCTestCase {
-    func testEmptyCircleIsNotSharing() {
-        XCTAssertFalse(OutboundLocationSharing.isActive(trustedCount: 0))
-        XCTAssertTrue(OutboundLocationSharing.isActive(trustedCount: 1))
+    func testOnlyNonOffOutboundSharesTrack() {
+        XCTAssertFalse(OutboundLocationSharing.isActive(shares: []))
+        XCTAssertFalse(OutboundLocationSharing.isActive(shares: [PersonShareState(resting: .off)]))
+        XCTAssertTrue(OutboundLocationSharing.isActive(shares: [PersonShareState(resting: .off), PersonShareState(resting: .untilTheyLook)]))
+        let expired = PersonShareState(resting: .off, timedUntil: Date().addingTimeInterval(-60))
+        XCTAssertFalse(OutboundLocationSharing.isActive(shares: [expired]))
+        let running = PersonShareState(resting: .off, timedUntil: Date().addingTimeInterval(600))
+        XCTAssertTrue(OutboundLocationSharing.isActive(shares: [running]))
+    }
+
+    func testTierIsOffThenSealedThenAvailable() {
+        let now = Date()
+        XCTAssertEqual(OutboundLocationSharing.tier(shares: [], at: now), .off)
+        XCTAssertEqual(OutboundLocationSharing.tier(shares: [PersonShareState(resting: .off)], at: now), .off)
+        // A Look at you never turns tracking on by itself — outbound Off stays Off.
+        XCTAssertEqual(OutboundLocationSharing.tier(shares: [PersonShareState(resting: .off)], beingWatched: true, at: now), .off)
+        XCTAssertEqual(OutboundLocationSharing.tier(shares: [PersonShareState(resting: .untilTheyLook)], at: now), .sealed)
+        XCTAssertEqual(
+            OutboundLocationSharing.tier(shares: [PersonShareState(resting: .untilTheyLook), PersonShareState(resting: .off)], at: now),
+            .sealed
+        )
+        XCTAssertEqual(OutboundLocationSharing.tier(shares: [PersonShareState(resting: .untilTheyLook)], beingWatched: true, at: now), .available)
+        XCTAssertEqual(OutboundLocationSharing.tier(shares: [PersonShareState(resting: .always)], at: now), .available)
+        let timed = PersonShareState(resting: .untilTheyLook, timedUntil: now.addingTimeInterval(600))
+        XCTAssertEqual(OutboundLocationSharing.tier(shares: [timed], at: now), .available)
+        let expiredTimed = PersonShareState(resting: .untilTheyLook, timedUntil: now.addingTimeInterval(-60))
+        XCTAssertEqual(OutboundLocationSharing.tier(shares: [expiredTimed], at: now), .sealed)
+    }
+
+    @MainActor
+    func testInboundPresentationIsExposedOnTheRow() {
+        let service = DemoTrustService(displayName: "Sam")
+        service.startPair(with: "Jordan")
+        let jordan = service.members.first!.id
+        XCTAssertEqual(service.circle.first?.inboundPresentation, .off, "join is Off both ways")
+        XCTAssertTrue(service.circle.first!.isNotSharingWithYou)
+        XCTAssertEqual(service.locationTier, .off)
+
+        service.setInboundForTesting(personID: jordan, PersonShareState(resting: .untilTheyLook))
+        XCTAssertEqual(service.circle.first?.inboundPresentation, .untilTheyLook)
+        XCTAssertFalse(service.circle.first!.isNotSharingWithYou)
+
+        // Unknown (pre-`inboundShare` server) never reads as "not sharing".
+        let unknown = TrustedPerson(person: Person(displayName: "Old"), presence: .sealed, share: PersonShareState(), inboundLive: false)
+        XCTAssertNil(unknown.inboundPresentation)
+        XCTAssertFalse(unknown.isNotSharingWithYou)
+
+        service.setUntilTheyLook(personID: jordan)
+        XCTAssertEqual(service.locationTier, .sealed)
+        service.setPro(enabled: true)
+        try? service.setAlways(personID: jordan)
+        XCTAssertEqual(service.locationTier, .available)
     }
 
     func testLocationPurposeStringsAreEscrowVoice() {

@@ -1,754 +1,406 @@
 import Foundation
 
+/// Offline circle for DEBUG "See the app", App Store screenshots, and domain tests.
+/// Mirrors the server rules the app relies on: join is Off both ways, Sealed needs a
+/// confirmed Look and returns one snapshot, Available is viewed without a sheet and every
+/// view is logged, Hidden presence never reaches the circle, Always / For a while are Plus.
+/// The running app never uses this as its backend.
 @MainActor
 public final class DemoTrustService: ObservableObject {
     @Published public private(set) var you: Person
-    @Published public private(set) var partner: Person?
-    @Published public private(set) var pair: TrustPair?
-    @Published public var previewAsPartner = false
-    @Published public private(set) var presenceYou: PresenceSnapshot
-    @Published public private(set) var presencePartner: PresenceSnapshot?
+    @Published public private(set) var members: [Person] = []
     @Published public private(set) var lookLog: [LookEvent] = []
-    @Published public private(set) var activeSession: LookSession?
+    /// Your open Look snapshot (one per subject, most recent wins).
+    @Published public private(set) var snapshots: [UUID: LookSession] = [:]
     @Published public private(set) var lastReceipt: LookReceipt?
-    @Published public private(set) var lastPlacePing: LookReceipt?
-    @Published public private(set) var extraPeople: [Person] = []
-    @Published public private(set) var pendingInviteName: String = "Jordan"
-    @Published public private(set) var inboundLive: Set<UUID> = []
+    @Published public private(set) var pendingInviteCode: String?
+    @Published public private(set) var myPresence: HomePresenceKind = .home
 
-    private var youVault = EscrowVault()
-    private var partnerVault = EscrowVault()
-    private var extraVaults: [UUID: EscrowVault] = [:]
-    private var extraPresence: [UUID: PresenceSnapshot] = [:]
-    @Published private var shares: [UUID: PersonShareState] = [:]
-    /// People who let you see Home/Away (inbound grant).
-    private var inboundPresenceGranted: Set<UUID> = []
-    /// People you let see your Home/Away (outbound grant).
-    private var outboundPresenceGranted: Set<UUID> = []
-    private var homePresenceByPerson: [UUID: HomePresenceSnapshot] = [:]
-    private var promisesBySubject: [UUID: PromiseSnapshot] = [:]
+    private var vaults: [UUID: EscrowVault] = [:]
+    /// You → them.
+    private var outbound: [UUID: PersonShareState] = [:]
+    /// Them → you.
+    private var inbound: [UUID: PersonShareState] = [:]
+    private var presenceByPerson: [UUID: HomePresenceKind] = [:]
+    private var placeLabels: [UUID: String] = [:]
     private var tickPhase: Double = 0
     private let clock: TrustClock
 
-    public init(clock: TrustClock = SystemClock(), displayName: String = "Sam") {
+    public static let viewDedupeWindow: TimeInterval = 30 * 60
+
+    public init(clock: TrustClock = SystemClock(), displayName: String = "Alex") {
         self.clock = clock
-        let now = clock.now()
         you = Person(displayName: displayName)
-        presenceYou = PresenceSnapshot(
-            lastActiveAt: now.addingTimeInterval(-90),
-            batteryPercent: 81,
-            isCharging: false
-        )
     }
 
-    public var actingAs: Person {
-        if previewAsPartner, let partner {
-            return partner
-        }
-        return you
-    }
-
-    public var counterpart: Person? {
-        if previewAsPartner {
-            return you
-        }
-        return partner
-    }
-
-    public var actingPresence: PresenceSnapshot {
-        if previewAsPartner {
-            return presencePartner ?? presenceYou
-        }
-        return presenceYou
-    }
-
-    /// Presence of the person you are paired with (not you). Never includes coordinates.
-    public var counterpartPresence: PresenceSnapshot? {
-        if previewAsPartner {
-            return presenceYou
-        }
-        return presencePartner
-    }
-
-    public var isWatching: Bool {
-        guard let session = activeSession else { return false }
-        return session.event.viewerID == actingAs.id
-    }
-
-    public var isBeingWatched: Bool {
-        guard let session = activeSession else { return false }
-        return session.event.subjectID == actingAs.id
-    }
-
-    public var pairIsActive: Bool {
-        pair?.status == .active && partner != nil
-    }
+    // MARK: Snapshot
 
     public var coverage: CircleCoverage {
-        let sponsor: Person?
-        if you.hasPro {
-            sponsor = you
-        } else if let partner, partner.hasPro {
-            sponsor = partner
-        } else {
-            sponsor = nil
-        }
+        let sponsor = you.hasPro ? you : members.first(where: \.hasPro)
         return CircleCoverage(
             isCovered: sponsor != nil,
             sponsorName: sponsor?.displayName,
-            actingIsSponsor: sponsor?.id == actingAs.id
+            actingIsSponsor: sponsor?.id == you.id
         )
-    }
-
-    public var trustedCount: Int {
-        (partner == nil ? 0 : 1) + extraPeople.count
     }
 
     public var circle: [TrustedPerson] {
-        var members: [TrustedPerson] = []
-        if let partner {
-            members.append(trustedPerson(from: partner, presence: presencePartner))
-        }
-        for person in extraPeople {
-            members.append(trustedPerson(from: person, presence: extraPresence[person.id]))
-        }
-        return members
-    }
-
-    public func shareState(for personID: UUID) -> PersonShareState {
         expireTimedShares()
-        return shares[personID] ?? PersonShareState()
-    }
-
-    public func isLocationVisible(_ personID: UUID) -> Bool {
-        if inboundLive.contains(personID) { return true }
-        if let session = activeSession, session.event.subjectID == personID { return true }
-        return false
-    }
-
-    /// Coordinates only when this person is already visible to you — never a sealed peek.
-    public func sharedLivePoint(for personID: UUID) -> LocationPoint? {
-        guard isLocationVisible(personID) else { return nil }
-        return vault(for: personID).latest(now: clock.now())
+        let now = clock.now()
+        return members.map { person in
+            let inboundPresentation = (inbound[person.id] ?? PersonShareState()).presentation(at: now)
+            let available = inboundPresentation.isAvailable
+            let presence = presenceByPerson[person.id] ?? .unknown
+            let visiblePresence: HomePresenceSnapshot? = presence == .hidden
+                ? nil
+                : HomePresenceSnapshot(state: presence, changedAt: now.addingTimeInterval(-1800), placeLabel: placeLabels[person.id])
+            return TrustedPerson(
+                person: person,
+                presence: PresenceSnapshot(lastActiveAt: now.addingTimeInterval(-600), batteryPercent: 70, isCharging: false),
+                share: outbound[person.id] ?? PersonShareState(),
+                inboundLive: available,
+                livePoint: available ? vault(for: person.id).latest(now: now) : nil,
+                outboundPresenceGranted: true,
+                inboundPresenceGranted: true,
+                homePresence: visiblePresence,
+                promise: nil,
+                inboundPresentation: inboundPresentation
+            )
+        }
     }
 
     public var visibleLookLog: [LookEvent] {
-        let cutoff = clock.now().addingTimeInterval(
-            -TimeInterval(coverage.lookLogRetentionDays * 86_400)
-        )
+        let cutoff = clock.now().addingTimeInterval(-TimeInterval(coverage.lookLogRetentionDays * 86_400))
         return lookLog.filter { $0.at >= cutoff }.sorted { $0.at > $1.at }
     }
 
-    public var retainedLookLogCount: Int {
-        max(0, lookLog.count - visibleLookLog.count)
-    }
+    public var retainedLookLogCount: Int { max(0, lookLog.count - visibleLookLog.count) }
 
-    public func setPro(personID: UUID, enabled: Bool) {
-        if you.id == personID {
-            you.hasPro = enabled
-        } else if partner?.id == personID {
-            partner?.hasPro = enabled
-        }
-    }
-
-    public func renameYou(_ name: String) {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        you.displayName = trimmed
-    }
-
-    public func startDemoPair(partnerName: String = "Jordan") {
-        let now = clock.now()
-        partner = Person(displayName: partnerName)
-        pair = TrustPair(
-            inviteCode: Self.makeInviteCode(),
-            status: .active,
-            createdAt: now
-        )
-        presencePartner = PresenceSnapshot(
-            lastActiveAt: now.addingTimeInterval(-4 * 60),
-            batteryPercent: 64,
-            isCharging: false,
-            gotHomeAt: now.addingTimeInterval(-40 * 60)
-        )
-        seedVaults(now: now)
-        extraPeople = []
-        extraVaults = [:]
-        extraPresence = [:]
-        shares = [:]
-        inboundLive = []
-        inboundPresenceGranted = []
-        outboundPresenceGranted = []
-        homePresenceByPerson = [:]
-        promisesBySubject = [:]
-        if let partner {
-            shares[partner.id] = PersonShareState()
-        }
-        previewAsPartner = false
-        activeSession = nil
-        lastReceipt = nil
-        lastPlacePing = nil
-    }
-
-    public func startReviewCircle() {
-        startDemoPair(partnerName: "Alex")
-        you.hasPro = true
-        addReviewMember(name: "Jordan", resting: .always, inboundLive: true)
-        if let riley = addReviewMember(name: "Riley", resting: .untilTheyLook, inboundLive: false) {
-            shares[riley.id] = PersonShareState(
-                resting: .untilTheyLook,
-                timedUntil: clock.now().addingTimeInterval(47 * 60)
-            )
-        }
-    }
-
-    /// Lean demo circle: couple + parent/child + elder + timed — no network.
-    public func startLeanDemo() {
-        let now = clock.now()
-        you = Person(displayName: "Sam", handle: "sam")
-        you.hasPro = true
-        you.onboardingComplete = true
-        startDemoPair(partnerName: "Alex")
-        // Re-seed partner vault around a distinct Mission spot so View has coordinates after Look.
-        if let alex = partner {
-            seedMemberVault(
-                personID: alex.id,
-                origin: LocationPoint(
-                    timestamp: now,
-                    latitude: LocationTrail.home.latitude + 0.012,
-                    longitude: LocationTrail.home.longitude - 0.008
-                ),
-                now: now
-            )
-            inboundPresenceGranted.insert(alex.id)
-            outboundPresenceGranted.insert(alex.id)
-            homePresenceByPerson[alex.id] = HomePresenceSnapshot(
-                state: .away,
-                changedAt: now.addingTimeInterval(-2 * 3600),
-                placeLabel: "Home"
-            )
-            shares[alex.id] = PersonShareState(resting: .untilTheyLook)
-        }
-
-        // Maya — sealed Until they look, Away, overdue promise (parent/child).
-        if let maya = addReviewMember(
-            name: "Maya",
-            resting: .untilTheyLook,
-            inboundLive: false,
-            originOffset: (0.018, 0.006)
-        ) {
-            inboundPresenceGranted.insert(maya.id)
-            outboundPresenceGranted.insert(maya.id)
-            homePresenceByPerson[maya.id] = HomePresenceSnapshot(
-                state: .away,
-                changedAt: now.addingTimeInterval(-5 * 3600),
-                placeLabel: "Home"
-            )
-            promisesBySubject[maya.id] = PromiseSnapshot(
-                id: UUID(),
-                subjectID: maya.id,
-                trusteeID: you.id,
-                placeLabel: "Home",
-                deadlineAt: now.addingTimeInterval(-5 * 3600),
-                status: .overdue,
-                resolvedAt: nil,
-                youAreSubject: false
-            )
-            shares[maya.id] = PersonShareState(resting: .always)
-        }
-
-        // Eli — Always / live, Home · Capitol Hill (elder).
-        if let eli = addReviewMember(
-            name: "Eli",
-            resting: .always,
-            inboundLive: true,
-            originOffset: (-0.008, 0.014)
-        ) {
-            inboundPresenceGranted.insert(eli.id)
-            outboundPresenceGranted.insert(eli.id)
-            homePresenceByPerson[eli.id] = HomePresenceSnapshot(
-                state: .home,
-                changedAt: now.addingTimeInterval(-40 * 60),
-                placeLabel: "Capitol Hill"
-            )
-        }
-
-        // Jordan — Timed share (live), Away · Mission.
-        if let jordan = addReviewMember(
-            name: "Jordan",
-            resting: .untilTheyLook,
-            inboundLive: true,
-            originOffset: (0.004, -0.016)
-        ) {
-            inboundPresenceGranted.insert(jordan.id)
-            outboundPresenceGranted.insert(jordan.id)
-            homePresenceByPerson[jordan.id] = HomePresenceSnapshot(
-                state: .away,
-                changedAt: now.addingTimeInterval(-25 * 60),
-                placeLabel: "Mission"
-            )
-            shares[jordan.id] = PersonShareState(
-                resting: .untilTheyLook,
-                timedUntil: now.addingTimeInterval(47 * 60)
-            )
-        }
-
-        // Nora — sealed Until they look, Home (quiet check-in).
-        if let nora = addReviewMember(
-            name: "Nora",
-            resting: .untilTheyLook,
-            inboundLive: false,
-            originOffset: (-0.015, -0.011)
-        ) {
-            inboundPresenceGranted.insert(nora.id)
-            homePresenceByPerson[nora.id] = HomePresenceSnapshot(
-                state: .home,
-                changedAt: now.addingTimeInterval(-90 * 60),
-                placeLabel: "Home"
-            )
-        }
-    }
-
-    /// Trail + live pin for someone already visible (Always / after Look). Never peeks sealed escrow.
-    public func visibleMapContent(for personID: UUID) -> (live: LocationPoint, trail: [LocationPoint])? {
-        guard isLocationVisible(personID) else { return nil }
-        let now = clock.now()
-        let trail = vault(for: personID).unlock(now: now, window: EscrowVault.defaultHistoryWindow)
-        guard let live = trail.last ?? vault(for: personID).latest(now: now) else { return nil }
-        return (live, trail.isEmpty ? [live] : trail)
-    }
-
-    public func setPresenceGrant(personID: UUID, enabled: Bool) {
-        if enabled {
-            outboundPresenceGranted.insert(personID)
-        } else {
-            outboundPresenceGranted.remove(personID)
-        }
-    }
-
-    public func revoke(personID: UUID) {
-        if partner?.id == personID {
-            partner = nil
-            presencePartner = nil
-            pair?.status = .revoked
-        }
-        extraPeople.removeAll { $0.id == personID }
-        extraVaults[personID] = nil
-        extraPresence[personID] = nil
-        shares[personID] = nil
-        inboundLive.remove(personID)
-        inboundPresenceGranted.remove(personID)
-        outboundPresenceGranted.remove(personID)
-        homePresenceByPerson[personID] = nil
-        promisesBySubject[personID] = nil
-        if activeSession?.event.subjectID == personID || activeSession?.event.viewerID == personID {
-            activeSession = nil
-        }
-    }
+    public var trustedCount: Int { members.count }
 
     public func makeCircleSnapshot() -> (
         you: Person,
         members: [TrustedPerson],
         coverage: CircleCoverage,
         invite: String?,
-        session: LookSession?,
         log: [LookEvent],
-        retained: Int
+        retained: Int,
+        presence: HomePresenceKind
     ) {
         expireTimedShares()
         tickSimulator()
-        return (
-            you,
-            circle,
-            coverage,
-            pair?.inviteCode,
-            activeSession,
-            visibleLookLog,
-            retainedLookLogCount
-        )
+        return (you, circle, coverage, pendingInviteCode, visibleLookLog, retainedLookLogCount, myPresence)
+    }
+
+    // MARK: Fixtures
+
+    /// Design SoT fixture (`design-mocks/duo-gpt6/app.js`): nine people. Inbound — Leo and Eli
+    /// Always, Jules For a while, everyone else Sealed; Inês, Eli, Noah Hidden. Outbound —
+    /// Maya Until, Leo Always, Inês For a while, Jules Until, the rest Off. You are on Free.
+    public func startLeanDemo() {
+        let now = clock.now()
+        you = Person(displayName: "Alex Laurent", hasPro: false, onboardingComplete: true, handle: "alex")
+        members = []
+        vaults = [:]
+        outbound = [:]
+        inbound = [:]
+        presenceByPerson = [:]
+        placeLabels = [:]
+        lookLog = []
+        snapshots = [:]
+        lastReceipt = nil
+        pendingInviteCode = nil
+        myPresence = .home
+
+        let maya = add("Maya Chen", presence: .home, place: "Inner Sunset", origin: LocationTrail.DemoCity.missionSF.point(at: now), inbound: .untilTheyLook, outbound: .untilTheyLook, now: now)
+        let leo = add("Leo Park", presence: .away, place: "Capitol Hill", origin: LocationTrail.DemoCity.capitolHillSeattle.point(at: now), inbound: .always, outbound: .always, now: now)
+        let ines = add("Inês Costa", presence: .hidden, place: "Príncipe Real", origin: LocationPoint(timestamp: now, latitude: 38.7169, longitude: -9.1478), inbound: .untilTheyLook, outbound: .off, now: now)
+        outbound[ines.id] = PersonShareState(resting: .off, timedUntil: now.addingTimeInterval(3600))
+        let jules = add("Jules Morgan", presence: .away, place: "Fort Greene", origin: LocationTrail.DemoCity.brooklyn.point(at: now), inbound: .untilTheyLook, outbound: .untilTheyLook, now: now)
+        inbound[jules.id] = PersonShareState(resting: .untilTheyLook, timedUntil: now.addingTimeInterval(47 * 60))
+        add("Sam Rivera", presence: .home, place: "Hyde Park", origin: LocationTrail.DemoCity.austin.point(at: now), inbound: .untilTheyLook, outbound: .off, now: now)
+        add("Eli Brooks", presence: .hidden, place: "Hackney", origin: LocationPoint(timestamp: now, latitude: 51.5450, longitude: -0.0553), inbound: .always, outbound: .off, now: now)
+        add("Ren Tanaka", presence: .home, place: "Shimokitazawa", origin: LocationPoint(timestamp: now, latitude: 35.6613, longitude: 139.6681), inbound: .untilTheyLook, outbound: .off, now: now)
+        add("Sofía López", presence: .away, place: "Condesa", origin: LocationPoint(timestamp: now, latitude: 19.4116, longitude: -99.1747), inbound: .untilTheyLook, outbound: .off, now: now)
+        add("Noah Wilson", presence: .hidden, place: "Surry Hills", origin: LocationPoint(timestamp: now, latitude: -33.8845, longitude: 151.2110), inbound: .untilTheyLook, outbound: .off, now: now)
+
+        // Prior activity so the view log is not blank: Leo looked at you yesterday; you viewed Leo.
+        lookLog.append(LookEvent(
+            viewerID: leo.id, viewerName: leo.displayName, subjectID: you.id, subjectName: you.displayName,
+            at: now.addingTimeInterval(-26 * 3600), kind: .look
+        ))
+        lookLog.append(LookEvent(
+            viewerID: you.id, viewerName: you.displayName, subjectID: maya.id, subjectName: maya.displayName,
+            at: now.addingTimeInterval(-3 * 86_400), kind: .look
+        ))
+        seedYou(now: now)
+    }
+
+    /// Minimal two-person circle for tests: one member, Off both ways (join default).
+    public func startPair(with name: String = "Jordan") {
+        let now = clock.now()
+        members = []
+        vaults = [:]
+        outbound = [:]
+        inbound = [:]
+        presenceByPerson = [:]
+        placeLabels = [:]
+        lookLog = []
+        snapshots = [:]
+        lastReceipt = nil
+        pendingInviteCode = nil
+        add(name, presence: .home, place: "Home", origin: LocationTrail.home, inbound: .off, outbound: .off, now: now)
+        seedYou(now: now)
+    }
+
+    @discardableResult
+    private func add(
+        _ name: String,
+        presence: HomePresenceKind,
+        place: String,
+        origin: LocationPoint,
+        inbound inboundMode: ShareRestingMode,
+        outbound outboundMode: ShareRestingMode,
+        now: Date
+    ) -> Person {
+        let person = Person(displayName: name)
+        members.append(person)
+        presenceByPerson[person.id] = presence
+        placeLabels[person.id] = place
+        inbound[person.id] = PersonShareState(resting: inboundMode)
+        outbound[person.id] = PersonShareState(resting: outboundMode)
+        let vault = EscrowVault()
+        for point in LocationTrail.seed(around: origin, now: now, hours: 3, intervalMinutes: 10, drift: 0.0004) {
+            vault.ingest(point)
+        }
+        vaults[person.id] = vault
+        return person
+    }
+
+    private func seedYou(now: Date) {
+        let vault = EscrowVault()
+        for point in LocationTrail.seed(around: LocationTrail.home, now: now, hours: 3, intervalMinutes: 10) {
+            vault.ingest(point)
+        }
+        vaults[you.id] = vault
+    }
+
+    // MARK: Invite
+
+    public func createInvite() {
+        pendingInviteCode = Self.makeInviteCode()
+    }
+
+    /// Joining adds a fictional person, Off both ways. Invite ≠ permission.
+    public func joinInvite(code: String, name: String = "Jordan") throws {
+        let normalized = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard let pendingInviteCode, pendingInviteCode == normalized else { throw PairingError.invalidCode }
+        guard members.count < coverage.trustedPeopleLimit else { throw CircleError.seatLimitReached }
+        add(name, presence: .unknown, place: "Home", origin: LocationTrail.home, inbound: .off, outbound: .off, now: clock.now())
+        self.pendingInviteCode = nil
+    }
+
+    public func setPro(enabled: Bool) {
+        you.hasPro = enabled
+    }
+
+    public func setInboundForTesting(personID: UUID, _ state: PersonShareState) {
+        inbound[personID] = state
+    }
+
+    public func setPresenceForTesting(personID: UUID, _ presence: HomePresenceKind) {
+        presenceByPerson[personID] = presence
     }
 
     public func recordLookForTesting(_ event: LookEvent) {
         lookLog.append(event)
     }
 
-    public func createInvite() {
-        let code = Self.makeInviteCode()
-        // Keep an active circle intact — Invite tab still needs a shareable code.
-        if let existing = pair, existing.status == .active, partner != nil || !extraPeople.isEmpty {
-            pair = TrustPair(
-                id: existing.id,
-                inviteCode: code,
-                status: .active,
-                createdAt: existing.createdAt
-            )
-            return
-        }
-        pair = TrustPair(
-            inviteCode: code,
-            status: .pending,
-            createdAt: clock.now()
-        )
-        partner = nil
-        presencePartner = nil
-        activeSession = nil
+    // MARK: Outbound
+
+    public func shareState(for personID: UUID) -> PersonShareState {
+        expireTimedShares()
+        return outbound[personID] ?? PersonShareState()
     }
 
-    public func simulatePartnerJoining(name: String? = nil) throws {
-        guard let pair, pair.status == .pending else {
-            throw PairingError.alreadyPaired
-        }
-        startDemoPair(partnerName: name ?? pendingInviteName)
-    }
-
-    public func joinInvite(code: String, partnerName: String = "Jordan") throws {
-        let normalized = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        guard let pair else { throw PairingError.invalidCode }
-        guard pair.inviteCode == normalized else { throw PairingError.invalidCode }
-        startDemoPair(partnerName: partnerName)
-    }
-
-    public func looksToday(for viewerID: UUID) -> Int {
-        let start = Calendar.current.startOfDay(for: clock.now())
-        return lookLog.filter { $0.viewerID == viewerID && $0.at >= start }.count
-    }
-
-    public func confirmCopy(for personID: UUID? = nil) -> (title: String, body: String) {
-        let subject = resolvedSubject(personID)?.displayName ?? counterpart?.displayName ?? "them"
-        return (
-            TrustCopy.confirmTitle(subject: subject),
-            TrustCopy.confirmBody(subject: subject, looksToday: looksToday(for: actingAs.id))
-        )
+    public func setOff(personID: UUID) {
+        outbound[personID] = PersonShareState(resting: .off)
     }
 
     public func setUntilTheyLook(personID: UUID) {
-        shares[personID] = PersonShareState(resting: .untilTheyLook, timedUntil: nil)
+        outbound[personID] = PersonShareState(resting: .untilTheyLook)
     }
 
-    public func setAlways(personID: UUID) {
-        shares[personID] = PersonShareState(resting: .always, timedUntil: nil)
+    public func setAlways(personID: UUID) throws {
+        guard coverage.canShareAvailable else { throw CircleError.proRequired }
+        outbound[personID] = PersonShareState(resting: .always)
     }
 
-    public func setTimedShare(personID: UUID, duration: TimedShareDuration) {
+    /// Timed overlays the current resting mode; when it ends, the prior mode returns.
+    /// Off reverts to Until they look, since a For a while grant implies sealed after.
+    public func setTimedShare(personID: UUID, duration: TimedShareDuration) throws {
+        guard coverage.canShareAvailable else { throw CircleError.proRequired }
         expireTimedShares()
-        let current = shares[personID] ?? PersonShareState()
+        let current = outbound[personID] ?? PersonShareState()
         let resting: ShareRestingMode
         switch current.presentation(at: clock.now()) {
-        case .always:
+        case .always, .timed(_, .always):
             resting = .always
-        case .untilTheyLook, .timed(_, .untilTheyLook):
+        default:
             resting = .untilTheyLook
-        case .timed(_, .always):
-            resting = .always
         }
-        shares[personID] = PersonShareState(
-            resting: resting,
-            timedUntil: duration.endDate(from: clock.now())
-        )
+        outbound[personID] = PersonShareState(resting: resting, timedUntil: duration.endDate(from: clock.now()))
+    }
+
+    public func stopAll() {
+        for id in outbound.keys {
+            outbound[id] = PersonShareState(resting: .off)
+        }
+    }
+
+    public var isSharingLocation: Bool {
+        OutboundLocationSharing.isActive(shares: Array(outbound.values), at: clock.now())
+    }
+
+    public var locationTier: LocationSharingTier {
+        OutboundLocationSharing.tier(shares: Array(outbound.values), at: clock.now())
     }
 
     public func expireTimedShares() {
         let now = clock.now()
-        for (id, state) in shares {
-            if let until = state.timedUntil, until <= now {
-                shares[id] = PersonShareState(resting: state.resting, timedUntil: nil)
-            }
+        for (id, state) in outbound where state.timedUntil.map({ $0 <= now }) == true {
+            outbound[id] = PersonShareState(resting: state.resting, timedUntil: nil)
+        }
+        for (id, state) in inbound where state.timedUntil.map({ $0 <= now }) == true {
+            inbound[id] = PersonShareState(resting: state.resting, timedUntil: nil)
         }
     }
 
-    public func breakTrust(confirmed: Bool, subjectID: UUID? = nil) throws -> LookSession {
+    // MARK: Presence
+
+    public func setMyPresence(_ presence: HomePresenceKind) {
+        myPresence = presence
+    }
+
+    // MARK: Look (Sealed) & View (Available)
+
+    /// Sealed only. Returns one snapshot — the latest point — and records a `look`.
+    /// The subject's share stays sealed afterwards.
+    public func look(confirmed: Bool, subjectID: UUID) throws -> LookSession {
         guard confirmed else { throw LookError.confirmationRequired }
-        guard pairIsActive else { throw LookError.pairInactive }
-        guard let subject = resolvedSubject(subjectID) else { throw LookError.pairInactive }
-        if let session = activeSession,
-           session.event.viewerID == actingAs.id,
-           session.event.subjectID == subject.id {
-            return session
-        }
-
+        guard let subject = members.first(where: { $0.id == subjectID }) else { throw LookError.pairInactive }
+        expireTimedShares()
         let now = clock.now()
-        let vault = vault(for: subject.id)
-        let trail = vault.unlock(now: now, window: EscrowVault.defaultHistoryWindow)
-        guard let live = trail.last ?? vault.latest(now: now) else {
-            throw LookError.noPartner
+        let presentation = (inbound[subject.id] ?? PersonShareState()).presentation(at: now)
+        if presentation.isOff { throw LookError.shareOff }
+        if presentation.isAvailable { throw LookError.lookRequiresSealed }
+        if let open = snapshots[subject.id], now.timeIntervalSince(open.event.at) < 30 * 60 {
+            return open
         }
-
+        guard let live = vault(for: subject.id).latest(now: now, window: 3 * 3600) else { throw LookError.noPartner }
         let event = LookEvent(
-            viewerID: actingAs.id,
-            viewerName: actingAs.displayName,
-            subjectID: subject.id,
-            subjectName: subject.displayName,
-            at: now,
-            historyWindowHours: TrustCopy.historyHours,
-            includedLive: true
+            viewerID: you.id, viewerName: you.displayName,
+            subjectID: subject.id, subjectName: subject.displayName,
+            at: now, historyWindowHours: 0, includedLive: true, kind: .look
         )
         lookLog.append(event)
-        let session = LookSession(event: event, live: live, trail: trail)
-        activeSession = session
-        inboundLive.insert(subject.id)
-        inboundPresenceGranted.insert(subject.id)
-        homePresenceByPerson[subject.id] = HomePresenceSnapshot(
-            state: .away,
-            changedAt: now,
-            placeLabel: "Fremont Bridge"
-        )
+        let session = LookSession(id: event.id, event: event, live: live, trail: [live])
+        snapshots[subject.id] = session
         lastReceipt = LookReceipt(
-            title: TrustCopy.receiptTitle(viewer: actingAs.displayName),
-            body: TrustCopy.receiptBody(),
+            title: TrustCopy.receiptTitle(viewer: you.displayName),
+            body: TrustCopy.receiptBody,
             at: now
         )
         return session
     }
 
-    public func closeLook() {
-        activeSession = nil
-    }
-
-    /// Pro / covered circle only. Default look stays 2 hours for everyone.
-    public func extendActiveLook(hours: Int = CircleCoverage.proHistoryHours) throws {
-        guard coverage.canExtendHistory else { throw CircleError.proRequired }
-        guard var session = activeSession, session.event.viewerID == actingAs.id else {
-            throw LookError.pairInactive
-        }
-        let now = clock.now()
-        let trail = vault(for: session.event.subjectID)
-            .unlock(now: now, window: TimeInterval(hours * 3600))
-        guard let live = trail.last else { throw LookError.noPartner }
-        session.trail = trail
-        session.live = live
-        session.event.historyWindowHours = hours
-        activeSession = session
-    }
-
-    public func sendPlacePing() throws {
-        guard coverage.hasPlacePings else { throw CircleError.proRequired }
-        let now = clock.now()
-        if previewAsPartner {
-            presencePartner?.gotHomeAt = now
-            presencePartner?.lastActiveAt = now
-        } else {
-            presenceYou.gotHomeAt = now
-            presenceYou.lastActiveAt = now
-        }
-        lastPlacePing = LookReceipt(
-            title: "\(actingAs.displayName) arrived home",
-            body: "Place ping — no map was opened.",
-            at: now
-        )
-    }
-
-    public func addExtraPerson(name: String = "Riley") throws {
-        guard coverage.isCovered else { throw CircleError.proRequired }
-        guard trustedCount < coverage.trustedPeopleLimit else { throw CircleError.seatLimitReached }
-        _ = addReviewMember(name: name, resting: .untilTheyLook, inboundLive: false)
-    }
-
-    public func checkIn() {
-        let now = clock.now()
-        if previewAsPartner {
-            presencePartner?.checkedInAt = now
-            presencePartner?.lastActiveAt = now
-        } else {
-            presenceYou.checkedInAt = now
-            presenceYou.lastActiveAt = now
-        }
-    }
-
-    public func ingest(personID: UUID, point: LocationPoint) {
-        vault(for: personID).ingest(point)
-        if personID == you.id {
-            presenceYou.lastActiveAt = point.timestamp
-            if LocationTrail.isNearHome(point) {
-                presenceYou.gotHomeAt = point.timestamp
-            }
-        } else if personID == partner?.id {
-            presencePartner?.lastActiveAt = point.timestamp
-            if LocationTrail.isNearHome(point) {
-                presencePartner?.gotHomeAt = point.timestamp
-            }
-        } else if extraPresence[personID] != nil {
-            extraPresence[personID]?.lastActiveAt = point.timestamp
-            if LocationTrail.isNearHome(point) {
-                extraPresence[personID]?.gotHomeAt = point.timestamp
-            }
-        }
-        refreshSessionIfNeeded(now: point.timestamp)
-    }
-
-    public func tickSimulator() {
-        let now = clock.now()
-        tickPhase += 0.35
-        let youLive = youVault.latest(now: now) ?? LocationTrail.home
-        ingest(
-            personID: you.id,
-            point: LocationTrail.step(youLive, at: now, phase: tickPhase)
-        )
-        if let partner {
-            let partnerLive = partnerVault.latest(now: now) ?? LocationTrail.home
-            ingest(
-                personID: partner.id,
-                point: LocationTrail.step(partnerLive, at: now, phase: tickPhase + 1.2)
-            )
-        }
+    /// Available only. No sheet, no push; logged unless the same person was viewed within the
+    /// dedupe window. Returns the new event, or nil when deduped.
+    public func view(subjectID: UUID) throws -> LookEvent? {
+        guard let subject = members.first(where: { $0.id == subjectID }) else { throw LookError.pairInactive }
         expireTimedShares()
-        var extraPhase = 2.1
-        for person in extraPeople {
-            let live = extraVaults[person.id]?.latest(now: now) ?? LocationTrail.home
-            ingest(
-                personID: person.id,
-                point: LocationTrail.step(live, at: now, phase: tickPhase + extraPhase)
-            )
-            extraPhase += 0.8
+        let now = clock.now()
+        guard (inbound[subject.id] ?? PersonShareState()).presentation(at: now).isAvailable else {
+            throw LookError.viewRequiresAvailable
+        }
+        let recent = lookLog.contains {
+            $0.kind == .view && $0.viewerID == you.id && $0.subjectID == subject.id
+                && now.timeIntervalSince($0.at) < Self.viewDedupeWindow
+        }
+        if recent { return nil }
+        let event = LookEvent(
+            viewerID: you.id, viewerName: you.displayName,
+            subjectID: subject.id, subjectName: subject.displayName,
+            at: now, historyWindowHours: 0, includedLive: true, kind: .view
+        )
+        lookLog.append(event)
+        return event
+    }
+
+    public func closeLook(subjectID: UUID? = nil) {
+        if let subjectID {
+            snapshots[subjectID] = nil
+        } else {
+            snapshots = [:]
         }
     }
 
-    public func revoke() {
-        activeSession = nil
-        youVault.destroyGrant()
-        partnerVault.destroyGrant()
-        pair?.status = .revoked
-        lastReceipt = nil
+    public func snapshot(for personID: UUID) -> LookSession? { snapshots[personID] }
+
+    public func isLocationVisible(_ personID: UUID) -> Bool {
+        (inbound[personID]?.presentation(at: clock.now()).isAvailable ?? false) || snapshots[personID] != nil
     }
 
-    public func resetPairing() {
-        previewAsPartner = false
-        partner = nil
-        pair = nil
-        presencePartner = nil
-        lookLog = []
-        extraPeople = []
-        extraVaults = [:]
-        extraPresence = [:]
-        shares = [:]
-        inboundLive = []
-        inboundPresenceGranted = []
-        outboundPresenceGranted = []
-        homePresenceByPerson = [:]
-        promisesBySubject = [:]
-        activeSession = nil
-        lastReceipt = nil
-        lastPlacePing = nil
-        youVault.replaceGrant()
-        partnerVault.replaceGrant()
+    /// Live point for someone Available, or their opened snapshot. Never a sealed peek.
+    public func visiblePoint(for personID: UUID) -> LocationPoint? {
+        let now = clock.now()
+        if inbound[personID]?.presentation(at: now).isAvailable == true {
+            return vault(for: personID).latest(now: now, window: 3 * 3600)
+        }
+        return snapshots[personID]?.live
+    }
+
+    public func visibleMapPins() -> [(id: UUID, name: String, point: LocationPoint, live: Bool)] {
+        circle.compactMap { member in
+            guard let point = visiblePoint(for: member.id) else { return nil }
+            return (member.id, member.person.displayName, point, member.isAvailable)
+        }
+    }
+
+    public func revoke(personID: UUID) {
+        members.removeAll { $0.id == personID }
+        vaults[personID] = nil
+        outbound[personID] = nil
+        inbound[personID] = nil
+        presenceByPerson[personID] = nil
+        placeLabels[personID] = nil
+        snapshots[personID] = nil
     }
 
     public func peekEscrow(for personID: UUID) -> [LocationPoint] {
         vault(for: personID).peekPlaintext()
     }
 
-    public func lookLogExportText() -> String {
-        lookLog.map { event in
-            let live = event.includedLive ? "live" : "no live"
-            return "\(event.at.ISO8601Format())\t\(event.viewerName) looked at \(event.subjectName)\t\(live) + last \(event.historyWindowHours)h"
+    // MARK: Simulator feed
+
+    public func tickSimulator() {
+        let now = clock.now()
+        tickPhase += 0.35
+        var phase = tickPhase
+        for id in [you.id] + members.map(\.id) {
+            let vault = vault(for: id)
+            let last = vault.latest(now: now, window: 3 * 3600) ?? LocationTrail.home
+            vault.ingest(LocationTrail.step(last, at: now, phase: phase))
+            phase += 0.8
         }
-        .joined(separator: "\n")
+        expireTimedShares()
     }
 
     private func vault(for personID: UUID) -> EscrowVault {
-        if personID == you.id { return youVault }
-        if personID == partner?.id { return partnerVault }
-        if let extra = extraVaults[personID] { return extra }
+        if let existing = vaults[personID] { return existing }
         let created = EscrowVault()
-        extraVaults[personID] = created
+        vaults[personID] = created
         return created
-    }
-
-    private func resolvedSubject(_ personID: UUID?) -> Person? {
-        if previewAsPartner { return you }
-        if let personID {
-            if let partner, partner.id == personID { return partner }
-            return extraPeople.first { $0.id == personID }
-        }
-        return counterpart
-    }
-
-    @discardableResult
-    private func addReviewMember(
-        name: String,
-        resting: ShareRestingMode,
-        inboundLive: Bool,
-        originOffset: (lat: Double, lon: Double) = (0.003, 0.004)
-    ) -> Person? {
-        let person = Person(displayName: name)
-        extraPeople.append(person)
-        let now = clock.now()
-        extraPresence[person.id] = PresenceSnapshot(
-            lastActiveAt: now.addingTimeInterval(-180),
-            batteryPercent: 58,
-            isCharging: true
-        )
-        shares[person.id] = PersonShareState(resting: resting)
-        if inboundLive {
-            self.inboundLive.insert(person.id)
-        }
-        let origin = LocationPoint(
-            timestamp: now,
-            latitude: LocationTrail.home.latitude + originOffset.lat,
-            longitude: LocationTrail.home.longitude + originOffset.lon
-        )
-        seedMemberVault(personID: person.id, origin: origin, now: now)
-        return person
-    }
-
-    private func seedMemberVault(personID: UUID, origin: LocationPoint, now: Date) {
-        let vault = EscrowVault()
-        if personID == you.id {
-            youVault = vault
-        } else if personID == partner?.id {
-            partnerVault = vault
-        } else {
-            extraVaults[personID] = vault
-        }
-        for point in LocationTrail.seed(around: origin, now: now, hours: 24, intervalMinutes: 15, drift: 0.0007) {
-            vault.ingest(point)
-        }
-    }
-
-    private func trustedPerson(from person: Person, presence: PresenceSnapshot?) -> TrustedPerson {
-        expireTimedShares()
-        let visible = isLocationVisible(person.id)
-        return TrustedPerson(
-            person: person,
-            presence: presence ?? PresenceSnapshot(
-                lastActiveAt: clock.now().addingTimeInterval(-600),
-                batteryPercent: 70,
-                isCharging: false
-            ),
-            share: shares[person.id] ?? PersonShareState(),
-            inboundLive: visible,
-            livePoint: visible ? vault(for: person.id).latest(now: clock.now()) : nil,
-            outboundPresenceGranted: outboundPresenceGranted.contains(person.id),
-            inboundPresenceGranted: inboundPresenceGranted.contains(person.id),
-            homePresence: inboundPresenceGranted.contains(person.id) ? homePresenceByPerson[person.id] : nil,
-            promise: promisesBySubject[person.id]
-        )
-    }
-
-    private func seedVaults(now: Date) {
-        youVault.replaceGrant()
-        partnerVault.replaceGrant()
-        let youOrigin = LocationPoint(
-            timestamp: now,
-            latitude: LocationTrail.home.latitude + 0.006,
-            longitude: LocationTrail.home.longitude - 0.004
-        )
-        for point in LocationTrail.seed(around: youOrigin, now: now, hours: 24, intervalMinutes: 15, drift: 0.0004) {
-            youVault.ingest(point)
-        }
-        for point in LocationTrail.seed(around: LocationTrail.home, now: now, hours: 24, intervalMinutes: 15) {
-            partnerVault.ingest(point)
-        }
-    }
-
-    private func refreshSessionIfNeeded(now: Date) {
-        guard var session = activeSession else { return }
-        let window = TimeInterval(max(session.event.historyWindowHours, 2) * 3600)
-        let vault = vault(for: session.event.subjectID)
-        let trail = vault.unlock(now: now, window: window)
-        guard let live = trail.last else { return }
-        session.live = live
-        session.trail = trail
-        activeSession = session
     }
 
     private static func makeInviteCode() -> String {

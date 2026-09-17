@@ -1,8 +1,8 @@
 import SwiftUI
 import TrustCore
 
-/// List-first shell: Circle · Sharing · Invite · You + Masthead.
-/// Native `TabView` for top-level navigation (HIG: tab bars are for navigation, with labels + SF Symbols).
+/// T1–T4 shell: "Trust." masthead with a caption that follows the route, native `TabView`,
+/// offline strip, toast. Sheets that can open from any tab live here.
 struct MainShellView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.trustPalette) private var palette
@@ -10,74 +10,133 @@ struct MainShellView: View {
     var body: some View {
         VStack(spacing: 0) {
             masthead
+            if model.isOffline, let since = model.snapshot?.fetchedAt {
+                TrustOfflineBanner(since: since) {
+                    Task { await model.refresh() }
+                }
+            }
             TabView(selection: $model.selectedTab) {
-                HomeView()
-                    .tabItem {
-                        Label(MainTab.circle.title, systemImage: MainTab.circle.systemImage)
-                    }
+                CircleView()
+                    .tabItem { Label(MainTab.circle.title, systemImage: MainTab.circle.systemImage) }
                     .tag(MainTab.circle)
-                    .accessibilityLabel(MainTab.circle.title)
 
                 SharingView()
-                    .tabItem {
-                        Label(MainTab.sharing.title, systemImage: MainTab.sharing.systemImage)
-                    }
+                    .tabItem { Label(MainTab.sharing.title, systemImage: MainTab.sharing.systemImage) }
                     .tag(MainTab.sharing)
-                    .accessibilityLabel(MainTab.sharing.title)
 
                 InviteView()
-                    .tabItem {
-                        Label(MainTab.invite.title, systemImage: MainTab.invite.systemImage)
-                    }
+                    .tabItem { Label(MainTab.invite.title, systemImage: MainTab.invite.systemImage) }
                     .tag(MainTab.invite)
-                    .accessibilityLabel(MainTab.invite.title)
 
-                SettingsView(embedded: true)
-                    .tabItem {
-                        Label(MainTab.you.title, systemImage: MainTab.you.systemImage)
-                    }
+                YouView()
+                    .tabItem { Label(MainTab.you.title, systemImage: MainTab.you.systemImage) }
                     .tag(MainTab.you)
-                    .accessibilityLabel(MainTab.you.title)
             }
             .tint(palette.accent)
         }
         .background(palette.paper.ignoresSafeArea())
+        .overlay(alignment: .bottom) {
+            if let toast = model.toast {
+                TrustToastView(toast: toast) { model.toast = nil }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 62)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: 0.22), value: model.toast?.id)
         .onAppear {
             Task { await model.refresh() }
         }
+        .sheet(item: $model.lookSubject) { subject in
+            LookConfirmSheet(subject: subject)
+                .environmentObject(model)
+                .environment(\.trustPalette, palette)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(palette.paper)
+                .presentationCornerRadius(28)
+                .trustFormSheet()
+        }
+        .sheet(isPresented: $model.showingViewLog) {
+            NavigationStack {
+                ViewLogView(inSheet: true)
+            }
+            .environmentObject(model)
+            .environment(\.trustPalette, palette)
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(palette.paper)
+            .trustFormSheet()
+        }
+        .sheet(isPresented: $model.showingPaywall) {
+            PlusPaywall()
+                .environmentObject(model)
+                .environment(\.trustPalette, palette)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(palette.paper)
+                .trustFormSheet()
+        }
+        .sheet(isPresented: $model.showingAlwaysExplainer) {
+            AlwaysExplainerSheet()
+                .environmentObject(model)
+                .environment(\.trustPalette, palette)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(palette.paper)
+                .trustFormSheet()
+        }
+        .sheet(item: timedShareTarget) { target in
+            DurationSheet(personID: target.id)
+                .environmentObject(model)
+                .environment(\.trustPalette, palette)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(palette.paper)
+                .trustFormSheet()
+        }
     }
 
-    /// Brand-critical masthead (HIG allows custom brand chrome; system components surround it).
-    private var masthead: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .lastTextBaseline, spacing: 12) {
-                Text(mastheadTitle)
-                    .font(TrustTheme.display(26))
-                    .foregroundStyle(palette.ink)
-                    .accessibilityLabel(TrustCopy.appName)
-                    .accessibilityAddTraits(.isHeader)
-                if model.isDemoMode {
-                    TrustFolio(text: TrustCopy.demoBannerTitle, color: palette.accent, size: 9)
-                }
-                Spacer(minLength: 0)
-                if model.selectedTab == .circle, model.beingWatched != nil {
-                    TrustFolio(text: TrustCopy.theyAreLooking, color: palette.accent, size: 10)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
-            .padding(.bottom, 10)
-            .frame(minHeight: 44)
+    private struct TimedShareTarget: Identifiable {
+        let id: UUID
+    }
 
-            Rectangle()
-                .fill(palette.accent)
-                .frame(height: 2)
+    private var timedShareTarget: Binding<TimedShareTarget?> {
+        Binding(
+            get: { model.timedSharePersonID.map(TimedShareTarget.init) },
+            set: { model.timedSharePersonID = $0?.id }
+        )
+    }
+
+    /// `.app-header`: wordmark left, route caption right.
+    private var masthead: some View {
+        HStack(alignment: .center) {
+            TrustWordmarkTitle(size: 34)
+            if model.isDemoMode, !model.isScreenshotLaunch {
+                TrustEyebrow(text: TrustCopy.demoBannerTitle, color: palette.accent, size: 9)
+                    .padding(.leading, 8)
+            }
+            Spacer(minLength: 0)
+            Text(caption.uppercased())
+                .font(TrustTheme.folio(9))
+                .tracking(1.2)
+                .foregroundStyle(Color(hex: 0x73756C))
                 .accessibilityHidden(true)
         }
+        .padding(.horizontal, TrustTheme.gutter)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
         .background(palette.paper)
     }
 
-    private var mastheadTitle: String {
-        model.selectedTab == .you ? TrustCopy.you : TrustCopy.mastheadName
+    private var caption: String {
+        switch model.selectedTab {
+        case .circle:
+            if model.circlePath.last == .map { return TrustCopy.map }
+            return TrustCopy.circle
+        case .sharing: return TrustCopy.sharing
+        case .invite: return TrustCopy.inviteTab
+        case .you: return TrustCopy.you
+        }
     }
 }

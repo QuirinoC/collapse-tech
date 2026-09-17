@@ -1,231 +1,329 @@
 import SwiftUI
 import TrustCore
 
-/// Outbound sharing — Until / Always / While per person. No They/I switch.
+/// T2 Sharing — what each person can see of you. Until / Always / For a while inline,
+/// Stop on every row. Always and For a while carry a Plus mark when not covered; tapping
+/// them is the intent-triggered paywall placement (server answers `pro_required`).
 struct SharingView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.trustPalette) private var palette
-    @State private var duration: TimedShareDuration = .hour
+    @State private var stopTarget: TrustedPerson?
 
     var body: some View {
-        List {
-            Section {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(TrustCopy.peopleITrust)
-                        .font(TrustTheme.display(28))
-                        .foregroundStyle(palette.ink)
-                        .accessibilityAddTraits(.isHeader)
-                    Text(TrustCopy.peopleITrustSub)
-                        .font(TrustTheme.ui(15))
-                        .foregroundStyle(palette.muted)
-                }
-                .padding(.vertical, 6)
-                .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 8, trailing: 20))
-                .listRowBackground(palette.paper)
-                .listRowSeparator(.hidden)
-            }
-
-            if !model.circle.isEmpty {
-                Section {
-                    Button(TrustCopy.setAllUntilTheyLook) {
-                        model.setAllUntilTheyLook()
-                    }
-                    .font(TrustTheme.folio(11))
-                    .tracking(0.9)
-                    .textCase(.uppercase)
-                    .foregroundStyle(palette.ink)
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .contentShape(Rectangle())
-                    .listRowBackground(palette.paper)
-                    .accessibilityLabel(TrustCopy.setAllUntilTheyLook)
-                }
-            }
-
-            if model.circle.isEmpty {
-                Section {
-                    Text(TrustCopy.inviteSomeoneBody)
-                        .font(TrustTheme.ui(15))
-                        .foregroundStyle(palette.muted)
-                        .listRowBackground(palette.paper)
-                }
-            } else {
-                Section {
-                    ForEach(model.circle) { member in
-                        shareRow(member)
-                            .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 12, trailing: 20))
-                            .listRowBackground(palette.paper)
-                            .listRowSeparatorTint(palette.ink.opacity(0.08))
-                    }
-                }
-            }
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .background(palette.paper.ignoresSafeArea())
-        .sheet(isPresented: $model.showingTimedShare) {
-            timedDurationSheet
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(palette.paper)
-        }
-    }
-
-    private func shareRow(_ member: TrustedPerson) -> some View {
-        let state = model.shareState(for: member.id)
-        let presentation = state.presentation(at: Date())
-        let mode = outboundMode(presentation)
-
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
-                TrustPersonAvatar(name: member.displayName, index: avatarIndex(for: member))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(member.person.displayName)
-                        .font(TrustTheme.ui(17, weight: .semibold))
-                        .foregroundStyle(palette.ink)
-                    Text(member.person.identity)
-                        .font(TrustTheme.ui(13))
-                        .foregroundStyle(palette.muted)
-                }
-                Spacer(minLength: 0)
-            }
-            .accessibilityElement(children: .combine)
-
-            // System segmented control — HIG touch targets / familiar selection affordance.
-            Picker(TrustCopy.sharing, selection: Binding(
-                get: { mode },
-                set: { newMode in
-                    switch newMode {
-                    case .until:
-                        model.setUntilTheyLook(personID: member.id)
-                    case .always:
-                        model.setAlways(personID: member.id)
-                    case .timed:
-                        model.openTimedSharePicker(personID: member.id)
-                    }
-                }
-            )) {
-                Text(TrustCopy.untilShort).tag(OutboundMode.until)
-                Text(TrustCopy.always).tag(OutboundMode.always)
-                Text(TrustCopy.whileShort).tag(OutboundMode.timed)
-            }
-            .pickerStyle(.segmented)
-            .accessibilityLabel(TrustCopy.sharing)
-            .tint(palette.accent)
-
-            Toggle(isOn: Binding(
-                get: { member.outboundPresenceGranted },
-                set: { model.setPresenceGrant(personID: member.id, enabled: $0) }
-            )) {
-                Text(TrustCopy.homePresenceShort)
-                    .font(TrustTheme.ui(14, weight: .medium))
-                    .foregroundStyle(palette.ink)
-            }
-            .tint(palette.accent)
-            .frame(minHeight: 44)
-
-            if case .timed(let until, _) = presentation {
-                Text(until, style: .relative)
-                    .font(TrustTheme.folio(10))
-                    .tracking(0.8)
-                    .foregroundStyle(palette.accent)
-                    .textCase(.uppercase)
-            }
-        }
-    }
-
-    private var timedDurationSheet: some View {
-        let name = model.circle.first(where: { $0.id == model.timedSharePersonID })?.person.displayName
-            ?? TrustCopy.them
-        return NavigationStack {
+        ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                TrustFolio(text: "\(TrustCopy.tagException) · \(name)", size: 10)
-                    .padding(.bottom, 8)
-                Text(TrustCopy.forAWhile)
-                    .font(TrustTheme.display(26))
-                    .foregroundStyle(palette.ink)
-                    .padding(.bottom, 8)
-                TrustRule(width: 44, draws: true)
-                    .padding(.bottom, 14)
-                Text(TrustCopy.forAWhileBody(name: name))
-                    .font(TrustTheme.ui(15))
+                TrustPageTitle(text: TrustCopy.sharing)
+                    .padding(.top, 4)
+                Text(TrustCopy.sharingSub)
+                    .trustFont(13)
                     .foregroundStyle(palette.muted)
-                    .padding(.bottom, 18)
+                    .padding(.top, 6)
 
-                List {
-                    ForEach(TimedShareDuration.allCases, id: \.self) { option in
-                        Button {
-                            duration = option
-                        } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(option.label)
-                                        .font(TrustTheme.ui(16, weight: .semibold))
-                                        .foregroundStyle(palette.ink)
-                                    Text(option.afterPhrase)
-                                        .font(TrustTheme.ui(13))
-                                        .foregroundStyle(palette.muted)
-                                }
-                                Spacer()
-                                if duration == option {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(palette.accent)
-                                        .accessibilityHidden(true)
-                                }
-                            }
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
+                if model.circle.isEmpty {
+                    TrustEmptyState(
+                        glyph: "person.badge.plus",
+                        title: TrustCopy.sharingEmptyTitle,
+                        message: TrustCopy.sharingEmptyBody,
+                        actionTitle: TrustCopy.inviteSomeone
+                    ) {
+                        model.selectedTab = .invite
+                    }
+                } else {
+                    Text(TrustCopy.sharingIntro)
+                        .trustFont(13)
+                        .lineSpacing(3)
+                        .foregroundStyle(Color(hex: 0x787B71))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 12)
+                        .padding(.bottom, 20)
+
+                    if let banner = model.coverage.banner {
+                        TrustEyebrow(text: banner, color: palette.accent, size: 10)
+                            .padding(.bottom, 12)
+                    }
+
+                    TrustSectionHeading(TrustCopy.youShareWith(count: model.circle.count))
+
+                    ForEach(model.circle) { member in
+                        OutboundRow(member: member, seed: seed(member)) {
+                            stopTarget = member
                         }
-                        .buttonStyle(.plain)
-                        .listRowBackground(palette.paper)
-                        .accessibilityAddTraits(duration == option ? [.isSelected] : [])
+                        TrustRowDivider()
                     }
-                }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
 
-                Spacer(minLength: 16)
-
-                Button(TrustCopy.shareForAWhile) {
-                    if let id = model.timedSharePersonID {
-                        model.setTimedShare(personID: id, duration: duration)
+                    Button {
+                        model.selectedTab = .invite
+                    } label: {
+                        Label(TrustCopy.inviteSomeone, systemImage: "plus")
                     }
-                    model.dismissTimedSharePicker()
-                }
-                .buttonStyle(TrustFilledButtonStyle())
-                .padding(.bottom, 8)
+                    .buttonStyle(TrustOutlineButtonStyle(compact: true))
+                    .padding(.top, 18)
 
-                Button(TrustCopy.cancel) {
-                    model.dismissTimedSharePicker()
-                }
-                .buttonStyle(TrustTextButtonStyle())
-                .frame(maxWidth: .infinity, minHeight: 44)
-            }
-            .padding(24)
-            .background(palette.paper.ignoresSafeArea())
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(TrustCopy.cancel) {
-                        model.dismissTimedSharePicker()
-                    }
+                    Text(TrustCopy.modeKey)
+                        .trustFont(12)
+                        .lineSpacing(4)
+                        .foregroundStyle(palette.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(palette.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .padding(.top, 20)
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
+            .padding(.horizontal, TrustTheme.gutter)
+            .padding(.bottom, 28)
+            .trustReadableWidth()
+        }
+        .background(palette.paper.ignoresSafeArea())
+        .refreshable { await model.refresh() }
+        .confirmationDialog(
+            stopTarget.map { TrustCopy.stopConfirm(name: $0.firstName) } ?? "",
+            isPresented: Binding(get: { stopTarget != nil }, set: { if !$0 { stopTarget = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(TrustCopy.stop, role: .destructive) {
+                if let target = stopTarget { model.stopSharing(personID: target.id) }
+                stopTarget = nil
+            }
+            Button(TrustCopy.cancel, role: .cancel) { stopTarget = nil }
         }
     }
 
-    private enum OutboundMode: Hashable {
-        case until, always, timed
+    private func seed(_ member: TrustedPerson) -> Int {
+        model.circle.firstIndex { $0.id == member.id } ?? 0
+    }
+}
+
+/// `.outbound-row` — person, current state, mode control, description + Stop.
+struct OutboundRow: View {
+    let member: TrustedPerson
+    var seed: Int = 0
+    let onStop: () -> Void
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.trustPalette) private var palette
+
+    private enum Mode: Hashable { case until, always, timed }
+
+    private var presentation: SharePresentation {
+        model.shareState(for: member.id).presentation(at: Date())
     }
 
-    private func outboundMode(_ presentation: SharePresentation) -> OutboundMode {
+    private var selection: Mode? {
         switch presentation {
+        case .off: return nil
         case .untilTheyLook: return .until
         case .always: return .always
         case .timed: return .timed
         }
     }
 
-    private func avatarIndex(for member: TrustedPerson) -> Int {
-        model.circle.firstIndex(where: { $0.id == member.id }) ?? 0
+    private var locked: Bool { !model.coverage.canShareAvailable }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                TrustAvatar(name: member.person.displayName, seed: seed, size: 38)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(member.person.displayName)
+                        .trustFont(15, weight: .semibold)
+                        .foregroundStyle(palette.ink)
+                    Text(stateLabel)
+                        .trustFont(12)
+                        .foregroundStyle(palette.muted)
+                }
+                Spacer()
+                Image(systemName: presentation.isAvailable ? "eye" : "lock")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color(hex: 0x858B7B))
+                    .accessibilityHidden(true)
+            }
+            .accessibilityElement(children: .combine)
+
+            TrustModeControl<Mode>(
+                items: [
+                    .init(id: .until, label: TrustCopy.untilTheyLook),
+                    .init(id: .always, label: TrustCopy.always, locked: locked),
+                    .init(id: .timed, label: TrustCopy.forAWhile, locked: locked)
+                ],
+                selection: selection
+            ) { mode in
+                switch mode {
+                case .until: model.setResting(.untilTheyLook, for: member.id)
+                case .always: model.setResting(.always, for: member.id)
+                case .timed: model.openTimedSharePicker(personID: member.id)
+                }
+            }
+            .accessibilityLabel(TrustCopy.sharingModeLabel(name: member.firstName))
+
+            if case .timed(let ends, _) = presentation {
+                HStack(spacing: 8) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 12, weight: .medium))
+                        .accessibilityHidden(true)
+                    Text(ends, style: .relative)
+                    Spacer()
+                    Button(TrustCopy.howLong) { model.openTimedSharePicker(personID: member.id) }
+                        .buttonStyle(TrustLinkButtonStyle())
+                }
+                .font(TrustTheme.ui(12, weight: .medium))
+                .foregroundStyle(palette.muted)
+            }
+
+            HStack(alignment: .center, spacing: 8) {
+                Text(description)
+                    .font(TrustTheme.ui(12))
+                    .lineSpacing(2)
+                    .foregroundStyle(Color(hex: 0x7F8375))
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 6)
+                if !presentation.isOff {
+                    Button(TrustCopy.stop, action: onStop)
+                        .font(TrustTheme.ui(12, weight: .semibold))
+                        .foregroundStyle(Color(hex: 0x9C5C51))
+                        .frame(minHeight: 32)
+                        .accessibilityLabel("\(TrustCopy.stop) · \(member.person.displayName)")
+                }
+            }
+        }
+        .padding(.vertical, 16)
+    }
+
+    private var stateLabel: String {
+        switch presentation {
+        case .off: return TrustCopy.notSharing
+        case .untilTheyLook: return TrustCopy.rowSealedUntilLook
+        case .always, .timed: return TrustCopy.rowLocationAvailable
+        }
+    }
+
+    private var description: String {
+        switch presentation {
+        case .off: return TrustCopy.descOff
+        case .untilTheyLook: return TrustCopy.descUntil
+        case .always: return TrustCopy.descAlways
+        case .timed(let ends, _): return TrustCopy.descTimed(until: ends.formatted(date: .omitted, time: .shortened))
+        }
+    }
+}
+
+/// For a while — 15m / 1h / 4h / 8h. Overlays the current resting mode, then seals.
+struct DurationSheet: View {
+    let personID: UUID
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.trustPalette) private var palette
+    @State private var duration: TimedShareDuration = .oneHour
+
+    private var name: String { model.member(personID)?.firstName ?? TrustCopy.them }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            TrustEyebrow(text: "\(TrustCopy.forAWhile) · \(name)", size: 10)
+                .padding(.bottom, 10)
+            Text(TrustCopy.howLong)
+                .font(TrustTheme.display(30))
+                .tracking(-0.8)
+                .foregroundStyle(palette.ink)
+                .padding(.bottom, 10)
+                .accessibilityAddTraits(.isHeader)
+            Text(TrustCopy.forAWhileWith(name: name))
+                .font(TrustTheme.ui(14))
+                .lineSpacing(3)
+                .foregroundStyle(palette.muted)
+                .padding(.bottom, 18)
+
+            VStack(spacing: 0) {
+                ForEach(TimedShareDuration.allCases, id: \.self) { option in
+                    Button {
+                        duration = option
+                    } label: {
+                        HStack {
+                            Text(option.label)
+                                .font(TrustTheme.ui(16, weight: duration == option ? .semibold : .regular))
+                                .foregroundStyle(palette.ink)
+                            Spacer()
+                            if duration == option {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(palette.accent)
+                                    .accessibilityHidden(true)
+                            }
+                        }
+                        .frame(minHeight: 50)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(duration == option ? [.isSelected] : [])
+                    TrustRowDivider()
+                }
+            }
+
+            Spacer(minLength: 20)
+
+            Button(TrustCopy.shareForAWhile) {
+                model.setTimedShare(personID: personID, duration: duration)
+            }
+            .buttonStyle(TrustFilledButtonStyle())
+
+            Button(TrustCopy.cancel) {
+                model.timedSharePersonID = nil
+            }
+            .buttonStyle(TrustTextButtonStyle())
+            .frame(maxWidth: .infinity)
+        }
+        .padding(.horizontal, 26)
+        .padding(.top, 22)
+        .padding(.bottom, 20)
+        .trustReadableWidth()
+        .background(palette.paper.ignoresSafeArea())
+        .onAppear {
+            if case .timed(let ends, _) = model.shareState(for: personID).presentation(at: Date()) {
+                let minutes = Int(ends.timeIntervalSinceNow / 60)
+                duration = TimedShareDuration.allCases.min { abs($0.minutes - minutes) < abs($1.minutes - minutes) } ?? .oneHour
+            }
+        }
+    }
+}
+
+/// First non-Off share → explain Always before the system prompt.
+struct AlwaysExplainerSheet: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.trustPalette) private var palette
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            TrustEyebrow(text: TrustCopy.location, size: 10)
+                .padding(.bottom, 10)
+            Text(TrustCopy.alwaysTitle)
+                .font(TrustTheme.display(28))
+                .tracking(-0.8)
+                .foregroundStyle(palette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 12)
+                .accessibilityAddTraits(.isHeader)
+            Text(model.location.needsSystemSettings ? TrustCopy.keptWhileUsing : TrustCopy.alwaysBody)
+                .font(TrustTheme.ui(15))
+                .lineSpacing(4)
+                .foregroundStyle(palette.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 20)
+
+            Button(model.location.needsSystemSettings ? TrustCopy.openSettings : TrustCopy.allowAlways) {
+                model.allowAlwaysFromExplainer()
+            }
+            .buttonStyle(TrustFilledButtonStyle())
+
+            Button(TrustCopy.later) {
+                model.showingAlwaysExplainer = false
+            }
+            .buttonStyle(TrustTextButtonStyle())
+            .frame(maxWidth: .infinity)
+        }
+        .padding(.horizontal, 26)
+        .padding(.top, 22)
+        .padding(.bottom, 20)
+        .trustReadableWidth()
+        .background(palette.paper.ignoresSafeArea())
     }
 }

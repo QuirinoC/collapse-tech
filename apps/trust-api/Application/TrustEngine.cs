@@ -58,7 +58,9 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             var outbound = await store.GetShareAsync(you.Id, person.Id, cancellationToken);
             var inbound = await store.GetShareAsync(person.Id, you.Id, cancellationToken);
             var active = await RequireLiveActiveLookAsync(you.Id, person.Id, cancellationToken);
-            var inboundLive = inbound.RevealsLive(now) || active is not null;
+            // Snapshot semantics: an active/recent Look never flips a Sealed pair "live".
+            // Live only comes from the inbound share itself (Always / Timed = Available).
+            var inboundLive = inbound.RevealsLive(now);
             LocationFix? live = null;
             if (inboundLive)
             {
@@ -79,9 +81,10 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             if (inboundPresenceGranted)
             {
                 var current = await store.GetCurrentHomePresenceAsync(person.Id, cancellationToken);
-                var place = await store.GetHomePlaceAsync(person.Id, cancellationToken);
-                if (current is not null)
+                // Hidden is a real triad member, not merely "no grant" — the circle never sees it.
+                if (current is not null && current.State != HomePresenceState.Hidden)
                 {
+                    var place = await store.GetHomePlaceAsync(person.Id, cancellationToken);
                     homePresence = new VisibleHomePresence(
                         current.State,
                         current.LastChangedAt,
@@ -95,6 +98,7 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
                 person,
                 presence,
                 outbound,
+                inbound,
                 inboundLive,
                 live,
                 outboundPresenceGranted,
@@ -149,8 +153,9 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
     public async Task<Invite> CreateInviteAsync(Guid accountId, CancellationToken cancellationToken)
     {
         var you = await RequireAccount(accountId, cancellationToken);
+        var now = time.GetUtcNow();
         var existing = await store.FindPendingInviteAsync(you.Id, cancellationToken);
-        if (existing is not null)
+        if (existing is not null && existing.ExpiresAt is { } notExpiredUntil && notExpiredUntil > now)
         {
             return existing;
         }
@@ -160,7 +165,8 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             MakeInviteCode(),
             you.Id,
             "pending",
-            time.GetUtcNow());
+            now,
+            now.Add(TrustRules.InviteValidity));
         await store.InsertInviteAsync(invite, cancellationToken);
         return invite;
     }
@@ -172,6 +178,11 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
         var invite = await store.FindInviteByCodeAsync(normalized, cancellationToken)
             ?? throw TrustException.InvalidCode();
         if (!string.Equals(invite.Status, "pending", StringComparison.Ordinal))
+        {
+            throw TrustException.InvalidCode();
+        }
+
+        if (invite.ExpiresAt is null || invite.ExpiresAt <= time.GetUtcNow())
         {
             throw TrustException.InvalidCode();
         }
@@ -206,6 +217,20 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
         if (!await store.AreConnectedAsync(you.Id, granteeId, cancellationToken))
         {
             throw TrustException.NotConnected();
+        }
+
+        // Plus gating: Always and any timed ("For a while") share require coverage.
+        // Off and Sealed (UntilTheyLook) are never paywalled.
+        var requestsAlways = timed is null && resting == ShareResting.Always;
+        var requestsTimed = timed is not null;
+        if (requestsAlways || requestsTimed)
+        {
+            var connected = await store.ListConnectedAsync(you.Id, cancellationToken);
+            var coverage = CoverageOf(you, connected);
+            if (!coverage.IsCovered)
+            {
+                throw TrustException.ProRequired();
+            }
         }
 
         var current = await store.GetShareAsync(you.Id, granteeId, cancellationToken);
@@ -262,6 +287,26 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
         }
 
         var now = time.GetUtcNow();
+
+        // Track only while any outbound share ≠ Off. If every connected pair is Off, skip
+        // ingest entirely and wipe what's stored — there's no consenting recipient left.
+        var anyOutboundSharing = false;
+        foreach (var person in connected)
+        {
+            var outbound = await store.GetShareAsync(you.Id, person.Id, cancellationToken);
+            if (outbound.Presentation(now) is not SharePresentation.Off)
+            {
+                anyOutboundSharing = true;
+                break;
+            }
+        }
+
+        if (!anyOutboundSharing)
+        {
+            await store.ClearLocationsAsync(you.Id, cancellationToken);
+            return;
+        }
+
         var cutoff = now - TrustRules.LocationRetention;
         LocationFix? latest = null;
         foreach (var raw in fixes.OrderBy(fix => fix.Timestamp))
@@ -320,6 +365,20 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             throw TrustException.NotConnected();
         }
 
+        var now = time.GetUtcNow();
+        var shareToViewer = await store.GetShareAsync(subject.Id, viewer.Id, cancellationToken);
+        var presentation = shareToViewer.Presentation(now);
+        if (presentation is SharePresentation.Off)
+        {
+            throw TrustException.ShareOff();
+        }
+
+        if (presentation is not SharePresentation.UntilTheyLook)
+        {
+            // Always / Timed is already Available — the client should use View, not Look.
+            throw TrustException.LookRequiresSealed();
+        }
+
         var existing = await RequireLiveActiveLookAsync(viewer.Id, subject.Id, cancellationToken);
         if (existing is not null)
         {
@@ -328,15 +387,9 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             return new LookResult(reused, IsNew: false);
         }
 
-        var now = time.GetUtcNow();
-        var hours = TrustRules.FreeHistoryHours;
-        var from = now.AddHours(-hours);
-        var trail = await store.UnlockLocationsAsync(subject.Id, from, now, cancellationToken);
-        var live = trail.LastOrDefault() ?? await store.LatestLocationAsync(subject.Id, cancellationToken);
-        if (live is null)
-        {
-            throw TrustException.NoLocation();
-        }
+        // Snapshot semantics: Look returns the latest point only — one snapshot, no trail.
+        var live = await store.LatestLocationAsync(subject.Id, cancellationToken)
+            ?? throw TrustException.NoLocation();
 
         var look = new LookEvent(
             Guid.NewGuid(),
@@ -345,15 +398,60 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             subject.Id,
             subject.DisplayName,
             now,
-            hours,
-            true);
+            0,
+            true,
+            LookKind.Look);
         await store.InsertLookEventAsync(look, cancellationToken);
         await store.SetActiveLookAsync(
-            new ActiveLook(look.Id, viewer.Id, subject.Id, hours, now),
+            new ActiveLook(look.Id, viewer.Id, subject.Id, 0, now),
             cancellationToken);
-        return new LookResult(
-            new LookSession(look, live, trail.Count > 0 ? trail : [live]),
-            IsNew: true);
+        return new LookResult(new LookSession(look, live, [live]), IsNew: true);
+    }
+
+    /// View is the Available-side counterpart to Look: no confirm sheet, no push, and it only
+    /// works when the subject's share to the viewer already reveals live (Always / Timed).
+    /// Repeated views within <see cref="TrustRules.ViewDedupeWindow"/> don't add new log rows;
+    /// this returns null in that case so the caller knows nothing new was logged.
+    public async Task<LookEvent?> ViewAsync(
+        Guid viewerId,
+        Guid subjectId,
+        CancellationToken cancellationToken)
+    {
+        var viewer = await RequireAccount(viewerId, cancellationToken);
+        var subject = await RequireAccount(subjectId, cancellationToken);
+        if (!await store.AreConnectedAsync(viewer.Id, subject.Id, cancellationToken))
+        {
+            throw TrustException.NotConnected();
+        }
+
+        var now = time.GetUtcNow();
+        var shareToViewer = await store.GetShareAsync(subject.Id, viewer.Id, cancellationToken);
+        if (!shareToViewer.RevealsLive(now))
+        {
+            throw TrustException.ViewRequiresAvailable();
+        }
+
+        var since = now - TrustRules.ViewDedupeWindow;
+        var recent = await store.ListLooksAsync(viewer.Id, since, cancellationToken);
+        var deduped = recent.Any(look =>
+            look.Kind == LookKind.View && look.ViewerId == viewer.Id && look.SubjectId == subject.Id);
+        if (deduped)
+        {
+            return null;
+        }
+
+        var view = new LookEvent(
+            Guid.NewGuid(),
+            viewer.Id,
+            viewer.DisplayName,
+            subject.Id,
+            subject.DisplayName,
+            now,
+            0,
+            true,
+            LookKind.View);
+        await store.InsertLookEventAsync(view, cancellationToken);
+        return view;
     }
 
     public async Task CloseLookAsync(Guid viewerId, Guid? subjectId, CancellationToken cancellationToken)
@@ -388,7 +486,8 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             subject.DisplayName,
             updated.OpenedAt,
             hours,
-            true);
+            true,
+            LookKind.Look);
         return new LookSession(look, live, trail);
     }
 
@@ -570,8 +669,9 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
         CancellationToken cancellationToken)
     {
         var you = await RequireAccount(accountId, cancellationToken);
-        var place = await store.GetHomePlaceAsync(you.Id, cancellationToken)
-            ?? throw new TrustException("home_unset", "Set Home on this phone before posting presence.");
+        // Home|Away|Hidden is a manual, global triad — it does not require Home to be set.
+        // A Home place only adds the label shown alongside Home/Away for those who have one.
+        var place = await store.GetHomePlaceAsync(you.Id, cancellationToken);
         var now = time.GetUtcNow();
         var at = signaledAt ?? now;
         if (at > now.AddMinutes(2))
@@ -584,7 +684,7 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             ? previous.LastChangedAt
             : at;
         await store.UpsertCurrentHomePresenceAsync(
-            new CurrentHomePresence(you.Id, place.PlaceId, state, changedAt, at),
+            new CurrentHomePresence(you.Id, place?.PlaceId, state, changedAt, at),
             cancellationToken);
 
         if (state == HomePresenceState.Home)
@@ -674,6 +774,10 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
         }
     }
 
+    /// Review seed covers every M1 share/presence bucket in one pass: Sealed (Alex), Always
+    /// (Jordan), Timed (Riley) — plus Riley demonstrating Hidden presence (granted, but
+    /// withheld from the circle) and one already-completed prior Look so the view log isn't
+    /// empty on first run.
     public async Task EnsureReviewCircleAsync(Guid accountId, CancellationToken cancellationToken)
     {
         var you = await RequireAccount(accountId, cancellationToken);
@@ -692,21 +796,43 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
         await store.InsertMembershipAsync(you.Id, jordan.Id, cancellationToken);
         await store.InsertMembershipAsync(you.Id, riley.Id, cancellationToken);
 
-        await store.UpsertShareAsync(you.Id, alex.Id, ShareState.Default, cancellationToken);
-        await store.UpsertShareAsync(alex.Id, you.Id, ShareState.Default, cancellationToken);
-
-        await store.UpsertShareAsync(you.Id, jordan.Id, new ShareState(ShareResting.Always, null), cancellationToken);
-        await store.UpsertShareAsync(jordan.Id, you.Id, new ShareState(ShareResting.Always, null), cancellationToken);
-
+        // Alex: Sealed both ways — reachable only via an explicit Look.
         await store.UpsertShareAsync(
-            you.Id,
-            riley.Id,
-            new ShareState(ShareResting.UntilTheyLook, now.AddMinutes(47)),
+            you.Id, alex.Id, new ShareState(ShareResting.UntilTheyLook, null), cancellationToken);
+        await store.UpsertShareAsync(
+            alex.Id, you.Id, new ShareState(ShareResting.UntilTheyLook, null), cancellationToken);
+
+        // Jordan: Always — Available, live without a Look.
+        await store.UpsertShareAsync(
+            you.Id, jordan.Id, new ShareState(ShareResting.Always, null), cancellationToken);
+        await store.UpsertShareAsync(
+            jordan.Id, you.Id, new ShareState(ShareResting.Always, null), cancellationToken);
+
+        // Riley: Timed — Available now, reverting to Sealed when the countdown ends.
+        await store.UpsertShareAsync(
+            you.Id, riley.Id, new ShareState(ShareResting.UntilTheyLook, now.AddMinutes(47)), cancellationToken);
+        await store.UpsertShareAsync(
+            riley.Id, you.Id, new ShareState(ShareResting.UntilTheyLook, now.AddMinutes(47)), cancellationToken);
+
+        // Riley: Hidden presence — grant is on, but the state itself must never surface to you.
+        await store.SetPresenceGrantAsync(riley.Id, you.Id, true, now, cancellationToken);
+        await store.UpsertHomePlaceAsync(new HomePlace(riley.Id, Guid.NewGuid(), "Home", now), cancellationToken);
+        await store.UpsertCurrentHomePresenceAsync(
+            new CurrentHomePresence(riley.Id, null, HomePresenceState.Hidden, now, now),
             cancellationToken);
-        await store.UpsertShareAsync(
-            riley.Id,
-            you.Id,
-            new ShareState(ShareResting.UntilTheyLook, now.AddMinutes(47)),
+
+        // One prior look already in the log, so review doesn't start from a blank view log.
+        await store.InsertLookEventAsync(
+            new LookEvent(
+                Guid.NewGuid(),
+                you.Id,
+                you.DisplayName,
+                alex.Id,
+                alex.DisplayName,
+                now.AddHours(-20),
+                0,
+                true,
+                LookKind.Look),
             cancellationToken);
     }
 
@@ -839,10 +965,33 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
         ActiveLook active,
         CancellationToken cancellationToken)
     {
+        // Snapshot semantics: an un-extended active Look is a single point, not a trail.
+        if (active.HistoryWindowHours <= 0)
+        {
+            var snapshot = await store.LatestLocationAsync(subject.Id, cancellationToken);
+            if (snapshot is null)
+            {
+                return null;
+            }
+
+            var snapshotLook = new LookEvent(
+                active.LookId,
+                viewer.Id,
+                viewer.DisplayName,
+                subject.Id,
+                subject.DisplayName,
+                active.OpenedAt,
+                0,
+                true,
+                LookKind.Look);
+            return new LookSession(snapshotLook, snapshot, [snapshot]);
+        }
+
+        // Dormant Plus "extend" path: an explicitly extended Look still carries its trail.
         var now = time.GetUtcNow();
         var trail = await store.UnlockLocationsAsync(
             subject.Id,
-            now.AddHours(-Math.Max(active.HistoryWindowHours, TrustRules.FreeHistoryHours)),
+            now.AddHours(-active.HistoryWindowHours),
             now,
             cancellationToken);
         var live = trail.LastOrDefault() ?? await store.LatestLocationAsync(subject.Id, cancellationToken);
@@ -859,7 +1008,8 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             subject.DisplayName,
             active.OpenedAt,
             active.HistoryWindowHours,
-            true);
+            true,
+            LookKind.Look);
         return new LookSession(look, live, trail.Count > 0 ? trail : [live]);
     }
 
@@ -898,7 +1048,7 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
         Span<char> chars = stackalloc char[6];
         for (var i = 0; i < chars.Length; i++)
         {
-            chars[i] = alphabet[Random.Shared.Next(alphabet.Length)];
+            chars[i] = alphabet[System.Security.Cryptography.RandomNumberGenerator.GetInt32(alphabet.Length)];
         }
 
         return new string(chars);

@@ -8,6 +8,69 @@ public enum LocationTrail {
         longitude: -122.4148
     )
 
+    /// Distinct US demo pins for lean MapKit circle (DEBUG).
+    public enum DemoCity: String, CaseIterable, Sendable {
+        case missionSF
+        case capitolHillSeattle
+        case brooklyn
+        case austin
+        case chicago
+        case miami
+        case denver
+        case portland
+        case veniceLA
+        case sohoNYC
+
+        public var label: String {
+            switch self {
+            case .missionSF: return "Mission"
+            case .capitolHillSeattle: return "Capitol Hill"
+            case .brooklyn: return "Brooklyn"
+            case .austin: return "Austin"
+            case .chicago: return "Chicago"
+            case .miami: return "Miami"
+            case .denver: return "Denver"
+            case .portland: return "Portland"
+            case .veniceLA: return "Venice"
+            case .sohoNYC: return "SoHo"
+            }
+        }
+
+        public var latitude: Double {
+            switch self {
+            case .missionSF: return 37.7599
+            case .capitolHillSeattle: return 47.6253
+            case .brooklyn: return 40.6782
+            case .austin: return 30.2672
+            case .chicago: return 41.8781
+            case .miami: return 25.7617
+            case .denver: return 39.7392
+            case .portland: return 45.5152
+            case .veniceLA: return 33.9850
+            case .sohoNYC: return 40.7233
+            }
+        }
+
+        public var longitude: Double {
+            switch self {
+            case .missionSF: return -122.4148
+            case .capitolHillSeattle: return -122.3222
+            case .brooklyn: return -73.9442
+            case .austin: return -97.7431
+            case .chicago: return -87.6298
+            case .miami: return -80.1918
+            case .denver: return -104.9903
+            case .portland: return -122.6784
+            case .veniceLA: return -118.4695
+            case .sohoNYC: return -74.0030
+            }
+        }
+
+        public func point(at time: Date = Date(timeIntervalSince1970: 0)) -> LocationPoint {
+            LocationPoint(timestamp: time, latitude: latitude, longitude: longitude)
+        }
+    }
+
     public static func seed(
         around origin: LocationPoint,
         now: Date,

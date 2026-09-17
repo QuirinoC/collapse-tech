@@ -1,34 +1,42 @@
 import SwiftUI
 import TrustCore
 
+/// Masthead tokens from the design SoT (`design-mocks/duo-gpt6/styles.css`):
+/// paper, ink, `#E10600` as the only chromatic. Light only.
 struct TrustPalette: Equatable {
     var paper: Color
+    var canvas: Color
     var ink: Color
     var muted: Color
     var line: Color
     var surface: Color
     var accent: Color
+    var accentSoft: Color
     var accentOn: Color
+    var sage: Color
 
     static let paper = TrustPalette(
-        paper: Color.white,
-        ink: Color.black,
-        muted: Color(red: 92 / 255, green: 92 / 255, blue: 92 / 255),
-        line: Color.black,
-        surface: Color(red: 242 / 255, green: 242 / 255, blue: 242 / 255),
-        accent: Color(red: 225 / 255, green: 6 / 255, blue: 0),
-        accentOn: Color.white
+        paper: Color(hex: 0xFFFEFA),
+        canvas: Color(hex: 0xF0EFEB),
+        ink: Color(hex: 0x20211F),
+        muted: Color(hex: 0x74756F),
+        line: Color(hex: 0xE8E7E1),
+        surface: Color(hex: 0xF3F3EC),
+        accent: Color(hex: 0xE10600),
+        accentSoft: Color(hex: 0xFFF0EB),
+        accentOn: .white,
+        sage: Color(hex: 0xE7ECE2)
     )
+}
 
-    static let night = TrustPalette(
-        paper: Color.black,
-        ink: Color.white,
-        muted: Color(red: 138 / 255, green: 138 / 255, blue: 138 / 255),
-        line: Color(red: 46 / 255, green: 46 / 255, blue: 46 / 255),
-        surface: Color(red: 20 / 255, green: 20 / 255, blue: 20 / 255),
-        accent: Color(red: 225 / 255, green: 6 / 255, blue: 0),
-        accentOn: Color.white
-    )
+extension Color {
+    init(hex: UInt32) {
+        self.init(
+            red: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 8) & 0xFF) / 255,
+            blue: Double(hex & 0xFF) / 255
+        )
+    }
 }
 
 private struct TrustPaletteKey: EnvironmentKey {
@@ -44,36 +52,86 @@ extension EnvironmentValues {
 
 enum TrustTheme {
     static let accent = TrustPalette.paper.accent
+    /// Card / control radius from the mock (13–15 pt).
+    static let radius: CGFloat = 14
+    static let controlRadius: CGFloat = 13
+    /// Page gutter.
+    static let gutter: CGFloat = 22
+    /// iPad: list columns stay readable; Map is full-bleed (M3).
+    static let readableWidth: CGFloat = 640
 
-    static func display(_ size: CGFloat, italic: Bool = true) -> Font {
-        italic
-            ? .custom("Didot-Italic", size: size, relativeTo: .title)
-            : .custom("Didot", size: size, relativeTo: .title)
+    /// Serif display — wordmark, page titles, names on View.
+    static func display(_ size: CGFloat) -> Font {
+        .custom("Didot", size: size, relativeTo: .title)
     }
 
-    /// Space Grotesk — same family as Pixelboard web/iOS and collapsetechnologies.com.
+    /// Space Grotesk — Collapse Technologies wordmark only.
     static func sans(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
         Font.custom("Space Grotesk", size: size).weight(weight)
     }
 
     static func mono(_ size: CGFloat) -> Font {
-        Font.custom("IBM Plex Mono", size: size).weight(.medium)
+        Font.custom("IBM Plex Mono", size: size, relativeTo: textStyle(for: size)).weight(.medium)
     }
 
+    /// Fixed-size system font. Prefer `View.trustFont(_:weight:)`, which follows Dynamic Type;
+    /// this stays for the few places that need a `Font` value.
     static func ui(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .default)
+        .system(textStyle(for: size), design: .default).weight(weight)
     }
 
     static func label(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .medium, design: .default)
+        .system(textStyle(for: size), design: .default).weight(.semibold)
     }
 
     static func folio(_ size: CGFloat) -> Font {
-        .system(size: size, weight: .medium, design: .default)
+        .system(textStyle(for: size), design: .default).weight(.semibold)
+    }
+
+    /// The text style whose Dynamic Type curve a mock point size should follow. Small labels
+    /// track `caption2` / `footnote` so they grow, but not as fast as body copy and titles.
+    static func textStyle(for size: CGFloat) -> Font.TextStyle {
+        switch size {
+        case ..<12: return .caption2
+        case ..<13: return .caption
+        case ..<15: return .footnote
+        case ..<16: return .subheadline
+        case ..<17: return .callout
+        case ..<19: return .body
+        case ..<22: return .title3
+        case ..<28: return .title2
+        case ..<34: return .title
+        default: return .largeTitle
+        }
     }
 }
 
-struct TrustFolio: View {
+/// System UI font at a mock point size that scales with the user's Dynamic Type setting.
+/// `@ScaledMetric` re-renders live when the size changes in Settings or Control Center.
+private struct TrustScaledFont: ViewModifier {
+    @ScaledMetric private var size: CGFloat
+    private let weight: Font.Weight
+
+    init(size: CGFloat, weight: Font.Weight) {
+        _size = ScaledMetric(wrappedValue: size, relativeTo: TrustTheme.textStyle(for: size))
+        self.weight = weight
+    }
+
+    func body(content: Content) -> some View {
+        content.font(.system(size: size, weight: weight, design: .default))
+    }
+}
+
+extension View {
+    /// Dynamic Type–aware replacement for `.font(TrustTheme.ui(size, weight:))`. Works on
+    /// `Text`, `Label`, and SF Symbol `Image`s alike, so glyphs scale with the text beside them.
+    func trustFont(_ size: CGFloat, weight: Font.Weight = .regular) -> some View {
+        modifier(TrustScaledFont(size: size, weight: weight))
+    }
+}
+
+/// Small caps eyebrow (`.eyebrow`): SHARED WITH YOU, STATUS, PRESENCE …
+struct TrustEyebrow: View {
     let text: String
     var color: Color? = nil
     var size: CGFloat = 11
@@ -81,55 +139,65 @@ struct TrustFolio: View {
 
     var body: some View {
         Text(text.uppercased())
-            .font(TrustTheme.folio(size))
-            .tracking(1.4)
+            .trustFont(size, weight: .semibold)
+            .tracking(1.5)
             .foregroundStyle(color ?? palette.muted)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// Backwards-compatible alias used by older components.
+typealias TrustFolio = TrustEyebrow
+
+/// "Sharing." — serif title with the red full stop.
+struct TrustPageTitle: View {
+    let text: String
+    var size: CGFloat = 34
+    @Environment(\.trustPalette) private var palette
+
+    var body: some View {
+        (Text(text).foregroundColor(palette.ink) + Text(".").foregroundColor(palette.accent))
+            .font(TrustTheme.display(size))
+            .tracking(-0.8)
+            .accessibilityLabel(text)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// "Trust." wordmark.
+struct TrustWordmarkTitle: View {
+    var size: CGFloat = 34
+    @Environment(\.trustPalette) private var palette
+
+    var body: some View {
+        (Text(TrustCopy.mastheadName).foregroundColor(palette.ink) + Text(".").foregroundColor(palette.accent))
+            .font(TrustTheme.display(size))
+            .tracking(-1.6)
+            .accessibilityLabel(TrustCopy.appName)
+            .accessibilityAddTraits(.isHeader)
     }
 }
 
 struct TrustRule: View {
     var width: CGFloat = 56
-    /// Scale X 0→1 under Didot on sheet appear (Look confirm).
-    var draws: Bool = false
     @Environment(\.trustPalette) private var palette
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var progress: CGFloat = 1
 
     var body: some View {
         palette.accent
             .frame(width: width, height: 2)
-            .scaleEffect(x: draws ? progress : 1, y: 1, anchor: .leading)
             .accessibilityHidden(true)
-            .onAppear {
-                guard draws else { return }
-                if reduceMotion {
-                    progress = 1
-                    return
-                }
-                progress = 0
-                withAnimation(.easeOut(duration: 0.34)) {
-                    progress = 1
-                }
-            }
     }
 }
 
-/// Home geofence mark — fill when inside, outline when away. No bounce.
-struct TrustHomeGlyph: View {
-    var filled: Bool
+struct TrustHairline: View {
     @Environment(\.trustPalette) private var palette
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Image(systemName: filled ? "house.fill" : "house")
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(filled ? palette.ink : palette.muted)
-            .frame(width: 12, height: 11)
-            .accessibilityHidden(true)
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.26), value: filled)
+        palette.line.frame(height: 1)
     }
 }
 
+/// Collapse Technologies mark (Space Grotesk) — Login only.
 struct TrustWordmark: View {
     @Environment(\.trustPalette) private var palette
 
@@ -148,201 +216,95 @@ struct TrustWordmark: View {
     }
 }
 
-struct TrustLivePin: View {
-    let initials: String
-    var caption: String? = nil
-    var you = false
+// MARK: Button styles (mock: `.primary`, `.secondary`, `.quiet-button`, `.look-button`)
+
+struct TrustFilledButtonStyle: ButtonStyle {
+    var expand = true
     @Environment(\.trustPalette) private var palette
-
-    var body: some View {
-        VStack(spacing: 3) {
-            ZStack {
-                if you {
-                    Rectangle()
-                        .fill(palette.ink)
-                        .frame(width: 12, height: 12)
-                        .overlay(Rectangle().stroke(palette.accent, lineWidth: 1.5))
-                } else {
-                    Circle()
-                        .fill(palette.ink)
-                        .frame(width: 28, height: 28)
-                        .overlay(
-                            Text(initials)
-                                .font(TrustTheme.label(10))
-                                .foregroundStyle(palette.paper)
-                        )
-                }
-            }
-            if let caption {
-                Text(caption.uppercased())
-                    .font(TrustTheme.folio(8))
-                    .tracking(0.8)
-                    .foregroundStyle(palette.ink)
-            }
-        }
-        .accessibilityHidden(true)
-    }
-}
-
-struct TrustSealedMark: View {
-    let initials: String
-    @Environment(\.trustPalette) private var palette
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var lockBreath = false
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "lock")
-                .font(.system(size: 10, weight: .semibold))
-                .opacity(lockOpacity)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(initials)
-                    .font(TrustTheme.label(11))
-                    .tracking(0.8)
-                Text(TrustCopy.sealed)
-                    .font(TrustTheme.folio(8))
-                    .tracking(0.9)
-                    .foregroundStyle(palette.muted)
-            }
-        }
-        .foregroundStyle(palette.ink)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(palette.paper)
-        .overlay(Rectangle().stroke(palette.ink, lineWidth: 1))
-        .onAppear { startBreath() }
-        .onChange(of: reduceMotion) { _, _ in startBreath() }
-    }
-
-    private var lockOpacity: Double {
-        reduceMotion ? 1 : (lockBreath ? 1 : 0.88)
-    }
-
-    private func startBreath() {
-        guard !reduceMotion else {
-            lockBreath = true
-            return
-        }
-        withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
-            lockBreath = true
-        }
-    }
-}
-
-/// Outline lock for strip chips — same soft breathe as the map sealed mark.
-struct TrustSealedLock: View {
-    @Environment(\.trustPalette) private var palette
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var breath = false
-
-    var body: some View {
-        Image(systemName: "lock")
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(palette.ink)
-            .opacity(reduceMotion ? 1 : (breath ? 1 : 0.88))
-            .accessibilityHidden(true)
-            .onAppear {
-                guard !reduceMotion else { return }
-                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
-                    breath = true
-                }
-            }
-    }
-}
-
-struct TrustChip: View {
-    let label: String
-    var kind: Kind = .rest
-    @Environment(\.trustPalette) private var palette
-
-    enum Kind { case rest, always, timed }
-
-    var body: some View {
-        Text(label.uppercased())
-            .font(TrustTheme.folio(10))
-            .tracking(0.8)
-            .foregroundStyle(kind == .timed ? palette.accent : palette.ink)
-    }
-}
-
-struct TrustEyebrow: View {
-    let text: String
-    @Environment(\.trustPalette) private var palette
-
-    var body: some View {
-        TrustFolio(text: text, color: palette.muted, size: 10)
-    }
-}
-
-struct TrustPanelHeading: View {
-    let eyebrow: String
-    let title: String
-    let close: () -> Void
-    @Environment(\.trustPalette) private var palette
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                TrustFolio(text: eyebrow)
-                Spacer()
-                Button(TrustCopy.close, action: close)
-                    .buttonStyle(TrustTextButtonStyle())
-            }
-            Text(title)
-                .font(TrustTheme.display(28))
-                .foregroundStyle(palette.ink)
-                .fixedSize(horizontal: false, vertical: true)
-            TrustRule()
-        }
-    }
-}
-
-struct TrustTextButtonStyle: ButtonStyle {
-    @Environment(\.trustPalette) private var palette
+    @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(TrustTheme.folio(12))
-            .tracking(1.0)
-            .textCase(.uppercase)
-            .foregroundStyle(palette.muted.opacity(configuration.isPressed ? 0.5 : 1))
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+            .trustFont(15, weight: .semibold)
+            .foregroundStyle(palette.accentOn.opacity(configuration.isPressed ? 0.75 : 1))
+            .padding(.horizontal, 18)
+            .frame(maxWidth: expand ? .infinity : nil, minHeight: 50)
+            .background(palette.accent.opacity(configuration.isPressed ? 0.86 : 1))
+            .clipShape(RoundedRectangle(cornerRadius: TrustTheme.controlRadius, style: .continuous))
+            .opacity(isEnabled ? 1 : 0.45)
     }
 }
 
 struct TrustOutlineButtonStyle: ButtonStyle {
     var compact = false
     @Environment(\.trustPalette) private var palette
+    @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(TrustTheme.ui(compact ? 15 : 16, weight: .medium))
+            .trustFont(compact ? 14 : 15, weight: .medium)
             .foregroundStyle(palette.ink.opacity(configuration.isPressed ? 0.55 : 1))
-            .frame(maxWidth: .infinity, minHeight: compact ? 48 : 52)
-            .overlay(Rectangle().stroke(palette.line, lineWidth: 1))
+            .padding(.horizontal, 18)
+            .frame(maxWidth: .infinity, minHeight: compact ? 44 : 48)
+            .background(palette.paper)
+            .overlay(
+                RoundedRectangle(cornerRadius: TrustTheme.controlRadius, style: .continuous)
+                    .stroke(Color(hex: 0xDEDED4), lineWidth: 1)
+            )
+            .opacity(isEnabled ? 1 : 0.45)
     }
 }
 
-struct TrustFilledButtonStyle: ButtonStyle {
-    var expand = true
-    var destructive = false
-    var ember = false
+struct TrustTextButtonStyle: ButtonStyle {
+    var color: Color? = nil
     @Environment(\.trustPalette) private var palette
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(TrustTheme.ui(16, weight: .semibold))
-            .tracking(0.6)
-            .textCase(.uppercase)
-            .foregroundStyle(palette.accentOn.opacity(configuration.isPressed ? 0.7 : 1))
-            .padding(.horizontal, 16)
-            .frame(maxWidth: expand ? .infinity : nil, minHeight: 52)
-            .background(palette.accent.opacity(configuration.isPressed ? 0.86 : 1))
+            .trustFont(14, weight: .medium)
+            .foregroundStyle((color ?? palette.muted).opacity(configuration.isPressed ? 0.5 : 1))
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
     }
 }
 
-/// Black (Paper) / white (Night) Sign in with Apple plate. Uses SF Symbol `apple.logo`, not a custom mark.
+/// Red text link with a trailing arrow — "Map →", "Manage sharing →".
+struct TrustLinkButtonStyle: ButtonStyle {
+    @Environment(\.trustPalette) private var palette
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 4) {
+            configuration.label
+            Image(systemName: "arrow.right")
+                .font(.system(size: 11, weight: .semibold))
+                .accessibilityHidden(true)
+        }
+        .trustFont(13, weight: .medium)
+        .foregroundStyle(palette.accent.opacity(configuration.isPressed ? 0.5 : 1))
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+    }
+}
+
+/// Pill on Circle rows: Look (red) / View (muted).
+struct TrustPillButtonStyle: ButtonStyle {
+    var prominent = true
+    @Environment(\.trustPalette) private var palette
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .trustFont(13, weight: .semibold)
+            .foregroundStyle((prominent ? palette.accent : palette.muted).opacity(configuration.isPressed ? 0.5 : 1))
+            .padding(.horizontal, 16)
+            .frame(minWidth: 72, minHeight: 36)
+            .background(
+                Capsule().stroke(prominent ? Color(hex: 0xF0C8BE) : palette.line, lineWidth: 1)
+            )
+            .contentShape(Capsule())
+    }
+}
+
+/// Black plate for Sign in with Apple. SF Symbol `apple.logo` is Apple's mark.
 struct TrustAppleButtonStyle: ButtonStyle {
     @Environment(\.trustPalette) private var palette
     @Environment(\.isEnabled) private var isEnabled
@@ -351,27 +313,9 @@ struct TrustAppleButtonStyle: ButtonStyle {
         configuration.label
             .foregroundStyle(palette.paper.opacity(configuration.isPressed ? 0.7 : 1))
             .background(palette.ink.opacity(configuration.isPressed ? 0.86 : 1))
-            .clipShape(Rectangle())
+            .clipShape(RoundedRectangle(cornerRadius: TrustTheme.controlRadius, style: .continuous))
             .contentShape(Rectangle())
             .opacity(isEnabled ? 1 : 0.55)
-    }
-}
-
-struct TrustHardButtonStyle: ButtonStyle {
-    /// HIG / UI Design tips: interactive controls ≥ 44×44 pt.
-    var minHeight: CGFloat = 44
-    @Environment(\.trustPalette) private var palette
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(TrustTheme.folio(12))
-            .tracking(0.9)
-            .textCase(.uppercase)
-            .foregroundStyle(palette.ink.opacity(configuration.isPressed ? 0.55 : 1))
-            .padding(.horizontal, 16)
-            .frame(minHeight: minHeight)
-            .contentShape(Rectangle())
-            .overlay(Rectangle().stroke(palette.line, lineWidth: 1))
     }
 }
 
@@ -384,10 +328,10 @@ struct TrustFieldLabel<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                TrustFolio(text: title, size: 10)
+                TrustEyebrow(text: title, size: 10)
                 if let hint {
                     Spacer()
-                    TrustFolio(text: hint, size: 10)
+                    TrustEyebrow(text: hint, size: 10)
                 }
             }
             content
@@ -395,16 +339,10 @@ struct TrustFieldLabel<Content: View>: View {
     }
 }
 
-struct TrustHairline: View {
-    @Environment(\.trustPalette) private var palette
-
-    var body: some View {
-        palette.line.frame(height: 1)
-    }
-}
-
-struct TrustSurface<Content: View>: View {
-    var padding: CGFloat = 16
+/// Rounded, hairline card (`.privacy-summary`, `.plus-card`).
+struct TrustCard<Content: View>: View {
+    var padding: CGFloat = 18
+    var fill: Color? = nil
     @ViewBuilder var content: Content
     @Environment(\.trustPalette) private var palette
 
@@ -412,7 +350,29 @@ struct TrustSurface<Content: View>: View {
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .overlay(Rectangle().stroke(palette.line, lineWidth: 1))
+            .background(fill ?? palette.paper)
+            .overlay(
+                RoundedRectangle(cornerRadius: TrustTheme.radius, style: .continuous)
+                    .stroke(fill == nil ? Color(hex: 0xDEDFD3) : .clear, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: TrustTheme.radius, style: .continuous))
+    }
+}
+
+/// Text field plate (`.invite-form input`).
+struct TrustTextFieldStyle: TextFieldStyle {
+    @Environment(\.trustPalette) private var palette
+
+    func _body(configuration: TextField<Self._Label>) -> some View {
+        configuration
+            .font(TrustTheme.ui(16, weight: .medium))
+            .foregroundStyle(palette.ink)
+            .padding(14)
+            .background(palette.paper)
+            .overlay(
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .stroke(Color(hex: 0xDEDFD5), lineWidth: 1)
+            )
     }
 }
 
@@ -427,5 +387,18 @@ extension String {
             return parts.map { String($0.prefix(1)).uppercased() }.joined()
         }
         return String(trimmed.prefix(2)).uppercased()
+    }
+}
+
+extension View {
+    /// iPad / regular width: keep lists at a readable column, centered.
+    func trustReadableWidth() -> some View {
+        frame(maxWidth: TrustTheme.readableWidth)
+            .frame(maxWidth: .infinity)
+    }
+
+    /// iPad sheets size as a form, not a full page. Compact widths keep the phone sheet.
+    func trustFormSheet() -> some View {
+        presentationSizing(.form)
     }
 }
