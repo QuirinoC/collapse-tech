@@ -1,0 +1,50 @@
+{
+  "dataset": "FlyWire FAFB v783",
+  "dataset_full": "Female Adult Fly Brain, proofread snapshot 783",
+  "citations": [
+    "Dorkenwald et al., Nature 634:124-138 (2024)",
+    "Schlegel et al., Nature 634:139-152 (2024)"
+  ],
+  "sources": [
+    "Codex public neuron/classification/connection tables (FAFB v783)",
+    "flyconnectome/flywire_annotations Supplemental_file1 (cell types)"
+  ],
+  "neurons": 139255,
+  "connections": 2699092,
+  "synapses": 34153566,
+  "full_proofread_neurons": 139255,
+  "dropped_optic_intrinsic": false,
+  "channels": {
+    "photo_l": 5904,
+    "photo_r": 5487,
+    "photo": 11315,
+    "loom": 1595,
+    "motion": 38,
+    "olf_food_l": 924,
+    "olf_food_r": 937,
+    "olf_food": 1847,
+    "olf_l": 1375,
+    "olf_r": 1389,
+    "pn": 685,
+    "mech_l": 1370,
+    "mech_r": 1303,
+    "mech": 2673,
+    "gus_sweet": 343,
+    "gus_bitter": 65,
+    "gus_water": 131,
+    "thermo": 103,
+    "cx": 2878,
+    "hunger_mod": 80,
+    "mn_proboscis": 66,
+    "mn_head": 44,
+    "dn_walk": 123,
+    "dn_flight": 324,
+    "dn_escape": 2,
+    "dn_other": 880,
+    "dn_l": 667,
+    "dn_r": 662,
+    "tonic": 4565
+  },
+  "mapping": "Authored: world sensors inject current into labeled FlyWire populations (ORNs/PNs, LC/LPLC loom VPNs, photoreceptors, bristle/JO, GRNs). Hunger/thirst only scale feeding-related channels. Motor verbs are decoded from descending / brain-motor population rates. The graph and weights are FlyWire's.",
+  "limits": "FAFB is brain-only (no VNC). Leg/wing motor neurons are absent; locomotion is read from descending neurons. Glutamate is treated as inhibitory (GluCl). LIF parameters are a real-time approximation, not a biophysical fit."
+}

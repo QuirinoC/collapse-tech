@@ -15,6 +15,7 @@ The workspace behind [collapsetechnologies.com](https://collapsetechnologies.com
 | iPhone Rover | `apps/iphone-rover-ios` + `apps/iphone-rover-firmware` | iPhone-powered indoor rover prototype with ESP32 motion control |
 | Trust Circle iOS | `apps/trust-ios` | Adult-peer location escrow: MapKit home, hidden until they look, quiet receipts, Circle sponsor |
 | Trust API | `apps/trust-api` | ASP.NET Core + Postgres for Trust Circle (auth, escrow, looks, Circle) |
+| The Fly | `apps/the-fly` | One cartoon fly per browser — client sim + localStorage, feed after a first-party rewarded clip |
 
 ## Local development
 
@@ -64,6 +65,13 @@ dotnet run --launch-profile TrustApi
 
 Then `cd apps/trust-ios && xcodegen generate` and run the Trust scheme. Simulator Debug talks to `http://127.0.0.1:5088`. A physical iPhone in Debug remaps loopback to production (or use `TRUST_BASE_URL=http://<mac-lan-ip>:5088`). Release uses `https://trust.collapsetechnologies.com`. Home Screen name is **Trust Circle**.
 
+```bash
+npm --prefix apps/the-fly install
+npm run dev:fly
+```
+
+Vite on `:5173` proxies `/api` to `wrangler dev` on `:8787`. The fly lives in the tab. Feeding uses a first-party 15s studio clip, not Stripe.
+
 Root scripts run the relevant command in each app:
 
 ```bash
@@ -89,6 +97,7 @@ Influence.Market was shut down in August 2026 (Worker + D1 deleted; hostname no 
 | Infinite Pixelboard iOS | `apps/infinite-pixelboard-ios` | Native SwiftUI app (TestFlight/App Store) — no server deploys; talks to the pixelboard API + Firebase Auth | n/a |
 | Trust API | `apps/trust-api` | Render (`trust-api` in `apps/render.yaml`) + custom domain | `trust.collapsetechnologies.com` (provision) |
 | Trust Circle iOS | `apps/trust-ios` | Native SwiftUI + MapKit — Release talks to Trust API; StoreKit Circle | App Store |
+| The Fly | `apps/the-fly` | Cloudflare Worker + SQLite Durable Object + Vite/Three client | `fly.collapsetechnologies.com` |
 
 ### Cloudflare Pages / Workers
 
@@ -116,6 +125,15 @@ The lead form posts JSON to that Worker (KV namespace `LEADS`, email-deduped).
 See `apps/collapse-health/README.md` for the Worker's API and architecture.
 `NEXT_PUBLIC_LEAD_ENDPOINT` is baked at build time — always rebuild before
 deploying; without it the form shows a fallback email address.
+
+The Fly is a thin Worker + static Vite client (no OpenNext). Build the client, then deploy:
+
+```bash
+cd apps/the-fly
+npm run deploy
+```
+
+Custom domain `fly.collapsetechnologies.com` is in `wrangler.jsonc`. The Durable Object keeps the fly alive with alarms when nobody is watching.
 
 DNS lives on Cloudflare (zone `collapsetechnologies.com`). Apex and `www` are proxied CNAMEs to `collapse-technologies.pages.dev`. Email records are untouched. Product subdomains are attached as custom domains on their Pages/Workers projects.
 

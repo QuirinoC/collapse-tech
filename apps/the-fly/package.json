@@ -1,0 +1,26 @@
+{
+  "name": "the-fly",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n worker,client -c cyan,magenta \"npm run dev:worker\" \"npm run dev:client\"",
+    "dev:worker": "wrangler dev --port 8787",
+    "dev:client": "vite --config vite.config.ts",
+    "build:connectome": "python3 scripts/build_connectome.py",
+    "build:connectome:core": "python3 scripts/build_connectome.py --drop-optic",
+    "build": "python3 scripts/build_connectome.py --if-missing && vite build --config vite.config.ts",
+    "types": "wrangler types",
+    "deploy": "npm run build && wrangler deploy --keep-vars"
+  },
+  "dependencies": {
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.180.0",
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.5",
+    "wrangler": "^4.125.0"
+  }
+}

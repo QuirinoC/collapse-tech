@@ -10,6 +10,7 @@
     "dev:coach": "dotnet watch --project apps/coach-gg/src/CoachGG.csproj run",
     "dev:health": "npm --prefix apps/collapse-health run dev",
     "dev:studio": "npm --prefix apps/collapse-technologies run dev",
+    "dev:fly": "npm --prefix apps/the-fly run dev",
     "dev:pixelboard": "dotnet watch --project apps/infinite-pixelboard/PixelBoard.csproj run",
     "pixelboard:local-fill": "node apps/infinite-pixelboard/tools/local-pixel-art.mjs",
     "provision:pixelboard-moderator": "node apps/infinite-pixelboard/tools/provision-moderator.mjs",

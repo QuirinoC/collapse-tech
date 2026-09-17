@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Fly — Collapse Technologies</title>
+    <meta name="description" content="A housefly steered by the FlyWire connectome in your browser. Not conscious. Cannot feel." />
+    <meta name="theme-color" content="#c9d4d8" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@16..72,500;16..72,600&family=Sora:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="stage" aria-label="Your fly in its enclosure"></canvas>
+
+      <div class="overlay">
+        <aside class="card">
+          <header class="card-head">
+            <div>
+              <p class="brand">The Fly</p>
+              <p class="mood" id="mood">Waking up.</p>
+            </div>
+            <dl class="meters">
+              <div>
+                <dt>Hunger</dt>
+                <dd><span id="hunger-bar" class="bar bar-hunger"></span></dd>
+              </div>
+              <div>
+                <dt>Thirst</dt>
+                <dd><span id="thirst-bar" class="bar bar-thirst"></span></dd>
+              </div>
+            </dl>
+          </header>
+
+          <div class="card-act">
+            <label class="name">
+              Signed as
+              <input id="feeder-name" maxlength="24" placeholder="someone" autocomplete="nickname" />
+            </label>
+            <button type="button" id="feed-btn">Feed</button>
+          </div>
+
+          <p class="hint" id="feed-hint">Drop food. Then a short wait.</p>
+          <p class="honest">A FlyWire connectome steers this body. It is not conscious and cannot feel.</p>
+          <p class="meta" id="last-fed">Never fed</p>
+          <div class="brain-line">
+            <canvas id="spark" width="84" height="18" aria-hidden="true"></canvas>
+            <p class="status" id="brain-status">Loading FlyWire FAFB v783…</p>
+          </div>
+          <p class="error" id="brain-error" hidden></p>
+          <ol id="meals"></ol>
+        </aside>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

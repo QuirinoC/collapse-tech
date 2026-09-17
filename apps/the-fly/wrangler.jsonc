@@ -1,0 +1,47 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "the-fly",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-09-06",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "not_found_handling": "single-page-application"
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["FlyDurableObject"]
+    },
+    {
+      "tag": "v2",
+      "deleted_classes": ["FlyDurableObject"]
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "FLY_STATE",
+      "id": "e50efd55a32046b99e85aedf99877c99"
+    }
+  ],
+  "routes": [
+    {
+      "pattern": "fly.collapsetechnologies.com",
+      "custom_domain": true
+    }
+  ],
+  "vars": {
+    "ADS_PROVIDER": "first_party",
+    "ADS_DISPLAY_ENABLED": "false",
+    "ADSENSE_PUBLISHER_ID": "",
+    "ADSENSE_SLOT_ID": ""
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}
