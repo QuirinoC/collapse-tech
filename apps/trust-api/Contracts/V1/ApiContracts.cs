@@ -8,7 +8,11 @@ public sealed record SessionRequest(
     string? IdToken,
     string? DisplayName,
     string? Provider,
-    string? DeviceId);
+    string? DeviceId,
+    /// Optional SIWA replay-hygiene nonce: the same raw value the client set on
+    /// ASAuthorizationAppleIDRequest.nonce, echoed back in the ID token's "nonce" claim.
+    /// If omitted, the server skips the check (back-compat until the iOS client sends it).
+    string? Nonce = null);
 
 public sealed record SessionResponse(string Token, PersonDto You);
 
@@ -65,6 +69,7 @@ public sealed record MemberDto(
     PersonDto Person,
     PresenceDto? Presence,
     ShareDto Share,
+    ShareDto InboundShare,
     bool InboundLive,
     LocationDto? Live,
     bool OutboundPresenceGranted,
@@ -91,7 +96,8 @@ public sealed record LookEventDto(
     string SubjectName,
     DateTimeOffset At,
     int HistoryWindowHours,
-    bool IncludedLive);
+    bool IncludedLive,
+    string Kind);
 
 public sealed record LookSessionDto(
     LookEventDto Event,
@@ -120,6 +126,10 @@ public sealed record LocationIngestRequest(
     IReadOnlyList<LocationDto>? Points);
 
 public sealed record LookRequest(Guid SubjectId, bool Confirmed);
+
+public sealed record ViewRequest(Guid SubjectId);
+
+public sealed record ViewResponse(bool Logged, LookEventDto? Event);
 
 public sealed record ShareRequest(string? Resting, string? Timed);
 
@@ -236,6 +246,7 @@ public static class ContractMap
         return presentation switch
         {
             SharePresentation.Always => new ShareDto("always", state.TimedUntil, "always", null, null),
+            SharePresentation.Off => new ShareDto("off", null, "off", null, null),
             SharePresentation.Timed timed => new ShareDto(
                 RestingName(timed.RevertsTo),
                 timed.Ends,
@@ -255,7 +266,8 @@ public static class ContractMap
             look.SubjectName,
             look.At,
             look.HistoryWindowHours,
-            look.IncludedLive);
+            look.IncludedLive,
+            LookKindName(look.Kind));
 
     public static LookSessionDto Session(LookSession session) =>
         new(
@@ -286,6 +298,7 @@ public static class ContractMap
                 Person(member.Person),
                 Presence(member.Presence),
                 Share(member.OutboundShare, now),
+                Share(member.InboundShare, now),
                 member.InboundLive,
                 Location(member.Live),
                 member.OutboundPresenceGranted,
@@ -305,16 +318,18 @@ public static class ContractMap
     public static ShareResting? ParseResting(string? value) => value?.Trim().ToLowerInvariant() switch
     {
         "always" => ShareResting.Always,
-        "untiltheylook" or "until_they_look" => ShareResting.UntilTheyLook,
+        "untiltheylook" or "until_they_look" or "sealed" => ShareResting.UntilTheyLook,
+        "off" => ShareResting.Off,
         null or "" => null,
         _ => null
     };
 
     public static TimedShareDuration? ParseTimed(string? value) => value?.Trim().ToLowerInvariant() switch
     {
-        "hour" or "1hour" or "1 hour" => TimedShareDuration.Hour,
-        "tonight" => TimedShareDuration.Tonight,
-        "home" => TimedShareDuration.Home,
+        "15m" or "15min" or "15minutes" or "fifteenminutes" => TimedShareDuration.FifteenMinutes,
+        "1h" or "hour" or "1hour" or "onehour" => TimedShareDuration.OneHour,
+        "4h" or "4hours" or "fourhours" => TimedShareDuration.FourHours,
+        "8h" or "8hours" or "eighthours" => TimedShareDuration.EightHours,
         null or "" => null,
         _ => null
     };
@@ -323,19 +338,31 @@ public static class ContractMap
     {
         "home" => HomePresenceState.Home,
         "away" => HomePresenceState.Away,
+        "hidden" => HomePresenceState.Hidden,
         "unknown" => HomePresenceState.Unknown,
         null or "" => null,
         _ => null
     };
 
-    private static string RestingName(ShareResting resting) =>
-        resting == ShareResting.Always ? "always" : "untilTheyLook";
+    private static string RestingName(ShareResting resting) => resting switch
+    {
+        ShareResting.Always => "always",
+        ShareResting.Off => "off",
+        _ => "untilTheyLook"
+    };
 
     private static string HomeStateName(HomePresenceState state) => state switch
     {
         HomePresenceState.Home => "home",
         HomePresenceState.Away => "away",
+        HomePresenceState.Hidden => "hidden",
         _ => "unknown"
+    };
+
+    private static string LookKindName(LookKind kind) => kind switch
+    {
+        LookKind.View => "view",
+        _ => "look"
     };
 
     private static string PromiseStatusName(PromiseStatus status) => status switch

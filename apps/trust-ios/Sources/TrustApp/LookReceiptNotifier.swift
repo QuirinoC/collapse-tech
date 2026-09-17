@@ -48,6 +48,27 @@ final class LookReceiptNotifier: NSObject, ObservableObject, UNUserNotificationC
         }
         registeredToken = nil
         client = nil
+        cancelTimedEnd()
+    }
+
+    private static let timedEndIdentifier = "trust.timed-share.end"
+
+    /// Local notice when a For a while share seals again. One pending request at a time —
+    /// the newest timer wins, which matches the server (one timed overlay per edge, latest set).
+    func scheduleTimedEnd(at date: Date) {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [Self.timedEndIdentifier])
+        let content = UNMutableNotificationContent()
+        content.title = TrustCopy.appName
+        content.body = TrustCopy.timerEnded
+        content.sound = .default
+        let interval = max(1, date.timeIntervalSinceNow)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
+        center.add(UNNotificationRequest(identifier: Self.timedEndIdentifier, content: content, trigger: trigger))
+    }
+
+    func cancelTimedEnd() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [Self.timedEndIdentifier])
     }
 
     nonisolated func didRegister(deviceToken: Data) {

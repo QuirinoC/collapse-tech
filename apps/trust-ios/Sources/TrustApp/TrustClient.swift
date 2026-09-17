@@ -88,17 +88,19 @@ struct MemberDTO: Decodable {
     var inboundPresenceGranted: Bool?
     var homePresence: HomePresenceDTO?
     var promise: PromiseDTO?
+    /// Their share toward you. Optional for pre-inboundShare servers; Circle falls back to Look-probe.
+    var inboundShare: ShareDTO?
 }
 
 struct CoverageDTO: Decodable {
     var isCovered: Bool
     var sponsorName: String?
     var actingIsSponsor: Bool
-    var seatLimit: Int
-    var lookLogDays: Int
-    var hasPlacePings: Bool
-    var canExtendHistory: Bool
-    var canExportLookLog: Bool
+    var seatLimit: Int?
+    var lookLogDays: Int?
+    var hasPlacePings: Bool?
+    var canExtendHistory: Bool?
+    var canExportLookLog: Bool?
     var banner: String?
 }
 
@@ -111,12 +113,20 @@ struct LookEventDTO: Decodable {
     var at: Date
     var historyWindowHours: Int
     var includedLive: Bool
+    /// `look` | `view`. Absent on pre-006 servers → look.
+    var kind: String?
 }
 
 struct LookSessionDTO: Decodable {
     var event: LookEventDTO
     var live: LocationDTO
     var trail: [LocationDTO]
+}
+
+/// `POST /views` — Available only; logged unless deduped; never a push.
+struct ViewPayload: Decodable {
+    var logged: Bool
+    var event: LookEventDTO?
 }
 
 struct CirclePayload: Decodable {
@@ -155,7 +165,10 @@ struct CircleSnapshot {
     var allowsReviewUnlock: Bool
     var yourHomePlaceID: UUID?
     var yourHomeLabel: String?
+    /// Your global presence triad state. `nil` = never set (server "unknown").
     var yourHomeState: HomePresenceKind?
+    /// When this snapshot was fetched. Set from the disk cache when offline.
+    var fetchedAt: Date = Date()
 }
 
 enum TrustClientError: LocalizedError {
@@ -163,8 +176,25 @@ enum TrustClientError: LocalizedError {
     case unreachable
     case timeout
     case serverUnavailable(Int)
+    /// A known API error code (`pro_required`, `share_off`, …) with plain copy already mapped.
+    case api(code: String, message: String)
+    /// Unknown server message — passed through.
     case server(String)
     case decoding
+
+    /// Connectivity, not a decision the server made. These are the cases the offline
+    /// fallback (disk-cached circle) responds to.
+    var isConnectivity: Bool {
+        switch self {
+        case .unreachable, .timeout, .serverUnavailable: return true
+        default: return false
+        }
+    }
+
+    var apiCode: String? {
+        if case .api(let code, _) = self { return code }
+        return nil
+    }
 
     var errorDescription: String? {
         switch self {
@@ -188,11 +218,42 @@ enum TrustClientError: LocalizedError {
             #else
             return TrustCopy.serverUnavailable
             #endif
+        case .api(_, let message):
+            return message
         case .server(let message):
             return message
         case .decoding:
             return TrustCopy.decodingError
         }
+    }
+}
+
+/// Last good `/circle` body on disk so the app opens to your circle when offline.
+/// Coordinates for Available people are part of that body; the file lives in the app
+/// container (Caches, not backed up) and is wiped on sign-out and account delete.
+enum CircleCache {
+    private static var fileURL: URL? {
+        guard let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
+        let directory = base.appendingPathComponent("trust", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory.appendingPathComponent("circle.json")
+    }
+
+    static func save(_ data: Data) {
+        guard let fileURL else { return }
+        try? data.write(to: fileURL, options: [.atomic, .completeFileProtection])
+    }
+
+    static func load() -> (data: Data, savedAt: Date)? {
+        guard let fileURL, let data = try? Data(contentsOf: fileURL) else { return nil }
+        let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let savedAt = (attributes?[.modificationDate] as? Date) ?? Date()
+        return (data, savedAt)
+    }
+
+    static func clear() {
+        guard let fileURL else { return }
+        try? FileManager.default.removeItem(at: fileURL)
     }
 }
 
@@ -227,14 +288,17 @@ final class TrustClient {
         #endif
     }
 
-    func appleSession(identityToken: String, displayName: String?) async throws -> SessionPayload {
+    /// `nonce` is the exact value set on `ASAuthorizationAppleIDRequest.nonce`; the server
+    /// compares it with the ID token's `nonce` claim (replay hygiene). Optional for back-compat.
+    func appleSession(identityToken: String, displayName: String?, nonce: String? = nil) async throws -> SessionPayload {
         struct Body: Encodable {
             var identityToken: String
             var displayName: String
+            var nonce: String?
         }
         let payload: SessionPayload = try await post(
             path: "/api/v1/session/apple",
-            body: Body(identityToken: identityToken, displayName: displayName ?? "You"),
+            body: Body(identityToken: identityToken, displayName: displayName ?? "You", nonce: nonce),
             authorized: false
         )
         token = payload.token
@@ -262,10 +326,34 @@ final class TrustClient {
     }
 
     func refreshCircle() async throws -> CircleSnapshot {
-        let payload: CirclePayload = try await get(path: "/api/v1/circle")
+        let request = try makeRequest(path: "/api/v1/circle", method: "GET", authorized: true)
+        let data: Data = try await sendRaw(request)
+        let payload: CirclePayload
+        do {
+            payload = try decoder.decode(CirclePayload.self, from: data)
+        } catch {
+            throw TrustClientError.decoding
+        }
+        CircleCache.save(data)
         let snapshot = payload.snapshot
         self.snapshot = snapshot
         return snapshot
+    }
+
+    /// Last good circle from disk, for offline launch. Nil when nothing was ever fetched.
+    func cachedCircle() -> CircleSnapshot? {
+        guard let cached = CircleCache.load(),
+              let payload = try? decoder.decode(CirclePayload.self, from: cached.data) else {
+            return nil
+        }
+        var snapshot = payload.snapshot
+        snapshot.fetchedAt = cached.savedAt
+        return snapshot
+    }
+
+    func clearCache() {
+        CircleCache.clear()
+        snapshot = nil
     }
 
     func ingest(_ point: LocationPoint, battery: Int?, charging: Bool?) async throws {
@@ -300,6 +388,8 @@ final class TrustClient {
         )
     }
 
+    /// Sealed only. One snapshot; the subject gets a receipt push.
+    /// 409 `share_off` / `look_requires_sealed` / `no_location` surface as `.api`.
     func look(subjectID: UUID, confirmed: Bool) async throws -> LookSession {
         struct Body: Encodable {
             var subjectId: UUID
@@ -311,6 +401,18 @@ final class TrustClient {
             authorized: true
         )
         return payload.model
+    }
+
+    /// Available only. Logs a `view` (deduped server-side), never pushes.
+    /// 409 `view_requires_available` surfaces as `.api`.
+    func view(subjectID: UUID) async throws -> (logged: Bool, event: LookEvent?) {
+        struct Body: Encodable { var subjectId: UUID }
+        let payload: ViewPayload = try await post(
+            path: "/api/v1/views",
+            body: Body(subjectId: subjectID),
+            authorized: true
+        )
+        return (payload.logged, payload.event?.model)
     }
 
     func closeLook(subjectID: UUID?) async throws {
@@ -330,12 +432,17 @@ final class TrustClient {
         return payload.model
     }
 
-    func setShare(personID: UUID, resting: String?, timed: String?) async throws {
+    /// Resting `off|untilTheyLook|always`, or timed `15m|1h|4h|8h` (overlay on the current
+    /// resting mode). Always / timed without Plus → 402 `pro_required` as `.api`.
+    func setShare(personID: UUID, resting: ShareRestingMode?, timed: TimedShareDuration?) async throws {
         struct Body: Encodable {
             var resting: String?
             var timed: String?
         }
-        try await patchEmpty(path: "/api/v1/people/\(personID.uuidString)/share", body: Body(resting: resting, timed: timed))
+        try await patchEmpty(
+            path: "/api/v1/people/\(personID.uuidString)/share",
+            body: Body(resting: resting?.apiValue, timed: timed?.rawValue)
+        )
     }
 
     func setPresenceGrant(personID: UUID, enabled: Bool) async throws {
@@ -354,6 +461,7 @@ final class TrustClient {
         try await putEmpty(path: "/api/v1/me/home", body: Body(placeId: placeID, label: label))
     }
 
+    /// Global presence triad — `home|away|hidden`. Hidden is omitted from everyone's circle.
     func postHomePresence(state: HomePresenceKind, signaledAt: Date? = nil) async throws {
         struct Body: Encodable {
             var state: String
@@ -475,7 +583,7 @@ final class TrustClient {
     }
 
     private func get<T: Decodable>(path: String) async throws -> T {
-        var request = try makeRequest(path: path, method: "GET", authorized: true)
+        let request = try makeRequest(path: path, method: "GET", authorized: true)
         return try await send(request)
     }
 
@@ -512,7 +620,7 @@ final class TrustClient {
     }
 
     private func deleteEmpty(path: String) async throws {
-        var request = try makeRequest(path: path, method: "DELETE", authorized: true)
+        let request = try makeRequest(path: path, method: "DELETE", authorized: true)
         let _: EmptyPayload = try await send(request, allowEmpty: true)
     }
 
@@ -532,6 +640,21 @@ final class TrustClient {
     }
 
     private func send<T: Decodable>(_ request: URLRequest, allowEmpty: Bool = false) async throws -> T {
+        let data = try await sendRaw(request)
+        if allowEmpty && (data.isEmpty || T.self == EmptyPayload.self) {
+            if let empty = EmptyPayload() as? T { return empty }
+        }
+        if data.isEmpty, let empty = EmptyPayload() as? T { return empty }
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw TrustClientError.decoding
+        }
+    }
+
+    /// Performs the request and maps transport + HTTP failures to `TrustClientError`.
+    /// Returns the 2xx body untouched so callers can cache or decode it.
+    private func sendRaw(_ request: URLRequest) async throws -> Data {
         let data: Data
         let response: URLResponse
         do {
@@ -564,23 +687,19 @@ final class TrustClient {
         if http.statusCode == 401 {
             if let error = try? decoder.decode(APIErrorPayload.self, from: data),
                let code = error.code, code != "unauthorized" {
-                throw TrustClientError.server(TrustCopy.apiError(code: code, fallback: error.message))
+                throw TrustClientError.api(code: code, message: TrustCopy.apiError(code: code, fallback: error.message))
             }
             throw TrustClientError.unauthorized
         }
         if (200..<300).contains(http.statusCode) {
-            if allowEmpty && (data.isEmpty || T.self == EmptyPayload.self) {
-                if let empty = EmptyPayload() as? T { return empty }
-            }
-            if data.isEmpty, let empty = EmptyPayload() as? T { return empty }
-            do {
-                return try decoder.decode(T.self, from: data)
-            } catch {
-                throw TrustClientError.decoding
-            }
+            return data
         }
         if let error = try? decoder.decode(APIErrorPayload.self, from: data) {
-            throw TrustClientError.server(TrustCopy.apiError(code: error.code, fallback: error.message))
+            let message = TrustCopy.apiError(code: error.code, fallback: error.message)
+            if let code = error.code, !code.isEmpty {
+                throw TrustClientError.api(code: code, message: message)
+            }
+            throw TrustClientError.server(message)
         }
         throw TrustClientError.server(TrustCopy.requestFailedStatus(http.statusCode))
     }
@@ -636,7 +755,9 @@ extension CirclePayload {
             coverage: CircleCoverage(
                 isCovered: coverage.isCovered,
                 sponsorName: coverage.sponsorName,
-                actingIsSponsor: coverage.actingIsSponsor
+                actingIsSponsor: coverage.actingIsSponsor,
+                serverSeatLimit: coverage.seatLimit,
+                serverLookLogDays: coverage.lookLogDays
             ),
             pendingInviteCode: pendingInviteCode,
             activeSession: activeSession?.model,
@@ -685,8 +806,36 @@ extension LocationDTO {
 
 extension ShareDTO {
     var model: PersonShareState {
-        let resting: ShareRestingMode = resting == "always" ? .always : .untilTheyLook
-        return PersonShareState(resting: resting, timedUntil: timedEnds ?? timedUntil)
+        let mode: ShareRestingMode
+        switch resting.lowercased() {
+        case "always": mode = .always
+        case "off": mode = .off
+        default: mode = .untilTheyLook
+        }
+        // `presentation == "timed"` carries `timedEnds` + `revertsTo`; resting is already the revert.
+        return PersonShareState(resting: mode, timedUntil: timedEnds ?? timedUntil)
+    }
+
+    var presentationModel: SharePresentation {
+        switch presentation.lowercased() {
+        case "off":
+            return .off
+        case "always":
+            return .always
+        case "timed":
+            let revert: ShareRestingMode
+            switch (revertsTo ?? resting).lowercased() {
+            case "always": revert = .always
+            case "off": revert = .off
+            default: revert = .untilTheyLook
+            }
+            if let ends = timedEnds ?? timedUntil {
+                return .timed(ends: ends, revertsTo: revert)
+            }
+            return revert == .always ? .always : (revert == .off ? .off : .untilTheyLook)
+        default:
+            return .untilTheyLook
+        }
     }
 }
 
@@ -701,7 +850,8 @@ extension MemberDTO {
             outboundPresenceGranted: outboundPresenceGranted ?? false,
             inboundPresenceGranted: inboundPresenceGranted ?? false,
             homePresence: homePresence?.model,
-            promise: promise?.model
+            promise: promise?.model,
+            inboundPresentation: inboundShare?.presentationModel
         )
     }
 }
@@ -738,7 +888,8 @@ extension LookEventDTO {
             subjectName: subjectName,
             at: at,
             historyWindowHours: historyWindowHours,
-            includedLive: includedLive
+            includedLive: includedLive,
+            kind: kind.flatMap(LookKind.init(rawValue:)) ?? .look
         )
     }
 }

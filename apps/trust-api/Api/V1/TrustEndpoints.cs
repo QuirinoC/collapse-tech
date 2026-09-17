@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using TrustApi.Application;
@@ -17,9 +18,9 @@ public static class TrustEndpoints
     public static IEndpointRouteBuilder MapTrustApiV1(this IEndpointRouteBuilder endpoints)
     {
         var api = endpoints.MapGroup("/api/v1");
-        api.MapPost("/session/apple", AppleSessionAsync);
-        api.MapPost("/session/google", GoogleSessionAsync);
-        api.MapPost("/session/development", DevelopmentSessionAsync);
+        api.MapPost("/session/apple", AppleSessionAsync).RequireRateLimiting(RateLimitPolicies.Auth);
+        api.MapPost("/session/google", GoogleSessionAsync).RequireRateLimiting(RateLimitPolicies.Auth);
+        api.MapPost("/session/development", DevelopmentSessionAsync).RequireRateLimiting(RateLimitPolicies.Auth);
 
         var auth = api.MapGroup(string.Empty).RequireAuthorization();
         auth.MapGet("/circle", GetCircleAsync);
@@ -28,14 +29,15 @@ public static class TrustEndpoints
         auth.MapPut("/me/handle", SetHandleAsync);
         auth.MapPost("/me/phone/send", SendPhoneCodeAsync);
         auth.MapPost("/me/phone/verify", VerifyPhoneCodeAsync);
-        auth.MapPost("/invites", CreateInviteAsync);
-        auth.MapPost("/invites/accept", AcceptInviteAsync);
+        auth.MapPost("/invites", CreateInviteAsync).RequireRateLimiting(RateLimitPolicies.Invite);
+        auth.MapPost("/invites/accept", AcceptInviteAsync).RequireRateLimiting(RateLimitPolicies.Invite);
         auth.MapPatch("/people/{personId:guid}/share", SetShareAsync);
         auth.MapPost("/people/{personId:guid}/revoke", RevokeAsync);
-        auth.MapPost("/location", IngestAsync);
-        auth.MapPost("/looks", LookAsync);
-        auth.MapPost("/looks/close", CloseLookAsync);
-        auth.MapPost("/looks/{subjectId:guid}/extend", ExtendLookAsync);
+        auth.MapPost("/location", IngestAsync).RequireRateLimiting(RateLimitPolicies.Location);
+        auth.MapPost("/looks", LookAsync).RequireRateLimiting(RateLimitPolicies.Look);
+        auth.MapPost("/looks/close", CloseLookAsync).RequireRateLimiting(RateLimitPolicies.Look);
+        auth.MapPost("/looks/{subjectId:guid}/extend", ExtendLookAsync).RequireRateLimiting(RateLimitPolicies.Look);
+        auth.MapPost("/views", ViewAsync).RequireRateLimiting(RateLimitPolicies.Look);
         auth.MapPost("/presence/check-in", CheckInAsync);
         auth.MapPost("/presence/place-ping", PlacePingAsync);
         auth.MapPut("/people/{personId:guid}/presence-grant", SetPresenceGrantAsync);
@@ -71,6 +73,13 @@ public static class TrustEndpoints
         try
         {
             var identity = await apple.ValidateAsync(request.IdentityToken, cancellationToken);
+            if (!AppleNonceValidator.Matches(request.IdentityToken, request.Nonce))
+            {
+                return Results.Json(
+                    new ApiError("invalid_apple_token", "Apple sign-in nonce did not match."),
+                    statusCode: StatusCodes.Status401Unauthorized);
+            }
+
             var name = string.IsNullOrWhiteSpace(request.DisplayName) ? identity.DisplayName : request.DisplayName;
             return await IssueAsync(engine, sessions, product.Value, identity.Provider, identity.Subject, name!, cancellationToken);
         }
@@ -385,6 +394,30 @@ public static class TrustEndpoints
             }
 
             return Results.Ok(ContractMap.Session(result.Session));
+        }
+        catch (TrustException exception)
+        {
+            return Map(exception);
+        }
+    }
+
+    public static async Task<IResult> ViewAsync(
+        ViewRequest request,
+        ClaimsPrincipal principal,
+        TrustEngine engine,
+        CancellationToken cancellationToken)
+    {
+        var accountId = AccountClaims.AccountId(principal);
+        if (accountId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        try
+        {
+            // View never sends a push — it's Available's no-sheet counterpart to Look.
+            var view = await engine.ViewAsync(accountId.Value, request.SubjectId, cancellationToken);
+            return Results.Ok(new ViewResponse(view is not null, view is null ? null : ContractMap.Look(view)));
         }
         catch (TrustException exception)
         {
@@ -890,10 +923,21 @@ public static class TrustEndpoints
             Results.BadRequest(new ApiError(exception.Code, exception.Message)),
         "otp_not_configured" or "otp_send_failed" =>
             Results.Json(new ApiError(exception.Code, exception.Message), statusCode: StatusCodes.Status503ServiceUnavailable),
-        "not_connected" or "pair_inactive" or "no_location" or "phone_in_use" or "handle_in_use" =>
+        "not_connected" or "pair_inactive" or "no_location" or "phone_in_use" or "handle_in_use"
+            or "share_off" or "look_requires_sealed" or "view_requires_available" =>
             Results.Json(new ApiError(exception.Code, exception.Message), statusCode: StatusCodes.Status409Conflict),
         "seat_limit" or "pro_required" =>
             Results.Json(new ApiError(exception.Code, exception.Message), statusCode: StatusCodes.Status402PaymentRequired),
         _ => Results.Json(new ApiError(exception.Code, exception.Message), statusCode: StatusCodes.Status400BadRequest)
     };
+}
+
+/// Names of the rate limiter policies registered in Program.cs. Kept as named constants so the
+/// endpoint map and the policy registration can't silently drift apart.
+public static class RateLimitPolicies
+{
+    public const string Auth = "auth";
+    public const string Invite = "invite";
+    public const string Location = "location";
+    public const string Look = "look";
 }

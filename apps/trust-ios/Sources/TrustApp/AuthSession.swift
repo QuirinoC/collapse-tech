@@ -1,4 +1,5 @@
 import AuthenticationServices
+import CryptoKit
 import Foundation
 import TrustCore
 import UIKit
@@ -41,6 +42,9 @@ struct AppleIdentity {
     var identityToken: String
     var userID: String
     var displayName: String?
+    /// The value set on `ASAuthorizationAppleIDRequest.nonce` (SHA-256 of a fresh random
+    /// string). Apple echoes it in the ID token's `nonce` claim; the API compares the two.
+    var nonce: String
 }
 
 @MainActor
@@ -84,7 +88,8 @@ final class AuthSession: ObservableObject {
         return AppleIdentity(
             identityToken: token,
             userID: credential.user,
-            displayName: Self.displayName(from: credential)
+            displayName: Self.displayName(from: credential),
+            nonce: coordinator.hashedNonce
         )
     }
 
@@ -208,9 +213,14 @@ private final class AppleAuthorizationCoordinator: NSObject,
     private var continuation: CheckedContinuation<ASAuthorizationAppleIDCredential, Error>?
     private var authorizationController: ASAuthorizationController?
     private var timeoutWork: DispatchWorkItem?
+    /// SHA-256 hex of a fresh 32-byte random nonce; set on the request and sent to the API.
+    let hashedNonce: String
 
     init(anchor: ASPresentationAnchor) {
         self.anchor = anchor
+        var bytes = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        hashedNonce = SHA256.hash(data: Data(bytes)).map { String(format: "%02x", $0) }.joined()
     }
 
     func authorize() async throws -> ASAuthorizationAppleIDCredential {
@@ -253,6 +263,7 @@ private final class AppleAuthorizationCoordinator: NSObject,
     private func start() {
         let request = ASAuthorizationAppleIDProvider().createRequest()
         request.requestedScopes = [.fullName, .email]
+        request.nonce = hashedNonce
         let controller = ASAuthorizationController(authorizationRequests: [request])
         controller.delegate = self
         controller.presentationContextProvider = self

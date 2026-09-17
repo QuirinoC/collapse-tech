@@ -10,6 +10,7 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
     @Published var lastFix: LocationPoint?
     @Published var isUsingSimulatorFeed = true
     @Published var isSharing = false
+    @Published private(set) var sharingTier: LocationSharingTier = .off
     @Published private(set) var homeIsSet = false
 
     var onLocations: (([LocationPoint]) -> Void)?
@@ -92,8 +93,15 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
     }
 
     func setSharing(_ sharing: Bool) {
-        isSharing = sharing
-        if sharing {
+        setSharingTier(sharing ? (sharingTier == .off ? .available : sharingTier) : .off)
+    }
+
+    /// Review-critical: Off stops the stack; Sealed is coarse + significant-change;
+    /// Available / being-Looked-at is finer.
+    func setSharingTier(_ tier: LocationSharingTier) {
+        sharingTier = tier
+        isSharing = tier != .off
+        if tier == .available {
             requestPreciseIfNeeded()
         } else {
             didRequestPreciseThisSession = false
@@ -232,28 +240,53 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
         let background = wantsBackground
         manager.allowsBackgroundLocationUpdates = background
         manager.showsBackgroundLocationIndicator = background && isSharing
-        manager.pausesLocationUpdatesAutomatically = !background
-        if background {
+        manager.pausesLocationUpdatesAutomatically = sharingTier != .available
+
+        switch sharingTier {
+        case .off:
+            if wantsForegroundUpdates && isMapActive {
+                manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+                manager.distanceFilter = 50
+                manager.startUpdatingLocation()
+                manager.stopMonitoringSignificantLocationChanges()
+            } else {
+                manager.stopUpdatingLocation()
+                manager.stopMonitoringSignificantLocationChanges()
+                if !hasAccess {
+                    isUsingSimulatorFeed = true
+                }
+            }
+        case .sealed:
+            manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+            manager.distanceFilter = 200
+            if background || wantsForegroundUpdates {
+                manager.startMonitoringSignificantLocationChanges()
+                if isAppActive || isMapActive {
+                    manager.startUpdatingLocation()
+                } else {
+                    manager.stopUpdatingLocation()
+                }
+            } else {
+                manager.stopUpdatingLocation()
+                manager.stopMonitoringSignificantLocationChanges()
+            }
+        case .available:
             manager.desiredAccuracy = kCLLocationAccuracyBest
             manager.distanceFilter = 25
-            manager.startUpdatingLocation()
-            manager.startMonitoringSignificantLocationChanges()
-        } else if wantsForegroundUpdates {
-            manager.desiredAccuracy = isSharing ? kCLLocationAccuracyBest : kCLLocationAccuracyHundredMeters
-            manager.distanceFilter = isSharing ? 25 : 50
-            manager.startUpdatingLocation()
-            manager.stopMonitoringSignificantLocationChanges()
-        } else {
-            manager.stopUpdatingLocation()
-            manager.stopMonitoringSignificantLocationChanges()
-            if !hasAccess {
-                isUsingSimulatorFeed = true
+            if background || wantsForegroundUpdates {
+                manager.startUpdatingLocation()
+                manager.startMonitoringSignificantLocationChanges()
+            } else {
+                manager.stopUpdatingLocation()
+                manager.stopMonitoringSignificantLocationChanges()
             }
         }
         applyHomeMonitoring()
     }
 
     private func applyHomeMonitoring() {
+        // Region monitoring needs authorization; nothing to reconcile before the user has answered.
+        guard hasAccess else { return }
         let existing = manager.monitoredRegions.filter { $0.identifier.hasPrefix("trust.home.") }
         for region in existing {
             manager.stopMonitoring(for: region)
@@ -277,7 +310,7 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
     }
 
     private func requestPreciseIfNeeded() {
-        guard isSharing, hasAccess, !isPrecise, !didRequestPreciseThisSession else { return }
+        guard sharingTier == .available, hasAccess, !isPrecise, !didRequestPreciseThisSession else { return }
         requestPrecise()
     }
 

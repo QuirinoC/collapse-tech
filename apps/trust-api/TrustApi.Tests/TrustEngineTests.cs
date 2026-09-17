@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using TrustApi.Application;
+using TrustApi.Contracts.V1;
 using TrustApi.Domain;
 using TrustApi.Infrastructure;
 using TrustApi.Infrastructure.Identity;
@@ -36,9 +37,11 @@ public sealed class TrustEngineTests
 
         var lookResult = await engine.LookAsync(you.Id, alex.Person.Id, confirmed: true, CancellationToken.None);
         var session = lookResult.Session;
-        Assert.Equal(2, session.Event.HistoryWindowHours);
+        // Snapshot semantics: Look returns the latest point only, not a windowed trail.
+        Assert.Equal(0, session.Event.HistoryWindowHours);
+        Assert.Equal(LookKind.Look, session.Event.Kind);
         Assert.True(session.Event.IncludedLive);
-        Assert.NotEmpty(session.Trail);
+        Assert.Single(session.Trail);
         Assert.All(session.Trail, point =>
         {
             Assert.InRange(point.Latitude, 37, 38);
@@ -47,9 +50,11 @@ public sealed class TrustEngineTests
 
         var after = await engine.GetCircleAsync(you.Id, CancellationToken.None);
         var alexAfter = after.Members.Single(member => member.Person.DisplayName == "Alex");
-        Assert.True(alexAfter.InboundLive);
-        Assert.NotNull(alexAfter.Live);
-        Assert.Contains(after.LookLog, look => look.SubjectName == "Alex");
+        // Snapshot semantics: even with a fresh active Look, Sealed never flips "live".
+        Assert.False(alexAfter.InboundLive);
+        Assert.Null(alexAfter.Live);
+        Assert.NotNull(after.ActiveSession);
+        Assert.Contains(after.LookLog, look => look.SubjectName == "Alex" && look.Kind == LookKind.Look);
     }
 
     [Fact]
@@ -61,8 +66,10 @@ public sealed class TrustEngineTests
         var circle = await engine.GetCircleAsync(you.Id, CancellationToken.None);
         var alex = circle.Members.Single(member => member.Person.DisplayName == "Alex").Person.Id;
 
+        // Always and Timed are Plus-gated.
+        await engine.GrantCircleAsync(you.Id, "test", CancellationToken.None);
         await engine.SetShareAsync(you.Id, alex, ShareResting.Always, null, CancellationToken.None);
-        await engine.SetShareAsync(you.Id, alex, null, TimedShareDuration.Hour, CancellationToken.None);
+        await engine.SetShareAsync(you.Id, alex, null, TimedShareDuration.OneHour, CancellationToken.None);
         var timed = await engine.GetCircleAsync(you.Id, CancellationToken.None);
         var share = timed.Members.Single(member => member.Person.Id == alex).OutboundShare;
         Assert.True(share.Presentation(DateTimeOffset.UtcNow) is SharePresentation.Timed);
@@ -100,7 +107,7 @@ public sealed class TrustEngineTests
         var alex = circle.Members.Single(member => member.Person.DisplayName == "Alex");
         var lookResult = await engine.LookAsync(you.Id, alex.Person.Id, true, CancellationToken.None);
         var session = lookResult.Session;
-        Assert.Equal(2, session.Event.HistoryWindowHours);
+        Assert.Equal(0, session.Event.HistoryWindowHours);
         var extended = await engine.ExtendLookAsync(you.Id, alex.Person.Id, CancellationToken.None);
         Assert.Equal(24, extended.Event.HistoryWindowHours);
         await engine.PlacePingAsync(you.Id, CancellationToken.None);
@@ -128,6 +135,8 @@ public sealed class TrustEngineTests
         var jordan = await engine.SignInAsync("development", "jordan", "Jordan", CancellationToken.None);
         var invite = await engine.CreateInviteAsync(sam.Id, CancellationToken.None);
         await engine.AcceptInviteAsync(jordan.Id, invite.Code, CancellationToken.None);
+        // Join is Off/Off by default — Sam must explicitly seal sharing toward Jordan first.
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.UntilTheyLook, null, CancellationToken.None);
         var fix = new LocationFix(DateTimeOffset.UtcNow, 37.76, -122.42);
         await engine.IngestAsync(sam.Id, fix, 70, false, CancellationToken.None);
         var latest = await store.LatestLocationAsync(sam.Id, CancellationToken.None);
@@ -137,11 +146,57 @@ public sealed class TrustEngineTests
     }
 
     [Fact]
-    public async Task LookReturnsStoredTrailNotOnlyLatest()
+    public async Task OffIsTheJoinDefaultAndIngestSkipsWhenAllOutboundIsOff()
+    {
+        var engine = NewEngine(out var store);
+        var (sam, jordan) = await PairAsync(engine);
+
+        var outbound = await store.GetShareAsync(sam.Id, jordan.Id, CancellationToken.None);
+        var inbound = await store.GetShareAsync(jordan.Id, sam.Id, CancellationToken.None);
+        Assert.Equal(ShareResting.Off, outbound.Resting);
+        Assert.Equal(ShareResting.Off, inbound.Resting);
+        Assert.False(outbound.RevealsLive(DateTimeOffset.UtcNow));
+
+        await engine.IngestAsync(
+            sam.Id, new LocationFix(DateTimeOffset.UtcNow, 37.76, -122.42), 80, false, CancellationToken.None);
+        Assert.Null(await store.LatestLocationAsync(sam.Id, CancellationToken.None));
+
+        // Turning sharing on stores; turning back Off wipes what was stored.
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.UntilTheyLook, null, CancellationToken.None);
+        await engine.IngestAsync(
+            sam.Id, new LocationFix(DateTimeOffset.UtcNow, 37.76, -122.42), 80, false, CancellationToken.None);
+        Assert.NotNull(await store.LatestLocationAsync(sam.Id, CancellationToken.None));
+
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.Off, null, CancellationToken.None);
+        await engine.IngestAsync(
+            sam.Id, new LocationFix(DateTimeOffset.UtcNow, 37.77, -122.43), 80, false, CancellationToken.None);
+        Assert.Null(await store.LatestLocationAsync(sam.Id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task CirclePayloadIncludesInboundSharePresentationIncludingOff()
+    {
+        var engine = NewEngine(out _);
+        var (sam, jordan) = await PairAsync(engine);
+        var snapshot = await engine.GetCircleAsync(sam.Id, CancellationToken.None);
+        var jordanRow = snapshot.Members.Single(member => member.Person.Id == jordan.Id);
+        Assert.Equal(ShareResting.Off, jordanRow.InboundShare.Resting);
+        Assert.False(jordanRow.InboundLive);
+
+        var now = DateTimeOffset.UtcNow;
+        var wire = ContractMap.Circle(snapshot, false, false, now)
+            .Members.Single(member => member.Person.Id == jordan.Id);
+        Assert.Equal("off", wire.InboundShare.Presentation);
+        Assert.Equal("off", wire.InboundShare.Resting);
+    }
+
+    [Fact]
+    public async Task LookReturnsOnlyTheLatestPointAsASnapshot()
     {
         var time = new MutableTimeProvider { UtcNow = new DateTimeOffset(2026, 8, 30, 18, 0, 0, TimeSpan.Zero) };
         var engine = NewEngine(out _, time);
         var (sam, jordan) = await PairAsync(engine);
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.UntilTheyLook, null, CancellationToken.None);
         for (var i = 0; i < 5; i++)
         {
             time.UtcNow = time.UtcNow.AddMinutes(20);
@@ -158,49 +213,21 @@ public sealed class TrustEngineTests
         Assert.False(sealedSam.InboundLive);
         Assert.Null(sealedSam.Live);
 
+        // Snapshot semantics: Look returns the single latest point, not the ingested history.
         var lookResult = await engine.LookAsync(jordan.Id, sam.Id, confirmed: true, CancellationToken.None);
         var session = lookResult.Session;
-        Assert.Equal(2, session.Event.HistoryWindowHours);
-        Assert.Equal(5, session.Trail.Count);
-        Assert.Equal(37.750, session.Trail[0].Latitude, 3);
-        Assert.Equal(37.754, session.Trail[^1].Latitude, 3);
-        Assert.Equal(session.Trail[^1].Latitude, session.Live.Latitude);
+        Assert.Equal(0, session.Event.HistoryWindowHours);
+        Assert.Single(session.Trail);
+        Assert.Equal(37.754, session.Trail[0].Latitude, 3);
+        Assert.Equal(session.Trail[0].Latitude, session.Live.Latitude);
+        Assert.Equal(LookKind.Look, session.Event.Kind);
 
         var after = await engine.GetCircleAsync(jordan.Id, CancellationToken.None);
-        Assert.NotNull(after.Members.Single(member => member.Person.Id == sam.Id).Live);
-        Assert.Equal(5, after.ActiveSession?.Trail.Count);
-        Assert.Contains(after.LookLog, look => look.SubjectId == sam.Id && look.IncludedLive);
-    }
-
-    [Fact]
-    public async Task LookWindowExcludesPointsOlderThanTwoHours()
-    {
-        var time = new MutableTimeProvider { UtcNow = new DateTimeOffset(2026, 8, 30, 18, 0, 0, TimeSpan.Zero) };
-        var engine = NewEngine(out var store, time);
-        var (sam, jordan) = await PairAsync(engine);
-        await engine.IngestAsync(
-            sam.Id,
-            new LocationFix(time.UtcNow.AddHours(-3), 37.70, -122.40),
-            80,
-            false,
-            CancellationToken.None);
-        await engine.IngestAsync(
-            sam.Id,
-            new LocationFix(time.UtcNow.AddMinutes(-30), 37.76, -122.42),
-            80,
-            false,
-            CancellationToken.None);
-
-        var lookResult = await engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
-        var session = lookResult.Session;
-        Assert.Single(session.Trail);
-        Assert.Equal(37.76, session.Trail[0].Latitude);
-        var stored = await store.UnlockLocationsAsync(
-            sam.Id,
-            time.UtcNow.AddHours(-26),
-            time.UtcNow,
-            CancellationToken.None);
-        Assert.Equal(2, stored.Count);
+        // Snapshot semantics: even after a fresh Look, Sam is not "live" for Jordan.
+        Assert.Null(after.Members.Single(member => member.Person.Id == sam.Id).Live);
+        Assert.False(after.Members.Single(member => member.Person.Id == sam.Id).InboundLive);
+        Assert.Single(after.ActiveSession!.Trail);
+        Assert.Contains(after.LookLog, look => look.SubjectId == sam.Id && look.IncludedLive && look.Kind == LookKind.Look);
     }
 
     [Fact]
@@ -209,14 +236,16 @@ public sealed class TrustEngineTests
         var start = new DateTimeOffset(2026, 8, 30, 12, 0, 0, TimeSpan.Zero);
         var time = new MutableTimeProvider { UtcNow = start };
         var engine = NewEngine(out var store, time);
-        var (sam, _) = await PairAsync(engine);
+        var (sam, jordan) = await PairAsync(engine);
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.UntilTheyLook, null, CancellationToken.None);
         await engine.IngestAsync(
             sam.Id,
             new LocationFix(start, 37.75, -122.41),
             80,
             false,
             CancellationToken.None);
-        time.UtcNow = start.AddHours(27);
+        // Retention is ~3h in M1 (down from 26h).
+        time.UtcNow = start.Add(TrustRules.LocationRetention).AddHours(1);
         await engine.IngestAsync(
             sam.Id,
             new LocationFix(time.UtcNow, 37.76, -122.42),
@@ -233,29 +262,37 @@ public sealed class TrustEngineTests
     }
 
     [Fact]
-    public async Task CircleExtendReleasesTwentyFourHoursFromStore()
+    public async Task PlusExtendStillReadsATrailWithinRetentionFromStore()
     {
+        // Extend (dormant Plus feature, not shipped UX in M1) still returns a trail — it just
+        // can't see further back than the ~3h retention window prunes to.
         var time = new MutableTimeProvider { UtcNow = new DateTimeOffset(2026, 8, 30, 18, 0, 0, TimeSpan.Zero) };
         var engine = NewEngine(out _, time);
         var (sam, jordan) = await PairAsync(engine);
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.UntilTheyLook, null, CancellationToken.None);
         await engine.GrantCircleAsync(jordan.Id, "test", CancellationToken.None);
-        for (var hour = 10; hour >= 0; hour--)
+
+        for (var i = 0; i <= 10; i++)
         {
             await engine.IngestAsync(
                 sam.Id,
-                new LocationFix(time.UtcNow.AddHours(-hour), 37.70 + (hour * 0.001), -122.40),
+                new LocationFix(time.UtcNow, 37.70 + (i * 0.001), -122.40),
                 80,
                 false,
                 CancellationToken.None);
+            time.UtcNow = time.UtcNow.AddMinutes(20);
         }
 
         var lookResult = await engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
         var look = lookResult.Session;
-        Assert.Equal(2, look.Event.HistoryWindowHours);
-        Assert.True(look.Trail.Count is >= 2 and <= 3);
+        // Snapshot semantics: the un-extended Look is the single latest point.
+        Assert.Equal(0, look.Event.HistoryWindowHours);
+        Assert.Single(look.Trail);
+
         var extended = await engine.ExtendLookAsync(jordan.Id, sam.Id, CancellationToken.None);
         Assert.Equal(24, extended.Event.HistoryWindowHours);
-        Assert.Equal(11, extended.Trail.Count);
+        // 11 points 20 minutes apart span ~3h40m; the ~3h retention prunes the oldest one.
+        Assert.Equal(10, extended.Trail.Count);
     }
 
     [Fact]
@@ -263,6 +300,7 @@ public sealed class TrustEngineTests
     {
         var engine = NewEngine(out var store);
         var (sam, jordan) = await PairAsync(engine);
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.UntilTheyLook, null, CancellationToken.None);
         await engine.IngestAsync(
             sam.Id,
             new LocationFix(DateTimeOffset.UtcNow, 37.76, -122.42),
@@ -334,11 +372,12 @@ public sealed class TrustEngineTests
     }
 
     [Fact]
-    public async Task ActiveLookExpiresAfterTtl()
+    public async Task ActiveLookExpiresAfterTtlAndNeverMakesSealedLive()
     {
         var time = new MutableTimeProvider { UtcNow = new DateTimeOffset(2026, 9, 2, 12, 0, 0, TimeSpan.Zero) };
         var engine = NewEngine(out var store, time);
         var (sam, jordan) = await PairAsync(engine);
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.UntilTheyLook, null, CancellationToken.None);
         await engine.IngestAsync(
             sam.Id,
             new LocationFix(time.UtcNow, 37.76, -122.42),
@@ -347,8 +386,13 @@ public sealed class TrustEngineTests
             CancellationToken.None);
         var opened = await engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
         Assert.True(opened.IsNew);
+
         var live = await engine.GetCircleAsync(jordan.Id, CancellationToken.None);
-        Assert.True(live.Members.Single(member => member.Person.Id == sam.Id).InboundLive);
+        // Snapshot semantics: the active Look never flips Sam "live" for Jordan.
+        var samMember = live.Members.Single(member => member.Person.Id == sam.Id);
+        Assert.False(samMember.InboundLive);
+        Assert.Null(samMember.Live);
+        Assert.NotNull(live.ActiveSession);
 
         time.UtcNow = time.UtcNow.Add(TrustRules.ActiveLookTtl).AddMinutes(1);
         var expired = await engine.GetCircleAsync(jordan.Id, CancellationToken.None);
@@ -362,6 +406,7 @@ public sealed class TrustEngineTests
     {
         var engine = NewEngine(out var store);
         var (sam, jordan) = await PairAsync(engine);
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.UntilTheyLook, null, CancellationToken.None);
         await engine.GrantCircleAsync(jordan.Id, "test", CancellationToken.None);
         await engine.IngestAsync(
             sam.Id,
@@ -370,7 +415,7 @@ public sealed class TrustEngineTests
             false,
             CancellationToken.None);
         var opened = await engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
-        Assert.Equal(2, opened.Session.Event.HistoryWindowHours);
+        Assert.Equal(0, opened.Session.Event.HistoryWindowHours);
         await engine.ExtendLookAsync(jordan.Id, sam.Id, CancellationToken.None);
         var log = await store.ListLooksAsync(sam.Id, DateTimeOffset.MinValue, CancellationToken.None);
         Assert.Contains(log, look => look.Id == opened.Session.Event.Id && look.HistoryWindowHours == 24);
@@ -381,6 +426,7 @@ public sealed class TrustEngineTests
     {
         var engine = NewEngine(out _);
         var (sam, jordan) = await PairAsync(engine);
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.UntilTheyLook, null, CancellationToken.None);
         await engine.IngestAsync(
             sam.Id,
             new LocationFix(DateTimeOffset.UtcNow, 37.76, -122.42),
@@ -392,6 +438,167 @@ public sealed class TrustEngineTests
         Assert.True(first.IsNew);
         Assert.False(second.IsNew);
         Assert.Equal(first.Session.Event.Id, second.Session.Event.Id);
+    }
+
+    [Fact]
+    public async Task LookIsRejectedWhenShareIsOffOrAlreadyAvailable()
+    {
+        var engine = NewEngine(out _);
+        var (sam, jordan) = await PairAsync(engine);
+
+        var offException = await Assert.ThrowsAsync<TrustException>(() =>
+            engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None));
+        Assert.Equal("share_off", offException.Code);
+
+        await engine.GrantCircleAsync(sam.Id, "test", CancellationToken.None);
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.Always, null, CancellationToken.None);
+        var availableException = await Assert.ThrowsAsync<TrustException>(() =>
+            engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None));
+        Assert.Equal("look_requires_sealed", availableException.Code);
+    }
+
+    [Fact]
+    public async Task ViewRequiresInboundAvailableAndDoesNotArmAnActiveLook()
+    {
+        var engine = NewEngine(out var store);
+        var (sam, jordan) = await PairAsync(engine);
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.UntilTheyLook, null, CancellationToken.None);
+        await engine.IngestAsync(
+            sam.Id, new LocationFix(DateTimeOffset.UtcNow, 37.76, -122.42), 80, false, CancellationToken.None);
+
+        // Sealed, not Available — View must be rejected (Look is the right action here).
+        var exception = await Assert.ThrowsAsync<TrustException>(() =>
+            engine.ViewAsync(jordan.Id, sam.Id, CancellationToken.None));
+        Assert.Equal("view_requires_available", exception.Code);
+
+        await engine.GrantCircleAsync(sam.Id, "test", CancellationToken.None);
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.Always, null, CancellationToken.None);
+        var view = await engine.ViewAsync(jordan.Id, sam.Id, CancellationToken.None);
+        Assert.NotNull(view);
+        Assert.Equal(LookKind.View, view!.Kind);
+
+        // View never arms an active Look (no confirm sheet, no receipt push, no "being watched").
+        Assert.Null(await store.GetActiveLookAsync(jordan.Id, sam.Id, CancellationToken.None));
+        var samCircle = await engine.GetCircleAsync(sam.Id, CancellationToken.None);
+        Assert.Null(samCircle.BeingWatched);
+    }
+
+    [Fact]
+    public async Task ViewDedupesWithinThirtyMinutes()
+    {
+        var time = new MutableTimeProvider { UtcNow = new DateTimeOffset(2026, 9, 2, 12, 0, 0, TimeSpan.Zero) };
+        var engine = NewEngine(out _, time);
+        var (sam, jordan) = await PairAsync(engine);
+        await engine.GrantCircleAsync(sam.Id, "test", CancellationToken.None);
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.Always, null, CancellationToken.None);
+        await engine.IngestAsync(
+            sam.Id, new LocationFix(time.UtcNow, 37.76, -122.42), 80, false, CancellationToken.None);
+
+        var first = await engine.ViewAsync(jordan.Id, sam.Id, CancellationToken.None);
+        Assert.NotNull(first);
+
+        time.UtcNow = time.UtcNow.AddMinutes(10);
+        var deduped = await engine.ViewAsync(jordan.Id, sam.Id, CancellationToken.None);
+        Assert.Null(deduped);
+
+        time.UtcNow = time.UtcNow.AddMinutes(25); // 35 minutes after the first View
+        var freshAgain = await engine.ViewAsync(jordan.Id, sam.Id, CancellationToken.None);
+        Assert.NotNull(freshAgain);
+    }
+
+    [Fact]
+    public async Task PlusGatesAlwaysAndTimedShareButNotOffOrSealed()
+    {
+        var engine = NewEngine(out _);
+        var (sam, jordan) = await PairAsync(engine);
+
+        var alwaysBlocked = await Assert.ThrowsAsync<TrustException>(() =>
+            engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.Always, null, CancellationToken.None));
+        Assert.Equal("pro_required", alwaysBlocked.Code);
+
+        var timedBlocked = await Assert.ThrowsAsync<TrustException>(() =>
+            engine.SetShareAsync(sam.Id, jordan.Id, null, TimedShareDuration.OneHour, CancellationToken.None));
+        Assert.Equal("pro_required", timedBlocked.Code);
+
+        // Off and Sealed are never paywalled.
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.UntilTheyLook, null, CancellationToken.None);
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.Off, null, CancellationToken.None);
+
+        await engine.GrantCircleAsync(sam.Id, "test", CancellationToken.None);
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.Always, null, CancellationToken.None);
+        var circle = await engine.GetCircleAsync(sam.Id, CancellationToken.None);
+        var jordanShare = circle.Members.Single(member => member.Person.Id == jordan.Id).OutboundShare;
+        Assert.True(jordanShare.RevealsLive(DateTimeOffset.UtcNow));
+    }
+
+    [Fact]
+    public async Task FreeSeatLimitIsFiveConnections()
+    {
+        var engine = NewEngine(out _);
+        var you = await engine.SignInAsync("development", "seat-you", "You", CancellationToken.None);
+        for (var i = 0; i < TrustRules.FreeSeats; i++)
+        {
+            var friend = await engine.SignInAsync("development", $"seat-friend-{i}", $"Friend{i}", CancellationToken.None);
+            var invite = await engine.CreateInviteAsync(you.Id, CancellationToken.None);
+            await engine.AcceptInviteAsync(friend.Id, invite.Code, CancellationToken.None);
+        }
+
+        var overflow = await engine.SignInAsync("development", "seat-overflow", "Overflow", CancellationToken.None);
+        var overflowInvite = await engine.CreateInviteAsync(you.Id, CancellationToken.None);
+        var exception = await Assert.ThrowsAsync<TrustException>(() =>
+            engine.AcceptInviteAsync(overflow.Id, overflowInvite.Code, CancellationToken.None));
+        Assert.Equal("seat_limit", exception.Code);
+    }
+
+    [Fact]
+    public async Task PlusRaisesSeatLimitToTwenty()
+    {
+        var engine = NewEngine(out _);
+        var you = await engine.SignInAsync("development", "seat-plus-you", "You", CancellationToken.None);
+        await engine.GrantCircleAsync(you.Id, "test", CancellationToken.None);
+
+        for (var i = 0; i < TrustRules.FreeSeats + 1; i++)
+        {
+            var friend = await engine.SignInAsync(
+                "development", $"seat-plus-friend-{i}", $"Friend{i}", CancellationToken.None);
+            var invite = await engine.CreateInviteAsync(you.Id, CancellationToken.None);
+            await engine.AcceptInviteAsync(friend.Id, invite.Code, CancellationToken.None);
+        }
+
+        var circle = await engine.GetCircleAsync(you.Id, CancellationToken.None);
+        Assert.Equal(TrustRules.FreeSeats + 1, circle.Members.Count);
+        Assert.Equal(TrustRules.ProSeats, circle.Coverage.SeatLimit);
+    }
+
+    [Fact]
+    public async Task HiddenPresenceIsOmittedFromCircleEvenWithGrant()
+    {
+        var engine = NewEngine(out _);
+        var (sam, jordan) = await PairAsync(engine);
+        await engine.SetPresenceGrantAsync(sam.Id, jordan.Id, true, CancellationToken.None);
+        await engine.PostHomePresenceAsync(sam.Id, HomePresenceState.Hidden, null, CancellationToken.None);
+
+        var jordanView = await engine.GetCircleAsync(jordan.Id, CancellationToken.None);
+        var samMember = jordanView.Members.Single(member => member.Person.Id == sam.Id);
+        Assert.True(samMember.InboundPresenceGranted);
+        Assert.Null(samMember.HomePresence);
+    }
+
+    [Fact]
+    public async Task PresenceCanBeSetManuallyWithoutAHomePlace()
+    {
+        var engine = NewEngine(out _);
+        var (sam, jordan) = await PairAsync(engine);
+        await engine.SetPresenceGrantAsync(sam.Id, jordan.Id, true, CancellationToken.None);
+
+        // No SetHomePlaceAsync call at all — the triad doesn't require Home to be set.
+        await engine.PostHomePresenceAsync(sam.Id, HomePresenceState.Away, null, CancellationToken.None);
+
+        var jordanView = await engine.GetCircleAsync(jordan.Id, CancellationToken.None);
+        var samMember = jordanView.Members.Single(member => member.Person.Id == sam.Id);
+        Assert.NotNull(samMember.HomePresence);
+        Assert.Equal(HomePresenceState.Away, samMember.HomePresence!.State);
+        Assert.Null(samMember.HomePresence.PlaceLabel);
     }
 
     private static TrustEngine NewEngine(out MemoryTrustStore store, TimeProvider? time = null)
@@ -485,8 +692,10 @@ public sealed class TrustApiTests : IClassFixture<TrustApiFactory>
         var jordan = circle.Members.Single(member => member.Person.DisplayName == "Jordan");
         Assert.False(alex.InboundLive);
         Assert.Null(alex.Live);
+        Assert.Equal("untilTheyLook", alex.InboundShare!.Presentation);
         Assert.True(jordan.InboundLive);
         Assert.NotNull(jordan.Live);
+        Assert.Equal("always", jordan.InboundShare!.Presentation);
 
         using var lookRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/looks");
         lookRequest.Headers.Authorization =
@@ -496,9 +705,9 @@ public sealed class TrustApiTests : IClassFixture<TrustApiFactory>
         lookResponse.EnsureSuccessStatusCode();
         var look = await lookResponse.Content.ReadFromJsonAsync<LookWire>(Json);
         Assert.NotNull(look?.Live);
-        Assert.NotEmpty(look!.Trail);
-        Assert.Equal(2, look.Event.HistoryWindowHours);
-        Assert.True(look.Trail.Count >= 2);
+        // Snapshot semantics: Look returns the latest point only.
+        Assert.Single(look!.Trail);
+        Assert.Equal(0, look.Event.HistoryWindowHours);
     }
 
     [Fact]
@@ -541,6 +750,13 @@ public sealed class TrustApiTests : IClassFixture<TrustApiFactory>
         accept.Content = JsonContent.Create(new { code = invite!.Code });
         (await client.SendAsync(accept)).EnsureSuccessStatusCode();
 
+        // Join is Off/Off by default — Sam must explicitly seal sharing toward Jordan first.
+        using var shareRequest = new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/people/{jordan.You.Id}/share");
+        shareRequest.Headers.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", sam.Token);
+        shareRequest.Content = JsonContent.Create(new { resting = "untilTheyLook" });
+        (await client.SendAsync(shareRequest)).EnsureSuccessStatusCode();
+
         var now = DateTimeOffset.UtcNow;
         for (var i = 0; i < 3; i++)
         {
@@ -564,8 +780,10 @@ public sealed class TrustApiTests : IClassFixture<TrustApiFactory>
         lookResponse.EnsureSuccessStatusCode();
         var look = await lookResponse.Content.ReadFromJsonAsync<LookWire>(Json);
         Assert.NotNull(look?.Live);
-        Assert.Equal(3, look!.Trail.Count);
-        Assert.Equal(2, look.Event.HistoryWindowHours);
+        // Snapshot semantics: Look returns the latest ingested point only.
+        Assert.Single(look!.Trail);
+        Assert.Equal(0, look.Event.HistoryWindowHours);
+        Assert.Equal(37.75 + (2 * 0.002), look.Live.Latitude, 3);
     }
 
     [Fact]
@@ -642,7 +860,8 @@ public sealed class TrustApiTests : IClassFixture<TrustApiFactory>
     private sealed record SessionWire(string Token, PersonWire You);
     private sealed record PersonWire(Guid Id, string DisplayName, bool HasCircle);
     private sealed record LocationWire(DateTimeOffset Timestamp, double Latitude, double Longitude);
-    private sealed record MemberWire(PersonWire Person, bool InboundLive, LocationWire? Live);
+    private sealed record ShareWire(string Resting, string Presentation);
+    private sealed record MemberWire(PersonWire Person, bool InboundLive, LocationWire? Live, ShareWire InboundShare);
     private sealed record CircleWire(IReadOnlyList<MemberWire> Members);
     private sealed record LookEventWire(int HistoryWindowHours);
     private sealed record LookWire(LookEventWire Event, LocationWire Live, IReadOnlyList<LocationWire> Trail);
