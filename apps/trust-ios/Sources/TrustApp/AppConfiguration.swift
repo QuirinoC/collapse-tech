@@ -46,14 +46,27 @@ enum AppConfiguration {
         return host == "127.0.0.1" || host == "localhost" || host == "::1" || host == "[::1]"
     }
 
+    /// Set only by the `Trust-Sandbox` scheme (`TRUST_STRICT_API=1`). L2 sandbox verification
+    /// is worthless if a down Dev API silently hands the session to production — see
+    /// `debugAPICandidates` and `remapLoopbackOnDevice`.
+    static var isStrictAPIMode: Bool {
+        ProcessInfo.processInfo.environment["TRUST_STRICT_API"] == "1"
+    }
+
+    /// Ordered hosts `prepare()` probes with `/health/live` to resolve `resolvedBaseURL`.
+    /// In strict (Trust-Sandbox) mode this is **only** the configured host — never Simulator
+    /// loopback, never production — so an unreachable Dev API surfaces as `reachabilityNotice`
+    /// instead of quietly resolving to `productionAPIURL`.
     static func debugAPICandidates(preferred: URL = apiBaseURL) -> [URL] {
         var urls: [URL] = [preferred]
         #if DEBUG
-        if isSimulator, preferred != localAPIURL {
-            urls.append(localAPIURL)
-        }
-        if preferred != productionAPIURL {
-            urls.append(productionAPIURL)
+        if !isStrictAPIMode {
+            if isSimulator, preferred != localAPIURL {
+                urls.append(localAPIURL)
+            }
+            if preferred != productionAPIURL {
+                urls.append(productionAPIURL)
+            }
         }
         #endif
         var seen = Set<String>()
@@ -112,7 +125,9 @@ enum AppConfiguration {
 
     private static func remapLoopbackOnDevice(_ url: URL) -> URL {
         #if DEBUG
-        if !isSimulator, isLoopback(url) {
+        // Strict mode never falls back to production: a misconfigured loopback URL on a
+        // physical device should fail loud (unreachable), not quietly ship the session to prod.
+        if !isSimulator, isLoopback(url), !isStrictAPIMode {
             return productionAPIURL
         }
         #endif

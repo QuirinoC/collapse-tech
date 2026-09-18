@@ -12,7 +12,33 @@ namespace PixelBoard.Tests;
 public sealed class StoreKitApiTests
 {
     [Fact]
-    public async Task LinkedSubscriptionIsRejectedWithSupportOnlyTransferInstructions()
+    public async Task LinkedSubscriptionIsRejectedWithoutSupportReviewLimbo()
+    {
+        var response = await VerifyAsync(StoreKitApplyOutcome.LinkedToAnotherAccount);
+
+        Assert.Equal(StatusCodes.Status403Forbidden, response.StatusCode);
+        Assert.Equal(ApiErrorCodes.StoreKitAccountMismatch, response.Body.Code);
+        Assert.Contains("was not transferred", response.Body.Message);
+        Assert.Contains("current account is unchanged", response.Body.Message);
+        Assert.Contains("painting still works", response.Body.Message);
+        Assert.DoesNotContain("hello@collapsetechnologies.com", response.Body.Message);
+        Assert.DoesNotContain("support review", response.Body.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ExistingEntitlementIsKeptWithoutOverwrite()
+    {
+        var response = await VerifyAsync(StoreKitApplyOutcome.AccountAlreadyEntitled);
+
+        Assert.Equal(StatusCodes.Status409Conflict, response.StatusCode);
+        Assert.Equal(ApiErrorCodes.StoreKitEntitlementKept, response.Body.Code);
+        Assert.Contains("already has an active Pro entitlement", response.Body.Message);
+        Assert.Contains("was kept", response.Body.Message);
+        Assert.DoesNotContain("hello@collapsetechnologies.com", response.Body.Message);
+    }
+
+    private static async Task<(int StatusCode, ApiError Body)> VerifyAsync(
+        StoreKitApplyOutcome outcome)
     {
         var transaction = new VerifiedStoreKitTransaction(
             "transaction-1",
@@ -27,8 +53,7 @@ public sealed class StoreKitApiTests
             .AddLogging()
             .AddSingleton<IStoreKitTransactionVerifier>(
                 new Verifier(new StoreKitVerificationResult(transaction, null)))
-            .AddSingleton<IStoreKitEntitlementStore>(
-                new Store(StoreKitApplyOutcome.LinkedToAnotherAccount))
+            .AddSingleton<IStoreKitEntitlementStore>(new Store(outcome))
             .AddSingleton<IEntitlementService>(
                 new Entitlements(new EntitlementState(AccountTier.Free, null)))
             .BuildServiceProvider();
@@ -38,13 +63,7 @@ public sealed class StoreKitApiTests
             new IdentityAccessor(),
             services,
             CancellationToken.None);
-        var response = await ExecuteAsync<ApiError>(result, services);
-
-        Assert.Equal(StatusCodes.Status403Forbidden, response.StatusCode);
-        Assert.Equal(ApiErrorCodes.StoreKitAccountMismatch, response.Body.Code);
-        Assert.Contains("was not transferred", response.Body.Message);
-        Assert.Contains("remove Pro access", response.Body.Message);
-        Assert.Contains("hello@collapsetechnologies.com", response.Body.Message);
+        return await ExecuteAsync<ApiError>(result, services);
     }
 
     private static async Task<(int StatusCode, T Body)> ExecuteAsync<T>(

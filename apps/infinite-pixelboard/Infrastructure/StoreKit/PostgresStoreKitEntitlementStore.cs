@@ -61,7 +61,24 @@ public sealed class PostgresStoreKitEntitlementStore(NpgsqlDataSource dataSource
             cancellationToken);
         const string sql =
             """
-            WITH expected_account AS (
+            WITH active_entitlement AS (
+                SELECT source, source_transaction_id
+                FROM pixelboard.entitlements
+                WHERE firebase_uid = $1
+                  AND tier = 'pro'
+                  AND revoked_at IS NULL
+                  AND (expires_at IS NULL OR expires_at > now())
+            ),
+            conflicting_entitlement AS (
+                SELECT 1
+                FROM active_entitlement
+                WHERE source = 'stripe'
+                   OR (
+                       source = 'storekit'
+                       AND source_transaction_id IS DISTINCT FROM $3
+                   )
+            ),
+            token_match AS (
                 SELECT firebase_uid
                 FROM pixelboard.storekit_account_tokens
                 WHERE firebase_uid = $1
@@ -70,16 +87,12 @@ public sealed class PostgresStoreKitEntitlementStore(NpgsqlDataSource dataSource
                       SELECT 1
                       FROM pixelboard.deleted_accounts
                       WHERE account_hash = $10
-            )
-            AND NOT EXISTS (
-                SELECT 1
-                FROM pixelboard.entitlements
-                WHERE firebase_uid = $1
-                  AND source = 'stripe'
-                  AND tier = 'pro'
-                  AND revoked_at IS NULL
-                  AND (expires_at IS NULL OR expires_at > now())
                   )
+            ),
+            expected_account AS (
+                SELECT firebase_uid
+                FROM token_match
+                WHERE NOT EXISTS (SELECT 1 FROM conflicting_entitlement)
             ),
             claimed_subscription AS (
                 INSERT INTO pixelboard.storekit_subscription_owners (
@@ -164,6 +177,8 @@ public sealed class PostgresStoreKitEntitlementStore(NpgsqlDataSource dataSource
                     WHERE firebase_uid <> $1
                        OR app_account_token <> $2
                 ) THEN 1
+                WHEN EXISTS (SELECT 1 FROM token_match)
+                 AND EXISTS (SELECT 1 FROM conflicting_entitlement) THEN 3
                 ELSE 2
             END;
             """;

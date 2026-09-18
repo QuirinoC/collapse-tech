@@ -320,8 +320,8 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
             """
-            INSERT INTO trust.look_events (look_id, viewer_id, subject_id, at, history_window_hours, included_live)
-            VALUES ($1, $2, $3, $4, $5, $6);
+            INSERT INTO trust.look_events (look_id, viewer_id, subject_id, at, history_window_hours, included_live, kind)
+            VALUES ($1, $2, $3, $4, $5, $6, $7);
             """,
             connection);
         command.Parameters.AddWithValue(look.Id);
@@ -330,6 +330,7 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
         command.Parameters.AddWithValue(look.At);
         command.Parameters.AddWithValue(look.HistoryWindowHours);
         command.Parameters.AddWithValue(look.IncludedLive);
+        command.Parameters.AddWithValue(FormatLookKind(look.Kind));
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -355,7 +356,7 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
             """
-            SELECT e.look_id, e.viewer_id, v.display_name, e.subject_id, s.display_name, e.at, e.history_window_hours, e.included_live
+            SELECT e.look_id, e.viewer_id, v.display_name, e.subject_id, s.display_name, e.at, e.history_window_hours, e.included_live, e.kind
             FROM trust.look_events e
             JOIN trust.accounts v ON v.account_id = e.viewer_id
             JOIN trust.accounts s ON s.account_id = e.subject_id
@@ -377,7 +378,8 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
                 reader.GetString(4),
                 reader.GetFieldValue<DateTimeOffset>(5),
                 reader.GetInt32(6),
-                reader.GetBoolean(7)));
+                reader.GetBoolean(7),
+                ParseLookKind(reader.GetString(8))));
         }
 
         return events;
@@ -504,13 +506,13 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
 
     public Task<Invite?> FindInviteByCodeAsync(string code, CancellationToken cancellationToken) =>
         QueryInviteAsync(
-            "SELECT invite_id, code, creator_id, status, created_at FROM trust.invites WHERE code = $1",
+            "SELECT invite_id, code, creator_id, status, created_at, expires_at FROM trust.invites WHERE code = $1",
             cmd => cmd.Parameters.AddWithValue(code),
             cancellationToken);
 
     public Task<Invite?> FindPendingInviteAsync(Guid creatorId, CancellationToken cancellationToken) =>
         QueryInviteAsync(
-            "SELECT invite_id, code, creator_id, status, created_at FROM trust.invites WHERE creator_id = $1 AND status = 'pending' ORDER BY created_at DESC LIMIT 1",
+            "SELECT invite_id, code, creator_id, status, created_at, expires_at FROM trust.invites WHERE creator_id = $1 AND status = 'pending' ORDER BY created_at DESC LIMIT 1",
             cmd => cmd.Parameters.AddWithValue(creatorId),
             cancellationToken);
 
@@ -518,13 +520,14 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
-            "INSERT INTO trust.invites (invite_id, code, creator_id, status, created_at) VALUES ($1, $2, $3, $4, $5);",
+            "INSERT INTO trust.invites (invite_id, code, creator_id, status, created_at, expires_at) VALUES ($1, $2, $3, $4, $5, $6);",
             connection);
         command.Parameters.AddWithValue(invite.Id);
         command.Parameters.AddWithValue(invite.Code);
         command.Parameters.AddWithValue(invite.CreatorId);
         command.Parameters.AddWithValue(invite.Status);
         command.Parameters.AddWithValue(invite.CreatedAt);
+        command.Parameters.AddWithValue((object?)invite.ExpiresAt ?? DBNull.Value);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -992,6 +995,7 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
     {
         "home" => HomePresenceState.Home,
         "away" => HomePresenceState.Away,
+        "hidden" => HomePresenceState.Hidden,
         _ => HomePresenceState.Unknown
     };
 
@@ -999,8 +1003,15 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
     {
         HomePresenceState.Home => "home",
         HomePresenceState.Away => "away",
+        HomePresenceState.Hidden => "hidden",
         _ => "unknown"
     };
+
+    private static LookKind ParseLookKind(string value) =>
+        string.Equals(value, "view", StringComparison.OrdinalIgnoreCase) ? LookKind.View : LookKind.Look;
+
+    private static string FormatLookKind(LookKind kind) =>
+        kind == LookKind.View ? "view" : "look";
 
     private static PromiseStatus ParsePromiseStatus(string value) => value.ToLowerInvariant() switch
     {
@@ -1054,7 +1065,8 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
             reader.GetString(1),
             reader.GetGuid(2),
             reader.GetString(3),
-            reader.GetFieldValue<DateTimeOffset>(4));
+            reader.GetFieldValue<DateTimeOffset>(4),
+            reader.IsDBNull(5) ? null : reader.GetFieldValue<DateTimeOffset>(5));
     }
 
     private async Task<NpgsqlConnection> OpenAsync(CancellationToken cancellationToken)
@@ -1105,11 +1117,17 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
     private static (Guid A, Guid B) Order(Guid a, Guid b) =>
         a.CompareTo(b) < 0 ? (a, b) : (b, a);
 
-    private static ShareResting ParseResting(string value) =>
-        string.Equals(value, "always", StringComparison.OrdinalIgnoreCase)
-            ? ShareResting.Always
-            : ShareResting.UntilTheyLook;
+    private static ShareResting ParseResting(string value) => value.ToLowerInvariant() switch
+    {
+        "always" => ShareResting.Always,
+        "off" => ShareResting.Off,
+        _ => ShareResting.UntilTheyLook
+    };
 
-    private static string FormatResting(ShareResting resting) =>
-        resting == ShareResting.Always ? "always" : "until_they_look";
+    private static string FormatResting(ShareResting resting) => resting switch
+    {
+        ShareResting.Always => "always",
+        ShareResting.Off => "off",
+        _ => "until_they_look"
+    };
 }

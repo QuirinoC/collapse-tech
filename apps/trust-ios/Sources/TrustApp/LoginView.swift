@@ -1,6 +1,8 @@
 import SwiftUI
 import TrustCore
 
+/// A1 Login — `Trust.`, one-line promise, Sign in with Apple, Terms · Privacy · Support.
+/// Paper only. DEBUG “See the app” enters the offline fixture for screenshots.
 struct LoginView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.trustPalette) private var palette
@@ -11,20 +13,31 @@ struct LoginView: View {
 
             Spacer(minLength: 24)
 
-            VStack(spacing: 18) {
-                Text(TrustCopy.mastheadName)
-                    .font(TrustTheme.display(56))
-                    .foregroundStyle(palette.ink)
-                    .accessibilityLabel(TrustCopy.appName)
-                    .accessibilityAddTraits(.isHeader)
+            VStack(alignment: .leading, spacing: 16) {
+                TrustWordmarkTitle(size: 64)
                 TrustRule()
+                Text(TrustCopy.loginPromise)
+                    .trustFont(16)
+                    .lineSpacing(3)
+                    .foregroundStyle(palette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity)
 
             Spacer(minLength: 24)
 
-            VStack(spacing: 16) {
-                // SignInWithAppleButton is rounded system chrome; Masthead is a sharp plate.
+            VStack(spacing: 14) {
+                #if DEBUG
+                Button {
+                    model.enterDemo()
+                } label: {
+                    Text(TrustCopy.seeTheApp)
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                }
+                .buttonStyle(TrustOutlineButtonStyle())
+                .disabled(model.isSigningIn)
+                .accessibilityHint(TrustCopy.demoBannerBody)
+                #endif
+
                 // SF Symbol apple.logo is Apple's mark — not a custom logo.
                 Button {
                     Task { await model.signIn(with: .apple) }
@@ -41,28 +54,14 @@ struct LoginView: View {
                                 .accessibilityHidden(true)
                         }
                         Text(model.isSigningIn ? TrustCopy.signingIn : TrustCopy.signInWithApple)
-                            .font(TrustTheme.ui(17, weight: .medium))
+                            .trustFont(17, weight: .medium)
                     }
                     .frame(maxWidth: .infinity, minHeight: 52)
                 }
                 .buttonStyle(TrustAppleButtonStyle())
-                .clipShape(Rectangle())
-                .contentShape(Rectangle())
                 .disabled(model.isSigningIn)
                 .accessibilityLabel(TrustCopy.signInWithApple)
                 .accessibilityValue(model.isSigningIn ? TrustCopy.signingInShort : "")
-
-                #if DEBUG
-                Button {
-                    model.enterDemo()
-                } label: {
-                    Text(TrustCopy.seeTheApp)
-                        .font(TrustTheme.ui(16, weight: .medium))
-                        .frame(maxWidth: .infinity, minHeight: 48)
-                }
-                .buttonStyle(TrustOutlineButtonStyle())
-                .disabled(model.isSigningIn)
-                #endif
 
                 HStack(spacing: 14) {
                     Link(TrustCopy.termsOfService, destination: AppConfiguration.termsURL)
@@ -80,7 +79,7 @@ struct LoginView: View {
 
             if let notice = model.authNotice, !notice.isEmpty {
                 Text(notice)
-                    .font(TrustTheme.ui(13))
+                    .trustFont(13)
                     .foregroundStyle(palette.muted)
                     .padding(.top, 12)
                     .accessibilityIdentifier("login-notice")
@@ -89,13 +88,8 @@ struct LoginView: View {
         .padding(.horizontal, 24)
         .padding(.top, 12)
         .padding(.bottom, 10)
-        .background {
-            ZStack {
-                palette.paper
-                LoginAtlasBackground()
-            }
-            .ignoresSafeArea()
-        }
+        .trustReadableWidth()
+        .background(palette.paper.ignoresSafeArea())
         .task { await model.prepareLogin() }
     }
 }

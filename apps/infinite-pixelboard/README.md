@@ -1,6 +1,6 @@
 # Infinite Pixelboard
 
-Collaborative, infinite canvas drawing application built with ASP.NET Core 9 Razor Pages, SignalR, and Redis.
+Collaborative, infinite shared mural — everyone paints together. Built with ASP.NET Core 9 Razor Pages, SignalR, and Redis.
 
 ## Local development
 
@@ -13,6 +13,17 @@ npm run dev:pixelboard
 ```
 
 The development configuration connects to Redis at `localhost:6379`. The board is available at `/board`.
+
+### Seed original mural art
+
+Original CC0-style geometric / nature packs live under `tools/mural-seed/`. Generate and paint locally (no auth):
+
+```bash
+npm run pixelboard:generate-mural-seed
+npm run pixelboard:seed-mural
+```
+
+Production seeding uses the moderator pixel-art route; see [`tools/mural-seed/README.md`](tools/mural-seed/README.md).
 
 ## Validation
 
@@ -131,7 +142,7 @@ Stripe Checkout is disabled by default, website-only, and requires PostgreSQL. I
 
 Authenticated web clients read `GET /api/v1/stripe/config` and `GET /api/v1/stripe/status`. Subscribe or an applicable monthly-to-annual switch posts `{ "interval": "month" | "year" }` to `/api/v1/stripe/checkout-session` and redirects to the returned Checkout URL. The board UI has no prominent generic management control; cancellation remains available through Stripe’s customer tools. Stripe sends `checkout.session.completed`, `customer.subscription.*`, and invoice paid/failed events to the unauthenticated `/api/v1/stripe/webhook` with `Stripe-Signature`.
 Account state includes the active entitlement source (`stripe` or `storekit`) so clients can show the platform-appropriate management path. The website exposes a secondary Stripe Customer Portal link only for Stripe-managed subscriptions; Apple-managed subscriptions are directed to Apple subscription settings in the iOS app.
-Apple Restore Purchases only re-syncs the subscription for its current Apple ID; it does not move a subscription between Apple IDs, Google sign-in, or Pixelboard accounts. StoreKit ownership conflicts are rejected without changing either account; any approved transfer must be verified through hello@collapsetechnologies.com and removes Pro access from the previous Pixelboard account. The website repeats this policy when displaying an Apple-managed subscription.
+Painting does not require Pro. Apple Restore Purchases only re-syncs a subscription for its current Apple ID and matching Pixelboard account; it does not move a subscription between Apple IDs, Google sign-in, or Pixelboard accounts, and it never silently overwrites an existing active entitlement on the signed-in account. Conflict policy: if another Pixelboard account already owns the Apple `originalTransactionId`, refuse the bind and leave both accounts unchanged; if the signed-in account already has a different active Stripe or StoreKit entitlement, keep that entitlement and refuse the second bind. Clients show a calm status note—not a support-review dead end.
 
 Do not commit secret keys. Enable only after applying `009_stripe.sql` (or `--provision-postgres`) and creating a Customer Portal configuration in Stripe. Local forwarding:
 

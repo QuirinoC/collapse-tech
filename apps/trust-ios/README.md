@@ -1,8 +1,8 @@
 # Trust Circle for iPhone and iPad
 
-Native SwiftUI app for adult-peer location escrow. First launch is one screen, then the **map**. Location stays hidden until someone **looks**. A look returns live location plus a short trail, after a confirm that names the cost, and sends a quiet receipt — not silent, not an alarm.
+Native SwiftUI app for adult-peer location escrow. List-first: **Circle · Sharing · Invite · You**. Location stays **Sealed** until someone **Looks** — a notify-first confirm, then one snapshot and a receipt push. People who share **Always / For a while** are **Available**: View without a sheet, every view logged, never a push. Screen inventory: `SCREENS.md`; design source of truth: `design-mocks/duo-gpt6/`.
 
-The product backend is `apps/trust-api` (ASP.NET Core + Postgres). This app does not use an in-memory demo as the backend.
+The product backend is `apps/trust-api` (ASP.NET Core + Postgres). This app does not use an in-memory demo as the backend. Debug builds behave like Release (real Sign in with Apple, real — possibly empty — circle); the offline demo circle is opt-in only, via the DEBUG **See the app** button on Login or `TRUST_DEMO=1` in the scheme (`SIMCTL_CHILD_TRUST_DEMO=1` with `simctl launch`).
 
 ## Map provider
 
@@ -10,15 +10,15 @@ The product backend is `apps/trust-api` (ASP.NET Core + Postgres). This app does
 
 - Native, no vendor token, no extra billing, no third-party tracker on the home screen.
 - Custom annotations: you (square + red rule `#E10600`), live people (black/white initials), sealed people as a lock chip — **never** a GPS dump for Until they look.
-- iOS 18+ uses `MapStyle.standard(emphasis: .muted)` for a quieter, editorial plate. iOS 17 uses standard / flat / no POIs, light (Paper) or dark (Night Edition).
+- iOS 18 is the deployment target; the map uses `MapStyle.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll)` for a quieter, editorial plate. Light only.
 
 Google Maps is out (billing and tracking optics). **Mapbox / MapLibre** is the right later upgrade for a true black-and-white cartography skin; 1.0 is not blocked on a Mapbox token.
 
 ## Visual
 
-**Masthead Paper** is the default: Didot for **Trust** (large lockup; Home Screen name is **Trust Circle**), Space Grotesk for **Collapse Technologies** (same as Pixelboard and the studio site; a step smaller than the previous system-folio mark), SF for UI, white paper, black ink, red `#E10600` as the only chromatic. Settings → Night Edition inverts the sheet.
+**Masthead Paper** is the default: Didot for **Trust** (large lockup; Home Screen name is **Trust Circle**), Space Grotesk for **Collapse Technologies** (same as Pixelboard and the studio site; a step smaller than the previous system-folio mark), SF for UI, white paper, black ink, red `#E10600` as the only chromatic. Light only — Night Edition was removed for 1.0.
 
-Login uses a Canvas atlas — sparse meridians, isolines, and a few coordinates — not a street map. MeshGradient and a muted MapKit plate were the other options.
+Login is paper only: wordmark, **Trust**, rule, Sign in with Apple, legal links. (The earlier Canvas atlas background was dropped in M0.) Design source of truth: `design-mocks/duo-gpt6/`.
 
 ## Open and run
 
@@ -44,13 +44,11 @@ Login uses a Canvas atlas — sparse meridians, isolines, and a few coordinates 
 
 ## Localization
 
-English is the development language (`defaultValue` in `Sources/TrustCore/TrustCopy.swift`). UI strings also ship for Spanish (`es`), Japanese (`ja`), Simplified Chinese (`zh-Hans`), German (`de`), French (`fr`), Korean (`ko`), and Brazilian Portuguese (`pt-BR`). Product names **Trust** and **Trust Circle** stay untranslated; **Circle** stays the plan name. Translations live in `Resources/*.lproj`. Location permission copy is in `InfoPlist.strings`. Known API error codes are mapped on device; unknown server messages pass through.
+**1.0 ships English only.** English is the development language (`defaultValue` in `Sources/TrustCore/TrustCopy.swift`); `CFBundleLocalizations` lists only `en`. The seven non-EN `Resources/*.lproj` bundles (es, ja, zh-Hans, de, fr, ko, pt-BR) were removed in M0 so stale translations do not ship. Product names **Trust** and **Trust Circle** stay untranslated. Known API error codes are mapped on device; unknown server messages pass through.
 
-To switch language: iOS Settings → Trust Circle → Language, or Settings → General → Language & Region (app-specific language on iOS 13+).
+If localization returns post-1.0: edit `Scripts/overlays/*.json`, run `python3 Scripts/emit_localizations.py` to regenerate the `.lproj` bundles, then `python3 Scripts/validate_localizations.py`, and add the locales back to `CFBundleLocalizations` in `project.yml`.
 
-Run `python3 Scripts/emit_localizations.py` after editing `Scripts/overlays/*.json`, then `python3 Scripts/validate_localizations.py`.
-
-3. Open `Trust.xcodeproj` in Xcode (Xcode 16+ / iOS 17). Team `3S529795M9`.
+3. Open `Trust.xcodeproj` in Xcode (Xcode 16+ / iOS 18 deployment target; Universal iPhone + iPad — iPhone portrait only, iPad all orientations). Team `3S529795M9`.
 4. The shared Run scheme attaches `Resources/Trust.storekit`.
 5. Run on Simulator or device.
 
@@ -77,12 +75,13 @@ Bundle ID: `com.collapsetechnologies.trust`.
 ## First-open and look flow
 
 1. Collapse Technologies, **Trust** (hero lockup; product name is **Trust Circle**), Sign in with Apple (`apple.logo`, identity token → API). Terms of Service, Privacy, and Support sit in one row (`https://collapsetechnologies.com/trust/…`). No extra legal line under the button.
-2. After Apple, **Your handle** if a unique handle is not set yet. Handle is the identity (like `jordan` / `@jordan`). Completing it is required before the map. A display name from Apple is kept if it already exists — not asked here. After account delete, this returns.
-3. Home is the map. Live pins for Always / For a while. Sealed people are a lock — not a coordinate.
-4. **Look** confirm: live + last 2 hours + they get a remote receipt (APNs), not a local notify on the looker’s phone. No “don’t ask again.”
-5. After Look: trail + live pin. Closing ends the look. The look log is append-only until you delete your account.
-6. Per person: Until they look | Always | For a while (reverts). Copy: “After 1 hour, X will only see your location if they look — unless you’ve set something else for them.”
-7. Invite: “I trust you with my location.” `https://trust.collapsetechnologies.com/i/CODE` and `trust://invite/CODE`.
+2. After Apple, **Your handle** if a unique handle is not set yet. Handle is the identity (like `jordan` / `@jordan`). Completing it is required before the Circle. A display name from Apple is kept if it already exists — not asked here. After account delete, this returns.
+3. **Circle** is a list under SHARED WITH YOU. Sealed rows show Home / Away (or “presence hidden”) and a **Look** pill; Available rows (Always / For a while toward you) show **View**. Map is a secondary text link.
+4. **Look** confirm leads with the consequence — “Maya will be notified.” — then “one location snapshot — not a live feed”. The subject gets a remote receipt (APNs). No “don’t ask again.” Their share stays Sealed afterwards.
+5. **View** (Available) opens D1 directly and logs a `view` (server dedupes within 30 min). No push.
+6. **Sharing**: per person Until they look | Always | For a while (15m / 1h / 4h / 8h, overlays the current mode then seals) + Stop. Join default is **Off** both ways. Always / For a while are Plus; the server answers `402 pro_required` and the app opens the Plus sheet.
+7. **You**: presence triad Home / Away / Hidden (free, manual, global; Hidden never reaches the circle), Plus card, view log (both directions), Stop all, Sign out, Delete.
+8. Invite: “I trust you with my location.” `https://trust.collapsetechnologies.com/i/CODE` and `trust://invite/CODE`.
 
 Development API seeds Alex / Jordan / Riley as **server accounts** so the map is usable on one device. That seed lives in Postgres, not in the iOS process.
 
@@ -119,58 +118,17 @@ Products in `Resources/Trust.storekit` (local Run scheme only; archives use App 
 
 **Unlock Circle for review** appears only when the server sets `StoreKit:AllowReviewUnlock`.
 
-## App Store listing (paste into App Store Connect)
+## App Store, TestFlight, Sandbox
 
-- Name: `Trust Circle` (App Store Connect uniqueness required `Trust Circle.` — exact `Trust Circle` is taken)
-- Subtitle: `Location without watching`
-- Keywords: `location,safety,family,share,circle,safety check,find,privacy`
-- Support URL: `https://collapsetechnologies.com/trust/support`
-- Marketing URL: `https://collapsetechnologies.com/trust`
-- Privacy: `https://collapsetechnologies.com/trust/privacy`
-- Terms: `https://collapsetechnologies.com/trust/terms`
-- Category: Lifestyle
-- Age: 17+ on current App Store OS versions earlier than 26; 18+ on iOS 26+ (adult peers; precise location sharing). Questionnaire does not use unrestricted web access — override is for the 17+ terms.
-- Description:
+Paste-ready 1.0 listing, privacy labels, review notes, IAP rename, screenshot shot list, and submit order:
 
-```
-Trust Circle holds your location in escrow for a trusted adult peer. They cannot see it until they confirm a Look. A look shows live location and the last two hours, and you get a quiet receipt — not silent, not an alarm.
+- **M6 App Store Connect package:** [`AppStore/ASC-M6.md`](AppStore/ASC-M6.md)
+- **M4 internal TestFlight:** [`TESTFLIGHT-M4.md`](TESTFLIGHT-M4.md)
+- **M3 sandbox (L2):** [`SANDBOX.md`](SANDBOX.md)
 
-Until they look is the default. Always and For a while are opt-in per person.
+Export compliance: `ITSAppUsesNonExemptEncryption` is false. Account deletion (5.1.1(v)): You → Delete account — also at https://collapsetechnologies.com/trust/support
 
-Circle is $7.99/month or $69.99/year, with a 7-day trial. One paid seat covers unpaid people in your circle. Looking is not paywalled. Family Sharing is off. No ads. We do not sell location.
-
-Sign in with Apple. Delete your account in Settings.
-```
-
-Review notes: Sign in with Apple. A demo circle (Alex sealed, Jordan Always, Riley For a while) is seeded so Look works on one device. Use Unlock Circle for review if IAP is still Missing Metadata. Demo account is not a password — use Sign in with Apple.
-
-### Age rating
-
-17+ on OS versions earlier than 26, 18+ on iOS 26+ — unrestricted web access is not the reason; precise location is shared with a named adult peer after a confirmed Look. Terms require 17+.
-
-### App Privacy (paste)
-
-- Data used to track you: No
-- Tracking: No
-- Precise Location — linked, not used for tracking, App Functionality (escrow until Look)
-- Coarse Location — same
-- Name — Sign in with Apple display name, kept if Apple sent one; not required
-- User ID — Sign in with Apple `sub` / account id, plus the unique handle you choose
-- Phone Number — not collected (onboarding is handle-only)
-- Purchases — Circle StoreKit entitlement
-- Product Interaction — looks and share settings
-- Not collected: email (we do not require it), contacts, browsing history, ads
-- Do not sell location. No ads. Family Sharing off.
-
-### Export compliance
-
-Uses only HTTPS / standard encryption. `ITSAppUsesNonExemptEncryption` is false.
-
-### Account deletion (5.1.1(v))
-
-Settings → Delete account. Also described at https://collapsetechnologies.com/trust/support
-
-App Store screenshots (6.9" iPhone 1320×2868 and 13" iPad 2064×2752) live in `AppStore/Screenshots/`.
+App Store screenshots for 1.0: `AppStore/Screenshots/m6/` (iPhone 6.9" + iPad 13"). Do not upload the pre-M2 `iphone-67-*` / `ipad-13-*.png` / `asc-65/` files. Capture: `bash AppStore/capture-m6-screenshots.sh` (see ASC-M6).
 
 ## Tests
 

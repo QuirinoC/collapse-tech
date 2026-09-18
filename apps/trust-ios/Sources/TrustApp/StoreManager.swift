@@ -25,12 +25,17 @@ final class StoreManager: ObservableObject {
 
     var hasCircleAccess: Bool { activeProductID != nil || reviewUnlocked }
 
+    /// Set by `AppModel` so `Transaction.updates` (restore / renew) still submit JWS.
+    var onVerifiedJWS: ((String) async -> Void)?
+
+    /// The server-issued token SubscriptionStoreView attaches via `inAppPurchaseOptions`.
+    private(set) var appAccountToken: UUID?
+
     private let productIDs = [
         AppConfiguration.monthlyProductID,
         AppConfiguration.annualProductID
     ]
     private var updatesTask: Task<Void, Never>?
-    private var appAccountToken: UUID?
 
     init() {
         reviewUnlocked = UserDefaults.standard.bool(forKey: Self.reviewKey)
@@ -98,22 +103,31 @@ final class StoreManager: ObservableObject {
             let result = try await product.purchase(options: options)
             switch result {
             case let .success(verification):
-                let transaction = try verified(verification)
-                if let expected = appAccountToken, transaction.appAccountToken != expected {
-                    linkedToAnotherAccount = transaction.appAccountToken != nil
-                    await transaction.finish()
-                    return nil
-                }
-                await transaction.finish()
-                activeProductID = transaction.productID
-                errorMessage = nil
-                return verification.jwsRepresentation
+                return await acceptVerifiedPurchase(verification)
             case .userCancelled, .pending:
                 return nil
             @unknown default:
                 return nil
             }
         } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    /// `SubscriptionStoreView` purchase / restore completion → same JWS path as `purchase(_:)`.
+    func ingestPurchaseResult(_ result: Result<Product.PurchaseResult, Error>) async -> String? {
+        switch result {
+        case let .success(purchaseResult):
+            switch purchaseResult {
+            case let .success(verification):
+                return await acceptVerifiedPurchase(verification)
+            case .userCancelled, .pending:
+                return nil
+            @unknown default:
+                return nil
+            }
+        case let .failure(error):
             errorMessage = error.localizedDescription
             return nil
         }
@@ -145,7 +159,7 @@ final class StoreManager: ObservableObject {
                   transaction.expirationDate.map({ $0 > Date() }) ?? true else {
                 continue
             }
-            if let expected = appAccountToken, transaction.appAccountToken != expected {
+            if tokenMismatched(transaction) {
                 linkedToAnotherAccount = true
                 continue
             }
@@ -158,13 +172,37 @@ final class StoreManager: ObservableObject {
     }
 
     private func handle(_ result: VerificationResult<StoreKit.Transaction>) async {
-        guard case let .verified(transaction) = result else {
-            errorMessage = StoreError.failedVerification.localizedDescription
-            return
+        guard let jws = await acceptVerifiedPurchase(result) else { return }
+        await onVerifiedJWS?(jws)
+    }
+
+    /// Accept a signed transaction. A missing `appAccountToken` is not a lock failure —
+    /// SubscriptionStoreView may omit it; the server still binds the JWS to this session.
+    /// A *different* token is another Trust account.
+    private func acceptVerifiedPurchase(_ result: VerificationResult<StoreKit.Transaction>) async -> String? {
+        do {
+            let transaction = try verified(result)
+            guard productIDs.contains(transaction.productID) else { return nil }
+            if tokenMismatched(transaction) {
+                linkedToAnotherAccount = true
+                await transaction.finish()
+                return nil
+            }
+            await transaction.finish()
+            activeProductID = transaction.productID
+            errorMessage = nil
+            return result.jwsRepresentation
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
         }
-        guard productIDs.contains(transaction.productID) else { return }
-        await transaction.finish()
-        activeProductID = transaction.productID
+    }
+
+    private func tokenMismatched(_ transaction: StoreKit.Transaction) -> Bool {
+        guard let expected = appAccountToken, let actual = transaction.appAccountToken else {
+            return false
+        }
+        return actual != expected
     }
 
     private func verified<T>(_ result: VerificationResult<T>) throws -> T {

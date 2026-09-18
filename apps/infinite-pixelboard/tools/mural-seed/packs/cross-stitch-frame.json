@@ -1,0 +1,297 @@
+{
+  "id": "cross-stitch-frame",
+  "title": "Cross-stitch frame",
+  "license": "CC0-1.0 (original)",
+  "origin": {
+    "row": 110,
+    "column": 20
+  },
+  "note": "Far S — embroidery-style border around open center",
+  "pixels": [
+    {
+      "row": 110,
+      "column": 20,
+      "color": "#7E5078"
+    },
+    {
+      "row": 110,
+      "column": 21,
+      "color": "#D3523C"
+    },
+    {
+      "row": 110,
+      "column": 22,
+      "color": "#7E5078"
+    },
+    {
+      "row": 110,
+      "column": 23,
+      "color": "#D3523C"
+    },
+    {
+      "row": 110,
+      "column": 24,
+      "color": "#7E5078"
+    },
+    {
+      "row": 110,
+      "column": 25,
+      "color": "#D3523C"
+    },
+    {
+      "row": 110,
+      "column": 26,
+      "color": "#7E5078"
+    },
+    {
+      "row": 110,
+      "column": 27,
+      "color": "#D3523C"
+    },
+    {
+      "row": 110,
+      "column": 28,
+      "color": "#7E5078"
+    },
+    {
+      "row": 110,
+      "column": 29,
+      "color": "#D3523C"
+    },
+    {
+      "row": 110,
+      "column": 30,
+      "color": "#7E5078"
+    },
+    {
+      "row": 110,
+      "column": 31,
+      "color": "#D3523C"
+    },
+    {
+      "row": 110,
+      "column": 32,
+      "color": "#7E5078"
+    },
+    {
+      "row": 110,
+      "column": 33,
+      "color": "#D3523C"
+    },
+    {
+      "row": 110,
+      "column": 34,
+      "color": "#7E5078"
+    },
+    {
+      "row": 110,
+      "column": 35,
+      "color": "#D3523C"
+    },
+    {
+      "row": 111,
+      "column": 20,
+      "color": "#D3523C"
+    },
+    {
+      "row": 111,
+      "column": 35,
+      "color": "#7E5078"
+    },
+    {
+      "row": 112,
+      "column": 20,
+      "color": "#7E5078"
+    },
+    {
+      "row": 112,
+      "column": 35,
+      "color": "#D3523C"
+    },
+    {
+      "row": 113,
+      "column": 20,
+      "color": "#D3523C"
+    },
+    {
+      "row": 113,
+      "column": 24,
+      "color": "#587554"
+    },
+    {
+      "row": 113,
+      "column": 27,
+      "color": "#587554"
+    },
+    {
+      "row": 113,
+      "column": 30,
+      "color": "#587554"
+    },
+    {
+      "row": 113,
+      "column": 35,
+      "color": "#7E5078"
+    },
+    {
+      "row": 114,
+      "column": 20,
+      "color": "#7E5078"
+    },
+    {
+      "row": 114,
+      "column": 35,
+      "color": "#D3523C"
+    },
+    {
+      "row": 115,
+      "column": 20,
+      "color": "#D3523C"
+    },
+    {
+      "row": 115,
+      "column": 24,
+      "color": "#587554"
+    },
+    {
+      "row": 115,
+      "column": 27,
+      "color": "#E1C94A"
+    },
+    {
+      "row": 115,
+      "column": 30,
+      "color": "#587554"
+    },
+    {
+      "row": 115,
+      "column": 35,
+      "color": "#7E5078"
+    },
+    {
+      "row": 116,
+      "column": 20,
+      "color": "#7E5078"
+    },
+    {
+      "row": 116,
+      "column": 35,
+      "color": "#D3523C"
+    },
+    {
+      "row": 117,
+      "column": 20,
+      "color": "#D3523C"
+    },
+    {
+      "row": 117,
+      "column": 24,
+      "color": "#587554"
+    },
+    {
+      "row": 117,
+      "column": 27,
+      "color": "#587554"
+    },
+    {
+      "row": 117,
+      "column": 30,
+      "color": "#587554"
+    },
+    {
+      "row": 117,
+      "column": 35,
+      "color": "#7E5078"
+    },
+    {
+      "row": 118,
+      "column": 20,
+      "color": "#7E5078"
+    },
+    {
+      "row": 118,
+      "column": 35,
+      "color": "#D3523C"
+    },
+    {
+      "row": 119,
+      "column": 20,
+      "color": "#D3523C"
+    },
+    {
+      "row": 119,
+      "column": 21,
+      "color": "#7E5078"
+    },
+    {
+      "row": 119,
+      "column": 22,
+      "color": "#D3523C"
+    },
+    {
+      "row": 119,
+      "column": 23,
+      "color": "#7E5078"
+    },
+    {
+      "row": 119,
+      "column": 24,
+      "color": "#D3523C"
+    },
+    {
+      "row": 119,
+      "column": 25,
+      "color": "#7E5078"
+    },
+    {
+      "row": 119,
+      "column": 26,
+      "color": "#D3523C"
+    },
+    {
+      "row": 119,
+      "column": 27,
+      "color": "#7E5078"
+    },
+    {
+      "row": 119,
+      "column": 28,
+      "color": "#D3523C"
+    },
+    {
+      "row": 119,
+      "column": 29,
+      "color": "#7E5078"
+    },
+    {
+      "row": 119,
+      "column": 30,
+      "color": "#D3523C"
+    },
+    {
+      "row": 119,
+      "column": 31,
+      "color": "#7E5078"
+    },
+    {
+      "row": 119,
+      "column": 32,
+      "color": "#D3523C"
+    },
+    {
+      "row": 119,
+      "column": 33,
+      "color": "#7E5078"
+    },
+    {
+      "row": 119,
+      "column": 34,
+      "color": "#D3523C"
+    },
+    {
+      "row": 119,
+      "column": 35,
+      "color": "#7E5078"
+    }
+  ]
+}

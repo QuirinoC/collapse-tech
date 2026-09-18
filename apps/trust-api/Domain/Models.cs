@@ -4,23 +4,32 @@ public static class TrustRules
 {
     public const int FreeHistoryHours = 2;
     public const int ProHistoryHours = 24;
-    public const int FreeSeats = 1;
-    public const int ProSeats = 6;
+    /// Free: <=5 (per the product model). Plus (née Circle): <=20.
+    public const int FreeSeats = 5;
+    public const int ProSeats = 20;
     public const int FreeLookLogDays = 30;
     public const int ProLookLogDays = 365;
-    /// Server GPS window: long enough for Circle's 24h Look extend, then pruned. Not a 30-day dossier.
-    public static readonly TimeSpan LocationRetention = TimeSpan.FromHours(26);
+    /// Server GPS window: enough for a Look snapshot and the dormant Plus "extend" path, then
+    /// pruned. Not a dossier. M1 tightens this from 26h to ~3h.
+    public static readonly TimeSpan LocationRetention = TimeSpan.FromHours(3);
     /// Open Looks expire so a killed client cannot leave a live pin forever.
     public static readonly TimeSpan ActiveLookTtl = TimeSpan.FromMinutes(30);
     /// If last home/away signal is older than this at a promise deadline, copy is "no signal".
     public static readonly TimeSpan PresenceSignalStale = TimeSpan.FromMinutes(30);
+    /// View (Available) log entries dedupe within this window so re-opening the same person's
+    /// live view repeatedly doesn't flood the view log.
+    public static readonly TimeSpan ViewDedupeWindow = TimeSpan.FromMinutes(30);
+    /// Invite codes are single-use-ish but also time-boxed for hygiene.
+    public static readonly TimeSpan InviteValidity = TimeSpan.FromDays(7);
 }
 
 public enum HomePresenceState
 {
     Unknown,
     Home,
-    Away
+    Away,
+    /// Deliberately hidden from the circle. Distinct from Unknown (no signal yet).
+    Hidden
 }
 
 public enum PromiseStatus
@@ -180,13 +189,16 @@ public sealed record LocationFix(
 
 public enum ShareResting
 {
+    /// Not sharing at all. The default for both sides of a fresh join.
+    Off,
     UntilTheyLook,
     Always
 }
 
 public sealed record ShareState(ShareResting Resting, DateTimeOffset? TimedUntil)
 {
-    public static ShareState Default { get; } = new(ShareResting.UntilTheyLook, null);
+    /// Join default is Off/Off — invite is not permission.
+    public static ShareState Default { get; } = new(ShareResting.Off, null);
 
     public SharePresentation Presentation(DateTimeOffset now)
     {
@@ -195,9 +207,12 @@ public sealed record ShareState(ShareResting Resting, DateTimeOffset? TimedUntil
             return new SharePresentation.Timed(until, Resting);
         }
 
-        return Resting == ShareResting.Always
-            ? SharePresentation.Always.Instance
-            : SharePresentation.UntilTheyLook.Instance;
+        return Resting switch
+        {
+            ShareResting.Always => SharePresentation.Always.Instance,
+            ShareResting.Off => SharePresentation.Off.Instance,
+            _ => SharePresentation.UntilTheyLook.Instance
+        };
     }
 
     public bool RevealsLive(DateTimeOffset now) =>
@@ -206,6 +221,11 @@ public sealed record ShareState(ShareResting Resting, DateTimeOffset? TimedUntil
 
 public abstract record SharePresentation
 {
+    public sealed record Off : SharePresentation
+    {
+        public static Off Instance { get; } = new();
+    }
+
     public sealed record UntilTheyLook : SharePresentation
     {
         public static UntilTheyLook Instance { get; } = new();
@@ -224,7 +244,14 @@ public sealed record Invite(
     string Code,
     Guid CreatorId,
     string Status,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? ExpiresAt = null);
+
+public enum LookKind
+{
+    Look,
+    View
+}
 
 public sealed record LookEvent(
     Guid Id,
@@ -234,7 +261,8 @@ public sealed record LookEvent(
     string SubjectName,
     DateTimeOffset At,
     int HistoryWindowHours,
-    bool IncludedLive);
+    bool IncludedLive,
+    LookKind Kind = LookKind.Look);
 
 public sealed record ActiveLook(
     Guid LookId,
@@ -267,6 +295,7 @@ public sealed record CircleMember(
     Account Person,
     Presence? Presence,
     ShareState OutboundShare,
+    ShareState InboundShare,
     bool InboundLive,
     LocationFix? Live,
     bool OutboundPresenceGranted,
@@ -307,56 +336,37 @@ public sealed record CircleCoverage(
             }
 
             return ActingIsSponsor
-                ? "Your Circle covers this pair"
-                : $"{SponsorName}’s Pro covers this circle";
+                ? "Your Plus covers this circle"
+                : $"{SponsorName}’s Plus covers this circle";
         }
     }
 }
 
 public enum TimedShareDuration
 {
-    Hour,
-    Tonight,
-    Home
+    FifteenMinutes,
+    OneHour,
+    FourHours,
+    EightHours
 }
 
 public static class TimedShare
 {
-    public static DateTimeOffset EndAt(
-        TimedShareDuration duration,
-        DateTimeOffset now,
-        TimeZoneInfo? zone = null)
+    public static DateTimeOffset EndAt(TimedShareDuration duration, DateTimeOffset now) => duration switch
     {
-        zone ??= TimeZoneInfo.Utc;
-        return duration switch
-        {
-            TimedShareDuration.Hour => now.AddHours(1),
-            TimedShareDuration.Tonight => Tonight(now, zone),
-            // Product copy is "For 4 hours" — still a fixed window until home-transition end exists.
-            TimedShareDuration.Home => now.AddHours(4),
-            _ => now.AddHours(1)
-        };
-    }
-
-    private static DateTimeOffset Tonight(DateTimeOffset now, TimeZoneInfo zone)
-    {
-        var local = TimeZoneInfo.ConvertTime(now, zone);
-        var endLocal = new DateTimeOffset(
-            local.Year,
-            local.Month,
-            local.Day,
-            23,
-            59,
-            0,
-            local.Offset);
-        return endLocal > now ? endLocal : now.AddHours(6);
-    }
+        TimedShareDuration.FifteenMinutes => now.AddMinutes(15),
+        TimedShareDuration.OneHour => now.AddHours(1),
+        TimedShareDuration.FourHours => now.AddHours(4),
+        TimedShareDuration.EightHours => now.AddHours(8),
+        _ => now.AddHours(1)
+    };
 
     public static string AfterPhrase(TimedShareDuration duration) => duration switch
     {
-        TimedShareDuration.Hour => "After 1 hour",
-        TimedShareDuration.Tonight => "After tonight",
-        TimedShareDuration.Home => "After 4 hours",
+        TimedShareDuration.FifteenMinutes => "After 15 minutes",
+        TimedShareDuration.OneHour => "After 1 hour",
+        TimedShareDuration.FourHours => "After 4 hours",
+        TimedShareDuration.EightHours => "After 8 hours",
         _ => "After 1 hour"
     };
 }
@@ -389,13 +399,22 @@ public sealed class TrustException : Exception
         new("invalid_code", "That invite code does not match.");
 
     public static TrustException SeatLimit() =>
-        new("seat_limit", "Free includes one trusted person. Circle adds seats.");
+        new("seat_limit", "Free includes up to five trusted people. Plus adds seats.");
 
     public static TrustException ProRequired() =>
-        new("pro_required", "Circle is required for this.");
+        new("pro_required", "Plus is required for this.");
 
     public static TrustException NoLocation() =>
         new("no_location", "There is no location in escrow yet.");
+
+    public static TrustException ShareOff() =>
+        new("share_off", "This person has sharing off.");
+
+    public static TrustException LookRequiresSealed() =>
+        new("look_requires_sealed", "This person is Available. Open View instead of Look.");
+
+    public static TrustException ViewRequiresAvailable() =>
+        new("view_requires_available", "This person isn't sharing live location right now.");
 
     public static TrustException Unauthorized() =>
         new("unauthorized", "Sign in is required.");

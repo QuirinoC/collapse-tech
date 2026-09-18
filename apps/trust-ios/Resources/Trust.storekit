@@ -16,12 +16,12 @@
       "id" : "2147483647",
       "localizations" : [
         {
-          "description" : "Circle covers two people. One paid seat sponsors the unpaid partner. Extra people, 24-hour history, place pings, full look-log retention. We do not sell location. No ads.",
-          "displayName" : "Trust Circle",
+          "description" : "Up to 20 people, Always and For a while sharing, a full view log, and the circle map. A paying member covers the people they share with. We do not sell location. No ads.",
+          "displayName" : "Trust Plus",
           "locale" : "en_US"
         }
       ],
-      "name" : "Trust Circle",
+      "name" : "Trust Plus",
       "subscriptions" : [
         {
           "adHocOffers" : [],
@@ -38,14 +38,14 @@
           },
           "localizations" : [
             {
-              "description" : "Trust Circle monthly. One subscription covers two people.",
-              "displayName" : "Circle Monthly",
+              "description" : "Trust Plus monthly. Up to 20 people, Always and For a while, full view log, circle map.",
+              "displayName" : "Plus Monthly",
               "locale" : "en_US"
             }
           ],
           "productID" : "com.collapsetechnologies.trust.circle.monthly",
           "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "Circle Monthly",
+          "referenceName" : "Plus Monthly",
           "subscriptionGroupID" : "2147483647",
           "type" : "RecurringSubscription"
         },
@@ -64,14 +64,14 @@
           },
           "localizations" : [
             {
-              "description" : "Trust Circle annual. One subscription covers two people.",
-              "displayName" : "Circle Annual",
+              "description" : "Trust Plus annual. Up to 20 people, Always and For a while, full view log, circle map.",
+              "displayName" : "Plus Annual",
               "locale" : "en_US"
             }
           ],
           "productID" : "com.collapsetechnologies.trust.circle.annual",
           "recurringSubscriptionPeriod" : "P1Y",
-          "referenceName" : "Circle Annual",
+          "referenceName" : "Plus Annual",
           "subscriptionGroupID" : "2147483647",
           "type" : "RecurringSubscription"
         }

@@ -1,55 +1,65 @@
-# Trust Circle — lean screen inventory
+# Trust Circle — screen inventory (M2, design SoT `design-mocks/duo-gpt6/`)
 
 **Rule:** Destinations are rare. Sheets are cheap. States are free.
 
-One job: share location with people you trust (couples, parent/child, elder — same surfaces).
+One job: share location with people you trust. Sealed by default; Look is never silent.
 
 ---
 
-## Destinations (4)
+## Destinations
 
-| ID | Screen | When |
-|---|---|---|
-| D1 | **Login** | Signed out. Sign in with Apple. DEBUG: **See the app** enters offline demo. Errors stay here. |
-| D2 | **Handle** | Once after first Apple sign-in. Pick `@handle`. Never again while it exists. |
-| D3 | **Home** | The app. Full-bleed map + people strip. Live pins vs sealed locks. Home/Away chips. Overdue chip. |
-| D4 | **You / Settings** | One scroll: Circle, Night Edition, Set Home, members revoke, delete, legal. No settings tree. |
+| ID | Screen | File | When |
+|---|---|---|---|
+| A1 | **Login** | `LoginView` | Signed out. `Trust.`, one-line promise, Sign in with Apple, Terms · Privacy · Support. DEBUG **See the app** enters the offline fixture. |
+| A2 | **Handle** | `HandleView` | Once after first Apple sign-in. `@handle` → `PUT /me/handle`. |
+| — | **Shell** | `MainShellView` | `Trust.` masthead + caption that follows the route; native 4-tab `TabView`; offline strip; toast. |
+| T1 | **Circle** | `CircleView` | SHARED WITH YOU + Map →. Rows: Sealed → **Look**; Available → **View**; Hidden presence reads “presence hidden”. Optional NOT SHARING WITH YOU section (learned from a `share_off` answer). No `+`, no counters. |
+| T2 | **Sharing** | `SharingView` | Per person: Until they look · Always · For a while + Stop. Always / For a while carry a Plus mark when not covered and answer `402 pro_required` with the paywall. |
+| T3 | **Invite** | `InviteView` | “I trust you with my location.” Share link (`https://trust.collapsetechnologies.com/i/CODE`, `trust://invite/CODE`) or enter a code. Invite ≠ permission — join is Off both ways. |
+| T4 | **You** | `YouView` | Profile · STATUS · PRESENCE triad (Home / Away / Hidden, free) · Trust Plus card · SETTINGS · VIEW LOG · Stop all · Sign out · Delete · legal. |
+| D1 | **View** | `ViewScreen` | One person. Snapshot after a Look, or live while Available. Presence badge, neighborhood · city, distance from you, receipt line, muted one-pin MapKit, info strip. |
+| D2 | **Map** | `MapScreen` | Available people + snapshots opened this session. Sealed people are never pins. Empty: “No locations yet”. |
+| D3 | **View log** | `ViewLogView` | Chronological, both directions: “Leo looked at you.” / “You viewed Leo.” Free 30 days; Plus a year + export. |
 
----
+## Sheets
 
-## Sheets on Home (not destinations)
-
-| Sheet | Opens from | Contains |
-|---|---|---|
-| **Person** | Tap strip / pin | Where (Until they look / Always / For a while **inline**). Home presence toggle. Revoke. |
-| **Look confirm** | Tap sealed person → Look | Facts + Look. Dismiss → same Home with live pin. |
-| **Invite / Join** | Empty Home | “I trust you with my location.” Create or enter code. |
-| **Look log** | Masthead LOG | Who looked, when. No coordinates. |
-
----
+| Sheet | File | Opens from | Contains |
+|---|---|---|---|
+| Look confirm | `LookConfirmSheet` | Circle Look | **“Maya will be notified.”** first, then “one location snapshot — not a live feed”, notification preview, `Look · notify Maya`, Cancel. |
+| Duration | `DurationSheet` (SharingView) | Sharing → For a while | 15 minutes / 1 hour / 4 hours / 8 hours → `PATCH share { timed }`. |
+| Always explainer | `AlwaysExplainerSheet` (SharingView) | First non-Off share | Why Always, then the system prompt (or Settings). |
+| Plus | `PlusPaywall` | Always / For a while without Plus, You card | Placeholder on existing StoreKit plumbing — `SubscriptionStoreView` + 3.1.2 layout land in M3. |
+| Stop / Stop all / Delete | confirmation dialogs | Sharing row, You | System dialogs. |
+| Share link | system `ShareLink` | Invite | Invite message with both URLs. |
 
 ## States (not screens)
 
-- Empty circle → Home empty + Invite sheet chrome
-- After Look → Home live pin (no second map as the product)
-- Look closed / receipt → quiet banner on Home
-- Sign-in failed → notice on Login
-- OS permissions → system dialogs
+- **Empty**: Circle → “Nobody shares with you yet.” → Invite. Sharing → “No one to share with yet.” View log → “No views yet.”
+- **Offline**: last good `/circle` body is cached on disk (`CircleCache`, Caches dir, complete file protection). Shell shows “Offline · circle from 9:41 AM” with Retry; mutations toast “You’re offline”.
+- **Errors**: `TrustClientError.api(code:)` maps every known code to plain copy (`TrustCopy.apiError`). Never raw `NSURLError`. 401 → Login.
+- **Toast**: one-line ink plate for ~4 s — “Maya notified. Look receipt saved.”, “Leo · view logged.”, presence changes, mode changes.
 
----
+## API wiring (`TrustClient`)
 
-## Cut
+| Call | Notes |
+|---|---|
+| `PATCH /people/{id}/share` | resting `off \| untilTheyLook \| always`; timed `15m \| 1h \| 4h \| 8h`. `pro_required` → paywall. |
+| `POST /looks` | Sealed only, `confirmed: true`, one snapshot. `share_off` → row moves to NOT SHARING WITH YOU; `look_requires_sealed` → View instead; `no_location` → toast. |
+| `POST /views` | Available only, no push. `{ logged, event? }`; `view_requires_available` → Look confirm instead. |
+| `POST /me/home/presence` | `home \| away \| hidden`. Client keeps every edge’s presence grant enabled so the global triad shows across the circle; Hidden is withheld server-side. |
+| `POST /session/apple` | Sends the SHA-256 `nonce` set on the SIWA request. |
+| `LookEventDTO.kind` | `look \| view` → view-log copy. |
+| `CoverageDTO.seatLimit / lookLogDays` | Server values win (Free 5 / Plus 20). |
 
-Place ping as a page · separate TimedShare route · Circle as its own destination · profile wizard · onboarding tips · places list · tab bar · people-list home
+## Location / push
 
----
+- Track only while any outbound share ≠ Off (`OutboundLocationSharing.isActive(shares:)`).
+- While-Using is requested only when View / Map needs “miles from you”. Always is explained, then requested, after the first non-Off share.
+- Push: Look receipt (APNs, server). View is log-only. Timed end → local notification.
+- Presence is manual in 1.0; the geofence callbacks in `LocationCoordinator` stay unwired.
 
-## Demo circle (See the app)
+## Demo fixture (See the app / `TRUST_DEMO=1`)
 
-Offline via `DemoTrustService.startLeanDemo()`:
+`DemoTrustService.startLeanDemo()` mirrors `duo-gpt6/app.js`: Maya, Leo, Inês, Jules, Sam, Eli, Ren, Sofía, Noah. Inbound — Leo + Eli Always, Jules For a while, rest Sealed; Inês / Eli / Noah Hidden. Outbound — Maya Until, Leo Always, Inês For a while, Jules Until, rest Off. Account is Free (Always / For a while show the Plus lock).
 
-- **Alex** — partner, sealed, Away
-- **Maya** — sealed, Away, **overdue** promise
-- **Eli** — Always / live pin, Home
-
-Tap Maya → Look confirm → live on Home. Tap strip → Person sheet.
+Screenshot launches: `SIMCTL_CHILD_TRUST_SCREENSHOT=circle|look|view|log|share|you|map|invite` (with `SIMCTL_CHILD_TRUST_DEMO=1`). Shot list and ASC sizes: `AppStore/ASC-M6.md`.

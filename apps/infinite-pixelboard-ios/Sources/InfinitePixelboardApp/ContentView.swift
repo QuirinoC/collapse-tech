@@ -4,10 +4,14 @@ import PixelboardCore
 struct ContentView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var showingGoTo = false
 
     var body: some View {
         ZStack {
+            // Board fills the whole scene (including Duo outer/inner displays).
+            // Controls stay inside the safe area so asymmetric insets / reserved
+            // regions do not clip interactive chrome.
             PixelboardTheme.paper.ignoresSafeArea()
             BoardCanvasView()
                 .ignoresSafeArea()
@@ -38,28 +42,34 @@ struct ContentView: View {
                 readout
                 Spacer(minLength: 12)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
+            .padding(.horizontal, horizontalChromePadding)
+            .padding(.top, verticalSizeClass == .compact ? 4 : 8)
             ReservedAdBanner(tier: model.tier)
-                .padding(.horizontal, 24)
-            Spacer()
+                .padding(.horizontal, horizontalChromePadding + 4)
+            Spacer(minLength: 0)
             HStack(alignment: .bottom) {
                 connectionPill
                 Spacer()
                 zoomControls
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 8)
+            .padding(.horizontal, horizontalChromePadding - 4)
+            .padding(.bottom, verticalSizeClass == .compact ? 4 : 8)
             palette
-                .padding(.bottom, 14)
+                .padding(.bottom, verticalSizeClass == .compact ? 8 : 14)
         }
         .padding(.top, 4)
+    }
+
+    /// Prefer leading/trailing independently via system layout margins rather than
+    /// assuming mirrored safe-area insets (asymmetric on iPhone Duo).
+    private var horizontalChromePadding: CGFloat {
+        usesExpandedLayout ? 28 : 20
     }
 
     private var header: some View {
         HStack(alignment: .top) {
             Spacer(minLength: 8)
-            if horizontalSizeClass == .regular {
+            if usesExpandedLayout {
                 HStack(spacing: 0) {
                     Text("\(PixelboardL10n.infinitePixelboardHeader) ")
                         .foregroundStyle(PixelboardTheme.ink)
@@ -81,8 +91,8 @@ struct ContentView: View {
             .buttonStyle(PixelboardHardButtonStyle())
             .accessibilityLabel(PixelboardL10n.settings)
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 12)
+        .padding(.horizontal, horizontalChromePadding)
+        .padding(.top, verticalSizeClass == .compact ? 8 : 12)
     }
 
     private var readout: some View {
@@ -143,14 +153,16 @@ struct ContentView: View {
         .accessibilityLabel(label)
     }
 
-    private var usesFullPalette: Bool {
+    /// iPhone Duo's open inner display reports regular size classes (iPad-like).
+    /// Drive layout from size class, never interface orientation.
+    private var usesExpandedLayout: Bool {
         horizontalSizeClass == .regular
     }
 
     private var palette: some View {
         VStack(spacing: 8) {
             HStack(alignment: .top, spacing: 10) {
-                if usesFullPalette {
+                if usesExpandedLayout {
                     Text(PixelboardL10n.ink)
                         .font(PixelboardTheme.mono(9.5))
                         .tracking(1.1)
@@ -159,7 +171,7 @@ struct ContentView: View {
                         .padding(.trailing, 4)
                         .padding(.top, 6)
                 }
-                if usesFullPalette {
+                if usesExpandedLayout {
                     LazyVGrid(
                         columns: [GridItem(.adaptive(minimum: 26), spacing: 5)],
                         alignment: .leading,
@@ -175,7 +187,7 @@ struct ContentView: View {
                     }
                 }
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, verticalSizeClass == .compact ? 6 : 8)
             .padding(.horizontal, 10)
             .background(PixelboardTheme.panel)
             .overlay(Rectangle().stroke(PixelboardTheme.line, lineWidth: 1))
@@ -190,15 +202,15 @@ struct ContentView: View {
                         Text(placeTitle)
                     }
                 }
-                .frame(maxWidth: .infinity, minHeight: 40)
+                .frame(maxWidth: .infinity, minHeight: verticalSizeClass == .compact ? 36 : 40)
             }
             .buttonStyle(PixelboardFilledButtonStyle())
             .disabled(!model.isPlaceControlEnabled)
             .opacity(model.isPlaceControlEnabled ? 1 : 0.45)
             .accessibilityLabel(placeTitle)
         }
-        .padding(.horizontal, 16)
-        .frame(maxWidth: usesFullPalette ? 720 : 420)
+        .padding(.horizontal, horizontalChromePadding - 4)
+        .frame(maxWidth: usesExpandedLayout ? 840 : 420)
         .frame(maxWidth: .infinity)
     }
 

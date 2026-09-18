@@ -26,7 +26,7 @@ export function subscriptionMessage({
   if (trialAvailable === true) {
     return "Try Pro free for 7 days, then choose monthly or annual billing. Pro is one second between pixels and unlocks the extended palette plus custom colors; it does not remove the cooldown.";
   }
-  return "Pro is available with monthly or annual billing. It unlocks the extended palette and custom colors; the cooldown remains one second.";
+  return "Pro is optional. Painting works on the free tier. Pro unlocks the extended palette and custom colors; the cooldown remains one second.";
 }
 
 export function canPurchaseStripe({

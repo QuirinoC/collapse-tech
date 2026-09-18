@@ -1,0 +1,162 @@
+{
+  "id": "tulip-row",
+  "title": "Tulip row",
+  "license": "CC0-1.0 (original)",
+  "origin": {
+    "row": 5,
+    "column": -35
+  },
+  "note": "Near origin W — three tulips",
+  "pixels": [
+    {
+      "row": 5,
+      "column": -33,
+      "color": "#D3523C"
+    },
+    {
+      "row": 5,
+      "column": -29,
+      "color": "#E1C94A"
+    },
+    {
+      "row": 5,
+      "column": -25,
+      "color": "#7E5078"
+    },
+    {
+      "row": 6,
+      "column": -34,
+      "color": "#D3523C"
+    },
+    {
+      "row": 6,
+      "column": -33,
+      "color": "#D3523C"
+    },
+    {
+      "row": 6,
+      "column": -32,
+      "color": "#D3523C"
+    },
+    {
+      "row": 6,
+      "column": -30,
+      "color": "#E1C94A"
+    },
+    {
+      "row": 6,
+      "column": -29,
+      "color": "#E1C94A"
+    },
+    {
+      "row": 6,
+      "column": -28,
+      "color": "#E1C94A"
+    },
+    {
+      "row": 6,
+      "column": -26,
+      "color": "#7E5078"
+    },
+    {
+      "row": 6,
+      "column": -25,
+      "color": "#7E5078"
+    },
+    {
+      "row": 6,
+      "column": -24,
+      "color": "#7E5078"
+    },
+    {
+      "row": 7,
+      "column": -34,
+      "color": "#D3523C"
+    },
+    {
+      "row": 7,
+      "column": -33,
+      "color": "#D3523C"
+    },
+    {
+      "row": 7,
+      "column": -32,
+      "color": "#D3523C"
+    },
+    {
+      "row": 7,
+      "column": -30,
+      "color": "#E1C94A"
+    },
+    {
+      "row": 7,
+      "column": -29,
+      "color": "#E1C94A"
+    },
+    {
+      "row": 7,
+      "column": -28,
+      "color": "#E1C94A"
+    },
+    {
+      "row": 7,
+      "column": -26,
+      "color": "#7E5078"
+    },
+    {
+      "row": 7,
+      "column": -25,
+      "color": "#7E5078"
+    },
+    {
+      "row": 7,
+      "column": -24,
+      "color": "#7E5078"
+    },
+    {
+      "row": 8,
+      "column": -33,
+      "color": "#587554"
+    },
+    {
+      "row": 8,
+      "column": -29,
+      "color": "#587554"
+    },
+    {
+      "row": 8,
+      "column": -25,
+      "color": "#587554"
+    },
+    {
+      "row": 9,
+      "column": -33,
+      "color": "#587554"
+    },
+    {
+      "row": 9,
+      "column": -29,
+      "color": "#587554"
+    },
+    {
+      "row": 9,
+      "column": -25,
+      "color": "#587554"
+    },
+    {
+      "row": 10,
+      "column": -33,
+      "color": "#587554"
+    },
+    {
+      "row": 10,
+      "column": -29,
+      "color": "#587554"
+    },
+    {
+      "row": 10,
+      "column": -25,
+      "color": "#587554"
+    }
+  ]
+}

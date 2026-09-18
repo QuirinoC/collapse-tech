@@ -177,3 +177,27 @@ public static class AccountClaims
         return Guid.TryParse(sub, out var id) ? id : null;
     }
 }
+
+/// SIWA replay-hygiene: compares the client-supplied nonce (the same raw value it set on
+/// ASAuthorizationAppleIDRequest.nonce) against the ID token's own "nonce" claim.
+/// Optional for now — the iOS client doesn't send one yet, so a missing nonce is not an error.
+public static class AppleNonceValidator
+{
+    public static bool Matches(string identityToken, string? expectedNonce)
+    {
+        if (string.IsNullOrWhiteSpace(expectedNonce))
+        {
+            return true;
+        }
+
+        var handler = new JwtSecurityTokenHandler { MapInboundClaims = false };
+        if (string.IsNullOrWhiteSpace(identityToken) || !handler.CanReadToken(identityToken))
+        {
+            return false;
+        }
+
+        var claim = handler.ReadJwtToken(identityToken).Claims
+            .FirstOrDefault(claim => string.Equals(claim.Type, "nonce", StringComparison.Ordinal));
+        return claim is not null && string.Equals(claim.Value, expectedNonce, StringComparison.Ordinal);
+    }
+}

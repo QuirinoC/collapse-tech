@@ -32,27 +32,48 @@ iOS invite sharing uses the existing `pixelboard://invite/<code>` URL scheme bec
 
 ## Ship to TestFlight / App Store
 
-**Current ship target:** `1.0.2` (build `7`), bumped in PR #45 for special-code redeem on Account. Live App Store may still be `1.0` / `1.0.1` until you archive and submit. Web special codes are already live; iOS needs a new archive + App Store Connect submit for the redeem UI.
+**Current ship target:** `1.0.2` (build `8`) — shared-mural experience polish: special-code redeem, seamless tiles, full iPad palette, plus iPhone Duo adaptive layout already shipped in this build. Live App Store is `1.0` build `5` until this update is uploaded and approved. Web special codes are already live; iOS needs archive + App Store Connect submit.
 
-There is no Fastlane lane in this repo. Archive from Xcode (or `xcodebuild` once full Xcode is selected with `xcode-select -s /Applications/Xcode.app`).
+There is no Fastlane lane in this repo. Archive from Xcode (or `xcodebuild` with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`).
 
-### Release 1.0.2 (build 7) — what you do
+### iPhone Duo notes
 
-1. Confirm `main` includes special-code redeem (`08ce78a` / PR #45) plus earlier seamless tiles + iPad palette.
+Apple’s foldable iPhone Duo (outer ~5.4″ / inner ~7.6″) sizes apps from the **scene**, not a single `UIScreen`. Full edge-to-edge Duo mode requires linking the **iOS 27.1 SDK** (Xcode 27.1; listed as coming later in September 2026 on [developer.apple.com/iphone-duo](https://developer.apple.com/iphone-duo/)). Until then:
+
+- This app already uses SwiftUI `WindowGroup` scene lifecycle, `GeometryReader`-driven board sizing, and `horizontalSizeClass` for the expanded palette (Duo inner ≈ regular × regular).
+- `UIRequiresFullScreen` is intentionally **absent** so continuous resizing stays available when built with newer SDKs.
+- Do **not** branch layout on interface orientation; Duo’s inner display ignores orientation preferences.
+
+Promo and App Store media should emphasize the **shared mural** (people painting together), not multi-device Duo screenshot theater. Duo support is fine to mention once in What’s New.
+
+### Release 1.0.2 (build 8) — what you do
+
+1. Confirm `main` includes Duo adaptive UI + special-code redeem + seamless tiles + iPad palette.
 2. On a Mac with full Xcode:
 
 ```bash
 cd apps/infinite-pixelboard-ios
+export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 xcodegen generate
 open InfinitePixelboard.xcodeproj
 ```
 
-3. Select any iOS device / **Any iOS Device (arm64)** → **Product → Archive**.
-4. In Organizer: **Distribute App → App Store Connect → Upload**. Wait for processing in App Store Connect (app id `6804066543`, bundle `com.collapsetechnologies.pixelboard`).
-5. In App Store Connect → Infinite Pixelboard → **+ Version** `1.0.2`: attach build **7**, short “What’s New” noting special/event code redeem (and seamless tiles / full iPad palette if those never shipped on device), then **Submit for Review**.
+3. Select **Any iOS Device (arm64)** → **Product → Archive**.
+4. In Organizer: **Distribute App → App Store Connect → Upload**. If Keychain prompts **Allow**, approve so codesign/upload can finish. Wait for processing (app id `6804066543`, bundle `com.collapsetechnologies.pixelboard`).
+5. In App Store Connect → Infinite Pixelboard → **+ Version** `1.0.2`: attach build **8**, What’s New leading with shared mural + redeem/seamless/iPad (Duo as a short bullet), then **Submit for Review**.
 6. After approval, release manually or automatically per your Connect setting.
 
-Do not reuse an earlier `CFBundleVersion`; Apple requires a higher build for each upload. Marketing version is already `1.0.2` / build `7` in `project.yml`.
+Do not reuse an earlier `CFBundleVersion`; Apple requires a higher build for each upload. Marketing version is `1.0.2` / build `8` in `project.yml`.
+
+**Suggested What’s New (EN):**
+
+```
+• Shared infinite mural — paint together on one live board (web + iOS)
+• Redeem special/event codes from Settings
+• Seamless tile rendering across the board
+• Full color palette on iPad and other regular-width layouts
+• Adaptive layout support for iPhone Duo compact and expanded displays
+```
 
 The app code is ready to archive. Broader console setup (Firebase, StoreKit, APNs) is below if anything is still incomplete.
 
@@ -63,7 +84,7 @@ The app code is ready to archive. Broader console setup (Firebase, StoreKit, APN
 - Support: `mailto:hello@collapsetechnologies.com`
 - Bundle ID: `com.collapsetechnologies.pixelboard`
 
-**App Store listing copy (do not copy Everyone Draw):** never write “no limits”, “unlimited”, “draw freely”, or “private space far from the center.” Subtitle: `Shared mural. 5s per pixel.` Description must say 5 seconds free / 1 second Pro, that anyone can overwrite a pixel, and that Syncing is live updates — painting still works.
+**App Store listing copy (do not copy Everyone Draw):** never write “no limits”, “unlimited”, “draw freely”, or “private space far from the center.” Subtitle: `Shared mural. Everyone paints.` Description must say 5 seconds free / 1 second Pro, that anyone can overwrite a pixel, and that Syncing is live updates — painting still works. Lead with collaborative mural framing, not device hardware theater.
 
 **1. Firebase (required to paint)**
 
@@ -103,4 +124,4 @@ open InfinitePixelboard.xcodeproj
 
 Sign with your paid team, archive, upload to TestFlight. Take screenshots from a signed-in session. Ads stay off (`adsEnabled = false`).
 
-Pro will not show as purchased until Render StoreKit env matches the App Store products. The app passes StoreKit's server-issued `appAccountToken` for the signed-in Pixelboard account and refreshes the matching current entitlement after every auth transition; sign-out clears purchase UI state. Restore Purchases re-syncs the Apple subscription for the current Apple ID; it never moves a subscription between Apple IDs, Google sign-in, or Pixelboard accounts. If the server reports that an Apple subscription belongs to another Pixelboard account, the app leaves the current account on its existing tier and directs the user to hello@collapsetechnologies.com; transfers require support verification and remove Pro access from the previous account. You can still ship a paint-only TestFlight first, then turn StoreKit on.
+Pro will not show as purchased until Render StoreKit env matches the App Store products. Painting works without Pro. The app passes StoreKit's server-issued `appAccountToken` for the signed-in Pixelboard account and refreshes the matching current entitlement after every auth transition; sign-out clears purchase UI state. Restore Purchases re-syncs an Apple subscription only when it already matches the signed-in account; it never moves purchases between accounts and never overwrites a different active entitlement. If the Apple purchase belongs to another Pixelboard account, or this account already has Pro from another source, the app keeps the current account unchanged and shows a calm status note—not a support-review dead end. You can still ship a paint-only TestFlight first, then turn StoreKit on.

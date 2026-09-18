@@ -107,6 +107,37 @@ public sealed class PostgresStoreKitEntitlementStoreIntegrationTests
         await CleanupAsync(dataSource, account);
     }
 
+    [PostgresFact]
+    [Trait("Category", "Integration")]
+    public async Task DifferentAppleSubscriptionDoesNotOverwriteExistingStoreKitEntitlement()
+    {
+        var connectionString = Environment.GetEnvironmentVariable(
+            "PIXELBOARD_TEST_POSTGRES")!;
+        await using var dataSource = NpgsqlDataSource.Create(connectionString);
+        var store = new PostgresStoreKitEntitlementStore(dataSource);
+        var entitlementService =
+            (IEntitlementService)new PostgresAccountStateService(dataSource);
+        var account = new AccountId($"storekit-{Guid.NewGuid():N}");
+        var token = AssertToken(await store.GetOrCreateAccountTokenAsync(account));
+        var firstOriginal = $"original-{Guid.NewGuid():N}";
+        var secondOriginal = $"original-{Guid.NewGuid():N}";
+        var now = DateTimeOffset.UtcNow;
+
+        Assert.Equal(StoreKitApplyOutcome.Applied, await store.ApplyAsync(
+            account,
+            Transaction(firstOriginal, token, now, now.AddMonths(1))));
+        Assert.Equal(AccountTier.Pro, (await entitlementService.GetAsync(account)).Tier);
+
+        Assert.Equal(StoreKitApplyOutcome.AccountAlreadyEntitled, await store.ApplyAsync(
+            account,
+            Transaction(secondOriginal, token, now.AddMinutes(1), now.AddMonths(2))));
+        var entitlement = await entitlementService.GetAsync(account);
+        Assert.Equal(AccountTier.Pro, entitlement.Tier);
+        Assert.Equal("storekit", entitlement.Source);
+
+        await CleanupAsync(dataSource, account);
+    }
+
     private static AppAccountToken AssertToken(AppAccountToken? token)
     {
         Assert.True(token.HasValue);

@@ -29,9 +29,14 @@ public sealed record StoreKitNotificationVerificationResult(
 
 public enum StoreKitApplyOutcome
 {
-    Applied,
-    LinkedToAnotherAccount,
-    NotApplied
+    Applied = 0,
+    LinkedToAnotherAccount = 1,
+    NotApplied = 2,
+    /// <summary>
+    /// The signed-in account already has a different active Pro entitlement
+    /// (Stripe or another Apple originalTransactionId). Existing access is kept.
+    /// </summary>
+    AccountAlreadyEntitled = 3
 }
 
 public interface IStoreKitTransactionVerifier
