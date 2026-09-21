@@ -1,6 +1,9 @@
 using System.Net.Http.Json;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.Json;
+using TrustApi.Api.V1;
+using TrustApi.Infrastructure.Notifications;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -649,6 +652,40 @@ public sealed class TrustEngineTests
     }
 
     [Fact]
+    public async Task LookNotifiesOncePerConfirmAndViewDoesNot()
+    {
+        var engine = NewEngine(out _);
+        var (sam, jordan) = await PairAsync(engine);
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.UntilTheyLook, null, CancellationToken.None);
+        await engine.IngestAsync(
+            sam.Id, new LocationFix(DateTimeOffset.UtcNow, 37.71, -122.41), 80, false, CancellationToken.None);
+
+        var receipts = new RecordingReceipts();
+        var jordanPrincipal = TestPrincipals.Principal(jordan.Id);
+        var look = await TrustEndpoints.LookAsync(
+            new LookRequest(sam.Id, true),
+            jordanPrincipal,
+            engine,
+            receipts,
+            CancellationToken.None);
+        var notified = Assert.Single(receipts.Looks);
+        Assert.Equal(LookKind.Look, notified.Kind);
+        Assert.Equal(sam.Id, notified.SubjectId);
+        Assert.Equal(jordan.DisplayName, notified.ViewerName);
+
+        await engine.GrantCircleAsync(sam.Id, "test", CancellationToken.None);
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.Always, null, CancellationToken.None);
+        var beforeView = receipts.Looks.Count;
+        await TrustEndpoints.ViewAsync(
+            new ViewRequest(sam.Id),
+            jordanPrincipal,
+            engine,
+            CancellationToken.None);
+        Assert.Equal(beforeView, receipts.Looks.Count);
+        Assert.NotNull(look);
+    }
+
+    [Fact]
     public async Task ViewDedupesWithinThirtyMinutes()
     {
         var time = new MutableTimeProvider { UtcNow = new DateTimeOffset(2026, 9, 2, 12, 0, 0, TimeSpan.Zero) };
@@ -1127,4 +1164,30 @@ internal static class AppleShapedJwt
         NameClaimType = "sub",
         ClockSkew = TimeSpan.FromMinutes(5)
     };
+}
+
+sealed class RecordingReceipts : ILookReceiptPublisher
+{
+    public List<LookEvent> Looks { get; } = [];
+
+    public Task NotifyLookAsync(LookEvent look, CancellationToken cancellationToken)
+    {
+        Looks.Add(look);
+        return Task.CompletedTask;
+    }
+
+    public Task NotifyQuietAsync(
+        Guid accountId,
+        string title,
+        string body,
+        string kind,
+        CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task NotifyHomeArrivalAsync(Guid subjectId, CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
+static class TestPrincipals
+{
+    public static ClaimsPrincipal Principal(Guid id) =>
+        new(new ClaimsIdentity([new Claim("sub", id.ToString())], "test"));
 }
