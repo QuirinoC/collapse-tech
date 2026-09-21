@@ -434,11 +434,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Trust.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = 3S529795M9;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = Info.plist;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Trust Circle uses your location while the app is open so you can see yourself on the map and look at people who share with you. Trust Circle does not sell your location.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Trust uses your location while the app is open so you can see yourself on the map and look at people who share with you. Trust does not sell your location.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -490,11 +490,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Trust.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 13;
 				DEVELOPMENT_TEAM = 3S529795M9;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = Info.plist;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Trust Circle uses your location while the app is open so you can see yourself on the map and look at people who share with you. Trust Circle does not sell your location.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Trust uses your location while the app is open so you can see yourself on the map and look at people who share with you. Trust does not sell your location.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

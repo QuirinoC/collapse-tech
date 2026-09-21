@@ -5,7 +5,7 @@ struct RootView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.scenePhase) private var scenePhase
 
-    /// Light only — Masthead paper / ink / `#E10600`.
+    /// Light only — Trust paper / ink / `#E10600` (map chrome tokens on TrustPalette).
     private let palette = TrustPalette.paper
 
     var body: some View {

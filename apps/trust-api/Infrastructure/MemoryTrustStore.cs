@@ -12,7 +12,6 @@ public sealed class MemoryTrustStore : ITrustStore
     private readonly ConcurrentDictionary<Guid, Presence> _presence = new();
     private readonly ConcurrentDictionary<Guid, List<LocationFix>> _locations = new();
     private readonly List<LookEvent> _looks = [];
-    private readonly ConcurrentDictionary<(Guid Viewer, Guid Subject), ActiveLook> _active = new();
     private readonly ConcurrentDictionary<string, Invite> _invites = new();
     private readonly ConcurrentDictionary<Guid, PhoneChallenge> _phoneChallenges = new();
     private readonly ConcurrentDictionary<(Guid Subject, Guid Trustee), PresenceGrant> _presenceGrants = new();
@@ -91,6 +90,22 @@ public sealed class MemoryTrustStore : ITrustStore
         return Task.CompletedTask;
     }
 
+    public Task RestoreExpiredPausesAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        foreach (var (key, state) in _shares.ToList())
+        {
+            if (state.Resting == ShareResting.Paused && state.PauseUntil is { } until && until <= now)
+            {
+                var restore = state.RestoresTo == ShareResting.Always
+                    ? ShareResting.Always
+                    : ShareResting.UntilTheyLook;
+                _shares[key] = new ShareState(restore);
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
     public Task<Presence> GetPresenceAsync(Guid accountId, DateTimeOffset fallbackNow, CancellationToken cancellationToken)
     {
         if (_presence.TryGetValue(accountId, out var presence))
@@ -122,7 +137,7 @@ public sealed class MemoryTrustStore : ITrustStore
     {
         lock (_gate)
         {
-            if (_locations.TryGetValue(accountId, out var list))
+            if (_locations.TryGetValue(accountId, out var list) && list.Count > 0)
             {
                 list.RemoveAll(fix => fix.Timestamp < olderThan);
             }
@@ -180,20 +195,6 @@ public sealed class MemoryTrustStore : ITrustStore
         return Task.CompletedTask;
     }
 
-    public Task UpdateLookEventHistoryHoursAsync(Guid lookId, int historyWindowHours, CancellationToken cancellationToken)
-    {
-        lock (_gate)
-        {
-            var index = _looks.FindIndex(look => look.Id == lookId);
-            if (index >= 0)
-            {
-                _looks[index] = _looks[index] with { HistoryWindowHours = historyWindowHours };
-            }
-        }
-
-        return Task.CompletedTask;
-    }
-
     public Task<IReadOnlyList<LookEvent>> ListLooksAsync(
         Guid accountId,
         DateTimeOffset since,
@@ -217,60 +218,37 @@ public sealed class MemoryTrustStore : ITrustStore
         }
     }
 
-    public Task SetActiveLookAsync(ActiveLook look, CancellationToken cancellationToken)
-    {
-        _active[(look.ViewerId, look.SubjectId)] = look;
-        return Task.CompletedTask;
-    }
-
-    public Task<ActiveLook?> GetActiveLookAsync(Guid viewerId, Guid subjectId, CancellationToken cancellationToken)
-    {
-        _active.TryGetValue((viewerId, subjectId), out var look);
-        return Task.FromResult(look);
-    }
-
-    public Task<ActiveLook?> GetLookAtMeAsync(Guid subjectId, CancellationToken cancellationToken)
-    {
-        var look = _active.Values.FirstOrDefault(item => item.SubjectId == subjectId);
-        return Task.FromResult(look);
-    }
-
-    public Task ClearActiveLookAsync(Guid viewerId, Guid? subjectId, CancellationToken cancellationToken)
-    {
-        if (subjectId is { } id)
-        {
-            _active.TryRemove((viewerId, id), out _);
-        }
-        else
-        {
-            foreach (var key in _active.Keys.Where(key => key.Viewer == viewerId).ToList())
-            {
-                _active.TryRemove(key, out _);
-            }
-        }
-
-        return Task.CompletedTask;
-    }
-
-    public Task<IReadOnlyList<ActiveLook>> ListExpiredActiveLooksAsync(
-        DateTimeOffset olderThan,
-        CancellationToken cancellationToken)
-    {
-        var expired = _active.Values.Where(look => look.OpenedAt < olderThan).ToList();
-        return Task.FromResult<IReadOnlyList<ActiveLook>>(expired);
-    }
-
     public Task PruneAllLocationsAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
     {
+        var now = olderThan + TrustRules.LocationRetention;
         lock (_gate)
         {
-            foreach (var list in _locations.Values)
+            foreach (var (accountId, list) in _locations)
             {
+                if (!KeepsTrail(accountId, now))
+                {
+                    list.Clear();
+                    continue;
+                }
+
                 list.RemoveAll(fix => fix.Timestamp < olderThan);
             }
         }
 
         return Task.CompletedTask;
+    }
+
+    private bool KeepsTrail(Guid accountId, DateTimeOffset now)
+    {
+        foreach (var (key, state) in _shares)
+        {
+            if (key.Grantor == accountId && state.KeepsTrail(now))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public Task<Invite?> FindInviteByCodeAsync(string code, CancellationToken cancellationToken)
@@ -307,11 +285,6 @@ public sealed class MemoryTrustStore : ITrustStore
     {
         lock (_gate)
         {
-            foreach (var key in _active.Keys.Where(key => key.Viewer == accountId || key.Subject == accountId).ToList())
-            {
-                _active.TryRemove(key, out _);
-            }
-
             _looks.RemoveAll(look => look.ViewerId == accountId || look.SubjectId == accountId);
             _locations.TryRemove(accountId, out _);
             _presence.TryRemove(accountId, out _);

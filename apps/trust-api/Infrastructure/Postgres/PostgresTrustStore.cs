@@ -152,7 +152,7 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
-            "SELECT resting, timed_until FROM trust.shares WHERE grantor_id = $1 AND grantee_id = $2;",
+            "SELECT resting, pause_until, restores_to FROM trust.shares WHERE grantor_id = $1 AND grantee_id = $2;",
             connection);
         command.Parameters.AddWithValue(grantor);
         command.Parameters.AddWithValue(grantee);
@@ -162,7 +162,10 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
             return ShareState.Default;
         }
 
-        return new ShareState(ParseResting(reader.GetString(0)), reader.IsDBNull(1) ? null : reader.GetFieldValue<DateTimeOffset>(1));
+        return new ShareState(
+            ParseResting(reader.GetString(0)),
+            reader.IsDBNull(1) ? null : reader.GetFieldValue<DateTimeOffset>(1),
+            reader.IsDBNull(2) ? null : ParseResting(reader.GetString(2)));
     }
 
     public async Task UpsertShareAsync(Guid grantor, Guid grantee, ShareState state, CancellationToken cancellationToken)
@@ -170,16 +173,40 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
             """
-            INSERT INTO trust.shares (grantor_id, grantee_id, resting, timed_until)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO trust.shares (grantor_id, grantee_id, resting, pause_until, restores_to)
+            VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (grantor_id, grantee_id) DO UPDATE
-                SET resting = EXCLUDED.resting, timed_until = EXCLUDED.timed_until;
+                SET resting = EXCLUDED.resting,
+                    pause_until = EXCLUDED.pause_until,
+                    restores_to = EXCLUDED.restores_to;
             """,
             connection);
         command.Parameters.AddWithValue(grantor);
         command.Parameters.AddWithValue(grantee);
         command.Parameters.AddWithValue(FormatResting(state.Resting));
-        command.Parameters.AddWithValue((object?)state.TimedUntil ?? DBNull.Value);
+        command.Parameters.AddWithValue((object?)state.PauseUntil ?? DBNull.Value);
+        command.Parameters.AddWithValue(state.RestoresTo is { } restores ? FormatResting(restores) : DBNull.Value);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task RestoreExpiredPausesAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            UPDATE trust.shares
+            SET resting = CASE
+                    WHEN restores_to = 'always' THEN 'always'
+                    ELSE 'until_they_look'
+                END,
+                pause_until = NULL,
+                restores_to = NULL
+            WHERE resting = 'paused'
+              AND pause_until IS NOT NULL
+              AND pause_until <= $1;
+            """,
+            connection);
+        command.Parameters.AddWithValue(now);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -248,7 +275,11 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
-            "DELETE FROM trust.location_points WHERE account_id = $1 AND recorded_at < $2;",
+            """
+            DELETE FROM trust.location_points
+            WHERE account_id = $1
+              AND recorded_at < $2;
+            """,
             connection);
         command.Parameters.AddWithValue(accountId);
         command.Parameters.AddWithValue(olderThan);
@@ -334,20 +365,6 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task UpdateLookEventHistoryHoursAsync(
-        Guid lookId,
-        int historyWindowHours,
-        CancellationToken cancellationToken)
-    {
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(
-            "UPDATE trust.look_events SET history_window_hours = $2 WHERE look_id = $1;",
-            connection);
-        command.Parameters.AddWithValue(lookId);
-        command.Parameters.AddWithValue(historyWindowHours);
-        await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
     public async Task<IReadOnlyList<LookEvent>> ListLooksAsync(
         Guid accountId,
         DateTimeOffset since,
@@ -396,109 +413,20 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
         return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
     }
 
-    public async Task SetActiveLookAsync(ActiveLook look, CancellationToken cancellationToken)
-    {
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(
-            """
-            INSERT INTO trust.active_looks (viewer_id, subject_id, look_id, history_window_hours, opened_at)
-            VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (viewer_id, subject_id) DO UPDATE SET
-                look_id = EXCLUDED.look_id,
-                history_window_hours = EXCLUDED.history_window_hours,
-                opened_at = EXCLUDED.opened_at;
-            """,
-            connection);
-        command.Parameters.AddWithValue(look.ViewerId);
-        command.Parameters.AddWithValue(look.SubjectId);
-        command.Parameters.AddWithValue(look.LookId);
-        command.Parameters.AddWithValue(look.HistoryWindowHours);
-        command.Parameters.AddWithValue(look.OpenedAt);
-        await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-    public async Task<ActiveLook?> GetActiveLookAsync(Guid viewerId, Guid subjectId, CancellationToken cancellationToken)
-    {
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(
-            "SELECT look_id, viewer_id, subject_id, history_window_hours, opened_at FROM trust.active_looks WHERE viewer_id = $1 AND subject_id = $2;",
-            connection);
-        command.Parameters.AddWithValue(viewerId);
-        command.Parameters.AddWithValue(subjectId);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken))
-        {
-            return null;
-        }
-
-        return ReadActive(reader);
-    }
-
-    public async Task<ActiveLook?> GetLookAtMeAsync(Guid subjectId, CancellationToken cancellationToken)
-    {
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(
-            "SELECT look_id, viewer_id, subject_id, history_window_hours, opened_at FROM trust.active_looks WHERE subject_id = $1 LIMIT 1;",
-            connection);
-        command.Parameters.AddWithValue(subjectId);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken))
-        {
-            return null;
-        }
-
-        return ReadActive(reader);
-    }
-
-    public async Task ClearActiveLookAsync(Guid viewerId, Guid? subjectId, CancellationToken cancellationToken)
-    {
-        await using var connection = await OpenAsync(cancellationToken);
-        if (subjectId is { } id)
-        {
-            await using var command = new NpgsqlCommand(
-                "DELETE FROM trust.active_looks WHERE viewer_id = $1 AND subject_id = $2;",
-                connection);
-            command.Parameters.AddWithValue(viewerId);
-            command.Parameters.AddWithValue(id);
-            await command.ExecuteNonQueryAsync(cancellationToken);
-            return;
-        }
-
-        await using var all = new NpgsqlCommand(
-            "DELETE FROM trust.active_looks WHERE viewer_id = $1;",
-            connection);
-        all.Parameters.AddWithValue(viewerId);
-        await all.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-    public async Task<IReadOnlyList<ActiveLook>> ListExpiredActiveLooksAsync(
-        DateTimeOffset olderThan,
-        CancellationToken cancellationToken)
-    {
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(
-            """
-            SELECT look_id, viewer_id, subject_id, history_window_hours, opened_at
-            FROM trust.active_looks
-            WHERE opened_at < $1;
-            """,
-            connection);
-        command.Parameters.AddWithValue(olderThan);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        var looks = new List<ActiveLook>();
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            looks.Add(ReadActive(reader));
-        }
-
-        return looks;
-    }
-
     public async Task PruneAllLocationsAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
-            "DELETE FROM trust.location_points WHERE recorded_at < $1;",
+            """
+            DELETE FROM trust.location_points AS lp
+            WHERE lp.recorded_at < $1
+               OR NOT EXISTS (
+                    SELECT 1
+                    FROM trust.shares AS s
+                    WHERE s.grantor_id = lp.account_id
+                      AND s.resting IN ('always', 'until_they_look', 'paused')
+               );
+            """,
             connection);
         command.Parameters.AddWithValue(olderThan);
         await command.ExecuteNonQueryAsync(cancellationToken);
@@ -545,25 +473,51 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        await using (var command = new NpgsqlCommand(
-            """
-            DELETE FROM trust.active_looks WHERE viewer_id = $1 OR subject_id = $1;
-            DELETE FROM trust.look_events WHERE viewer_id = $1 OR subject_id = $1;
-            DELETE FROM trust.location_points WHERE account_id = $1;
-            DELETE FROM trust.presence WHERE account_id = $1;
-            DELETE FROM trust.shares WHERE grantor_id = $1 OR grantee_id = $1;
-            DELETE FROM trust.memberships WHERE person_a = $1 OR person_b = $1;
-            DELETE FROM trust.invites WHERE creator_id = $1;
-            DELETE FROM trust.phone_challenges WHERE account_id = $1;
-            DELETE FROM trust.storekit_transactions WHERE account_id = $1;
-            DELETE FROM trust.storekit_subscription_owners WHERE account_id = $1;
-            DELETE FROM trust.storekit_account_tokens WHERE account_id = $1;
-            DELETE FROM trust.push_devices WHERE account_id = $1;
-            DELETE FROM trust.accounts WHERE account_id = $1;
-            """,
+        // Lock the account row first so a push registration cannot insert a child
+        // between these deletes and the account delete.
+        await using (var lockRow = new NpgsqlCommand(
+            "SELECT account_id FROM trust.accounts WHERE account_id = $1 FOR UPDATE;",
             connection,
             transaction))
         {
+            lockRow.Parameters.AddWithValue(accountId);
+            if (await lockRow.ExecuteScalarAsync(cancellationToken) is null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return;
+            }
+        }
+
+        // Each delete is its own command: Npgsql rejects more than one statement
+        // in a prepared command.
+        string[] statements =
+        [
+            """
+            DELETE FROM trust.active_looks
+            WHERE viewer_id = $1 OR subject_id = $1
+               OR look_id IN (
+                    SELECT look_id FROM trust.look_events WHERE viewer_id = $1 OR subject_id = $1);
+            """,
+            "DELETE FROM trust.look_events WHERE viewer_id = $1 OR subject_id = $1;",
+            "DELETE FROM trust.location_points WHERE account_id = $1;",
+            "DELETE FROM trust.presence WHERE account_id = $1;",
+            "DELETE FROM trust.shares WHERE grantor_id = $1 OR grantee_id = $1;",
+            "DELETE FROM trust.memberships WHERE person_a = $1 OR person_b = $1;",
+            "DELETE FROM trust.invites WHERE creator_id = $1;",
+            "DELETE FROM trust.phone_challenges WHERE account_id = $1;",
+            "DELETE FROM trust.storekit_transactions WHERE account_id = $1;",
+            "DELETE FROM trust.storekit_subscription_owners WHERE account_id = $1;",
+            "DELETE FROM trust.storekit_account_tokens WHERE account_id = $1;",
+            "DELETE FROM trust.home_promises WHERE subject_id = $1 OR trustee_id = $1;",
+            "DELETE FROM trust.current_home_presence WHERE account_id = $1;",
+            "DELETE FROM trust.home_places WHERE account_id = $1;",
+            "DELETE FROM trust.presence_grants WHERE subject_id = $1 OR trustee_id = $1;",
+            "DELETE FROM trust.push_devices WHERE account_id = $1;",
+            "DELETE FROM trust.accounts WHERE account_id = $1;"
+        ];
+        foreach (var statement in statements)
+        {
+            await using var command = new NpgsqlCommand(statement, connection, transaction);
             command.Parameters.AddWithValue(accountId);
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
@@ -1007,11 +961,19 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
         _ => "unknown"
     };
 
-    private static LookKind ParseLookKind(string value) =>
-        string.Equals(value, "view", StringComparison.OrdinalIgnoreCase) ? LookKind.View : LookKind.Look;
+    private static LookKind ParseLookKind(string value) => value.ToLowerInvariant() switch
+    {
+        "view" => LookKind.View,
+        "removed" => LookKind.Removed,
+        _ => LookKind.Look
+    };
 
-    private static string FormatLookKind(LookKind kind) =>
-        kind == LookKind.View ? "view" : "look";
+    private static string FormatLookKind(LookKind kind) => kind switch
+    {
+        LookKind.View => "view",
+        LookKind.Removed => "removed",
+        _ => "look"
+    };
 
     private static PromiseStatus ParsePromiseStatus(string value) => value.ToLowerInvariant() switch
     {
@@ -1106,14 +1068,6 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
             reader.GetDouble(1),
             reader.GetDouble(2));
 
-    private static ActiveLook ReadActive(NpgsqlDataReader reader) =>
-        new(
-            reader.GetGuid(0),
-            reader.GetGuid(1),
-            reader.GetGuid(2),
-            reader.GetInt32(3),
-            reader.GetFieldValue<DateTimeOffset>(4));
-
     private static (Guid A, Guid B) Order(Guid a, Guid b) =>
         a.CompareTo(b) < 0 ? (a, b) : (b, a);
 
@@ -1121,6 +1075,7 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
     {
         "always" => ShareResting.Always,
         "off" => ShareResting.Off,
+        "paused" => ShareResting.Paused,
         _ => ShareResting.UntilTheyLook
     };
 
@@ -1128,6 +1083,7 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
     {
         ShareResting.Always => "always",
         ShareResting.Off => "off",
+        ShareResting.Paused => "paused",
         _ => "until_they_look"
     };
 }

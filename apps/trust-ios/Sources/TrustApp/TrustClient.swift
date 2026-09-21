@@ -72,9 +72,8 @@ struct LocationDTO: Decodable {
 
 struct ShareDTO: Decodable {
     var resting: String
-    var timedUntil: Date?
+    var pauseUntil: Date?
     var presentation: String
-    var timedEnds: Date?
     var revertsTo: String?
 }
 
@@ -90,6 +89,8 @@ struct MemberDTO: Decodable {
     var promise: PromiseDTO?
     /// Their share toward you. Optional for pre-inboundShare servers; Circle falls back to Look-probe.
     var inboundShare: ShareDTO?
+    /// Older points, when the server sends them. Absent on the current API — live is the only fix.
+    var trail: [LocationDTO]?
 }
 
 struct CoverageDTO: Decodable {
@@ -113,7 +114,7 @@ struct LookEventDTO: Decodable {
     var at: Date
     var historyWindowHours: Int
     var includedLive: Bool
-    /// `look` | `view`. Absent on pre-006 servers → look.
+    /// `look` | `view` | `removed`. Absent on pre-006 servers → look.
     var kind: String?
 }
 
@@ -134,8 +135,6 @@ struct CirclePayload: Decodable {
     var members: [MemberDTO]
     var coverage: CoverageDTO
     var pendingInviteCode: String?
-    var activeSession: LookSessionDTO?
-    var beingWatched: LookEventDTO?
     var lookLog: [LookEventDTO]
     var retainedLookLogCount: Int
     var allowsDevelopmentSignIn: Bool
@@ -157,8 +156,6 @@ struct CircleSnapshot {
     var members: [TrustedPerson]
     var coverage: CircleCoverage
     var pendingInviteCode: String?
-    var activeSession: LookSession?
-    var beingWatched: LookEvent?
     var lookLog: [LookEvent]
     var retainedLookLogCount: Int
     var allowsDevelopmentSignIn: Bool
@@ -325,6 +322,25 @@ final class TrustClient {
         token = payload.token
     }
 
+    #if DEBUG
+    /// Local API only. Release builds do not include this call. The server returns 404 unless
+    /// `Auth:AllowDevelopmentSignIn` is on, which production leaves off.
+    func developmentSession(displayName: String, deviceId: String) async throws -> SessionPayload {
+        struct Body: Encodable {
+            var displayName: String
+            var provider: String
+            var deviceId: String
+        }
+        let payload: SessionPayload = try await post(
+            path: "/api/v1/session/development",
+            body: Body(displayName: displayName, provider: "development", deviceId: deviceId),
+            authorized: false
+        )
+        token = payload.token
+        return payload
+    }
+    #endif
+
     func refreshCircle() async throws -> CircleSnapshot {
         let request = try makeRequest(path: "/api/v1/circle", method: "GET", authorized: true)
         let data: Data = try await sendRaw(request)
@@ -415,42 +431,23 @@ final class TrustClient {
         return (payload.logged, payload.event?.model)
     }
 
-    func closeLook(subjectID: UUID?) async throws {
-        var path = "/api/v1/looks/close"
-        if let subjectID {
-            path += "?subjectId=\(subjectID.uuidString)"
-        }
-        try await postEmpty(path: path, body: EmptyBody())
-    }
-
-    func extendLook(subjectID: UUID) async throws -> LookSession {
-        let payload: LookSessionDTO = try await post(
-            path: "/api/v1/looks/\(subjectID.uuidString)/extend",
-            body: EmptyBody(),
-            authorized: true
-        )
-        return payload.model
-    }
-
-    /// Resting `off|untilTheyLook|always`, or timed `15m|1h|4h|8h` (overlay on the current
-    /// resting mode). Always / timed without Plus → 402 `pro_required` as `.api`.
-    func setShare(personID: UUID, resting: ShareRestingMode?, timed: TimedShareDuration?) async throws {
+    /// Resting `off|untilTheyLook|always`, or pause `1h|8h|1d|2d|3d`.
+    /// Always without Plus → 402 `pro_required`. Pause is free and stored on the server.
+    func setShare(personID: UUID, resting: ShareRestingMode?, pause: PauseDuration?) async throws {
         struct Body: Encodable {
             var resting: String?
-            var timed: String?
+            var pause: String?
         }
         try await patchEmpty(
             path: "/api/v1/people/\(personID.uuidString)/share",
-            body: Body(resting: resting?.apiValue, timed: timed?.rawValue)
+            body: Body(resting: resting?.apiValue, pause: pause.map(TrustProductRules.pauseWireValue))
         )
     }
 
-    func setPresenceGrant(personID: UUID, enabled: Bool) async throws {
-        struct Body: Encodable { var enabled: Bool }
-        try await putEmpty(
-            path: "/api/v1/people/\(personID.uuidString)/presence-grant",
-            body: Body(enabled: enabled)
-        )
+    func history(personID: UUID) async throws -> [LocationPoint] {
+        struct Payload: Decodable { var points: [LocationDTO] }
+        let payload: Payload = try await get(path: "/api/v1/people/\(personID.uuidString)/history")
+        return payload.points.map(\.model)
     }
 
     func setHomePlace(placeID: UUID, label: String) async throws {
@@ -760,8 +757,6 @@ extension CirclePayload {
                 serverLookLogDays: coverage.lookLogDays
             ),
             pendingInviteCode: pendingInviteCode,
-            activeSession: activeSession?.model,
-            beingWatched: beingWatched?.model,
             lookLog: lookLog.map(\.model),
             retainedLookLogCount: retainedLookLogCount,
             allowsDevelopmentSignIn: allowsDevelopmentSignIn,
@@ -810,10 +805,16 @@ extension ShareDTO {
         switch resting.lowercased() {
         case "always": mode = .always
         case "off": mode = .off
+        case "paused": mode = .paused
         default: mode = .untilTheyLook
         }
-        // `presentation == "timed"` carries `timedEnds` + `revertsTo`; resting is already the revert.
-        return PersonShareState(resting: mode, timedUntil: timedEnds ?? timedUntil)
+        let restores: ShareRestingMode?
+        switch (revertsTo ?? "").lowercased() {
+        case "always": restores = .always
+        case "untiltheylook", "sealed": restores = .untilTheyLook
+        default: restores = nil
+        }
+        return PersonShareState(resting: mode, pauseUntil: pauseUntil, restoresTo: restores)
     }
 
     var presentationModel: SharePresentation {
@@ -822,17 +823,16 @@ extension ShareDTO {
             return .off
         case "always":
             return .always
-        case "timed":
+        case "paused":
             let revert: ShareRestingMode
-            switch (revertsTo ?? resting).lowercased() {
+            switch (revertsTo ?? "").lowercased() {
             case "always": revert = .always
-            case "off": revert = .off
             default: revert = .untilTheyLook
             }
-            if let ends = timedEnds ?? timedUntil {
-                return .timed(ends: ends, revertsTo: revert)
+            if let ends = pauseUntil {
+                return .paused(ends: ends, revertsTo: revert)
             }
-            return revert == .always ? .always : (revert == .off ? .off : .untilTheyLook)
+            return .untilTheyLook
         default:
             return .untilTheyLook
         }
@@ -851,8 +851,20 @@ extension MemberDTO {
             inboundPresenceGranted: inboundPresenceGranted ?? false,
             homePresence: homePresence?.model,
             promise: promise?.model,
-            inboundPresentation: inboundShare?.presentationModel
+            inboundPresentation: inboundShare?.presentationModel,
+            locationHistory: locationHistory
         )
+    }
+
+    /// Newest first. Uses `trail` when the server sends one, otherwise the single live fix.
+    var locationHistory: [LocationVisit] {
+        var points = trail?.map(\.model) ?? []
+        if inboundLive, let live = live?.model, !points.contains(where: { $0.timestamp == live.timestamp && $0.latitude == live.latitude }) {
+            points.append(live)
+        }
+        return points
+            .sorted { $0.timestamp > $1.timestamp }
+            .map { LocationVisit(label: TrustCopy.location, at: $0.timestamp, point: $0) }
     }
 }
 
