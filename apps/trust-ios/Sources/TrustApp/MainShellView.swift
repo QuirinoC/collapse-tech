@@ -102,6 +102,7 @@ struct MainShellView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(tab.title)
+                .accessibilityIdentifier("tab-\(tab.rawValue)")
                 .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }

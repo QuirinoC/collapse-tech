@@ -210,6 +210,16 @@ final class AppModel: ObservableObject {
         !(ProcessInfo.processInfo.environment["TRUST_SCREENSHOT"] ?? "").isEmpty
     }
 
+    /// XCUITest sets this so the demo walk is not blocked by system permission sheets.
+    /// Debug only. Release ignores the variable.
+    var isUITestLaunch: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["TRUST_UI_TEST"] == "1"
+        #else
+        false
+        #endif
+    }
+
     // MARK: Lifecycle
 
     func start() async {
@@ -246,7 +256,7 @@ final class AppModel: ObservableObject {
         }
         receipts.refreshStatus()
         UIDevice.current.isBatteryMonitoringEnabled = true
-        if phase == .home, !circle.isEmpty, ProcessInfo.processInfo.environment["TRUST_SCREENSHOT"] == nil {
+        if phase == .home, !circle.isEmpty, !isUITestLaunch, ProcessInfo.processInfo.environment["TRUST_SCREENSHOT"] == nil {
             await receipts.requestPermission()
         }
         applyScreenshotLaunch()
@@ -695,7 +705,7 @@ final class AppModel: ObservableObject {
     /// While-Using location only when View / Map needs “miles from you”.
     func prepareMapLocation() {
         location.setMapActive(true)
-        if !isScreenshotLaunch {
+        if !isScreenshotLaunch, !isUITestLaunch {
             location.requestWhenInUse()
         }
     }

@@ -99,9 +99,9 @@ public final class DemoTrustService: ObservableObject {
 
     // MARK: Fixtures
 
-    /// Nine people. Inbound — Leo and Eli Always, Jules For a while, Noah Off (chose off, not
-    /// removed), everyone else Sealed. Inês, Eli, Noah Hidden. Outbound — Maya Until, Leo
-    /// Always, Jules Until, the rest Off. You are on Free.
+    /// Nine people. Inbound — Leo and Eli Always, Jules paused (restores to Sealed), Noah Off
+    /// (chose off, not removed), everyone else Sealed. Inês, Eli, Noah Hidden. Outbound — Maya
+    /// Sealed, Leo Always, Jules Sealed, the rest Off. You are on Free.
     public func startLeanDemo() {
         let now = clock.now()
         you = Person(displayName: "Alex Laurent", hasPro: false, onboardingComplete: true, handle: "alex")
