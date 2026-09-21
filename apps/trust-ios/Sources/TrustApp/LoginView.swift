@@ -46,6 +46,7 @@ struct LoginView: View {
                 }
                 .buttonStyle(TrustOutlineButtonStyle())
                 .disabled(model.isSigningIn)
+                .accessibilityIdentifier("see-the-app")
                 .accessibilityHint(TrustCopy.demoBannerBody)
                 #endif
 

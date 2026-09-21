@@ -132,4 +132,11 @@ App Store screenshots for 1.0: `AppStore/Screenshots/m6/` (iPhone 6.9" + iPad 13
 
 ## Tests
 
-Use Xcode’s `TrustCoreTests` target. Tests cover confirm-required looks, 2-hour default history, append-only log, revoke, Circle sponsor coverage, and that peeking escrow never returns coordinates. Domain tests still use `DemoTrustService`; the running app does not.
+Apple’s split: many fast unit tests, fewer integration tests, a short UI pass for the journeys a person actually does. Run them with the Trust scheme in Xcode (`DEVELOPER_DIR` must be Xcode.app, not Command Line Tools). Destination on this Mac is the iPhone 17 Pro simulator.
+
+| Layer | Where | What it proves |
+| --- | --- | --- |
+| Unit | `TrustCoreTests` — rules, copy, handle, ingest buffer, vault | One function, no UI, no network. History is 24h free / 30 days Plus. Pause wires are 1h, 8h, 1 day, 2 days, 3 days. |
+| Shadow | `TrustCoreTests` — `DemoTrustService` | The offline “See the app” fixture follows the same share, Look, View, and log rules as the server. It is not a second product. |
+| Integration | `apps/trust-api` `TrustApi.Tests` and `scripts/e2e_two_account_http.py` | Two accounts against Postgres: Pause restores, Look is one snapshot, live pins need the viewer’s Plus. |
+| Usage | `TrustUITests` | Launches the Debug app with `TRUST_DEMO=1` and `TRUST_UI_TEST=1` and walks People, a Look confirm, Sharing, Log, and You. |

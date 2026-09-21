@@ -97,6 +97,7 @@ targets:
       storeKitConfiguration: Resources/Trust.storekit
       testTargets:
         - TrustCoreTests
+        - TrustUITests
   TrustCoreTests:
     type: bundle.unit-test
     platform: iOS
@@ -109,6 +110,20 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: com.collapsetechnologies.trust.tests
+  TrustUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Tests/TrustUITests
+    dependencies:
+      - target: Trust
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.collapsetechnologies.trust.uitests
+        TEST_TARGET_NAME: Trust
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 3S529795M9
 schemes:
   # L2 sandbox verification (M3 plan §"Sandbox / TestFlight / StoreKit testing path").
   # Physical device only — Simulator cannot do App Store Sandbox purchases.
