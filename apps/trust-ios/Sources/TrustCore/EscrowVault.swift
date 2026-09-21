@@ -3,7 +3,8 @@ import Foundation
 /// Location points stay sealed until a look releases the vault key.
 /// The store never exposes plaintext coordinates except through `unlock`.
 public final class EscrowVault: @unchecked Sendable {
-    public static let defaultHistoryWindow: TimeInterval = 2 * 60 * 60
+    /// Demo store cap. Matches the server's 30-day retention, not a 2-hour peek.
+    public static let defaultHistoryWindow: TimeInterval = 30 * 24 * 60 * 60
 
     private var key: [UInt8]
     private var records: [SealedRecord] = []

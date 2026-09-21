@@ -20,7 +20,24 @@ public sealed class PostgresPushDeviceStore(string connectionString) : IPushDevi
             : "production";
         await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        // A new installation id with the same token used to violate
+        // ux_push_devices_account_token and the registration was dropped.
+        await using (var clear = new NpgsqlCommand(
+            """
+            DELETE FROM trust.push_devices
+            WHERE account_id = $1 AND apns_token = $2 AND installation_id <> $3;
+            """,
+            connection,
+            transaction))
+        {
+            clear.Parameters.AddWithValue(accountId);
+            clear.Parameters.AddWithValue(token);
+            clear.Parameters.AddWithValue(installationId);
+            await clear.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using (var command = new NpgsqlCommand(
             """
             INSERT INTO trust.push_devices (
                 installation_id, account_id, apns_token, environment, bundle_id,
@@ -36,13 +53,18 @@ public sealed class PostgresPushDeviceStore(string connectionString) : IPushDevi
                 invalidated_at = NULL,
                 updated_at = now();
             """,
-            connection);
-        command.Parameters.AddWithValue(installationId);
-        command.Parameters.AddWithValue(accountId);
-        command.Parameters.AddWithValue(token);
-        command.Parameters.AddWithValue(env);
-        command.Parameters.AddWithValue(bundleId);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+            connection,
+            transaction))
+        {
+            command.Parameters.AddWithValue(installationId);
+            command.Parameters.AddWithValue(accountId);
+            command.Parameters.AddWithValue(token);
+            command.Parameters.AddWithValue(env);
+            command.Parameters.AddWithValue(bundleId);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task RemoveAsync(Guid accountId, Guid installationId, CancellationToken cancellationToken)

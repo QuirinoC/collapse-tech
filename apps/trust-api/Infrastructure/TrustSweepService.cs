@@ -4,7 +4,8 @@ using TrustApi.Domain;
 namespace TrustApi.Infrastructure;
 
 /// <summary>
-/// Closes Look sessions past ActiveLookTtl, prunes GPS past retention, and marks due promises.
+/// Prunes GPS trails past retention (keeping the last fix while a share is still on)
+/// and marks due promises.
 /// </summary>
 public sealed class TrustSweepService(
     ITrustStore store,
@@ -45,18 +46,7 @@ public sealed class TrustSweepService(
     public async Task SweepOnceAsync(CancellationToken cancellationToken)
     {
         var now = time.GetUtcNow();
-        var lookCutoff = now - TrustRules.ActiveLookTtl;
-        var expired = await store.ListExpiredActiveLooksAsync(lookCutoff, cancellationToken);
-        foreach (var look in expired)
-        {
-            await store.ClearActiveLookAsync(look.ViewerId, look.SubjectId, cancellationToken);
-            logger.LogInformation(
-                "Closed expired look {LookId} viewer {ViewerId} subject {SubjectId}.",
-                look.LookId,
-                look.ViewerId,
-                look.SubjectId);
-        }
-
+        await store.RestoreExpiredPausesAsync(now, cancellationToken);
         await store.PruneAllLocationsAsync(now - TrustRules.LocationRetention, cancellationToken);
         await engine.EvaluateDuePromisesAsync(cancellationToken);
     }

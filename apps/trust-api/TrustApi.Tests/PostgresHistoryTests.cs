@@ -66,24 +66,20 @@ public sealed class PostgresHistoryTests
 
         var rebuiltResult = await afterRestart.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
         var rebuilt = rebuiltResult.Session;
-        Assert.Equal(look.Event.Id, rebuilt.Event.Id);
+        Assert.NotEqual(look.Event.Id, rebuilt.Event.Id);
         Assert.Single(rebuilt.Trail);
-        Assert.False(rebuiltResult.IsNew);
+        Assert.True(rebuiltResult.IsNew);
 
         var receipts = await restarted.ListLooksAsync(sam.Id, time.UtcNow.AddDays(-1), CancellationToken.None);
         Assert.Contains(receipts, item => item.Id == look.Event.Id && item.IncludedLive && item.Kind == LookKind.Look);
 
-        // Sealed never flips "live" from an active Look — Sam stays not-live in the circle
-        // listing even while Jordan's snapshot/active-look session exists.
+        // A Look does not open a session and does not dump the stored trail.
         var sealedView = await afterRestart.GetCircleAsync(jordan.Id, CancellationToken.None);
         Assert.Null(sealedView.Members.Single(member => member.Person.Id == sam.Id).Live);
         Assert.False(sealedView.Members.Single(member => member.Person.Id == sam.Id).InboundLive);
-        Assert.Single(sealedView.ActiveSession!.Trail);
-
-        await afterRestart.CloseLookAsync(jordan.Id, sam.Id, CancellationToken.None);
-        var sealedAgain = await afterRestart.GetCircleAsync(jordan.Id, CancellationToken.None);
-        Assert.Null(sealedAgain.Members.Single(member => member.Person.Id == sam.Id).Live);
-        Assert.Null(sealedAgain.ActiveSession);
+        Assert.Null(sealedView.ActiveSession);
+        var subjectView = await afterRestart.GetCircleAsync(sam.Id, CancellationToken.None);
+        Assert.Null(subjectView.BeingWatched);
 
         await afterRestart.DeleteAccountAsync(sam.Id, CancellationToken.None);
         await afterRestart.DeleteAccountAsync(jordan.Id, CancellationToken.None);

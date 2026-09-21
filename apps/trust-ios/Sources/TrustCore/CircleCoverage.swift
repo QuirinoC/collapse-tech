@@ -5,10 +5,8 @@ public enum CircleError: Error, Equatable {
     case seatLimitReached
 }
 
-/// Plus coverage. You are covered when you pay, or when a paying member covers you on
-/// your shared edge. Coverage unlocks capacity and convenience (seats, Always / For a while,
-/// full view log) — never receipts, the seal default, Stop, Hidden, presence, Look, Invite,
-/// or Delete. Server values win when present; the constants are the 1.0 defaults.
+/// Plus is this account. A paying friend does not cover you.
+/// Coverage unlocks seats, Always, the people map, and a longer history.
 public struct CircleCoverage: Equatable, Sendable {
     public var isCovered: Bool
     public var sponsorName: String?
@@ -17,12 +15,13 @@ public struct CircleCoverage: Equatable, Sendable {
     public var serverSeatLimit: Int?
     public var serverLookLogDays: Int?
 
-    public static let freeHistoryHours = 2
-    public static let proHistoryHours = 24
     public static let freeTrustedPeople = 5
     public static let proTrustedPeople = 20
     public static let freeLookLogDays = 30
     public static let proLookLogDays = 365
+    /// Recent place list on the person screen. Plus keeps a longer trail; free still shows history.
+    public static let freeHistoryHours = 24
+    public static let plusHistoryDays = 30
 
     public init(
         isCovered: Bool,
@@ -46,7 +45,7 @@ public struct CircleCoverage: Equatable, Sendable {
         serverLookLogDays ?? (isCovered ? Self.proLookLogDays : Self.freeLookLogDays)
     }
 
-    /// Always and For a while are Plus. Off and Until they look never are.
+    /// Always is Plus. Sealed, Pause, and Off are not.
     public var canShareAvailable: Bool { isCovered }
 
     public var hasPlacePings: Bool { isCovered }
@@ -57,11 +56,9 @@ public struct CircleCoverage: Equatable, Sendable {
 
     public var planLabel: String { isCovered ? TrustCopy.plusPlan : TrustCopy.freePlan }
 
+    /// Plus is this account. A friend's Plus never produces a banner here.
     public var banner: String? {
-        guard isCovered, let sponsorName else { return nil }
-        if actingIsSponsor {
-            return TrustCopy.bannerYouPay
-        }
-        return TrustCopy.bannerSponsorCovers(name: sponsorName)
+        guard isCovered, actingIsSponsor else { return nil }
+        return TrustCopy.plusOnThisAccount
     }
 }

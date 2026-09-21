@@ -96,8 +96,8 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
         setSharingTier(sharing ? (sharingTier == .off ? .available : sharingTier) : .off)
     }
 
-    /// Review-critical: Off stops the stack; Sealed is coarse + significant-change;
-    /// Available / being-Looked-at is finer.
+    /// Off stops the stack. Sealed stays coarse (significant-change). Always is finer.
+    /// A Look does not raise accuracy.
     func setSharingTier(_ tier: LocationSharingTier) {
         sharingTier = tier
         isSharing = tier != .off

@@ -46,10 +46,10 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
     {
         var you = await RequireAccount(accountId, cancellationToken);
         var now = time.GetUtcNow();
+        await store.RestoreExpiredPausesAsync(now, cancellationToken);
         var connected = await store.ListConnectedAsync(accountId, cancellationToken);
         var coverage = CoverageOf(you, connected);
         var members = new List<CircleMember>();
-        LookSession? activeSession = null;
         var yourHome = await store.GetHomePlaceAsync(you.Id, cancellationToken);
         var yourPresence = await store.GetCurrentHomePresenceAsync(you.Id, cancellationToken);
 
@@ -57,17 +57,16 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
         {
             var outbound = await store.GetShareAsync(you.Id, person.Id, cancellationToken);
             var inbound = await store.GetShareAsync(person.Id, you.Id, cancellationToken);
-            var active = await RequireLiveActiveLookAsync(you.Id, person.Id, cancellationToken);
-            // Snapshot semantics: an active/recent Look never flips a Sealed pair "live".
-            // Live only comes from the inbound share itself (Always / Timed = Available).
             var inboundLive = inbound.RevealsLive(now);
+            // Always coordinates are a Plus pin for the viewer. A paying friend does not cover you.
+            // Sealed stays coordinate-free here; Look still returns its own snapshot.
             LocationFix? live = null;
-            if (inboundLive)
+            if (inboundLive && you.HasCircle)
             {
                 live = await store.LatestLocationAsync(person.Id, cancellationToken);
             }
 
-            // Battery / last-active / got-home only while Looking or Always / For a while.
+            // Battery / last-active only while Always (live). Sealed is a Look, not a live row.
             Presence? presence = inboundLive
                 ? await store.GetPresenceAsync(person.Id, now, cancellationToken)
                 : null;
@@ -78,18 +77,16 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             var inboundPresenceGranted = inboundGrant?.Enabled == true;
 
             VisibleHomePresence? homePresence = null;
-            if (inboundPresenceGranted)
+            var current = await store.GetCurrentHomePresenceAsync(person.Id, cancellationToken);
+            // Status is free and global. Hidden is not a share mode and is not shown.
+            // A per-pair grant is not required.
+            if (current is not null && current.State is HomePresenceState.Home or HomePresenceState.Away)
             {
-                var current = await store.GetCurrentHomePresenceAsync(person.Id, cancellationToken);
-                // Hidden is a real triad member, not merely "no grant" — the circle never sees it.
-                if (current is not null && current.State != HomePresenceState.Hidden)
-                {
-                    var place = await store.GetHomePlaceAsync(person.Id, cancellationToken);
-                    homePresence = new VisibleHomePresence(
-                        current.State,
-                        current.LastChangedAt,
-                        place?.Label);
-                }
+                var place = await store.GetHomePlaceAsync(person.Id, cancellationToken);
+                homePresence = new VisibleHomePresence(
+                    current.State,
+                    current.LastChangedAt,
+                    place?.Label);
             }
 
             var promiseView = await BuildPromiseViewAsync(you.Id, person.Id, cancellationToken);
@@ -105,31 +102,6 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
                 inboundPresenceGranted,
                 homePresence,
                 promiseView));
-
-            if (active is not null)
-            {
-                var session = await BuildSessionAsync(you, person, active, cancellationToken);
-                if (session is not null)
-                {
-                    activeSession = session;
-                }
-            }
-        }
-
-        var watched = await RequireLiveLookAtMeAsync(you.Id, cancellationToken);
-        LookEvent? beingWatched = null;
-        if (watched is not null)
-        {
-            var viewer = await store.FindAccountAsync(watched.ViewerId, cancellationToken);
-            beingWatched = new LookEvent(
-                watched.LookId,
-                watched.ViewerId,
-                viewer?.DisplayName ?? "Someone",
-                you.Id,
-                you.DisplayName,
-                watched.OpenedAt,
-                watched.HistoryWindowHours,
-                true);
         }
 
         var since = now.AddDays(-coverage.LookLogDays);
@@ -142,8 +114,8 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             members,
             coverage,
             invite,
-            activeSession,
-            beingWatched,
+            null,
+            null,
             log,
             Math.Max(0, allLog.Count - log.Count),
             yourHome,
@@ -210,7 +182,7 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
         Guid accountId,
         Guid granteeId,
         ShareResting? resting,
-        TimedShareDuration? timed,
+        PauseDuration? pause,
         CancellationToken cancellationToken)
     {
         var you = await RequireAccount(accountId, cancellationToken);
@@ -219,48 +191,83 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             throw TrustException.NotConnected();
         }
 
-        // Plus gating: Always and any timed ("For a while") share require coverage.
-        // Off and Sealed (UntilTheyLook) are never paywalled.
-        var requestsAlways = timed is null && resting == ShareResting.Always;
-        var requestsTimed = timed is not null;
-        if (requestsAlways || requestsTimed)
-        {
-            var connected = await store.ListConnectedAsync(you.Id, cancellationToken);
-            var coverage = CoverageOf(you, connected);
-            if (!coverage.IsCovered)
-            {
-                throw TrustException.ProRequired();
-            }
-        }
-
-        var current = await store.GetShareAsync(you.Id, granteeId, cancellationToken);
         var now = time.GetUtcNow();
-        var presentation = current.Presentation(now);
-        var nextResting = resting ?? current.Resting;
-        DateTimeOffset? timedUntil = null;
-        if (timed is { } duration)
+        await store.RestoreExpiredPausesAsync(now, cancellationToken);
+        var current = await store.GetShareAsync(you.Id, granteeId, cancellationToken);
+
+        if (pause is { } duration)
         {
-            var revert = presentation switch
+            var effective = current.Effective(now);
+            var restores = effective switch
             {
-                SharePresentation.Always => ShareResting.Always,
-                SharePresentation.Timed(_, ShareResting.Always) => ShareResting.Always,
-                _ => ShareResting.UntilTheyLook
+                ShareResting.Always => ShareResting.Always,
+                ShareResting.UntilTheyLook => ShareResting.UntilTheyLook,
+                ShareResting.Paused => current.RestoresTo == ShareResting.Always
+                    ? ShareResting.Always
+                    : ShareResting.UntilTheyLook,
+                _ => throw new TrustException(
+                    "pause_requires_share",
+                    "Pause only applies while you are sharing.")
             };
-            nextResting = revert;
-            timedUntil = TimedShare.EndAt(duration, now);
+            await store.UpsertShareAsync(
+                you.Id,
+                granteeId,
+                new ShareState(ShareResting.Paused, PauseShare.EndAt(duration, now), restores),
+                cancellationToken);
+            return;
         }
 
-        if (resting is not null && timed is null)
+        // Always is Plus on this account. A friend's Plus does not unlock it.
+        // Sealed, Off, and Pause are never paywalled.
+        if (resting == ShareResting.Always && !you.HasCircle)
         {
-            timedUntil = null;
-            nextResting = resting.Value;
+            throw TrustException.ProRequired();
+        }
+
+        if (resting is null)
+        {
+            return;
+        }
+
+        if (resting == ShareResting.Paused)
+        {
+            throw new TrustException("pause_required", "Choose how long to pause.");
         }
 
         await store.UpsertShareAsync(
             you.Id,
             granteeId,
-            new ShareState(nextResting, timedUntil),
+            new ShareState(resting.Value),
             cancellationToken);
+
+        if (resting == ShareResting.Off)
+        {
+            await ClearLocationsIfNothingHeldAsync(you.Id, now, cancellationToken);
+        }
+    }
+
+    public async Task<IReadOnlyList<LocationFix>> HistoryAsync(
+        Guid viewerId,
+        Guid subjectId,
+        CancellationToken cancellationToken)
+    {
+        var viewer = await RequireAccount(viewerId, cancellationToken);
+        if (!await store.AreConnectedAsync(viewer.Id, subjectId, cancellationToken))
+        {
+            throw TrustException.NotConnected();
+        }
+
+        var now = time.GetUtcNow();
+        await store.RestoreExpiredPausesAsync(now, cancellationToken);
+        var shareToViewer = await store.GetShareAsync(subjectId, viewer.Id, cancellationToken);
+        if (!shareToViewer.SharesHistory(now))
+        {
+            throw TrustException.ShareOff();
+        }
+
+        var window = TrustRules.HistoryWindow(viewer.HasCircle);
+        var points = await store.UnlockLocationsAsync(subjectId, now - window, now, cancellationToken);
+        return points.OrderByDescending(point => point.Timestamp).ToList();
     }
 
     public Task IngestAsync(
@@ -288,22 +295,31 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
 
         var now = time.GetUtcNow();
 
-        // Track only while any outbound share ≠ Off. If every connected pair is Off, skip
-        // ingest entirely and wipe what's stored — there's no consenting recipient left.
-        var anyOutboundSharing = false;
+        // Upload only while Sealed or Always. Pause keeps the trail but does not add points.
+        // If every outbound share is Off, wipe what's stored.
+        var acceptsLocation = false;
+        var keepsTrail = false;
         foreach (var person in connected)
         {
             var outbound = await store.GetShareAsync(you.Id, person.Id, cancellationToken);
-            if (outbound.Presentation(now) is not SharePresentation.Off)
+            if (outbound.AcceptsLocation(now))
             {
-                anyOutboundSharing = true;
-                break;
+                acceptsLocation = true;
+            }
+
+            if (outbound.KeepsTrail(now))
+            {
+                keepsTrail = true;
             }
         }
 
-        if (!anyOutboundSharing)
+        if (!acceptsLocation)
         {
-            await store.ClearLocationsAsync(you.Id, cancellationToken);
+            if (!keepsTrail)
+            {
+                await store.ClearLocationsAsync(you.Id, cancellationToken);
+            }
+
             return;
         }
 
@@ -375,19 +391,14 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
 
         if (presentation is not SharePresentation.UntilTheyLook)
         {
-            // Always / Timed is already Available — the client should use View, not Look.
-            throw TrustException.LookRequiresSealed();
+            // Always is already live — the client should use View, not Look.
+            // Paused and Off are not a Look.
+            throw presentation is SharePresentation.Paused
+                ? TrustException.ShareOff()
+                : TrustException.LookRequiresSealed();
         }
 
-        var existing = await RequireLiveActiveLookAsync(viewer.Id, subject.Id, cancellationToken);
-        if (existing is not null)
-        {
-            var reused = await BuildSessionAsync(viewer, subject, existing, cancellationToken)
-                ?? throw TrustException.NoLocation();
-            return new LookResult(reused, IsNew: false);
-        }
-
-        // Snapshot semantics: Look returns the latest point only — one snapshot, no trail.
+        // One confirmed Look is one snapshot and one receipt. History is GET /history, not this call.
         var live = await store.LatestLocationAsync(subject.Id, cancellationToken)
             ?? throw TrustException.NoLocation();
 
@@ -402,14 +413,10 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             true,
             LookKind.Look);
         await store.InsertLookEventAsync(look, cancellationToken);
-        await store.SetActiveLookAsync(
-            new ActiveLook(look.Id, viewer.Id, subject.Id, 0, now),
-            cancellationToken);
         return new LookResult(new LookSession(look, live, [live]), IsNew: true);
     }
 
-    /// View is the Available-side counterpart to Look: no confirm sheet, no push, and it only
-    /// works when the subject's share to the viewer already reveals live (Always / Timed).
+    /// View is the Always read: no confirm sheet, no push. It only works while they share Always.
     /// Repeated views within <see cref="TrustRules.ViewDedupeWindow"/> don't add new log rows;
     /// this returns null in that case so the caller knows nothing new was logged.
     public async Task<LookEvent?> ViewAsync(
@@ -452,43 +459,6 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             LookKind.View);
         await store.InsertLookEventAsync(view, cancellationToken);
         return view;
-    }
-
-    public async Task CloseLookAsync(Guid viewerId, Guid? subjectId, CancellationToken cancellationToken)
-    {
-        await store.ClearActiveLookAsync(viewerId, subjectId, cancellationToken);
-    }
-
-    public async Task<LookSession> ExtendLookAsync(Guid viewerId, Guid subjectId, CancellationToken cancellationToken)
-    {
-        var snapshot = await GetCircleAsync(viewerId, cancellationToken);
-        if (!snapshot.Coverage.CanExtendHistory)
-        {
-            throw TrustException.ProRequired();
-        }
-
-        var viewer = snapshot.You;
-        var subject = await RequireAccount(subjectId, cancellationToken);
-        var active = await RequireLiveActiveLookAsync(viewer.Id, subject.Id, cancellationToken)
-            ?? throw TrustException.PairInactive();
-        var now = time.GetUtcNow();
-        var hours = TrustRules.ProHistoryHours;
-        var trail = await store.UnlockLocationsAsync(subject.Id, now.AddHours(-hours), now, cancellationToken);
-        var live = trail.LastOrDefault() ?? throw TrustException.NoLocation();
-        var updated = active with { HistoryWindowHours = hours };
-        await store.SetActiveLookAsync(updated, cancellationToken);
-        await store.UpdateLookEventHistoryHoursAsync(updated.LookId, hours, cancellationToken);
-        var look = new LookEvent(
-            updated.LookId,
-            viewer.Id,
-            viewer.DisplayName,
-            subject.Id,
-            subject.DisplayName,
-            updated.OpenedAt,
-            hours,
-            true,
-            LookKind.Look);
-        return new LookSession(look, live, trail);
     }
 
     public async Task CheckInAsync(Guid accountId, CancellationToken cancellationToken)
@@ -538,8 +508,21 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             throw TrustException.NotConnected();
         }
 
-        await store.ClearActiveLookAsync(accountId, otherId, cancellationToken);
-        await store.ClearActiveLookAsync(otherId, accountId, cancellationToken);
+        var you = await RequireAccount(accountId, cancellationToken);
+        var other = await RequireAccount(otherId, cancellationToken);
+        var now = time.GetUtcNow();
+        await store.InsertLookEventAsync(
+            new LookEvent(
+                Guid.NewGuid(),
+                you.Id,
+                you.DisplayName,
+                other.Id,
+                other.DisplayName,
+                now,
+                0,
+                false,
+                LookKind.Removed),
+            cancellationToken);
         await store.RevokeMembershipAsync(accountId, otherId, cancellationToken);
         if (await store.ActiveMembershipCountAsync(accountId, cancellationToken) == 0)
         {
@@ -808,11 +791,11 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
         await store.UpsertShareAsync(
             jordan.Id, you.Id, new ShareState(ShareResting.Always, null), cancellationToken);
 
-        // Riley: Timed — Available now, reverting to Sealed when the countdown ends.
+        // Riley: Paused — not sharing until the timer, then Sealed returns. Not a live pin.
         await store.UpsertShareAsync(
-            you.Id, riley.Id, new ShareState(ShareResting.UntilTheyLook, now.AddMinutes(47)), cancellationToken);
+            you.Id, riley.Id, new ShareState(ShareResting.Paused, now.AddMinutes(47), ShareResting.UntilTheyLook), cancellationToken);
         await store.UpsertShareAsync(
-            riley.Id, you.Id, new ShareState(ShareResting.UntilTheyLook, now.AddMinutes(47)), cancellationToken);
+            riley.Id, you.Id, new ShareState(ShareResting.Paused, now.AddMinutes(47), ShareResting.UntilTheyLook), cancellationToken);
 
         // Riley: Hidden presence — grant is on, but the state itself must never surface to you.
         await store.SetPresenceGrantAsync(riley.Id, you.Id, true, now, cancellationToken);
@@ -884,45 +867,6 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
             relevant.SubjectId == youId);
     }
 
-    private async Task<ActiveLook?> RequireLiveActiveLookAsync(
-        Guid viewerId,
-        Guid subjectId,
-        CancellationToken cancellationToken)
-    {
-        var active = await store.GetActiveLookAsync(viewerId, subjectId, cancellationToken);
-        if (active is null)
-        {
-            return null;
-        }
-
-        if (ActiveLookRules.IsExpired(active, time.GetUtcNow()))
-        {
-            await store.ClearActiveLookAsync(viewerId, subjectId, cancellationToken);
-            return null;
-        }
-
-        return active;
-    }
-
-    private async Task<ActiveLook?> RequireLiveLookAtMeAsync(
-        Guid subjectId,
-        CancellationToken cancellationToken)
-    {
-        var watched = await store.GetLookAtMeAsync(subjectId, cancellationToken);
-        if (watched is null)
-        {
-            return null;
-        }
-
-        if (ActiveLookRules.IsExpired(watched, time.GetUtcNow()))
-        {
-            await store.ClearActiveLookAsync(watched.ViewerId, watched.SubjectId, cancellationToken);
-            return null;
-        }
-
-        return watched;
-    }
-
     private async Task<Account> SeedPersonAsync(
         Guid ownerId,
         string slug,
@@ -959,83 +903,44 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
         return existing;
     }
 
-    private async Task<LookSession?> BuildSessionAsync(
-        Account viewer,
-        Account subject,
-        ActiveLook active,
-        CancellationToken cancellationToken)
-    {
-        // Snapshot semantics: an un-extended active Look is a single point, not a trail.
-        if (active.HistoryWindowHours <= 0)
-        {
-            var snapshot = await store.LatestLocationAsync(subject.Id, cancellationToken);
-            if (snapshot is null)
-            {
-                return null;
-            }
-
-            var snapshotLook = new LookEvent(
-                active.LookId,
-                viewer.Id,
-                viewer.DisplayName,
-                subject.Id,
-                subject.DisplayName,
-                active.OpenedAt,
-                0,
-                true,
-                LookKind.Look);
-            return new LookSession(snapshotLook, snapshot, [snapshot]);
-        }
-
-        // Dormant Plus "extend" path: an explicitly extended Look still carries its trail.
-        var now = time.GetUtcNow();
-        var trail = await store.UnlockLocationsAsync(
-            subject.Id,
-            now.AddHours(-active.HistoryWindowHours),
-            now,
-            cancellationToken);
-        var live = trail.LastOrDefault() ?? await store.LatestLocationAsync(subject.Id, cancellationToken);
-        if (live is null)
-        {
-            return null;
-        }
-
-        var look = new LookEvent(
-            active.LookId,
-            viewer.Id,
-            viewer.DisplayName,
-            subject.Id,
-            subject.DisplayName,
-            active.OpenedAt,
-            active.HistoryWindowHours,
-            true,
-            LookKind.Look);
-        return new LookSession(look, live, trail.Count > 0 ? trail : [live]);
-    }
-
+    /// Plus is this account. A paying friend does not cover you.
     private static CircleCoverage CoverageOf(Account you, IReadOnlyList<Account> connected)
     {
-        Account? sponsor = you.HasCircle ? you : connected.FirstOrDefault(person => person.HasCircle);
+        _ = connected;
         return new CircleCoverage(
-            sponsor is not null,
-            sponsor?.DisplayName,
-            sponsor?.Id == you.Id);
+            you.HasCircle,
+            you.HasCircle ? you.DisplayName : null,
+            you.HasCircle);
     }
 
     private async Task EnsureSeatAsync(Account a, Account b, CancellationToken cancellationToken)
     {
-        var connectedA = await store.ListConnectedAsync(a.Id, cancellationToken);
-        var connectedB = await store.ListConnectedAsync(b.Id, cancellationToken);
-        var covered = a.HasCircle || b.HasCircle
-            || connectedA.Any(person => person.HasCircle)
-            || connectedB.Any(person => person.HasCircle);
-        var limit = covered ? TrustRules.ProSeats : TrustRules.FreeSeats;
+        var limitA = a.HasCircle ? TrustRules.ProSeats : TrustRules.FreeSeats;
+        var limitB = b.HasCircle ? TrustRules.ProSeats : TrustRules.FreeSeats;
         var countA = await store.ActiveMembershipCountAsync(a.Id, cancellationToken);
         var countB = await store.ActiveMembershipCountAsync(b.Id, cancellationToken);
-        if (countA >= limit || countB >= limit)
+        if (countA >= limitA || countB >= limitB)
         {
             throw TrustException.SeatLimit();
         }
+    }
+
+    private async Task ClearLocationsIfNothingHeldAsync(
+        Guid accountId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var connected = await store.ListConnectedAsync(accountId, cancellationToken);
+        foreach (var person in connected)
+        {
+            var outbound = await store.GetShareAsync(accountId, person.Id, cancellationToken);
+            if (outbound.KeepsTrail(now))
+            {
+                return;
+            }
+        }
+
+        await store.ClearLocationsAsync(accountId, cancellationToken);
     }
 
     private async Task<Account> RequireAccount(Guid id, CancellationToken cancellationToken) =>

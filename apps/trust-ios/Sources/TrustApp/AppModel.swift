@@ -15,7 +15,7 @@ enum AppPhase: Equatable {
 enum MainTab: String, CaseIterable, Identifiable {
     case circle
     case sharing
-    case invite
+    case log
     case you
 
     var id: String { rawValue }
@@ -24,7 +24,7 @@ enum MainTab: String, CaseIterable, Identifiable {
         switch self {
         case .circle: return TrustCopy.circle
         case .sharing: return TrustCopy.sharing
-        case .invite: return TrustCopy.inviteTab
+        case .log: return TrustCopy.log
         case .you: return TrustCopy.you
         }
     }
@@ -34,14 +34,15 @@ enum MainTab: String, CaseIterable, Identifiable {
         switch self {
         case .circle: return "person.2.fill"
         case .sharing: return "location.fill"
-        case .invite: return "person.badge.plus"
+        case .log: return "list.bullet"
         case .you: return "person.crop.circle.fill"
         }
     }
 }
 
-/// Destinations pushed over the Circle tab: D1 View for one person, D2 Map.
+/// Destinations pushed over the People tab: person (presence only), Look/View location, map.
 enum CircleRoute: Hashable {
+    case person(UUID)
     case view(UUID)
     case map
 }
@@ -68,7 +69,6 @@ final class AppModel: ObservableObject {
     @Published var selectedTab: MainTab = .circle
     @Published var circlePath: [CircleRoute] = []
     @Published var snapshot: CircleSnapshot?
-    /// True while the last `/circle` refresh failed on connectivity; `snapshot` is then the disk cache.
     @Published private(set) var isOffline = false
     @Published private(set) var isRefreshing = false
     @Published var toast: TrustToast?
@@ -78,15 +78,14 @@ final class AppModel: ObservableObject {
     @Published private(set) var isLooking = false
     /// Snapshots opened this session, by subject. A Look never flips a Sealed row Available.
     @Published private(set) var openedSnapshots: [UUID: LookSession] = [:]
-    /// People whose share toward you is Off — learned when a Look answers `share_off`.
-    /// Used when `/circle` has no `inboundShare` (current API). Demo and a future field
-    /// set `TrustedPerson.inboundPresentation` instead.
-    @Published private(set) var notSharingWithYou: Set<UUID> = []
+    /// Person-screen trails from `GET /people/{id}/history`. Newest first.
+    @Published private(set) var historyByPerson: [UUID: [LocationVisit]] = [:]
 
     @Published var showingViewLog = false
     @Published var showingPaywall = false
     @Published var showingAlwaysExplainer = false
-    @Published var timedSharePersonID: UUID?
+    /// Pause sheet. Set from Sharing, or from a screenshot launch.
+    @Published var pauseSheetPersonID: UUID?
     @Published var stopAllRequested = false
 
     @Published var inviteCodeDraft = ""
@@ -107,8 +106,6 @@ final class AppModel: ObservableObject {
     private var demo: DemoTrustService?
     private var demoTickTask: Task<Void, Never>?
     private var toastTask: Task<Void, Never>?
-    private var grantedPresenceTo: Set<UUID> = []
-    private var lastBeingWatchedID: UUID?
 
     private var cancellables: Set<AnyCancellable> = []
 
@@ -127,17 +124,14 @@ final class AppModel: ObservableObject {
     var lookLog: [LookEvent] { snapshot?.lookLog ?? [] }
     var pendingInviteCode: String? { snapshot?.pendingInviteCode }
 
-    /// Track only while any outbound share ≠ Off.
+    /// Upload while Sealed or Always. Pause and Off do not.
     var isSharingLocation: Bool {
         locationSharingTier != .off
     }
 
-    /// Sealed-only circles stay coarse; Available or a live Look at you is finer.
+    /// Sealed stays coarse. Always is finer. A Look does not raise the tier.
     var locationSharingTier: LocationSharingTier {
-        OutboundLocationSharing.tier(
-            shares: circle.map(\.share),
-            beingWatched: snapshot?.beingWatched != nil
-        )
+        OutboundLocationSharing.tier(shares: circle.map(\.share))
     }
 
     var outboundActiveCount: Int {
@@ -154,7 +148,7 @@ final class AppModel: ObservableObject {
     }
 
     func openedSnapshot(for id: UUID) -> LookSession? {
-        openedSnapshots[id] ?? (snapshot?.activeSession?.event.subjectID == id ? snapshot?.activeSession : nil)
+        openedSnapshots[id]
     }
 
     /// Row state for Circle (design SoT Round 7).
@@ -162,16 +156,13 @@ final class AppModel: ObservableObject {
         openedSnapshot(for: member.id) != nil
     }
 
-    /// Pins for the Map: Available people plus snapshots opened this session.
-    var mapPins: [MapPin] {
-        circle.compactMap { member in
-            if member.isAvailable, let live = member.livePoint {
-                return MapPin(id: member.id, name: member.person.displayName, point: live, live: true)
-            }
-            if let session = openedSnapshot(for: member.id) {
-                return MapPin(id: member.id, name: member.person.displayName, point: session.live, live: false)
-            }
-            return nil
+    /// Pins on the people map: Always, and only if you have Plus. A Look snapshot stays on the person view.
+    var homeMapPins: [MapPin] {
+        guard coverage.isCovered else { return [] }
+        return circle.compactMap { member in
+            guard TrustProductRules.showsLivePin(viewerHasPlus: true, inbound: member.inboundPresentation ?? .off),
+                  let live = member.livePoint else { return nil }
+            return MapPin(id: member.id, name: member.person.displayName, point: live, live: true)
         }
     }
 
@@ -224,6 +215,12 @@ final class AppModel: ObservableObject {
     func start() async {
         await client.prepare()
         #if DEBUG
+        if ProcessInfo.processInfo.environment["TRUST_DEV_SESSION"] == "1" {
+            await signInWithLocalAPI()
+            await store.loadProducts()
+            applyScreenshotLaunch()
+            return
+        }
         if Self.debugDemoRequested(sessionToken: auth.sessionToken) {
             enterDemo()
             await store.loadProducts()
@@ -263,12 +260,25 @@ final class AppModel: ObservableObject {
         switch shot {
         case "circle":
             selectedTab = .circle
+        case "person":
+            selectedTab = .circle
+            if let member = circle.first(where: { $0.isNotSharingWithYou == false }) {
+                openPerson(member)
+            }
+        case "empty":
+            selectedTab = .circle
+            if let member = circle.first(where: { $0.person.displayName == "Maya Chen" }) ?? circle.first {
+                openPerson(member)
+            }
+        case "pause":
+            selectedTab = .sharing
+            pauseSheetPersonID = circle.first(where: { $0.person.displayName == "Maya Chen" })?.id ?? circle.first?.id
         case "look":
             if let sealed = circle.first(where: \.isSealed) { openLook(sealed) }
         case "view":
             if let available = circle.first(where: \.isAvailable) { openView(available) }
         case "log":
-            showingViewLog = true
+            selectedTab = .log
         case "share":
             selectedTab = .sharing
         case "you", "settings":
@@ -276,7 +286,7 @@ final class AppModel: ObservableObject {
         case "map":
             openMap()
         case "invite":
-            selectedTab = .invite
+            selectedTab = .sharing
         default:
             break
         }
@@ -322,8 +332,6 @@ final class AppModel: ObservableObject {
             members: pack.members,
             coverage: pack.coverage,
             pendingInviteCode: pack.invite,
-            activeSession: nil,
-            beingWatched: nil,
             lookLog: pack.log,
             retainedLookLogCount: pack.retained,
             allowsDevelopmentSignIn: true,
@@ -358,6 +366,56 @@ final class AppModel: ObservableObject {
     }
 
     // MARK: Auth
+
+    #if DEBUG
+    /// Signs in against the configured API with `POST /api/v1/session/development`.
+    /// Not compiled into Release. Does not touch Sign in with Apple.
+    func signInWithLocalAPI() async {
+        guard !isSigningIn else { return }
+        isSigningIn = true
+        defer { isSigningIn = false }
+        stopDemo()
+        do {
+            await client.prepare()
+            let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? "trust-debug-simulator"
+            let session = try await client.developmentSession(displayName: "Dev", deviceId: deviceId)
+            auth.persist(
+                account: AuthAccount(
+                    provider: .apple,
+                    displayName: session.you.displayName,
+                    appleUserID: nil
+                ),
+                token: client.token ?? ""
+            )
+            if session.you.onboardingComplete != true, session.you.handle == nil {
+                try await claimDebugHandle(deviceId: deviceId)
+            }
+            await refresh(enterHome: true, fallbackOnboardingComplete: true)
+            receipts.prepare(client: client)
+        } catch is CancellationError {
+            return
+        } catch {
+            auth.notice = plainMessage(for: error)
+        }
+    }
+
+    /// A real `PUT /me/handle` so the first local session can leave onboarding. Same account
+    /// keeps the handle it already owns.
+    private func claimDebugHandle(deviceId: String) async throws {
+        let compact = deviceId.replacingOccurrences(of: "-", with: "").lowercased()
+        let suffix = String(compact.prefix(8))
+        var last: Error?
+        for handle in ["devsim", "dev\(suffix)"] {
+            do {
+                try await client.setHandle(handle)
+                return
+            } catch {
+                last = error
+            }
+        }
+        if let last { throw last }
+    }
+    #endif
 
     func signIn(with provider: AuthenticationProvider) async {
         guard !isSigningIn else { return }
@@ -404,8 +462,7 @@ final class AppModel: ObservableObject {
         stopDemo()
         snapshot = nil
         openedSnapshots = [:]
-        notSharingWithYou = []
-        grantedPresenceTo = []
+        historyByPerson = [:]
         presenceOverride = nil
         isOffline = false
         phase = .login
@@ -415,7 +472,6 @@ final class AppModel: ObservableObject {
         showingPaywall = false
         showingAlwaysExplainer = false
         lookSubject = nil
-        timedSharePersonID = nil
         inviteNotice = nil
         toast = nil
         resetOnboardingDraft()
@@ -459,19 +515,8 @@ final class AppModel: ObservableObject {
             if enterHome {
                 routeAfterAuth(onboardingComplete: fresh.you.onboardingComplete)
             }
-            // Prefer `/circle` inboundShare; keep Look-probe ids only when presentation is still unknown.
-            notSharingWithYou = notSharingWithYou.filter { id in
-                guard let member = fresh.members.first(where: { $0.id == id }) else { return false }
-                if let inbound = member.inboundPresentation { return inbound.isOff }
-                return !member.isAvailable
-            }
             syncLocationSharing()
             await flushIngestQueue()
-            await reconcilePresenceGrants()
-            if let watched = fresh.beingWatched, watched.id != lastBeingWatchedID {
-                lastBeingWatchedID = watched.id
-                showToast(TrustCopy.receiptTitle(viewer: watched.viewerName))
-            }
         } catch TrustClientError.unauthorized {
             signOut()
         } catch let error as TrustClientError where error.isConnectivity {
@@ -544,7 +589,6 @@ final class AppModel: ObservableObject {
                     session = try await client.look(subjectID: subject.id, confirmed: true)
                 }
                 openedSnapshots[subject.id] = session
-                notSharingWithYou.remove(subject.id)
                 lookSubject = nil
                 // Let the sheet finish dismissing before pushing D1 View.
                 try? await Task.sleep(for: .milliseconds(320))
@@ -554,9 +598,7 @@ final class AppModel: ObservableObject {
                 if demo == nil { await refresh() }
             } catch {
                 lookSubject = nil
-                if error.isShareOff {
-                    notSharingWithYou.insert(subject.id)
-                } else if error.isLookRequiresSealed {
+                if error.isLookRequiresSealed {
                     openView(subject)
                     return
                 }
@@ -604,6 +646,39 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Person screen: status, and history when they are Sealed or Always. Not the Look peek.
+    func openPerson(_ member: TrustedPerson) {
+        selectedTab = .circle
+        circlePath = [.person(member.id)]
+        guard !isDemoMode else { return }
+        Task { await loadHistory(for: member.id) }
+    }
+
+    func loadHistory(for personID: UUID) async {
+        guard !isDemoMode else { return }
+        do {
+            let points = try await client.history(personID: personID)
+            historyByPerson[personID] = points.map {
+                LocationVisit(label: TrustCopy.location, at: $0.timestamp, point: $0)
+            }
+        } catch {
+            historyByPerson[personID] = []
+        }
+    }
+
+    /// Newest first. Free is 24 hours. Plus is 30 days. Empty when they are not sharing.
+    func locationHistory(for member: TrustedPerson) -> [LocationVisit] {
+        if ProcessInfo.processInfo.environment["TRUST_SCREENSHOT"] == "empty" {
+            return []
+        }
+        let source = isDemoMode ? member.locationHistory : (historyByPerson[member.id] ?? [])
+        let hours = TimeInterval(TrustProductRules.historyWindowHours(viewerHasPlus: coverage.isCovered) * 3600)
+        let now = Date()
+        return source
+            .filter { $0.at <= now && now.timeIntervalSince($0.at) <= hours }
+            .sorted { $0.at > $1.at }
+    }
+
     func openMap() {
         selectedTab = .circle
         circlePath = [.map]
@@ -614,10 +689,6 @@ final class AppModel: ObservableObject {
         if let demo {
             demo.closeLook(subjectID: personID)
             publishDemoSnapshot()
-            return
-        }
-        Task {
-            try? await client.closeLook(subjectID: personID)
         }
     }
 
@@ -640,7 +711,7 @@ final class AppModel: ObservableObject {
         return member(personID)?.share ?? PersonShareState()
     }
 
-    func setResting(_ mode: ShareRestingMode, for personID: UUID) {
+    func setResting(_ mode: ShareRestingMode, for personID: UUID, toast override: String? = nil) {
         guard requireOnline() else { return }
         let name = member(personID)?.firstName ?? TrustCopy.them
         Task {
@@ -650,21 +721,28 @@ final class AppModel: ObservableObject {
                     case .off: demo.setOff(personID: personID)
                     case .untilTheyLook: demo.setUntilTheyLook(personID: personID)
                     case .always: try demo.setAlways(personID: personID)
+                    case .paused: break
                     }
                     publishDemoSnapshot()
                 } else {
-                    try await client.setShare(personID: personID, resting: mode, timed: nil)
+                    try await client.setShare(personID: personID, resting: mode, pause: nil)
                     await refresh()
                 }
-                switch mode {
-                case .off:
-                    showToast(TrustCopy.sharingStopped(name: name))
-                case .untilTheyLook:
-                    showToast(TrustCopy.modeUpdated(name: name, mode: TrustCopy.untilTheyLook))
-                    afterFirstShare()
-                case .always:
-                    showToast(TrustCopy.modeUpdated(name: name, mode: TrustCopy.always))
-                    afterFirstShare()
+                if let override {
+                    showToast(override)
+                } else {
+                    switch mode {
+                    case .off:
+                        showToast(TrustCopy.sharingStopped(name: name))
+                    case .untilTheyLook:
+                        showToast(TrustCopy.modeUpdated(name: name, mode: TrustCopy.sealed))
+                        afterFirstShare()
+                    case .always:
+                        showToast(TrustCopy.modeUpdated(name: name, mode: TrustCopy.always))
+                        afterFirstShare()
+                    case .paused:
+                        break
+                    }
                 }
             } catch {
                 handleShareError(error)
@@ -672,26 +750,23 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func openTimedSharePicker(personID: UUID) {
+    /// Pause is stored on the server and restores the previous mode when it ends.
+    func pauseSharing(personID: UUID, duration: PauseDuration) {
         guard requireOnline() else { return }
-        timedSharePersonID = personID
-    }
-
-    func setTimedShare(personID: UUID, duration: TimedShareDuration) {
-        timedSharePersonID = nil
-        let name = member(personID)?.firstName ?? TrustCopy.them
+        let until = duration.endDate(from: Date())
+        let clock = until.formatted(date: .omitted, time: .shortened)
+        let modeName = restoreMode(for: personID) == .always ? TrustCopy.always : TrustCopy.sealed
         Task {
             do {
                 if let demo {
-                    try demo.setTimedShare(personID: personID, duration: duration)
+                    try demo.pauseSharing(personID: personID, duration: duration)
                     publishDemoSnapshot()
                 } else {
-                    try await client.setShare(personID: personID, resting: nil, timed: duration)
+                    try await client.setShare(personID: personID, resting: nil, pause: duration)
                     await refresh()
                 }
-                showToast(TrustCopy.modeUpdated(name: name, mode: "\(TrustCopy.forAWhile) · \(duration.label)"))
-                receipts.scheduleTimedEnd(at: duration.endDate(from: Date()))
-                afterFirstShare()
+                showToast(TrustCopy.pauseUntil(time: clock, mode: modeName))
+                syncLocationSharing()
             } catch {
                 handleShareError(error)
             }
@@ -702,6 +777,40 @@ final class AppModel: ObservableObject {
         setResting(.off, for: personID)
     }
 
+    /// Drops the pair. Not the same as Stop, which leaves them on the list as not sharing.
+    func removePerson(personID: UUID) {
+        guard requireOnline() else { return }
+        let name = member(personID)?.firstName ?? TrustCopy.them
+        Task {
+            do {
+                if let demo {
+                    demo.revoke(personID: personID)
+                    publishDemoSnapshot()
+                } else {
+                    try await client.revoke(personID: personID)
+                    await refresh()
+                }
+                circlePath.removeAll { route in
+                    switch route {
+                    case .person(let id), .view(let id): return id == personID
+                    case .map: return false
+                    }
+                }
+                showToast(TrustCopy.logYouRemoved(name: name))
+            } catch {
+                showToast(plainMessage(for: error))
+            }
+        }
+    }
+
+    func restoreMode(for personID: UUID) -> ShareRestingMode {
+        switch shareState(for: personID).presentation(at: Date()) {
+        case .always: return .always
+        case .paused(_, let reverts): return reverts == .always ? .always : .untilTheyLook
+        case .untilTheyLook, .off: return .untilTheyLook
+        }
+    }
+
     func stopAll() {
         guard requireOnline() else { return }
         Task {
@@ -710,11 +819,10 @@ final class AppModel: ObservableObject {
                 publishDemoSnapshot()
             } else {
                 for member in circle where !member.share.presentation(at: Date()).isOff {
-                    try? await client.setShare(personID: member.id, resting: .off, timed: nil)
+                    try? await client.setShare(personID: member.id, resting: .off, pause: nil)
                 }
                 await refresh()
             }
-            receipts.cancelTimedEnd()
             showToast(TrustCopy.stopAllToast)
         }
     }
@@ -762,26 +870,12 @@ final class AppModel: ObservableObject {
         Task {
             do {
                 try await client.postHomePresence(state: kind)
-                await reconcilePresenceGrants(force: true)
                 showToast(kind == .hidden ? TrustCopy.presenceHiddenToast : TrustCopy.presenceSetToast(label: kind.label))
                 await refresh()
             } catch {
                 presenceOverride = nil
                 showToast(plainMessage(for: error))
             }
-        }
-    }
-
-    /// Presence is a global triad in 1.0; the API still keeps a per-edge grant. Keep every
-    /// connected person granted so Home / Away shows for the whole circle; Hidden is withheld
-    /// server-side regardless of grants.
-    private func reconcilePresenceGrants(force: Bool = false) async {
-        guard !isDemoMode, !isOffline else { return }
-        let missing = circle.filter { !$0.outboundPresenceGranted && (force || !grantedPresenceTo.contains($0.id)) }
-        guard !missing.isEmpty else { return }
-        for member in missing {
-            grantedPresenceTo.insert(member.id)
-            try? await client.setPresenceGrant(personID: member.id, enabled: true)
         }
     }
 
@@ -860,7 +954,7 @@ final class AppModel: ObservableObject {
         }
         guard let code, !code.isEmpty else { return }
         inviteCodeDraft = code
-        selectedTab = .invite
+        selectedTab = .sharing
         guard phase == .home else { return }
         joinInvite()
     }
@@ -1055,7 +1149,7 @@ final class AppModel: ObservableObject {
             TrustCopy.lookLogExportRow(
                 timestamp: event.at.ISO8601Format(),
                 line: event.logLine(youID: youID),
-                kind: event.kind == .view ? TrustCopy.kindView : TrustCopy.kindLook
+                kind: event.logKindLabel
             )
         }
         .joined(separator: "\n")
@@ -1067,7 +1161,7 @@ final class AppModel: ObservableObject {
         if let lookError = error as? LookError {
             switch lookError {
             case .confirmationRequired: return TrustCopy.apiError(code: "confirmation_required", fallback: nil)
-            case .pairInactive: return TrustCopy.apiError(code: "not_connected", fallback: nil)
+            case .pairInactive: return TrustCopy.apiError(code: "pair_inactive", fallback: nil)
             case .noPartner: return TrustCopy.apiError(code: "no_location", fallback: nil)
             case .shareOff: return TrustCopy.apiError(code: "share_off", fallback: nil)
             case .lookRequiresSealed: return TrustCopy.apiError(code: "look_requires_sealed", fallback: nil)

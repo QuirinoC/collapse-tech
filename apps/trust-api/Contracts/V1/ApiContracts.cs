@@ -60,9 +60,8 @@ public sealed record LocationDto(
 
 public sealed record ShareDto(
     string Resting,
-    DateTimeOffset? TimedUntil,
+    DateTimeOffset? PauseUntil,
     string Presentation,
-    DateTimeOffset? TimedEnds,
     string? RevertsTo);
 
 public sealed record MemberDto(
@@ -125,13 +124,15 @@ public sealed record LocationIngestRequest(
     bool? IsCharging,
     IReadOnlyList<LocationDto>? Points);
 
+public sealed record HistoryResponse(IReadOnlyList<LocationDto> Points);
+
 public sealed record LookRequest(Guid SubjectId, bool Confirmed);
 
 public sealed record ViewRequest(Guid SubjectId);
 
 public sealed record ViewResponse(bool Logged, LookEventDto? Event);
 
-public sealed record ShareRequest(string? Resting, string? Timed);
+public sealed record ShareRequest(string? Resting, string? Pause);
 
 public sealed record PresenceGrantRequest(bool Enabled);
 
@@ -245,15 +246,14 @@ public static class ContractMap
         var presentation = state.Presentation(now);
         return presentation switch
         {
-            SharePresentation.Always => new ShareDto("always", state.TimedUntil, "always", null, null),
-            SharePresentation.Off => new ShareDto("off", null, "off", null, null),
-            SharePresentation.Timed timed => new ShareDto(
-                RestingName(timed.RevertsTo),
-                timed.Ends,
-                "timed",
-                timed.Ends,
-                RestingName(timed.RevertsTo)),
-            _ => new ShareDto("untilTheyLook", state.TimedUntil, "untilTheyLook", null, null)
+            SharePresentation.Always => new ShareDto("always", null, "always", null),
+            SharePresentation.Off => new ShareDto("off", null, "off", null),
+            SharePresentation.Paused paused => new ShareDto(
+                "paused",
+                paused.Ends,
+                "paused",
+                RestingName(paused.RevertsTo)),
+            _ => new ShareDto("untilTheyLook", null, "untilTheyLook", null)
         };
     }
 
@@ -320,16 +320,18 @@ public static class ContractMap
         "always" => ShareResting.Always,
         "untiltheylook" or "until_they_look" or "sealed" => ShareResting.UntilTheyLook,
         "off" => ShareResting.Off,
+        "paused" => ShareResting.Paused,
         null or "" => null,
         _ => null
     };
 
-    public static TimedShareDuration? ParseTimed(string? value) => value?.Trim().ToLowerInvariant() switch
+    public static PauseDuration? ParsePause(string? value) => value?.Trim().ToLowerInvariant() switch
     {
-        "15m" or "15min" or "15minutes" or "fifteenminutes" => TimedShareDuration.FifteenMinutes,
-        "1h" or "hour" or "1hour" or "onehour" => TimedShareDuration.OneHour,
-        "4h" or "4hours" or "fourhours" => TimedShareDuration.FourHours,
-        "8h" or "8hours" or "eighthours" => TimedShareDuration.EightHours,
+        "1h" or "hour" or "1hour" or "onehour" => PauseDuration.OneHour,
+        "8h" or "8hours" or "eighthours" => PauseDuration.EightHours,
+        "1d" or "1day" or "day" or "oneday" => PauseDuration.OneDay,
+        "2d" or "2days" or "twodays" => PauseDuration.TwoDays,
+        "3d" or "3days" or "threedays" => PauseDuration.ThreeDays,
         null or "" => null,
         _ => null
     };
@@ -348,6 +350,7 @@ public static class ContractMap
     {
         ShareResting.Always => "always",
         ShareResting.Off => "off",
+        ShareResting.Paused => "paused",
         _ => "untilTheyLook"
     };
 
@@ -362,6 +365,7 @@ public static class ContractMap
     private static string LookKindName(LookKind kind) => kind switch
     {
         LookKind.View => "view",
+        LookKind.Removed => "removed",
         _ => "look"
     };
 

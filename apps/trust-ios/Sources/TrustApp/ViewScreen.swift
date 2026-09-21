@@ -35,7 +35,7 @@ struct ViewScreen: View {
                     }
                 }
             } else {
-                TrustEmptyState(title: TrustCopy.circle, message: TrustCopy.apiError(code: "not_connected", fallback: nil), actionTitle: TrustCopy.backToCircle) {
+                TrustEmptyState(title: TrustCopy.people, message: TrustCopy.apiError(code: "not_connected", fallback: nil), actionTitle: TrustCopy.backToCircle) {
                     model.circlePath = []
                 }
             }
@@ -51,7 +51,7 @@ struct ViewScreen: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.left").font(.system(size: 14, weight: .semibold))
-                        Text(TrustCopy.circle)
+                        Text(TrustCopy.people)
                     }
                     .font(TrustTheme.ui(15, weight: .medium))
                     .foregroundStyle(palette.ink)
@@ -264,7 +264,7 @@ enum PlaceNamer {
     }
 }
 
-/// Initials disc used as a map annotation.
+/// Initials disc used as a map annotation. High-contrast fill for MapKit readability.
 struct TrustMapPin: View {
     let initials: String
     var live = true
@@ -273,13 +273,13 @@ struct TrustMapPin: View {
 
     var body: some View {
         Text(initials)
-            .font(TrustTheme.display(13))
+            .font(TrustTheme.chrome(13, weight: .bold))
             .foregroundStyle(.white)
-            .frame(width: 38, height: 38)
-            .background(live ? Color(hex: 0x69765E) : palette.ink)
+            .frame(width: 40, height: 40)
+            .background(live ? palette.pinLive : palette.pinLook)
             .clipShape(Circle())
-            .overlay(Circle().stroke(selected ? palette.accent : Color(hex: 0xFFFEFA), lineWidth: 3))
-            .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+            .overlay(Circle().stroke(selected ? palette.accent : palette.chrome, lineWidth: 3))
+            .shadow(color: .black.opacity(0.22), radius: 5, y: 2)
     }
 }
 
