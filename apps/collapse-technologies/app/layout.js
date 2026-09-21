@@ -16,7 +16,7 @@ const plexMono = IBM_Plex_Mono({
 export const metadata = {
   title: "Collapse Technologies",
   description:
-    "Independent studio. Infinite Pixelboard, Trust Circle, The Fly, Asymmetric Challenge, and CoachGG.",
+    "Independent studio. Infinite Pixelboard, Trust, CoachGG, The Fly, and Asymmetric Challenge.",
   metadataBase: new URL("https://collapsetechnologies.com"),
   alternates: {
     canonical: "/",
@@ -24,7 +24,7 @@ export const metadata = {
   openGraph: {
     title: "Collapse Technologies",
     description:
-      "Independent studio. Infinite Pixelboard, Trust Circle, The Fly, Asymmetric Challenge, and CoachGG.",
+      "Public work from Collapse Technologies: a shared mural, Trust, CoachGG, The Fly, and a 256-bit key challenge.",
     siteName: "Collapse Technologies",
     type: "website",
     url: "/",
