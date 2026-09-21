@@ -1,8 +1,7 @@
 # jointrust.app
 
-Public landing for **Trust Circle** at [jointrust.app](https://jointrust.app).
-Paper/ink lockup matches the iOS login: Playfair italic for **Trust** (Didot on device),
-Space Grotesk for Collapse Technologies, system UI for the rest, abstract atlas canvas.
+Public landing for **Trust** at [jointrust.app](https://jointrust.app).
+Paper page matching the app: Bodoni italic for **Trust**, Space Grotesk for Collapse Technologies, system UI for the rest. No map drawing behind the name.
 
 Legal copy stays on the live studio URLs until this host has its own.
 
