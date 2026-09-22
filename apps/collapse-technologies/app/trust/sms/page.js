@@ -9,12 +9,30 @@ export const metadata = {
 
 export default function TrustSmsPage() {
   return (
-    <main className="legal-page">
+    <main className="legal-page sms-evidence">
       <Link className="wordmark" href="/">
         Collapse<span>Technologies</span>
       </Link>
       <p className="eyebrow">Trust · Verification texts</p>
       <h1>Texts are optional.</h1>
+      <div className="consent-card" aria-label="Trust app phone screen, switch off">
+        <p><strong>Your phone</strong></p>
+        <p>A code is texted to this number.</p>
+        <input className="phone-fake" value="(415) 555-0100" readOnly aria-label="Phone number, not collected on this page" />
+        <div className="consent-row">
+          <span className="consent-switch" aria-hidden="true" />
+          <p>
+            Text me a Trust verification code. Up to 8 texts a day. Message and data
+            rates may apply. Reply HELP for help or STOP to opt out.
+          </p>
+        </div>
+        <p>
+          <Link href="/trust/privacy">Privacy</Link>
+          {" · "}
+          <Link href="/trust/terms">Terms</Link>
+        </p>
+        <span className="send-disabled">Send code</span>
+      </div>
       <div className="legal-copy">
         <p>
           Last updated 22 September 2026. Collapse Technologies, operating as Trust, sends
