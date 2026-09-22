@@ -27,7 +27,7 @@ M4 exit (plan): **no P0/P1**, test accounts deleted, review flags still `false`.
 | **Two-device Look / receipt** | Dedicated Apple ID on iPhone (A) and iPad or second iPhone (B). A invites, B accepts (Off/Off). A sets **Until they look**. B **Looks**. | Notify-first confirm on B → **one snapshot** (not live) → **production APNs receipt** on A → both directions in View log. Share stays Sealed after. |
 | **View (Available)** | A buys Plus (sandbox IAP) → sets **Always** toward B → B **Views**. | D1 opens with no Look sheet; event **logged**; **no push** on A. |
 | **View log** | You → VIEW LOG (and the three-row preview) on **both** devices after Look and View. | Bidirectional: looks at you + your looks/views. Look has a receipt line; View is log-only. |
-| **Battery, Sealed-only** | Both outbound **Until they look** (not Always). Always-allow location granted. Leave Wi-Fi, walk 15–20 min with the app backgrounded. | Blue indicator while sharing + Always. Sealed stack is coarse + significant-change (`LocationCoordinator` hundred-meters / 200 m filter). No unexpected GPS drain vs Available. Look from B still returns a recent snapshot. |
+| **Battery, Sealed-only** | Both outbound **Until they look** (not Always). Always-allow location granted. Leave Wi-Fi, walk 15–20 min with the app backgrounded. | No blue Dynamic Island navigation pill while sharing. Sealed stack is coarse + significant-change (`LocationCoordinator` hundred-meters / 200 m filter). No unexpected GPS drain vs Available. Look from B still returns a recent snapshot. |
 | **Prod APNs** | Same Look as above, devices on cellular. | Receipt lands on A. Release registers `environment: production` (`LookReceiptNotifier`). Confirm live Render `Apns__Enabled=true` (blueprint default is `false` — live env is source of truth). |
 | **Sandbox IAP on TF** | On a TestFlight install (not the `Trust` Debug scheme — that attaches `Trust.storekit`). You → Plus → monthly or annual. Optional: Settings → Developer → Sandbox Apple Account if the tester Apple ID is a sandbox tester. | Products resolve; 7-day trial / buy succeeds with **no charge**; Sharing unlocks Always / For a while; seats 20. Restore after delete+reinstall, same SIWA. |
 | **Delete account** | You → **Delete account** → confirm, on **both** tester IDs after the run. | Session cleared; `DELETE /account` 200; re-SIWA lands on Handle. Exercises Guideline 5.1.1(v) and removes prod rows. |
@@ -169,7 +169,7 @@ Testers: **Juan + 1 helper**. Dedicated Apple IDs (not daily iCloud). Internal g
 
 - [ ] A (iPhone) SIWA → Handle if needed. B (iPad) SIWA on a **different** dedicated ID → Handle.
 - [ ] A Invite → copy link / share. B joins. Both start **Off / Off**.
-- [ ] A Sharing → B → **Until they look**. Always location + blue indicator when backgrounded.
+- [ ] A Sharing → B → **Until they look**. Always location. Dynamic Island does not show a navigation arrow when backgrounded.
 - [ ] B Circle → **Look** → confirm (“they will be notified” / one snapshot). One pin on D1. Not a live feed. A's share stays Sealed.
 - [ ] **Production APNs receipt** arrives on A (banner + lock screen). If missing: Render `Apns__Enabled`, device token registered after SIWA, not a Debug/sandbox token.
 - [ ] You → VIEW LOG on **both**: the Look appears in both directions (looks at you / your looks).

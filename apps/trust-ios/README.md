@@ -102,7 +102,7 @@ Development API seeds Alex / Jordan / Riley as **server accounts** so the map is
 
 While Using is enough to use the map, Settings, and Look at someone else. Always is required once **your** location is in the product (Until they look / escrow, Always, or For a while) so Look still works when Trust Circle is closed.
 
-The first Home asks for While Using. Always is requested when they turn on sharing (invite “I trust you with my location”, join, or a share-mode sheet) — not on login. Background updates and API ingest run only while sharing is on. If they keep While Using, escrow updates only while the app is open; Settings and a Home folio send them to iOS Settings for Always. Reduced accuracy requests precise location (`PreciseEscrow`). `UIBackgroundModes` includes `location`. The blue background-location indicator is on when Always is granted **and** sharing is on.
+The first Home asks for While Using. Always is requested when they turn on sharing (invite “I trust you with my location”, join, or a share-mode sheet) — not on login. Background updates and API ingest run only while sharing is on. If they keep While Using, escrow updates only while the app is open; Settings and a Home folio send them to iOS Settings for Always. Reduced accuracy requests precise location (`PreciseEscrow`). `UIBackgroundModes` includes `location`. The blue Dynamic Island navigation pill stays off. Trust is not a turn-by-turn app.
 
 Purpose strings (Masthead voice, not Life360):
 
