@@ -92,11 +92,9 @@ export default function TrustPrivacyPage() {
 
         <p><strong>Text messages</strong></p>
         <p>
-          Collapse Technologies, operating as Trust, texts a one-time verification code only after
-          you sign in and turn on “Text me a Trust verification code.” That control starts off.
-          You can use Trust without turning it on. Message frequency is the codes you request, at
-          most 8 texts a day. Message and data rates may apply. Reply HELP for help or STOP to
-          opt out. The wording on that screen is published at{" "}
+          Trust texts a verification code to finish the account. The box starts empty. You check
+          it, then we send the code. At most 8 texts a day. Message and data rates may apply.
+          Reply HELP for help or STOP to opt out. The screen is at{" "}
           <Link href="/trust/sms">collapsetechnologies.com/trust/sms</Link>.
         </p>
         <p>

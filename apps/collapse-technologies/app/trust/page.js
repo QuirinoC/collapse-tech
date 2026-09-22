@@ -39,8 +39,7 @@ export default function TrustPage() {
           Apple ID → Subscriptions.
         </p>
         <p>
-          Verification texts are optional. The consent screen, privacy policy, and terms
-          are at{" "}
+          The account needs a verification text. That screen is at{" "}
           <Link href="/trust/sms">/trust/sms</Link>.
         </p>
       </div>

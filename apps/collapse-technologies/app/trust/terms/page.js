@@ -27,7 +27,7 @@ export default function TrustTermsPage() {
           Trust can be used by a household, including family. It is not a children&apos;s app and
           is not directed at children under 13. You need an Apple ID (Sign in with Apple) and a
           handle. You are responsible for who you add and for the share mode you set for each
-          person. You do not have to verify a phone number to use Trust.
+          person. The account needs a verification text to your phone.
         </p>
 
         <p><strong>How looking works</strong></p>
@@ -73,12 +73,10 @@ export default function TrustTermsPage() {
 
         <p><strong>Text messages</strong></p>
         <p>
-          Collapse Technologies, operating as Trust, texts a one-time verification code only after
-          you sign in with Apple, type your own mobile number, and turn on “Text me a Trust
-          verification code.” That control starts off, and consent to texts is not required to
-          create an account or use Trust. Message frequency is the codes you request, at most 8
-          texts a day. Message and data rates may apply. Reply <strong>HELP</strong> for help or{" "}
-          <strong>STOP</strong> to cancel. The screen is described at{" "}
+          Trust texts a verification code to finish the account, after you sign in with Apple,
+          type your own number, and check the box. The box starts empty. At most 8 texts a day.
+          Message and data rates may apply. Reply <strong>HELP</strong> for help or{" "}
+          <strong>STOP</strong> to cancel. The screen is at{" "}
           <Link href="/trust/sms">collapsetechnologies.com/trust/sms</Link>. Support is{" "}
           <a href="mailto:hello@collapsetechnologies.com">hello@collapsetechnologies.com</a> and{" "}
           <Link href="/trust/support">the support page</Link>. Carriers are not liable for delayed

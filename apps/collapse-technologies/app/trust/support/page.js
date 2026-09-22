@@ -25,7 +25,7 @@ export default function TrustSupportPage() {
         <p><strong>Getting started</strong></p>
         <p>
           Sign in with Apple, choose a unique handle, then add someone you choose. Sharing is
-          off until you turn it on. A phone number is optional. For looks to work while the app
+          off until you turn it on. The account needs a verification text. For looks to work while the app
           is closed, allow location <em>Always</em> in iOS Settings.
         </p>
 

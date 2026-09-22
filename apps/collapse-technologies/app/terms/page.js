@@ -33,8 +33,8 @@ export default function TermsPage() {
           without permission.
         </p>
         <p>
-          Trust verification texts are optional and are described at{" "}
-          <Link href="/trust/terms">/trust/terms</Link>. We do not share, sell, or
+          A Trust account needs a verification text. Details are at{" "}
+          <Link href="https://jointrust.app/terms">jointrust.app/terms</Link>. We do not share, sell, or
           provide your mobile phone number or messaging consent data to third parties
           or affiliates for marketing or promotional purposes.
         </p>

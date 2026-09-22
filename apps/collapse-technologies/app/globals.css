@@ -525,6 +525,8 @@ h2 { margin-bottom: 0; font-size: clamp(2.4rem, 4vw, 3.6rem); }
 .sms-evidence h1 {
   font-size: clamp(2.4rem, 6vw, 4.2rem);
   margin-bottom: 18px;
+  text-transform: none;
+  letter-spacing: -0.04em;
 }
 
 .consent-card {
