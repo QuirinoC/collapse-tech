@@ -1,0 +1,8 @@
+{
+  "name": "airplay-aa-bridge",
+  "private": true,
+  "description": "Raspberry Pi AirPlay receiver → wired Android Auto USB bridge",
+  "scripts": {
+    "test": "python3 -m unittest discover -s tests -v"
+  }
+}

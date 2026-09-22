@@ -16,6 +16,7 @@ The workspace behind [collapsetechnologies.com](https://collapsetechnologies.com
 | Trust Circle iOS | `apps/trust-ios` | Adult-peer location escrow: MapKit home, hidden until they look, quiet receipts, Circle sponsor |
 | Trust API | `apps/trust-api` | ASP.NET Core + Postgres for Trust Circle (auth, escrow, looks, Circle) |
 | The Fly | `apps/the-fly` | One cartoon fly per browser — client sim + localStorage, feed after a first-party rewarded clip |
+| AirPlay AA Bridge | `apps/airplay-aa-bridge` | Raspberry Pi AirPlay2 receiver → wired Android Auto (USB) video bridge |
 
 ## Local development
 
