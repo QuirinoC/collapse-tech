@@ -88,14 +88,13 @@ now on `main`. (Migration `005_presence_grants.sql` — presence grants / Home p
 
 ## Pending — product decision
 
-- **Home screen IA: list vs. Presence Board hybrid.** Decision is **open**. Current shipped
-  IA is list-first Circle (`design-mocks/duo-gpt6`, Rounds 1–7 — no header `+`, presence
-  triad, Sealed/Available split). No "Presence Board" alternative mocks exist in the repo at
-  this pause point — nothing partial was in progress, so there is no WIP to include or clean
-  up. If/when this direction is picked up, start from `design-mocks/duo-gpt6/DESIGN-NOTES.md`
-  as the design source of truth and record the new direction as a new Round or a sibling
-  `design-mocks/` folder (pattern used by `procedural-globe/`, `sealed-home-concepts/`,
-  `trust-sides/`, `map-wallpaper/`).
+- **Home screen IA: map + sheet (decided).** Life360-style layout (Apple MapKit top ~
+  2/3 + draggable people sheet) **supersedes** the open “Presence Board hybrid”
+  question. Shipped in code under `Sources/TrustApp/CircleView.swift` (tab label
+  **People**; product name **Trust** — not “Trust Circle” / not “your circle”).
+  Design note: Round 8 in `design-mocks/duo-gpt6/DESIGN-NOTES.md`. List
+  Sealed/Available + Look/View behavior unchanged; Plus still gates multi-person
+  Available pins (`homeMapPins`).
 
 ---
 

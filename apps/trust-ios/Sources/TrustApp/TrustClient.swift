@@ -28,6 +28,12 @@ struct SendPhoneCodePayload: Decodable {
     var developmentCode: String?
 }
 
+struct AddPersonByPhonePayload: Decodable {
+    var outcome: String
+    var smsSent: Bool
+    var developmentCode: String?
+}
+
 struct PresenceDTO: Decodable {
     var lastActiveAt: Date
     var batteryPercent: Int
@@ -577,6 +583,15 @@ final class TrustClient {
             var code: String
         }
         try await postEmpty(path: "/api/v1/me/phone/verify", body: Body(phone: phone, code: code))
+    }
+
+    func addPersonByPhone(_ phone: String) async throws -> AddPersonByPhonePayload {
+        struct Body: Encodable { var phone: String }
+        return try await post(
+            path: "/api/v1/people/phone",
+            body: Body(phone: phone),
+            authorized: true
+        )
     }
 
     private func get<T: Decodable>(path: String) async throws -> T {

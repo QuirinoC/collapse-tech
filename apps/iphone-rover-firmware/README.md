@@ -1,10 +1,10 @@
 # iPhone Rover firmware
 
-This is the safety-critical motion bridge for the iPhone Rover prototype. It targets an Adafruit ESP32-C3 DevKitM-01 running the Arduino framework and exposes a small BLE GATT service.
+This is the safety-critical motion bridge for the iPhone Rover prototype. It targets the ESP32-S3-DevKitC-1 in the Adafruit cart (product 5364) running the Arduino framework and exposes a small BLE GATT service.
 
 ## Build
 
-Install PlatformIO, connect an ESP32-C3 DevKitM-01, then run:
+Install PlatformIO, connect the ESP32-S3-DevKitC-1, then run:
 
 ```bash
 pio run
@@ -12,7 +12,7 @@ pio run --target upload
 pio device monitor
 ```
 
-The GPIO assignments are in `src/main.cpp` and match the C3 board plus a DRV8833 driver. Check them against the physical carrier board before power is applied.
+The GPIO assignments are in `src/main.cpp` and match this S3 DevKit plus a DRV8833 driver. Check them against the physical carrier board before power is applied.
 
 ## Safety behavior
 
