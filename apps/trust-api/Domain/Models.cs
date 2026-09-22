@@ -178,6 +178,23 @@ public sealed record PhoneChallenge(
     int SendCount,
     DateTimeOffset WindowStartedAt);
 
+/// SMS budget for verification texts. Account and phone keys roll every hour.
+/// Account-day and global-day keys roll every 24 hours.
+public sealed record SmsSendBudget(
+    string ScopeKey,
+    DateTimeOffset WindowStartedAt,
+    int SendCount,
+    DateTimeOffset? LastSentAt)
+{
+    public static string AccountKey(Guid accountId) => $"account:{accountId:N}";
+
+    public static string AccountDayKey(Guid accountId) => $"account-day:{accountId:N}";
+
+    public static string PhoneKey(string e164) => $"phone:{e164}";
+
+    public static string GlobalDayKey() => "global-day";
+}
+
 public sealed record Presence(
     DateTimeOffset LastActiveAt,
     int BatteryPercent,
@@ -450,6 +467,9 @@ public sealed class TrustException : Exception
     public static TrustException PhoneInUse() =>
         new("phone_in_use", "That phone is already on another Trust account.");
 
+    public static TrustException OwnPhone() =>
+        new("own_phone", "That number is already on this account.");
+
     public static TrustException InvalidHandle() =>
         new("invalid_handle", "That handle isn’t valid.");
 
@@ -505,6 +525,8 @@ public interface ITrustStore
     Task<PhoneChallenge?> GetPhoneChallengeAsync(Guid accountId, CancellationToken cancellationToken);
     Task UpsertPhoneChallengeAsync(PhoneChallenge challenge, CancellationToken cancellationToken);
     Task ClearPhoneChallengeAsync(Guid accountId, CancellationToken cancellationToken);
+    Task<SmsSendBudget?> GetSmsSendBudgetAsync(string scopeKey, CancellationToken cancellationToken);
+    Task UpsertSmsSendBudgetAsync(SmsSendBudget budget, CancellationToken cancellationToken);
 
     Task SetPresenceGrantAsync(Guid subjectId, Guid trusteeId, bool enabled, DateTimeOffset updatedAt, CancellationToken cancellationToken);
     Task<PresenceGrant?> GetPresenceGrantAsync(Guid subjectId, Guid trusteeId, CancellationToken cancellationToken);

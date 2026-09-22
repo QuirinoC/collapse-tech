@@ -105,6 +105,8 @@ All other `/api/v1/*` routes require `Authorization: Bearer <session JWT>`.
 - `GET /api/v1/circle` — members, live coords only for Always / For a while / open Look. Battery presence is omitted when sealed. Home/Away chips only when a presence grant exists (no coordinates). Looks older than ~30 minutes are closed by a background sweep.
 - `GET /api/v1/handles/available?handle=` — whether a handle is valid, not reserved, and free.
 - `PUT /api/v1/me/handle` `{ handle }` — claim unique handle (onboarding).
+- `POST /api/v1/me/phone/send` `{ phone }` and `POST /api/v1/me/phone/verify` `{ phone, code }` — verify the signed-in account’s phone. Development returns `developmentCode` when Twilio is unset. Production returns `otp_not_configured` and does not claim a text was sent.
+- `POST /api/v1/people/phone` `{ phone }` — if that number is already verified, connect the account (no SMS). If it is not, create an invite and return the code. No invite text is sent. A Look does not send SMS. Verification texts are capped at 8 per hour and 8 per day for each account, 8 per hour for each number, and 40 per day for the whole service.
 - `PATCH /api/v1/me` — optional display name.
 - `PUT /api/v1/people/{id}/presence-grant` `{ enabled }` — subject-only: trustee may see Home/Away.
 - `PUT /api/v1/me/home` `{ placeId, label }` — register Home place **without coordinates** (coords stay on device).
@@ -136,7 +138,7 @@ Production host: Render service `trust-api`, custom domain `trust.collapsetechno
 | `StoreKit:Enabled` + Apple Root CA G3 (embedded) | Verify App Store JWS | On in production |
 | `StoreKit:AllowReviewUnlock` | Settings → Unlock Circle for review | Development / first App Review |
 | `Apns:KeyId` + `Apns:PrivateKey` | Look receipts on the subject’s phone | User-supplied Auth Key; do not invent |
-| `Twilio:AccountSid`, `Twilio:AuthToken`, `Twilio:FromNumber` or `Twilio:MessagingServiceSid` | Phone OTP SMS | Optional. Not required for onboarding. Development returns `developmentCode` if unset. Do not commit secrets. |
+| `Twilio__AccountSid`, `Twilio__AuthToken`, and `Twilio__FromNumber` or `Twilio__MessagingServiceSid` | Verification SMS only | Optional locally. Development returns the code in the API response if unset. Production does not claim a text was sent. Do not commit secrets. |
 | Stripe `SecretKey`, price IDs | Web checkout | Optional; iOS Circle is StoreKit |
 | Mapbox | Not used | MapKit on iOS |
 

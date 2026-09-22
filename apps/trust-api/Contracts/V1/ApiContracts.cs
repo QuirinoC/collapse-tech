@@ -158,6 +158,14 @@ public sealed record SendPhoneCodeRequest(string Phone);
 
 public sealed record VerifyPhoneCodeRequest(string Phone, string Code);
 
+public sealed record AddPersonByPhoneRequest(string Phone);
+
+public sealed record AddPersonByPhoneResponse(
+    string Outcome,
+    bool SmsSent,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? DevelopmentCode);
+
 public sealed record SendPhoneCodeResponse(
     DateTimeOffset ExpiresAt,
     int ResendAfterSeconds,

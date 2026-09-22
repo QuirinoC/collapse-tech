@@ -178,6 +178,31 @@ public sealed class TrustEngine(ITrustStore store, TimeProvider time)
         await store.MarkInviteConsumedAsync(invite.Id, cancellationToken);
     }
 
+    /// Same membership as an accepted invite. Does not send SMS.
+    public async Task<bool> ConnectAccountsAsync(
+        Guid accountId,
+        Guid otherAccountId,
+        CancellationToken cancellationToken)
+    {
+        var you = await RequireAccount(accountId, cancellationToken);
+        var other = await RequireAccount(otherAccountId, cancellationToken);
+        if (you.Id == other.Id)
+        {
+            throw TrustException.OwnPhone();
+        }
+
+        if (await store.AreConnectedAsync(you.Id, other.Id, cancellationToken))
+        {
+            return false;
+        }
+
+        await EnsureSeatAsync(you, other, cancellationToken);
+        await store.InsertMembershipAsync(you.Id, other.Id, cancellationToken);
+        await store.UpsertShareAsync(you.Id, other.Id, ShareState.Default, cancellationToken);
+        await store.UpsertShareAsync(other.Id, you.Id, ShareState.Default, cancellationToken);
+        return true;
+    }
+
     public async Task SetShareAsync(
         Guid accountId,
         Guid granteeId,
