@@ -1100,10 +1100,7 @@ final class AppModel: ObservableObject {
             return
         }
         #endif
-        if snapshot?.you.phoneVerified == false {
-            phase = .phone
-            return
-        }
+        // Phone texts stay off until the 2FA campaign can send. Sign in continues without a code.
         if onboardingComplete {
             phase = .home
         } else {
