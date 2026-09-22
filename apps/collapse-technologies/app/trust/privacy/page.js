@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Trust Circle Privacy Policy | Collapse Technologies",
+  title: "Trust Privacy Policy | Collapse Technologies",
   description:
-    "What Trust Circle collects, how long location is kept, who can look, and how to delete your account.",
+    "What Trust collects, how long location is kept, who can look, and how to delete your account.",
   alternates: { canonical: "/trust/privacy" },
 };
 
@@ -13,12 +13,12 @@ export default function TrustPrivacyPage() {
       <Link className="wordmark" href="/">
         Collapse<span>Technologies</span>
       </Link>
-      <p className="eyebrow">Trust Circle · Privacy Policy</p>
+      <p className="eyebrow">Trust · Privacy Policy</p>
       <h1>We do not sell location.</h1>
       <div className="legal-copy">
         <p>
-          Last updated 2 September 2026. This policy covers the Trust Circle iOS app and the Trust
-          API at trust.collapsetechnologies.com. Trust Circle is made and operated by Collapse
+          Last updated 21 September 2026. This policy covers the Trust iOS app and the Trust
+          API at trust.collapsetechnologies.com. Trust is made and operated by Collapse
           Technologies. Contact{" "}
           <a href="mailto:hello@collapsetechnologies.com">hello@collapsetechnologies.com</a>.
         </p>
@@ -33,8 +33,11 @@ export default function TrustPrivacyPage() {
           </li>
           <li>
             Your handle: a unique name you choose (letters, numbers, underscore) after signing in.
-            It is how people in your circle identify you. The app does not ask for your phone
-            number.
+            It is how people you add identify you.
+          </li>
+          <li>
+            Phone number: only if you type your own number in the app and ask Trust to text you a
+            verification code. After you enter the code, that number is stored on your account.
           </li>
           <li>
             Location: precise location points your phone sends while sharing is on. They are held
@@ -90,6 +93,16 @@ export default function TrustPrivacyPage() {
           </li>
         </ul>
 
+        <p><strong>Text messages</strong></p>
+        <p>
+          Collapse Technologies, operating as Trust, texts a one-time verification code only after
+          you sign in and turn on “Text me a Trust verification code.” Message frequency is the
+          codes you request, at most 8 texts a day. Message and data rates may apply. Reply HELP
+          for help or STOP to opt out. We do not sell or share your SMS opt-in data or personal
+          information with third parties for marketing purposes. Twilio delivers the text and does
+          not receive your number for its own marketing.
+        </p>
+
         <p><strong>What we do not do</strong></p>
         <p>
           We do not sell location or any other personal data. There are no ads, no ad SDKs, no
@@ -107,7 +120,7 @@ export default function TrustPrivacyPage() {
 
         <p><strong>Delete your account</strong></p>
         <p>
-          In the Trust Circle iOS app, open Settings → Delete account. That deletes your account
+          In the Trust iOS app, open Settings → Delete account. That deletes your account
           record, Sign in with Apple identity mapping, handle, location points, presence, circle
           memberships and invites, share settings, active and past looks, push device tokens, and
           Circle entitlement records from our servers, in one transaction. You can also email{" "}
@@ -117,7 +130,7 @@ export default function TrustPrivacyPage() {
 
         <p><strong>Age</strong></p>
         <p>
-          Trust Circle is for adults and older teens: 17 and up. It is not directed at children
+          Trust is for adults and older teens: 17 and up. It is not directed at children
           and has no child or family-supervision mode.
         </p>
 
@@ -136,7 +149,7 @@ export default function TrustPrivacyPage() {
         </Link>
         {" · "}
         <Link className="text-link" href="/trust">
-          Trust Circle
+          Trust
         </Link>
       </p>
     </main>

@@ -1,0 +1,24 @@
+{
+  "name": "jev-desk",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "investigate": "tsx src/cli.ts",
+    "replay": "TAPE=replay tsx src/cli.ts",
+    "range": "MODE=range tsx src/cli.ts",
+    "range:replay": "MODE=range TAPE=replay tsx src/cli.ts",
+    "start": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "HORIZON_BLOCKS=8 tsx src/selfcheck.ts"
+  },
+  "dependencies": {
+    "@kuru-labs/kuru-sdk": "^0.0.95",
+    "@typesafe-ai/sdk": "^0.6.0",
+    "ethers": "5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.3"
+  }
+}

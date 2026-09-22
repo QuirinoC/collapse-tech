@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Trust Circle Terms of Use | Collapse Technologies",
+  title: "Trust Terms of Use | Collapse Technologies",
   description:
-    "Terms for using Trust Circle, the optional Circle subscription, and adult-peer location escrow.",
+    "Terms for using Trust, the optional Circle subscription, and adult-peer location escrow.",
   alternates: { canonical: "/trust/terms" },
 };
 
@@ -13,18 +13,18 @@ export default function TrustTermsPage() {
       <Link className="wordmark" href="/">
         Collapse<span>Technologies</span>
       </Link>
-      <p className="eyebrow">Trust Circle · Terms of Use</p>
+      <p className="eyebrow">Trust · Terms of Use</p>
       <h1>Adult peers. You decide who looks.</h1>
       <div className="legal-copy">
         <p>
-          Last updated 2 September 2026. Trust Circle is made and operated by Collapse
-          Technologies. By using the Trust Circle iOS app you agree to these terms and to the{" "}
+          Last updated 21 September 2026. Trust is made and operated by Collapse
+          Technologies. By using the Trust iOS app you agree to these terms and to the{" "}
           <Link href="/trust/privacy">Privacy Policy</Link>.
         </p>
 
         <p><strong>Who it is for</strong></p>
         <p>
-          Trust Circle is for people 17 and older who share location with other adults they
+          Trust is for people 17 and older who share location with other adults they
           trust. You need an Apple ID (Sign in with Apple) and a handle. You are responsible for
           who you invite and for the share mode you set for each person.
         </p>
@@ -71,9 +71,22 @@ export default function TrustTermsPage() {
           also applies to your download of the app from the App Store.
         </p>
 
+        <p><strong>Text messages</strong></p>
+        <p>
+          Collapse Technologies, operating as Trust, texts a one-time verification code only after
+          you sign in with Apple, type your own mobile number, and turn on “Text me a Trust
+          verification code.” Message frequency is the codes you request, at most 8 texts a day.
+          Message and data rates may apply. Reply <strong>HELP</strong> for help or{" "}
+          <strong>STOP</strong> to cancel. Support is{" "}
+          <a href="mailto:hello@collapsetechnologies.com">hello@collapsetechnologies.com</a> and{" "}
+          <Link href="/trust/support">the support page</Link>. Carriers are not liable for delayed
+          or undelivered messages. The <Link href="/trust/privacy">Privacy Policy</Link> describes
+          what the text program collects.
+        </p>
+
         <p><strong>Acceptable use</strong></p>
         <p>
-          Do not use Trust Circle to track anyone without their knowledge and consent, to
+          Do not use Trust to track anyone without their knowledge and consent, to
           impersonate someone with a handle, or to interfere with the service. We may suspend
           accounts that do.
         </p>
@@ -82,7 +95,7 @@ export default function TrustTermsPage() {
         <p>
           We do not sell location and we do not run ads. The service is provided as is. Location
           depends on your phone, iOS permissions, and network coverage, so it can be late or
-          missing. Trust Circle is not an emergency service. Contact{" "}
+          missing. Trust is not an emergency service. Contact{" "}
           <a href="mailto:hello@collapsetechnologies.com">hello@collapsetechnologies.com</a>.
         </p>
       </div>
@@ -96,7 +109,7 @@ export default function TrustTermsPage() {
         </Link>
         {" · "}
         <Link className="text-link" href="/trust">
-          Trust Circle
+          Trust
         </Link>
       </p>
     </main>

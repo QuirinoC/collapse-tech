@@ -7,6 +7,8 @@ import UIKit
 
 enum AppPhase: Equatable {
     case login
+    /// Phone number and one SMS code. Sign in with Apple stays the login.
+    case phone
     /// A2 — pick `@handle` once after the first Sign in with Apple.
     case handle
     case home
@@ -97,6 +99,15 @@ final class AppModel: ObservableObject {
 
     /// Optimistic presence while the POST is in flight; falls back to the snapshot.
     @Published private var presenceOverride: HomePresenceKind?
+
+    @Published var phoneDraft = ""
+    @Published var phoneCodeDraft = ""
+    @Published var phoneNotice: String?
+    @Published var phoneCodeSent = false
+    @Published var isSendingPhone = false
+
+    @Published var addPhoneDraft = ""
+    @Published private(set) var isAddingByPhone = false
 
     @Published var onboardingHandle = ""
     @Published var onboardingNotice: String?
@@ -484,6 +495,8 @@ final class AppModel: ObservableObject {
         lookSubject = nil
         inviteNotice = nil
         toast = nil
+        resetPhoneDraft()
+        addPhoneDraft = ""
         resetOnboardingDraft()
         ingestStore.clear()
         location.setSharing(false)
@@ -891,6 +904,42 @@ final class AppModel: ObservableObject {
 
     // MARK: Invite
 
+    func addPersonByPhone() {
+        let phone = addPhoneDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !phone.isEmpty, !isAddingByPhone else { return }
+        guard requireOnline() else { return }
+        if isDemoMode {
+            inviteNotice = TrustCopy.phoneAddNeedsAccount
+            return
+        }
+        isAddingByPhone = true
+        Task {
+            defer { isAddingByPhone = false }
+            do {
+                let result = try await client.addPersonByPhone(phone)
+                addPhoneDraft = ""
+                switch result.outcome {
+                case "invited":
+                    if result.smsSent {
+                        inviteNotice = TrustCopy.inviteTextSent
+                    } else if let code = result.developmentCode, !code.isEmpty {
+                        inviteNotice = TrustCopy.inviteNotTexted(code)
+                    } else {
+                        inviteNotice = TrustCopy.inviteNotTextedPlain
+                    }
+                case "already":
+                    inviteNotice = TrustCopy.alreadyAdded
+                    await refresh()
+                default:
+                    inviteNotice = TrustCopy.personAdded
+                    await refresh()
+                }
+            } catch {
+                inviteNotice = plainMessage(for: error)
+            }
+        }
+    }
+
     func createInvite() {
         guard requireOnline() else { return }
         if let demo {
@@ -1051,11 +1100,60 @@ final class AppModel: ObservableObject {
             return
         }
         #endif
+        if snapshot?.you.phoneVerified == false {
+            phase = .phone
+            return
+        }
         if onboardingComplete {
             phase = .home
         } else {
             beginOnboarding()
         }
+    }
+
+    func sendPhoneCode() async {
+        let phone = phoneDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !phone.isEmpty, !isSendingPhone else {
+            if phone.isEmpty { phoneNotice = TrustCopy.enterPhone }
+            return
+        }
+        guard requireOnline() else { return }
+        isSendingPhone = true
+        defer { isSendingPhone = false }
+        do {
+            let sent = try await client.sendPhoneCode(phone: phone)
+            phoneCodeSent = true
+            phoneNotice = sent.developmentCode.map(TrustCopy.developmentPhoneCode)
+        } catch {
+            phoneNotice = plainMessage(for: error)
+        }
+    }
+
+    func verifyPhoneCode() async {
+        let phone = phoneDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let code = phoneCodeDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !phone.isEmpty, !code.isEmpty, !isSendingPhone else {
+            if code.isEmpty { phoneNotice = TrustCopy.enterPhoneCode }
+            return
+        }
+        guard requireOnline() else { return }
+        isSendingPhone = true
+        defer { isSendingPhone = false }
+        do {
+            try await client.verifyPhoneCode(phone: phone, code: code)
+            phoneNotice = nil
+            await refresh(enterHome: true)
+        } catch {
+            phoneNotice = plainMessage(for: error)
+        }
+    }
+
+    private func resetPhoneDraft() {
+        phoneDraft = ""
+        phoneCodeDraft = ""
+        phoneNotice = nil
+        phoneCodeSent = false
+        isSendingPhone = false
     }
 
     private func beginOnboarding() {

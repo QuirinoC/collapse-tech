@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Trust Circle Support | Collapse Technologies",
+  title: "Trust Support | Collapse Technologies",
   description:
-    "Support for the Trust Circle iOS app: handles, looks and receipts, Circle billing, and account deletion.",
+    "Support for the Trust iOS app: handles, looks and receipts, Circle billing, and account deletion.",
   alternates: { canonical: "/trust/support" },
 };
 
@@ -13,13 +13,13 @@ export default function TrustSupportPage() {
       <Link className="wordmark" href="/">
         Collapse<span>Technologies</span>
       </Link>
-      <p className="eyebrow">Trust Circle · Support</p>
+      <p className="eyebrow">Trust · Support</p>
       <h1>We are here.</h1>
       <div className="legal-copy">
         <p>
           Email{" "}
           <a href="mailto:hello@collapsetechnologies.com">hello@collapsetechnologies.com</a>. Tell
-          us your handle (not your password — there is none; Trust Circle uses Sign in with Apple).
+          us your handle (not your password — there is none; Trust uses Sign in with Apple).
         </p>
 
         <p><strong>Getting started</strong></p>
@@ -33,7 +33,7 @@ export default function TrustSupportPage() {
         <p>
           When someone looks at you, you get a push notification saying who looked and how much
           history they can see. If receipts are not arriving, check that notifications are allowed
-          for Trust Circle in iOS Settings and that you are signed in on that phone.
+          for Trust in iOS Settings and that you are signed in on that phone.
         </p>
 
         <p><strong>Circle billing</strong></p>
@@ -61,7 +61,7 @@ export default function TrustSupportPage() {
         </Link>
         {" · "}
         <Link className="text-link" href="/trust">
-          Trust Circle
+          Trust
         </Link>
       </p>
     </main>

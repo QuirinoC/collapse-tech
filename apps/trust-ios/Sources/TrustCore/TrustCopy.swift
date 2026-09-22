@@ -281,6 +281,7 @@ public enum TrustCopy {
         value("look_notified_short", defaultValue: "They’ll be notified.")
     }
     public static var addSomeone: String { value("add_someone", defaultValue: "Add someone") }
+    public static var add: String { value("add", defaultValue: "Add") }
     public static var howLong: String { value("how_long", defaultValue: "How long") }
     public static var sharingEmptyTitle: String { value("sharing_empty_title", defaultValue: "No one to share with yet.") }
     public static var sharingEmptyBody: String {
@@ -359,6 +360,41 @@ public enum TrustCopy {
     public static var joined: String { value("joined", defaultValue: "Joined. Sharing is off both ways.") }
     public static func inviteMessage(code: String) -> String {
         "\(inviteLine)\nhttps://trust.collapsetechnologies.com/i/\(code)\ntrust://invite/\(code)"
+    }
+    public static var yourPhone: String { value("your_phone", defaultValue: "Your phone") }
+    public static var phoneIntro: String {
+        value("phone_intro", defaultValue: "A code is texted to this number.")
+    }
+    public static var phoneConsent: String {
+        value(
+            "phone_consent",
+            defaultValue: "Text me a Trust verification code. Up to 8 texts a day. Message and data rates may apply. Reply HELP for help or STOP to opt out.")
+    }
+    public static var phoneNumber: String { value("phone_number", defaultValue: "Phone number") }
+    public static var phonePlaceholder: String { value("phone_placeholder", defaultValue: "(415) 555-0100") }
+    public static var sendCode: String { value("send_code", defaultValue: "Send code") }
+    public static var resendCode: String { value("resend_code", defaultValue: "Resend code") }
+    public static var phoneCode: String { value("phone_code", defaultValue: "Code") }
+    public static var codePlaceholderShort: String { value("code_placeholder_short", defaultValue: "123456") }
+    public static var verify: String { value("verify", defaultValue: "Verify") }
+    public static var enterPhone: String { value("enter_phone", defaultValue: "Enter a phone number.") }
+    public static var enterPhoneCode: String { value("enter_phone_code", defaultValue: "Enter the code.") }
+    public static func developmentPhoneCode(_ code: String) -> String {
+        format("development_phone_code", defaultValue: "Code %@.", code)
+    }
+    public static var inviteTextSent: String { value("invite_text_sent", defaultValue: "Invite text sent.") }
+    public static func inviteNotTexted(_ code: String) -> String {
+        format("invite_not_texted", defaultValue: "No text was sent. Code %@.", code)
+    }
+    public static var inviteNotTextedPlain: String {
+        value("invite_not_texted_plain", defaultValue: "No text was sent.")
+    }
+    public static var personAdded: String {
+        value("person_added", defaultValue: "Added. Sharing is off both ways.")
+    }
+    public static var alreadyAdded: String { value("already_added", defaultValue: "Already added.") }
+    public static var phoneAddNeedsAccount: String {
+        value("phone_add_needs_account", defaultValue: "This preview can’t text a phone.")
     }
     public static func seatsUsed(count: Int, limit: Int) -> String {
         format("seats_used", defaultValue: "%d of %d people", count, limit)
@@ -661,6 +697,24 @@ public enum TrustCopy {
             return value("api_handle_in_use", defaultValue: "That handle is taken.")
         case "invalid_name":
             return value("api_invalid_name", defaultValue: "Enter a display name of at least two characters.")
+        case "invalid_phone":
+            return value("api_invalid_phone", defaultValue: "Enter a valid phone number, including country code.")
+        case "otp_not_configured":
+            return value("api_otp_not_configured", defaultValue: "Phone texts are not configured on this server.")
+        case "otp_cooldown":
+            return value("api_otp_cooldown", defaultValue: "Wait a moment before requesting another code.")
+        case "otp_expired":
+            return value("api_otp_expired", defaultValue: "That code expired. Request a new one.")
+        case "otp_invalid":
+            return value("api_otp_invalid", defaultValue: "That code does not match.")
+        case "otp_exhausted":
+            return value("api_otp_exhausted", defaultValue: "Too many attempts. Request a new code.")
+        case "otp_send_failed":
+            return value("api_otp_send_failed", defaultValue: "Trust could not send a text. Try again.")
+        case "phone_in_use":
+            return value("api_phone_in_use", defaultValue: "That phone is already on another Trust account.")
+        case "own_phone":
+            return value("api_own_phone", defaultValue: "That number is already on this account.")
         case "invalid_state":
             return value("api_invalid_state", defaultValue: "Presence must be Home, Away, or Hidden.")
         case "invalid_token":

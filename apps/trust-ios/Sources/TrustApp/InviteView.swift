@@ -25,6 +25,31 @@ struct AddSomeoneSection: View {
             .buttonStyle(TrustOutlineButtonStyle(compact: true))
 
             if formVisible {
+                HStack(spacing: 10) {
+                    TextField(TrustCopy.phonePlaceholder, text: $model.addPhoneDraft)
+                        .textFieldStyle(TrustTextFieldStyle())
+                        .textContentType(.telephoneNumber)
+                        .keyboardType(.phonePad)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(.done)
+                        .onSubmit { model.addPersonByPhone() }
+                        .accessibilityLabel(TrustCopy.phoneNumber)
+                        .accessibilityIdentifier("add-phone")
+                    Button {
+                        model.addPersonByPhone()
+                    } label: {
+                        if model.isAddingByPhone {
+                            ProgressView().tint(palette.accentOn)
+                        } else {
+                            Text(TrustCopy.add)
+                        }
+                    }
+                    .buttonStyle(TrustFilledButtonStyle(expand: false))
+                    .disabled(model.addPhoneDraft.trimmingCharacters(in: .whitespaces).isEmpty || model.isAddingByPhone)
+                    .accessibilityIdentifier("add-phone-button")
+                }
+
                 if let code = model.pendingInviteCode {
                     Text(code)
                         .font(TrustTheme.mono(22))
