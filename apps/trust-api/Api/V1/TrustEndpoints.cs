@@ -29,6 +29,7 @@ public static class TrustEndpoints
         auth.MapPut("/me/handle", SetHandleAsync);
         auth.MapPost("/me/phone/send", SendPhoneCodeAsync);
         auth.MapPost("/me/phone/verify", VerifyPhoneCodeAsync);
+        auth.MapPost("/people/phone", AddPersonByPhoneAsync).RequireRateLimiting(RateLimitPolicies.Invite);
         auth.MapPost("/invites", CreateInviteAsync).RequireRateLimiting(RateLimitPolicies.Invite);
         auth.MapPost("/invites/accept", AcceptInviteAsync).RequireRateLimiting(RateLimitPolicies.Invite);
         auth.MapPatch("/people/{personId:guid}/share", SetShareAsync);
@@ -294,6 +295,29 @@ public static class TrustEndpoints
         {
             await phones.VerifyAsync(accountId.Value, request.Phone, request.Code, cancellationToken);
             return Results.NoContent();
+        }
+        catch (TrustException exception)
+        {
+            return Map(exception);
+        }
+    }
+
+    public static async Task<IResult> AddPersonByPhoneAsync(
+        AddPersonByPhoneRequest request,
+        ClaimsPrincipal principal,
+        PhoneVerificationService phones,
+        CancellationToken cancellationToken)
+    {
+        var accountId = AccountClaims.AccountId(principal);
+        if (accountId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        try
+        {
+            var result = await phones.AddPersonAsync(accountId.Value, request.Phone, cancellationToken);
+            return Results.Ok(new AddPersonByPhoneResponse(result.Outcome, result.SmsSent, result.DevelopmentCode));
         }
         catch (TrustException exception)
         {

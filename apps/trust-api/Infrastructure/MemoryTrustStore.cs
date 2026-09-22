@@ -14,6 +14,7 @@ public sealed class MemoryTrustStore : ITrustStore
     private readonly List<LookEvent> _looks = [];
     private readonly ConcurrentDictionary<string, Invite> _invites = new();
     private readonly ConcurrentDictionary<Guid, PhoneChallenge> _phoneChallenges = new();
+    private readonly ConcurrentDictionary<string, SmsSendBudget> _smsBudgets = new();
     private readonly ConcurrentDictionary<(Guid Subject, Guid Trustee), PresenceGrant> _presenceGrants = new();
     private readonly ConcurrentDictionary<Guid, HomePlace> _homePlaces = new();
     private readonly ConcurrentDictionary<Guid, CurrentHomePresence> _homePresence = new();
@@ -309,6 +310,7 @@ public sealed class MemoryTrustStore : ITrustStore
             }
 
             _phoneChallenges.TryRemove(accountId, out _);
+            _smsBudgets.TryRemove(SmsSendBudget.AccountKey(accountId), out _);
             foreach (var key in _presenceGrants.Keys
                 .Where(key => key.Subject == accountId || key.Trustee == accountId).ToList())
             {
@@ -517,6 +519,18 @@ public sealed class MemoryTrustStore : ITrustStore
     public Task ClearPhoneChallengeAsync(Guid accountId, CancellationToken cancellationToken)
     {
         _phoneChallenges.TryRemove(accountId, out _);
+        return Task.CompletedTask;
+    }
+
+    public Task<SmsSendBudget?> GetSmsSendBudgetAsync(string scopeKey, CancellationToken cancellationToken)
+    {
+        _smsBudgets.TryGetValue(scopeKey, out var budget);
+        return Task.FromResult(budget);
+    }
+
+    public Task UpsertSmsSendBudgetAsync(SmsSendBudget budget, CancellationToken cancellationToken)
+    {
+        _smsBudgets[budget.ScopeKey] = budget;
         return Task.CompletedTask;
     }
 

@@ -522,6 +522,15 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
+        await using (var budget = new NpgsqlCommand(
+            "DELETE FROM trust.sms_send_budgets WHERE scope_key = $1;",
+            connection,
+            transaction))
+        {
+            budget.Parameters.AddWithValue(SmsSendBudget.AccountKey(accountId));
+            await budget.ExecuteNonQueryAsync(cancellationToken);
+        }
+
         await transaction.CommitAsync(cancellationToken);
     }
 
@@ -647,6 +656,50 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
             "DELETE FROM trust.phone_challenges WHERE account_id = $1;",
             connection);
         command.Parameters.AddWithValue(accountId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<SmsSendBudget?> GetSmsSendBudgetAsync(string scopeKey, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT scope_key, window_started_at, send_count, last_sent_at
+            FROM trust.sms_send_budgets
+            WHERE scope_key = $1;
+            """,
+            connection);
+        command.Parameters.AddWithValue(scopeKey);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return new SmsSendBudget(
+            reader.GetString(0),
+            reader.GetFieldValue<DateTimeOffset>(1),
+            reader.GetInt32(2),
+            reader.IsDBNull(3) ? null : reader.GetFieldValue<DateTimeOffset>(3));
+    }
+
+    public async Task UpsertSmsSendBudgetAsync(SmsSendBudget budget, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            INSERT INTO trust.sms_send_budgets (scope_key, window_started_at, send_count, last_sent_at)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (scope_key) DO UPDATE SET
+                window_started_at = EXCLUDED.window_started_at,
+                send_count = EXCLUDED.send_count,
+                last_sent_at = EXCLUDED.last_sent_at;
+            """,
+            connection);
+        command.Parameters.AddWithValue(budget.ScopeKey);
+        command.Parameters.AddWithValue(budget.WindowStartedAt);
+        command.Parameters.AddWithValue(budget.SendCount);
+        command.Parameters.AddWithValue((object?)budget.LastSentAt ?? DBNull.Value);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
