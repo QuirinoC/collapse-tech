@@ -32,6 +32,13 @@ export default function PrivacyPage() {
           This site does not use advertising trackers. If that changes, this page
           will say so plainly.
         </p>
+        <p>
+          Trust, our iOS app, may text a verification code you request. We do not share,
+          sell, or provide your mobile phone number or messaging consent data to third parties
+          or affiliates for marketing or promotional purposes. Text messaging originator opt-in
+          data and consent will not be shared with any third parties. The Trust policy is at{" "}
+          <Link href="/trust/privacy">/trust/privacy</Link>.
+        </p>
       </div>
       <Link className="text-link" href="/">Back to Collapse <span>↖</span></Link>
     </main>

@@ -17,7 +17,7 @@ export default function TrustPrivacyPage() {
       <h1>We do not sell location.</h1>
       <div className="legal-copy">
         <p>
-          Last updated 21 September 2026. This policy covers the Trust iOS app and the Trust
+          Last updated 22 September 2026. This policy covers the Trust iOS app and the Trust
           API at trust.collapsetechnologies.com. Trust is made and operated by Collapse
           Technologies. Contact{" "}
           <a href="mailto:hello@collapsetechnologies.com">hello@collapsetechnologies.com</a>.
@@ -53,8 +53,7 @@ export default function TrustPrivacyPage() {
             hours). A receipt never contains coordinates.
           </li>
           <li>
-            Share modes you set per person: Until they look, Always, or For a while (with its
-            end time).
+            Share modes you set per person: Sealed (until they look), Always, Pause, or Off.
           </li>
           <li>
             Device identifiers for receipts: an app installation ID generated on your phone and
@@ -62,7 +61,7 @@ export default function TrustPrivacyPage() {
             someone looks.
           </li>
           <li>
-            Circle subscription status: signed StoreKit transaction records from Apple (product,
+            Plus subscription status: signed StoreKit transaction records from Apple (product,
             purchase and expiry dates, transaction IDs) and an anonymous app account token. We
             receive an entitlement, never your card number.
           </li>
@@ -70,21 +69,19 @@ export default function TrustPrivacyPage() {
 
         <p><strong>How looking works</strong></p>
         <p>
-          Sealed people&apos;s coordinates are not shown to anyone until they set Always or For a
-          while for you, or until a look is confirmed. Every look sends a push receipt to the
-          person being looked at, and is added to their look log. Looking is never silent.
+          Sealed coordinates stay hidden until a look, or until that person sets Always for you.
+          A look is one snapshot and sends a push receipt. Always is a live view. Looking is never
+          silent.
         </p>
 
         <p><strong>How long we keep it</strong></p>
         <ul>
           <li>
-            Location: the server keeps a rolling window of roughly 26 hours and prunes older
-            points every time your phone sends new ones. A look shows the last 2 hours, or up to 24
-            hours when Circle covers the pair. If you have no trusted people left, your location is
-            cleared.
+            Location: Free keeps 24 hours. Plus keeps 30 days. Older points are removed as that
+            window passes. If you have no one left you share with, your location is cleared.
           </li>
           <li>
-            Look log: the app shows the last 30 days on Free and one year with Circle. Look events
+            Look log: the app shows the last 30 days on Free and one year with Plus. Look events
             stay on our servers until you delete your account.
           </li>
           <li>
@@ -96,11 +93,19 @@ export default function TrustPrivacyPage() {
         <p><strong>Text messages</strong></p>
         <p>
           Collapse Technologies, operating as Trust, texts a one-time verification code only after
-          you sign in and turn on “Text me a Trust verification code.” Message frequency is the
-          codes you request, at most 8 texts a day. Message and data rates may apply. Reply HELP
-          for help or STOP to opt out. We do not sell or share your SMS opt-in data or personal
-          information with third parties for marketing purposes. Twilio delivers the text and does
-          not receive your number for its own marketing.
+          you sign in and turn on “Text me a Trust verification code.” That control starts off.
+          You can use Trust without turning it on. Message frequency is the codes you request, at
+          most 8 texts a day. Message and data rates may apply. Reply HELP for help or STOP to
+          opt out. The wording on that screen is published at{" "}
+          <Link href="/trust/sms">collapsetechnologies.com/trust/sms</Link>.
+        </p>
+        <p>
+          We do not share, sell, or provide your mobile phone number or messaging consent data to
+          third parties or affiliates for marketing or promotional purposes. No mobile information
+          will be shared with third parties or affiliates for marketing or promotional purposes.
+          Text messaging originator opt-in data and consent will not be shared with any third
+          parties. Twilio transmits the verification text we ask it to send and does not use your
+          number for its own marketing.
         </p>
 
         <p><strong>What we do not do</strong></p>
@@ -115,23 +120,25 @@ export default function TrustPrivacyPage() {
         <p>
           The Trust API and its Postgres database run on Render in the United States (Oregon),
           behind Cloudflare. These providers see IP addresses and standard request metadata in
-          order to deliver the service. Data is encrypted in transit with HTTPS.
+          order to deliver the service. Data is encrypted in transit with HTTPS. That operational
+          processing does not include selling or providing your mobile phone number or SMS consent
+          to anyone for marketing or promotional purposes.
         </p>
 
         <p><strong>Delete your account</strong></p>
         <p>
           In the Trust iOS app, open Settings → Delete account. That deletes your account
-          record, Sign in with Apple identity mapping, handle, location points, presence, circle
-          memberships and invites, share settings, active and past looks, push device tokens, and
-          Circle entitlement records from our servers, in one transaction. You can also email{" "}
+          record, Sign in with Apple identity mapping, handle, location points, presence, the
+          people you added and invites, share settings, active and past looks, push device tokens,
+          and Plus entitlement records from our servers, in one transaction. You can also email{" "}
           <a href="mailto:hello@collapsetechnologies.com">hello@collapsetechnologies.com</a> and
           we will delete it for you.
         </p>
 
         <p><strong>Age</strong></p>
         <p>
-          Trust is for adults and older teens: 17 and up. It is not directed at children
-          and has no child or family-supervision mode.
+          Trust can be used by a household, including family. It is not a children&apos;s app and
+          is not directed at children under 13.
         </p>
 
         <p>

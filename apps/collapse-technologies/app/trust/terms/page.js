@@ -3,7 +3,7 @@ import Link from "next/link";
 export const metadata = {
   title: "Trust Terms of Use | Collapse Technologies",
   description:
-    "Terms for using Trust, the optional Circle subscription, and adult-peer location escrow.",
+    "Terms for using Trust, the optional Plus subscription, and location sharing you control.",
   alternates: { canonical: "/trust/terms" },
 };
 
@@ -14,38 +14,38 @@ export default function TrustTermsPage() {
         Collapse<span>Technologies</span>
       </Link>
       <p className="eyebrow">Trust · Terms of Use</p>
-      <h1>Adult peers. You decide who looks.</h1>
+      <h1>You decide who looks.</h1>
       <div className="legal-copy">
         <p>
-          Last updated 21 September 2026. Trust is made and operated by Collapse
+          Last updated 22 September 2026. Trust is made and operated by Collapse
           Technologies. By using the Trust iOS app you agree to these terms and to the{" "}
           <Link href="/trust/privacy">Privacy Policy</Link>.
         </p>
 
         <p><strong>Who it is for</strong></p>
         <p>
-          Trust is for people 17 and older who share location with other adults they
-          trust. You need an Apple ID (Sign in with Apple) and a handle. You are responsible for
-          who you invite and for the share mode you set for each person.
+          Trust can be used by a household, including family. It is not a children&apos;s app and
+          is not directed at children under 13. You need an Apple ID (Sign in with Apple) and a
+          handle. You are responsible for who you add and for the share mode you set for each
+          person. You do not have to verify a phone number to use Trust.
         </p>
 
         <p><strong>How looking works</strong></p>
         <p>
-          Your coordinates stay hidden until someone you trust confirms a look, unless you set
-          Always or For a while for that person. A look shows live location plus the last 2 hours
-          (24 hours when Circle covers the pair) and sends a receipt to the person being looked
-          at. You can revoke anyone at any time, and you can delete your account in Settings.
-          Looking at one trusted person is included without paying.
+          Your coordinates stay hidden until someone you added confirms a look, unless you set
+          Always for that person. A look is one snapshot and sends a receipt to the person being
+          looked at. Free history is 24 hours. Plus history is 30 days. You can remove anyone at
+          any time, and you can delete your account in Settings. Free includes up to 5 people.
         </p>
 
-        <p><strong>Circle subscription</strong></p>
+        <p><strong>Plus subscription</strong></p>
         <p>
-          Circle is an optional auto-renewing subscription bought through Apple in the app:
+          Plus is an optional auto-renewing subscription bought through Apple in the app:
           <strong> $7.99 per month</strong> or <strong>$69.99 per year</strong> (prices in USD;
           local prices may vary), each with a <strong>7-day free trial</strong> for new
-          subscribers. Circle adds up to 6 trusted people, 24-hour history on an open look, place
-          pings, a one-year look log with export, and covers the unpaid people in your circle.
-          Family Sharing is off.
+          subscribers. Plus is on your own account. It is not shared with the people you add.
+          Plus adds Always, up to 20 people, live pins, 30 days of history, and a one-year look
+          log with export. Family Sharing is off.
         </p>
         <ul>
           <li>Payment is charged to your Apple ID account when you confirm the purchase.</li>
@@ -75,13 +75,21 @@ export default function TrustTermsPage() {
         <p>
           Collapse Technologies, operating as Trust, texts a one-time verification code only after
           you sign in with Apple, type your own mobile number, and turn on “Text me a Trust
-          verification code.” Message frequency is the codes you request, at most 8 texts a day.
-          Message and data rates may apply. Reply <strong>HELP</strong> for help or{" "}
-          <strong>STOP</strong> to cancel. Support is{" "}
+          verification code.” That control starts off, and consent to texts is not required to
+          create an account or use Trust. Message frequency is the codes you request, at most 8
+          texts a day. Message and data rates may apply. Reply <strong>HELP</strong> for help or{" "}
+          <strong>STOP</strong> to cancel. The screen is described at{" "}
+          <Link href="/trust/sms">collapsetechnologies.com/trust/sms</Link>. Support is{" "}
           <a href="mailto:hello@collapsetechnologies.com">hello@collapsetechnologies.com</a> and{" "}
           <Link href="/trust/support">the support page</Link>. Carriers are not liable for delayed
-          or undelivered messages. The <Link href="/trust/privacy">Privacy Policy</Link> describes
-          what the text program collects.
+          or undelivered messages.
+        </p>
+        <p>
+          We do not share, sell, or provide your mobile phone number or messaging consent data to
+          third parties or affiliates for marketing or promotional purposes. Text messaging
+          originator opt-in data and consent will not be shared with any third parties. The{" "}
+          <Link href="/trust/privacy">Privacy Policy</Link> describes what the text program
+          collects.
         </p>
 
         <p><strong>Acceptable use</strong></p>

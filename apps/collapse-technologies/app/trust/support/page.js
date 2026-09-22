@@ -3,7 +3,7 @@ import Link from "next/link";
 export const metadata = {
   title: "Trust Support | Collapse Technologies",
   description:
-    "Support for the Trust iOS app: handles, looks and receipts, Circle billing, and account deletion.",
+    "Support for the Trust iOS app: handles, looks and receipts, Plus billing, and account deletion.",
   alternates: { canonical: "/trust/support" },
 };
 
@@ -24,9 +24,9 @@ export default function TrustSupportPage() {
 
         <p><strong>Getting started</strong></p>
         <p>
-          Sign in with Apple, choose a unique handle, then invite a trusted adult with
-          &ldquo;I trust you with my location.&rdquo; Sharing is off until you turn it on. For
-          looks to work while the app is closed, allow location <em>Always</em> in iOS Settings.
+          Sign in with Apple, choose a unique handle, then add someone you choose. Sharing is
+          off until you turn it on. A phone number is optional. For looks to work while the app
+          is closed, allow location <em>Always</em> in iOS Settings.
         </p>
 
         <p><strong>Looks and receipts</strong></p>
@@ -36,18 +36,19 @@ export default function TrustSupportPage() {
           for Trust in iOS Settings and that you are signed in on that phone.
         </p>
 
-        <p><strong>Circle billing</strong></p>
+        <p><strong>Plus billing</strong></p>
         <p>
-          Circle is $7.99/month or $69.99/year with a 7-day free trial, billed by Apple. Manage,
-          cancel, or request a refund in iOS Settings → Apple ID → Subscriptions, or at{" "}
+          Plus is $7.99/month or $69.99/year with a 7-day free trial, billed by Apple, on your
+          own account. Manage, cancel, or request a refund in iOS Settings → Apple ID →
+          Subscriptions, or at{" "}
           <a href="https://support.apple.com/billing">support.apple.com/billing</a>. If you paid
-          and Circle is not unlocked, open Settings in the app and tap Restore purchases.
+          and Plus is not unlocked, open Settings in the app and tap Restore purchases.
         </p>
 
         <p><strong>Delete your account</strong></p>
         <p>
           In the app: Settings → Delete account. That removes your identity mapping, handle,
-          location, presence, looks, share settings, push tokens, and circle membership from our
+          location, presence, looks, share settings, push tokens, and the people you added from our
           servers. You can also email us and we will delete it for you.
         </p>
       </div>

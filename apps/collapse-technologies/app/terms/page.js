@@ -32,6 +32,12 @@ export default function TermsPage() {
           Collapse Technologies and its project names are not available for use
           without permission.
         </p>
+        <p>
+          Trust verification texts are optional and are described at{" "}
+          <Link href="/trust/terms">/trust/terms</Link>. We do not share, sell, or
+          provide your mobile phone number or messaging consent data to third parties
+          or affiliates for marketing or promotional purposes.
+        </p>
       </div>
       <Link className="text-link" href="/">Back to Collapse <span>↖</span></Link>
     </main>
