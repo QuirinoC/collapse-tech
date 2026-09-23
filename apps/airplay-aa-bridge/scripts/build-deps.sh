@@ -62,6 +62,9 @@ fi
 # Apply AirPlay-AA video handler (no Snowmix; socket H.264 inject).
 cp "$ROOT/patches/VideoChannelHandler.cpp" \
   "$SRC/AACS/AAServer/src/VideoChannelHandler.cpp"
+# CD-ROM mass-storage LUN must be ro=1 on modern kernels (else Invalid parameter).
+cp "$ROOT/patches/MassStorageFunction.cpp" \
+  "$SRC/AACS/AAServer/src/MassStorageFunction.cpp"
 
 # Newer libstdc++ no longer transitively pulls <set>; AACS upstream misses it.
 cp "$ROOT/patches/InputChannelHandler.h" \

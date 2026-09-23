@@ -26,6 +26,34 @@ sysctl -w net.core.wmem_default=2097152 >/dev/null || true
 
 modprobe libcomposite 2>/dev/null || true
 modprobe dwc2 2>/dev/null || true
+modprobe usb_f_mass_storage 2>/dev/null || true
+modprobe usb_f_fs 2>/dev/null || true
+
+# Stale configfs gadgets from a prior crash block AAServer ("Already exist").
+if [[ -d /sys/kernel/config/usb_gadget ]]; then
+  for g in /sys/kernel/config/usb_gadget/*; do
+    [[ -d "$g" ]] || continue
+    echo "" >"$g/UDC" 2>/dev/null || true
+    for cfg in "$g"/configs/*; do
+      [[ -d "$cfg" ]] || continue
+      for link in "$cfg"/*; do [[ -L "$link" ]] && rm -f "$link"; done
+      rmdir "$cfg"/strings/* 2>/dev/null || true
+      rmdir "$cfg" 2>/dev/null || true
+    done
+    for fn in "$g"/functions/*; do
+      [[ -e "$fn" ]] || continue
+      for lun in "$fn"/lun.*; do
+        [[ -d "$lun" ]] && echo "" >"$lun/file" 2>/dev/null || true
+      done
+      rmdir "$fn" 2>/dev/null || true
+    done
+    rmdir "$g"/strings/* 2>/dev/null || true
+    rmdir "$g"/strings 2>/dev/null || true
+    rmdir "$g" 2>/dev/null || true
+  done
+fi
+# g_ether claims the UDC and conflicts with AAServer's composite gadget.
+modprobe -r g_ether 2>/dev/null || true
 
 cleanup() {
   jobs -p | xargs -r kill 2>/dev/null || true
