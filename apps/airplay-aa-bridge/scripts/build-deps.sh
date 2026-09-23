@@ -63,12 +63,25 @@ fi
 cp "$ROOT/patches/VideoChannelHandler.cpp" \
   "$SRC/AACS/AAServer/src/VideoChannelHandler.cpp"
 
+# Newer libstdc++ no longer transitively pulls <set>; AACS upstream misses it.
+cp "$ROOT/patches/InputChannelHandler.h" \
+  "$SRC/AACS/AAServer/include/InputChannelHandler.h"
+
+# AAClient/GetEvents pull X11/XTest; we only need AAServer for the USB path.
+# Comment them out so cmake configure succeeds without libxtst-dev.
+sed -i \
+  -e 's/^[[:space:]]*add_subdirectory(AAClient)/# add_subdirectory(AAClient)/' \
+  -e 's/^[[:space:]]*add_subdirectory(GetEvents)/# add_subdirectory(GetEvents)/' \
+  "$SRC/AACS/CMakeLists.txt"
+
 # pkg-config for prefix-installed libusbgx
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 export LD_LIBRARY_PATH="$PREFIX/lib:${LD_LIBRARY_PATH:-}"
 
 (
   cd "$SRC/AACS"
+  # Fresh configure after CMakeLists edit (stale cache may still require XTest).
+  rm -rf build
   mkdir -p build && cd build
   cmake .. -DCMAKE_PREFIX_PATH="$PREFIX"
   # Only need AAServer for the phone-side USB path.
