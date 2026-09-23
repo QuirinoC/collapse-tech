@@ -1,0 +1,14 @@
+{
+  "id": "balatro_jev",
+  "name": "Balatro Jev",
+  "author": [
+    "Collapse Tech"
+  ],
+  "description": "Dumps structured Balatro state as JSON and applies Jev-chosen legal actions (no vision).",
+  "prefix": "bjev",
+  "main_file": "balatro_jev.lua",
+  "priority": 0,
+  "badge_colour": "E85D04",
+  "version": "0.1.0",
+  "dependencies": []
+}

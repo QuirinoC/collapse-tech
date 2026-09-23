@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "phase": "hand",
+  "ante": 1,
+  "round": 1,
+  "money": 4,
+  "chips_needed": 300,
+  "chips_scored": 0,
+  "hands_left": 4,
+  "discards_left": 3,
+  "hand_size": 8,
+  "hand": [
+    {
+      "index": 0,
+      "rank": "A",
+      "suit": "Hearts"
+    },
+    {
+      "index": 1,
+      "rank": "K",
+      "suit": "Hearts"
+    },
+    {
+      "index": 2,
+      "rank": "Q",
+      "suit": "Hearts"
+    },
+    {
+      "index": 3,
+      "rank": "J",
+      "suit": "Clubs"
+    },
+    {
+      "index": 4,
+      "rank": "10",
+      "suit": "Diamonds"
+    },
+    {
+      "index": 5,
+      "rank": "5",
+      "suit": "Spades"
+    },
+    {
+      "index": 6,
+      "rank": "2",
+      "suit": "Clubs"
+    },
+    {
+      "index": 7,
+      "rank": "7",
+      "suit": "Diamonds"
+    }
+  ],
+  "selected": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "jokers": [],
+  "notes": "Fixture: early ante-1 hand with a flush/straight draw.",
+  "legal_actions": [
+    {
+      "id": "play_0_1_2_3_4",
+      "kind": "play_hand",
+      "label": "Play A\u2665 K\u2665 Q\u2665 J\u2663 10\u2666 (straight draw)",
+      "params": {
+        "card_indices": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ]
+      }
+    },
+    {
+      "id": "play_0_1_2",
+      "kind": "play_hand",
+      "label": "Play A\u2665 K\u2665 Q\u2665 (hearts)",
+      "params": {
+        "card_indices": [
+          0,
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "id": "discard_5_6",
+      "kind": "discard",
+      "label": "Discard 5\u2660 2\u2663",
+      "params": {
+        "card_indices": [
+          5,
+          6
+        ]
+      }
+    },
+    {
+      "id": "discard_3_4_5_6_7",
+      "kind": "discard",
+      "label": "Discard J\u2663 10\u2666 5\u2660 2\u2663 7\u2666 (keep hearts)",
+      "params": {
+        "card_indices": [
+          3,
+          4,
+          5,
+          6,
+          7
+        ]
+      }
+    }
+  ]
+}
