@@ -53,6 +53,12 @@ def resolve_video_channel(sock: socket.socket) -> int:
     if not reply:
         raise RuntimeError("AAServer closed while resolving video channel")
     channel = reply[0]
+    # AAServer stores unset channel ids as uint8_t(-1) == 255 until the HU
+    # finishes service discovery. Treat that as "not ready" so we do not
+    # poke channel 255 (which kills the socket client and can tear down the
+    # bridge before Desktop Head Unit / OpenAuto re-attaches post-AOAP).
+    if channel == 0 or channel == 255:
+        raise RuntimeError(f"video channel not ready yet (got {channel})")
     LOG.info("video channel id=%d", channel)
     return channel
 
@@ -193,12 +199,25 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     aa_sock = connect_aaserver(args.aa_socket)
     channel = None
-    for _ in range(120):
+    for _ in range(180):
         try:
             channel = resolve_video_channel(aa_sock)
             break
-        except Exception as exc:  # noqa: BLE001
-            LOG.info("video channel not ready yet (%s); waiting", exc)
+        except RuntimeError as exc:
+            # Stay connected while HU finishes AOAP/SSL/service discovery;
+            # only reconnect if the socket actually died.
+            msg = str(exc)
+            LOG.info("%s; waiting", msg)
+            time.sleep(1)
+            if "not ready" in msg:
+                continue
+            try:
+                aa_sock.close()
+            except OSError:
+                pass
+            aa_sock = connect_aaserver(args.aa_socket, retries=5)
+        except OSError as exc:
+            LOG.info("AAServer socket error (%s); reconnecting", exc)
             time.sleep(1)
             try:
                 aa_sock.close()

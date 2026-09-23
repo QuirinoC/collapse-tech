@@ -2,13 +2,15 @@
 Description=AirPlay receiver → wired Android Auto (USB) bridge
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 EnvironmentFile=/etc/airplay-aa/bridge.env
 WorkingDirectory=/opt/airplay-aa
 ExecStart=/opt/airplay-aa/scripts/run-bridge.sh
-Restart=on-failure
+# Recover even if a child exits cleanly so AOAP wait stays alive for the car.
+Restart=always
 RestartSec=3
 # Needs USB gadget + /sys/kernel/config
 CapabilityBoundingSet=CAP_SYS_ADMIN CAP_NET_ADMIN CAP_SYS_NICE

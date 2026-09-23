@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Top-level orchestrator: AAServer (USB AOAP) + AirPlay pipeline + H.264 injector.
 # Wireless Android Auto is intentionally disabled.
+#
+# Boot contract for the car:
+#   - UxPlay advertises immediately (AirPlay cast ready without USB).
+#   - AAServer waits in ModeSwitcher for the car's USB host / AOAP.
+#   - Injector attaches once AAServer's Unix socket appears after AOAP.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -63,7 +68,7 @@ trap cleanup EXIT INT TERM
 
 rm -f ./socket "$AIRPLAY_AA_SOCKET"
 
-# AAServer creates ./socket in its cwd; expose a stable path via symlink.
+# AAServer creates ./socket only after a USB host completes AOAP.
 (
   while true; do
     date -Is
@@ -74,26 +79,65 @@ rm -f ./socket "$AIRPLAY_AA_SOCKET"
 ) >"$AIRPLAY_AA_LOGDIR/aaserver.log" 2>&1 &
 AA_PID=$!
 
-for _ in $(seq 1 60); do
-  if [[ -S ./socket ]]; then
-    ln -sfn "$(pwd)/socket" "$AIRPLAY_AA_SOCKET"
-    break
-  fi
-  sleep 0.5
-done
-[[ -S "$AIRPLAY_AA_SOCKET" ]] || { echo "AAServer socket not ready" >&2; exit 1; }
-
+# AirPlay must be cast-ready on boot — do not wait for the car USB socket.
 "${ROOT}/scripts/run-airplay-pipeline.sh" &
 PIPE_PID=$!
 
-PYTHONPATH="${ROOT}/bridge${PYTHONPATH:+:$PYTHONPATH}" \
-  python3 "${ROOT}/bridge/inject_h264.py" \
-    --aa-socket "$AIRPLAY_AA_SOCKET" \
-    --h264-source "$AIRPLAY_AA_H264" \
-    >"$AIRPLAY_AA_LOGDIR/inject.log" 2>&1 &
-INJ_PID=$!
+start_injector() {
+  PYTHONPATH="${ROOT}/bridge${PYTHONPATH:+:$PYTHONPATH}" \
+    python3 "${ROOT}/bridge/inject_h264.py" \
+      --aa-socket "$AIRPLAY_AA_SOCKET" \
+      --h264-source "$AIRPLAY_AA_H264" \
+      >"$AIRPLAY_AA_LOGDIR/inject.log" 2>&1 &
+  INJ_PID=$!
+}
 
-echo "airplay-aa-bridge running aa=${AA_PID} pipe=${PIPE_PID} inject=${INJ_PID}"
-echo "AirPlay name: ${AIRPLAY_AA_NAME}"
-echo "USB: plug Pi USB-C/OTG data port into the car (or Mac running OpenAuto)."
-wait -n "$AA_PID" "$PIPE_PID" "$INJ_PID"
+INJ_PID=""
+SOCKET_READY=0
+
+echo "airplay-aa-bridge running aa=${AA_PID} pipe=${PIPE_PID}"
+echo "AirPlay name: ${AIRPLAY_AA_NAME} (cast-ready; waiting for car USB AOAP)"
+echo "USB: plug Pi USB-C data port into the car Android Auto USB."
+
+# Keep AirPlay up and attach injector once AAServer's socket appears.
+# Only exit when the AAServer supervisor dies (systemd Restart=always).
+while kill -0 "$AA_PID" 2>/dev/null; do
+  if [[ ! -S ./socket ]]; then
+    if ((SOCKET_READY)); then
+      echo "AAServer socket gone (USB unplug?); injector will reattach" >&2
+      SOCKET_READY=0
+      rm -f "$AIRPLAY_AA_SOCKET"
+      if [[ -n "$INJ_PID" ]] && kill -0 "$INJ_PID" 2>/dev/null; then
+        kill "$INJ_PID" 2>/dev/null || true
+      fi
+      INJ_PID=""
+    fi
+  elif (( ! SOCKET_READY )); then
+    ln -sfn "$(pwd)/socket" "$AIRPLAY_AA_SOCKET"
+    SOCKET_READY=1
+    echo "AAServer socket ready (AOAP up); starting injector" >&2
+    start_injector
+  fi
+
+  if ! kill -0 "$PIPE_PID" 2>/dev/null; then
+    echo "AirPlay pipeline exited; restarting..." >&2
+    "${ROOT}/scripts/run-airplay-pipeline.sh" &
+    PIPE_PID=$!
+  fi
+
+  if ((SOCKET_READY)) && { [[ -z "$INJ_PID" ]] || ! kill -0 "$INJ_PID" 2>/dev/null; }; then
+    echo "injector exited; restarting in 1s..." >&2
+    sleep 1
+    start_injector
+  fi
+
+  if [[ -n "$INJ_PID" ]]; then
+    wait -n "$AA_PID" "$PIPE_PID" "$INJ_PID" 2>/dev/null || true
+  else
+    # Poll for AOAP socket while AirPlay stays up (do not block forever).
+    sleep 1
+  fi
+done
+
+echo "AAServer supervisor exited" >&2
+exit 1
