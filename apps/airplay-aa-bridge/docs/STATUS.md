@@ -80,4 +80,6 @@ ls /sys/class/udc/; lsmod | grep -E 'libcomposite|dwc2'
 4. AirPlay → **Pi AirPlay AA**.  
 5. If still "not responding": pull `/var/log/airplay-aa/aaserver.log` for SSL/ModeSwitcher lines.
 
-**No UTM / OpenAuto / DHU** for this path — car only after certs are verified on the Pi.
+**Car path:** no UTM / DHU required — car only after certs are verified on the Pi.
+
+**OpenAuto / Linux HU:** side quest — **abandoned**. Target is car USB AOAP only. Install may remain on `juan@10.0.0.220`; do not run it. Power still blocks (Pi undervolt when fed from host USB-C).

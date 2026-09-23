@@ -1,0 +1,19 @@
+{
+  "market": "0x065C9d28E428A0db40191a54d33d5b7c71a9C394",
+  "chainId": 143,
+  "baseSymbol": "MON",
+  "quoteSymbol": "USDC",
+  "pricePrecision": "100000000",
+  "sizePrecision": "10000000000",
+  "tickSize": "100",
+  "minSize": "2000000000000",
+  "maxSize": "2000000000000000000",
+  "makerFeeBps": "0",
+  "takerFeeBps": "0",
+  "baseAssetAddress": "0x0000000000000000000000000000000000000000",
+  "quoteAssetAddress": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+  "baseAssetDecimals": 18,
+  "quoteAssetDecimals": 6,
+  "priceDecimals": 8,
+  "sizeDecimals": 10
+}

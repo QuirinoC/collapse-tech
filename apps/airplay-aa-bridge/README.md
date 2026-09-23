@@ -17,6 +17,8 @@ Mac / iPhone  --AirPlay2-->  UxPlay on Pi  --H.264-->  AAServer  --USB-->  Car (
 
 Needs a **data** cable into the car USB port (or a Mac/Linux box running OpenAuto).
 
+Linux HU OpenAuto bring-up (`10.0.0.220`): [docs/hu-openauto.md](docs/hu-openauto.md)
+
 ## Quick install (on the Pi)
 
 ```bash
