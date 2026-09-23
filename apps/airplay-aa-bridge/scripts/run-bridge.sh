@@ -94,18 +94,21 @@ start_injector() {
 
 INJ_PID=""
 SOCKET_READY=0
+INJ_BACKOFF=1
 
 echo "airplay-aa-bridge running aa=${AA_PID} pipe=${PIPE_PID}"
 echo "AirPlay name: ${AIRPLAY_AA_NAME} (cast-ready; waiting for car USB AOAP)"
-echo "USB: plug Pi USB-C data port into the car, or Mac DHU (scripts/run-mac-dhu.sh)."
+echo "USB: plug Pi USB-C *data* port into the car (powered hub if car USB is weak)."
 
 # Keep AirPlay up and attach injector once AAServer's socket appears.
+# Injector waits forever for connect — do not restart-loop before AOAP.
 # Only exit when the AAServer supervisor dies (systemd Restart=always).
 while kill -0 "$AA_PID" 2>/dev/null; do
   if [[ ! -S ./socket ]]; then
     if ((SOCKET_READY)); then
       echo "AAServer socket gone (USB unplug?); injector will reattach" >&2
       SOCKET_READY=0
+      INJ_BACKOFF=1
       rm -f "$AIRPLAY_AA_SOCKET"
       if [[ -n "$INJ_PID" ]] && kill -0 "$INJ_PID" 2>/dev/null; then
         kill "$INJ_PID" 2>/dev/null || true
@@ -115,7 +118,8 @@ while kill -0 "$AA_PID" 2>/dev/null; do
   elif (( ! SOCKET_READY )); then
     ln -sfn "$(pwd)/socket" "$AIRPLAY_AA_SOCKET"
     SOCKET_READY=1
-    echo "AAServer socket ready (AOAP up); starting injector" >&2
+    INJ_BACKOFF=1
+    echo "AAServer socket present (AOAP up); starting injector" >&2
     start_injector
   fi
 
@@ -125,13 +129,22 @@ while kill -0 "$AA_PID" 2>/dev/null; do
     PIPE_PID=$!
   fi
 
+  # Restart injector only while socket still exists; backoff to stop thrash.
   if ((SOCKET_READY)) && { [[ -z "$INJ_PID" ]] || ! kill -0 "$INJ_PID" 2>/dev/null; }; then
-    echo "injector exited; restarting in 1s..." >&2
-    sleep 1
-    start_injector
+    if [[ ! -S ./socket ]]; then
+      echo "injector exited and socket gone; waiting for next AOAP" >&2
+      SOCKET_READY=0
+      INJ_PID=""
+      INJ_BACKOFF=1
+    else
+      echo "injector exited; restarting in ${INJ_BACKOFF}s..." >&2
+      sleep "$INJ_BACKOFF"
+      INJ_BACKOFF=$(( INJ_BACKOFF < 30 ? INJ_BACKOFF * 2 : 30 ))
+      start_injector
+    fi
   fi
 
-  if [[ -n "$INJ_PID" ]]; then
+  if [[ -n "$INJ_PID" ]] && kill -0 "$INJ_PID" 2>/dev/null; then
     wait -n "$AA_PID" "$PIPE_PID" "$INJ_PID" 2>/dev/null || true
   else
     # Poll for AOAP socket while AirPlay stays up (do not block forever).

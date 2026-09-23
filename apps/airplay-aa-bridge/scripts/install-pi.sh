@@ -122,11 +122,12 @@ echo "==> Building UxPlay + AAServer"
 export AIRPLAY_AA_PREFIX="$PREFIX"
 bash "$PREFIX/scripts/build-deps.sh"
 
-# Prefer non-expired GAL engineering certs (DHU rejects AACS CarService cert after 2022).
+# Prefer non-expired GAL engineering certs. Stock AACS CarService cert expired
+# 2022-08-24; cars/DHU then fail TLS → "device is not responding" / cert expired.
+# Install into every AAServer ssl location (runtime + source + build trees).
 if [[ -f "$PREFIX/certs/android_auto.crt" && -f "$PREFIX/certs/android_auto.key" ]]; then
-  echo "==> Installing non-expired AA TLS identity for DHU/HU testing"
-  install -m 644 "$PREFIX/certs/android_auto.crt" "$PREFIX/libexec/aaserver/android_auto.crt"
-  install -m 644 "$PREFIX/certs/android_auto.key" "$PREFIX/libexec/aaserver/android_auto.key"
+  echo "==> Installing non-expired AA TLS identity (all AAServer locations)"
+  AIRPLAY_AA_PREFIX="$PREFIX" bash "$PREFIX/scripts/install-certs.sh"
 fi
 
 echo "==> Generating idle black H.264"

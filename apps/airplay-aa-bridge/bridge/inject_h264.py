@@ -32,9 +32,20 @@ from gen_idle_h264 import generate_black_h264
 LOG = logging.getLogger("airplay-aa-inject")
 
 
-def connect_aaserver(path: str, retries: int = 60, delay: float = 1.0) -> socket.socket:
+def connect_aaserver(
+    path: str,
+    retries: int = 0,
+    delay: float = 1.0,
+) -> socket.socket:
+    """Connect to AAServer's SEQPACKET socket.
+
+    retries=0 means wait forever (AOAP/TLS can take a long time on a car HU).
+    A positive retries count is used for short reconnects after a drop.
+    """
     last_err: Optional[Exception] = None
-    for attempt in range(1, retries + 1):
+    attempt = 0
+    while True:
+        attempt += 1
         try:
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
             sock.connect(path)
@@ -42,9 +53,13 @@ def connect_aaserver(path: str, retries: int = 60, delay: float = 1.0) -> socket
             return sock
         except OSError as exc:
             last_err = exc
-            LOG.debug("AAServer connect failed (%s); retrying", exc)
+            if attempt == 1 or attempt % 15 == 0:
+                LOG.info("AAServer connect failed (%s); waiting for AOAP socket", exc)
+            else:
+                LOG.debug("AAServer connect failed (%s); retrying", exc)
+            if retries and attempt >= retries:
+                raise RuntimeError(f"could not connect to AAServer at {path}: {last_err}") from last_err
             time.sleep(delay)
-    raise RuntimeError(f"could not connect to AAServer at {path}: {last_err}")
 
 
 def resolve_video_channel(sock: socket.socket) -> int:
@@ -197,9 +212,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         generate_black_h264(args.width, args.height, args.fps, idle_path)
     idle_au = idle_path.read_bytes()
 
-    aa_sock = connect_aaserver(args.aa_socket)
+    # Wait until AOAP socket exists; do not exit early (that restart-loops run-bridge).
+    aa_sock = connect_aaserver(args.aa_socket, retries=0)
     channel = None
-    for _ in range(180):
+    for _ in range(300):  # ~5 min for slow HU service discovery
         try:
             channel = resolve_video_channel(aa_sock)
             break
@@ -215,7 +231,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                 aa_sock.close()
             except OSError:
                 pass
-            aa_sock = connect_aaserver(args.aa_socket, retries=5)
+            aa_sock = connect_aaserver(args.aa_socket, retries=30)
         except OSError as exc:
             LOG.info("AAServer socket error (%s); reconnecting", exc)
             time.sleep(1)
@@ -223,7 +239,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                 aa_sock.close()
             except OSError:
                 pass
-            aa_sock = connect_aaserver(args.aa_socket, retries=5)
+            aa_sock = connect_aaserver(args.aa_socket, retries=30)
     if channel is None:
         LOG.error("timed out waiting for AA video channel")
         return 1

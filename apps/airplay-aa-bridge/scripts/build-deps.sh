@@ -91,8 +91,18 @@ export LD_LIBRARY_PATH="$PREFIX/lib:${LD_LIBRARY_PATH:-}"
   cmake --build . --target AAServer -j"$JOBS"
   run_root install -d "$PREFIX/libexec/aaserver"
   run_root install -m 755 AAServer/AAServer "$PREFIX/libexec/aaserver/AAServer"
-  run_root install -m 644 AAServer/android_auto.crt "$PREFIX/libexec/aaserver/"
-  run_root install -m 644 AAServer/android_auto.key "$PREFIX/libexec/aaserver/"
+  # Prefer repo GAL engineering certs (valid through 2048). Stock AACS
+  # android_auto.crt expired 2022-08-24 and breaks HU/DHU TLS.
+  CERT_SRC="$ROOT/certs"
+  if [[ ! -f "$CERT_SRC/android_auto.crt" ]]; then
+    CERT_SRC="AAServer"
+  fi
+  run_root install -m 644 "$CERT_SRC/android_auto.crt" "$PREFIX/libexec/aaserver/"
+  run_root install -m 644 "$CERT_SRC/android_auto.key" "$PREFIX/libexec/aaserver/"
+  if [[ -d ../AAServer/ssl ]]; then
+    run_root install -m 644 "$CERT_SRC/android_auto.crt" ../AAServer/ssl/
+    run_root install -m 644 "$CERT_SRC/android_auto.key" ../AAServer/ssl/
+  fi
   if [[ -f AAServer/dhparam.pem ]]; then
     run_root install -m 644 AAServer/dhparam.pem "$PREFIX/libexec/aaserver/"
   else
