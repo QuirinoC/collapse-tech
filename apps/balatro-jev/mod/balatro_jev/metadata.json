@@ -1,0 +1,11 @@
+{
+  "id": "balatro_jev",
+  "name": "Balatro Jev Bridge",
+  "author": ["Collapse Tech"],
+  "description": "Dumps Balatro state as JSON and applies actions chosen by the balatro-jev TypeScript bridge / Jev.",
+  "prefix": "bjev",
+  "main_file": "balatro_jev.lua",
+  "priority": 0,
+  "badge_colour": "A020F0",
+  "version": "0.1.0"
+}

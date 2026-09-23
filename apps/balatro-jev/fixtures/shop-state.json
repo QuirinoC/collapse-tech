@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "phase": "shop",
+  "ante": 1,
+  "round": 1,
+  "money": 12,
+  "jokers": [
+    { "index": 0, "id": "j_joker", "name": "Joker" }
+  ],
+  "shop": [
+    { "index": 0, "kind": "joker", "id": "j_greedy_joker", "name": "Greedy Joker", "cost": 5 },
+    { "index": 1, "kind": "joker", "id": "j_lusty_joker", "name": "Lusty Joker", "cost": 5 },
+    { "index": 2, "kind": "pack", "id": "p_standard", "name": "Standard Pack", "cost": 4 }
+  ],
+  "notes": "Fixture: post-blind shop with affordable jokers."
+}

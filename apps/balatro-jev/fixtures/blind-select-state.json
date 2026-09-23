@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "phase": "blind_select",
+  "ante": 2,
+  "round": 1,
+  "money": 8,
+  "jokers": [
+    { "index": 0, "id": "j_joker", "name": "Joker" },
+    { "index": 1, "id": "j_greedy_joker", "name": "Greedy Joker" }
+  ],
+  "blinds": [
+    { "id": "small", "name": "Small Blind", "skippable": false },
+    { "id": "big", "name": "Big Blind", "skippable": true },
+    { "id": "boss", "name": "The Hook", "skippable": false }
+  ],
+  "notes": "Fixture: ante-2 blind select."
+}
