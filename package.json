@@ -33,10 +33,11 @@
     "lint:health": "npm --prefix apps/collapse-health run lint",
     "lint:studio": "npm --prefix apps/collapse-technologies run lint",
     "lint:pixelboard": "dotnet format apps/infinite-pixelboard/PixelBoard.sln --verify-no-changes --no-restore",
-    "test": "npm run restore && npm run test:challenge && npm run test:dress && npm run test:health && npm run test:pixelboard:web && npm run test:pixelboard",
+    "test": "npm run restore && npm run test:challenge && npm run test:dress && npm run test:health && npm run test:airplay-aa && npm run test:pixelboard:web && npm run test:pixelboard",
     "test:challenge": "npm --prefix apps/asymmetric-challenge run test",
     "test:dress": "npm --prefix apps/dress-like-me run test",
     "test:health": "npm --prefix apps/collapse-health run test",
+    "test:airplay-aa": "npm --prefix apps/airplay-aa-bridge run test",
     "test:coach:e2e": "npm --prefix apps/coach-gg run test:e2e",
     "test:pixelboard:web": "node --test apps/infinite-pixelboard/wwwroot/js/pixelboard/tests/*.test.mjs apps/infinite-pixelboard/tools/*.test.mjs apps/infinite-pixelboard/tools/mural-seed/*.test.mjs",
     "test:pixelboard": "dotnet test apps/infinite-pixelboard/PixelBoard.sln --no-restore"
