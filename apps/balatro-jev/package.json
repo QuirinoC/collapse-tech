@@ -1,0 +1,14 @@
+{
+  "name": "balatro-jev",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Balatro Jev app scaffold",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "npx tsx src/index.ts",
+    "build": "echo \"build not configured yet\""
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
