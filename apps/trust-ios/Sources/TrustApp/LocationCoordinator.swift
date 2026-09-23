@@ -32,7 +32,9 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         manager.distanceFilter = 50
+        manager.activityType = .other
         manager.pausesLocationUpdatesAutomatically = true
+        // Never the blue navigation pill. That indicator is for turn-by-turn, and Trust is not navigating.
         manager.showsBackgroundLocationIndicator = false
         manager.allowsBackgroundLocationUpdates = false
         authorization = manager.authorizationStatus
@@ -96,8 +98,8 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
         setSharingTier(sharing ? (sharingTier == .off ? .available : sharingTier) : .off)
     }
 
-    /// Review-critical: Off stops the stack; Sealed is coarse + significant-change;
-    /// Available / being-Looked-at is finer.
+    /// Off stops the stack. Sealed stays coarse (significant-change). Always is finer.
+    /// A Look does not raise accuracy.
     func setSharingTier(_ tier: LocationSharingTier) {
         sharingTier = tier
         isSharing = tier != .off
@@ -239,7 +241,8 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
     private func applyTracking() {
         let background = wantsBackground
         manager.allowsBackgroundLocationUpdates = background
-        manager.showsBackgroundLocationIndicator = background && isSharing
+        manager.showsBackgroundLocationIndicator = false
+        manager.activityType = .other
         manager.pausesLocationUpdatesAutomatically = sharingTier != .available
 
         switch sharingTier {

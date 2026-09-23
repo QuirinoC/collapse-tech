@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Trust Circle Privacy Policy | Collapse Technologies",
+  title: "Trust Privacy Policy | Collapse Technologies",
   description:
-    "What Trust Circle collects, how long location is kept, who can look, and how to delete your account.",
+    "What Trust collects, how long location is kept, who can look, and how to delete your account.",
   alternates: { canonical: "/trust/privacy" },
 };
 
@@ -13,12 +13,12 @@ export default function TrustPrivacyPage() {
       <Link className="wordmark" href="/">
         Collapse<span>Technologies</span>
       </Link>
-      <p className="eyebrow">Trust Circle · Privacy Policy</p>
+      <p className="eyebrow">Trust · Privacy Policy</p>
       <h1>We do not sell location.</h1>
       <div className="legal-copy">
         <p>
-          Last updated 2 September 2026. This policy covers the Trust Circle iOS app and the Trust
-          API at trust.collapsetechnologies.com. Trust Circle is made and operated by Collapse
+          Last updated 22 September 2026. This policy covers the Trust iOS app and the Trust
+          API at trust.collapsetechnologies.com. Trust is made and operated by Collapse
           Technologies. Contact{" "}
           <a href="mailto:hello@collapsetechnologies.com">hello@collapsetechnologies.com</a>.
         </p>
@@ -33,12 +33,15 @@ export default function TrustPrivacyPage() {
           </li>
           <li>
             Your handle: a unique name you choose (letters, numbers, underscore) after signing in.
-            It is how people in your circle identify you. The app does not ask for your phone
-            number.
+            It is how people you add identify you.
+          </li>
+          <li>
+            Phone number: only if you type your own number in the app and ask Trust to text you a
+            verification code. After you enter the code, that number is stored on your account.
           </li>
           <li>
             Location: precise location points your phone sends while sharing is on. They are held
-            in escrow so a trusted adult peer can look, and are pruned on a rolling basis (see
+            in escrow so someone you added can look, and are removed on a rolling basis (see
             below).
           </li>
           <li>
@@ -50,8 +53,7 @@ export default function TrustPrivacyPage() {
             hours). A receipt never contains coordinates.
           </li>
           <li>
-            Share modes you set per person: Until they look, Always, or For a while (with its
-            end time).
+            Share modes you set per person: Sealed (until they look), Always, Pause, or Off.
           </li>
           <li>
             Device identifiers for receipts: an app installation ID generated on your phone and
@@ -59,7 +61,7 @@ export default function TrustPrivacyPage() {
             someone looks.
           </li>
           <li>
-            Circle subscription status: signed StoreKit transaction records from Apple (product,
+            Plus subscription status: signed StoreKit transaction records from Apple (product,
             purchase and expiry dates, transaction IDs) and an anonymous app account token. We
             receive an entitlement, never your card number.
           </li>
@@ -67,21 +69,19 @@ export default function TrustPrivacyPage() {
 
         <p><strong>How looking works</strong></p>
         <p>
-          Sealed people&apos;s coordinates are not shown to anyone until they set Always or For a
-          while for you, or until a look is confirmed. Every look sends a push receipt to the
-          person being looked at, and is added to their look log. Looking is never silent.
+          Sealed coordinates stay hidden until a look, or until that person sets Always for you.
+          A look is one snapshot and sends a push receipt. Always is a live view. Looking is never
+          silent.
         </p>
 
         <p><strong>How long we keep it</strong></p>
         <ul>
           <li>
-            Location: the server keeps a rolling window of roughly 26 hours and prunes older
-            points every time your phone sends new ones. A look shows the last 2 hours, or up to 24
-            hours when Circle covers the pair. If you have no trusted people left, your location is
-            cleared.
+            Location: Free keeps 24 hours. Plus keeps 30 days. Older points are removed as that
+            window passes. If you have no one left you share with, your location is cleared.
           </li>
           <li>
-            Look log: the app shows the last 30 days on Free and one year with Circle. Look events
+            Look log: the app shows the last 30 days on Free and one year with Plus. Look events
             stay on our servers until you delete your account.
           </li>
           <li>
@@ -89,6 +89,22 @@ export default function TrustPrivacyPage() {
             account exists.
           </li>
         </ul>
+
+        <p><strong>Text messages</strong></p>
+        <p>
+          Trust texts a verification code to finish the account. The box starts empty. You check
+          it, then we send the code. At most 8 texts a day. Message and data rates may apply.
+          Reply HELP for help or STOP to opt out. The screen is at{" "}
+          <Link href="/trust/sms">collapsetechnologies.com/trust/sms</Link>.
+        </p>
+        <p>
+          We do not share, sell, or provide your mobile phone number or messaging consent data to
+          third parties or affiliates for marketing or promotional purposes. No mobile information
+          will be shared with third parties or affiliates for marketing or promotional purposes.
+          Text messaging originator opt-in data and consent will not be shared with any third
+          parties. Twilio transmits the verification text we ask it to send and does not use your
+          number for its own marketing.
+        </p>
 
         <p><strong>What we do not do</strong></p>
         <p>
@@ -102,23 +118,25 @@ export default function TrustPrivacyPage() {
         <p>
           The Trust API and its Postgres database run on Render in the United States (Oregon),
           behind Cloudflare. These providers see IP addresses and standard request metadata in
-          order to deliver the service. Data is encrypted in transit with HTTPS.
+          order to deliver the service. Data is encrypted in transit with HTTPS. That operational
+          processing does not include selling or providing your mobile phone number or SMS consent
+          to anyone for marketing or promotional purposes.
         </p>
 
         <p><strong>Delete your account</strong></p>
         <p>
-          In the Trust Circle iOS app, open Settings → Delete account. That deletes your account
-          record, Sign in with Apple identity mapping, handle, location points, presence, circle
-          memberships and invites, share settings, active and past looks, push device tokens, and
-          Circle entitlement records from our servers, in one transaction. You can also email{" "}
+          In the Trust iOS app, open Settings → Delete account. That deletes your account
+          record, Sign in with Apple identity mapping, handle, location points, presence, the
+          people you added and invites, share settings, active and past looks, push device tokens,
+          and Plus entitlement records from our servers, in one transaction. You can also email{" "}
           <a href="mailto:hello@collapsetechnologies.com">hello@collapsetechnologies.com</a> and
           we will delete it for you.
         </p>
 
         <p><strong>Age</strong></p>
         <p>
-          Trust Circle is for adults and older teens: 17 and up. It is not directed at children
-          and has no child or family-supervision mode.
+          Trust can be used by a household, including family. It is not a children&apos;s app and
+          is not directed at children under 13.
         </p>
 
         <p>
@@ -136,7 +154,7 @@ export default function TrustPrivacyPage() {
         </Link>
         {" · "}
         <Link className="text-link" href="/trust">
-          Trust Circle
+          Trust
         </Link>
       </p>
     </main>

@@ -36,7 +36,7 @@ public final class DemoTrustService: ObservableObject {
     // MARK: Snapshot
 
     public var coverage: CircleCoverage {
-        let sponsor = you.hasPro ? you : members.first(where: \.hasPro)
+        let sponsor = you.hasPro ? you : nil
         return CircleCoverage(
             isCovered: sponsor != nil,
             sponsorName: sponsor?.displayName,
@@ -64,7 +64,12 @@ public final class DemoTrustService: ObservableObject {
                 inboundPresenceGranted: true,
                 homePresence: visiblePresence,
                 promise: nil,
-                inboundPresentation: inboundPresentation
+                inboundPresentation: inboundPresentation,
+                locationHistory: inboundPresentation.acceptsLocation ? Self.visits(
+                    place: placeLabels[person.id] ?? TrustCopy.location,
+                    now: now,
+                    origin: vault(for: person.id).latest(now: now)
+                ) : []
             )
         }
     }
@@ -94,9 +99,9 @@ public final class DemoTrustService: ObservableObject {
 
     // MARK: Fixtures
 
-    /// Design SoT fixture (`design-mocks/duo-gpt6/app.js`): nine people. Inbound — Leo and Eli
-    /// Always, Jules For a while, everyone else Sealed; Inês, Eli, Noah Hidden. Outbound —
-    /// Maya Until, Leo Always, Inês For a while, Jules Until, the rest Off. You are on Free.
+    /// Nine people. Inbound — Leo and Eli Always, Jules paused (restores to Sealed), Noah Off
+    /// (chose off, not removed), everyone else Sealed. Inês, Eli, Noah Hidden. Outbound — Maya
+    /// Sealed, Leo Always, Jules Sealed, the rest Off. You are on Free.
     public func startLeanDemo() {
         let now = clock.now()
         you = Person(displayName: "Alex Laurent", hasPro: false, onboardingComplete: true, handle: "alex")
@@ -114,15 +119,18 @@ public final class DemoTrustService: ObservableObject {
 
         let maya = add("Maya Chen", presence: .home, place: "Inner Sunset", origin: LocationTrail.DemoCity.missionSF.point(at: now), inbound: .untilTheyLook, outbound: .untilTheyLook, now: now)
         let leo = add("Leo Park", presence: .away, place: "Capitol Hill", origin: LocationTrail.DemoCity.capitolHillSeattle.point(at: now), inbound: .always, outbound: .always, now: now)
-        let ines = add("Inês Costa", presence: .hidden, place: "Príncipe Real", origin: LocationPoint(timestamp: now, latitude: 38.7169, longitude: -9.1478), inbound: .untilTheyLook, outbound: .off, now: now)
-        outbound[ines.id] = PersonShareState(resting: .off, timedUntil: now.addingTimeInterval(3600))
+        add("Inês Costa", presence: .hidden, place: "Príncipe Real", origin: LocationPoint(timestamp: now, latitude: 38.7169, longitude: -9.1478), inbound: .untilTheyLook, outbound: .off, now: now)
         let jules = add("Jules Morgan", presence: .away, place: "Fort Greene", origin: LocationTrail.DemoCity.brooklyn.point(at: now), inbound: .untilTheyLook, outbound: .untilTheyLook, now: now)
-        inbound[jules.id] = PersonShareState(resting: .untilTheyLook, timedUntil: now.addingTimeInterval(47 * 60))
+        inbound[jules.id] = PersonShareState(
+            resting: .paused,
+            pauseUntil: now.addingTimeInterval(47 * 60),
+            restoresTo: .untilTheyLook
+        )
         add("Sam Rivera", presence: .home, place: "Hyde Park", origin: LocationTrail.DemoCity.austin.point(at: now), inbound: .untilTheyLook, outbound: .off, now: now)
         add("Eli Brooks", presence: .hidden, place: "Hackney", origin: LocationPoint(timestamp: now, latitude: 51.5450, longitude: -0.0553), inbound: .always, outbound: .off, now: now)
         add("Ren Tanaka", presence: .home, place: "Shimokitazawa", origin: LocationPoint(timestamp: now, latitude: 35.6613, longitude: 139.6681), inbound: .untilTheyLook, outbound: .off, now: now)
         add("Sofía López", presence: .away, place: "Condesa", origin: LocationPoint(timestamp: now, latitude: 19.4116, longitude: -99.1747), inbound: .untilTheyLook, outbound: .off, now: now)
-        add("Noah Wilson", presence: .hidden, place: "Surry Hills", origin: LocationPoint(timestamp: now, latitude: -33.8845, longitude: 151.2110), inbound: .untilTheyLook, outbound: .off, now: now)
+        add("Noah Wilson", presence: .hidden, place: "Surry Hills", origin: LocationPoint(timestamp: now, latitude: -33.8845, longitude: 151.2110), inbound: .off, outbound: .off, now: now)
 
         // Prior activity so the view log is not blank: Leo looked at you yesterday; you viewed Leo.
         lookLog.append(LookEvent(
@@ -175,6 +183,35 @@ public final class DemoTrustService: ObservableObject {
         }
         vaults[person.id] = vault
         return person
+    }
+
+    /// A few named stops while they are sharing. The last one sits outside the free
+    /// window so Plus can keep a longer list; free still gets the recent places.
+    private static func visits(place: String, now: Date, origin: LocationPoint?) -> [LocationVisit] {
+        let names = extraPlaces(for: place)
+        let stops: [(String, TimeInterval)] = [
+            (names[0], 0),
+            (names.count > 1 ? names[1] : place, -40 * 60),
+            (names.count > 2 ? names[2] : place, -90 * 60),
+            (place, -36 * 3600)
+        ]
+        return stops.map { name, offset in
+            LocationVisit(label: name, at: now.addingTimeInterval(offset), point: origin)
+        }
+    }
+
+    private static func extraPlaces(for place: String) -> [String] {
+        switch place {
+        case "Capitol Hill": return ["Capitol Hill", "Broadway", "Volunteer Park"]
+        case "Inner Sunset": return ["Inner Sunset", "Irving", "Golden Gate Park"]
+        case "Fort Greene": return ["Fort Greene", "Dekalb", "Brooklyn"]
+        case "Hyde Park": return ["Hyde Park", "East Austin", "Downtown"]
+        case "Príncipe Real": return ["Príncipe Real", "Bairro Alto", "Chiado"]
+        case "Hackney": return ["Hackney", "London Fields", "Dalston"]
+        case "Shimokitazawa": return ["Shimokitazawa", "Shibuya", "Yoyogi"]
+        case "Condesa": return ["Condesa", "Roma Norte", "Juárez"]
+        default: return [place, place, place]
+        }
     }
 
     private func seedYou(now: Date) {
@@ -236,20 +273,26 @@ public final class DemoTrustService: ObservableObject {
         outbound[personID] = PersonShareState(resting: .always)
     }
 
-    /// Timed overlays the current resting mode; when it ends, the prior mode returns.
-    /// Off reverts to Until they look, since a For a while grant implies sealed after.
-    public func setTimedShare(personID: UUID, duration: TimedShareDuration) throws {
-        guard coverage.canShareAvailable else { throw CircleError.proRequired }
+    /// Pause is free. It restores the previous Sealed or Always mode when the timer ends.
+    public func pauseSharing(personID: UUID, duration: PauseDuration) throws {
         expireTimedShares()
         let current = outbound[personID] ?? PersonShareState()
-        let resting: ShareRestingMode
+        let restores: ShareRestingMode
         switch current.presentation(at: clock.now()) {
-        case .always, .timed(_, .always):
-            resting = .always
-        default:
-            resting = .untilTheyLook
+        case .always:
+            restores = .always
+        case .untilTheyLook:
+            restores = .untilTheyLook
+        case .paused(_, let reverts):
+            restores = reverts
+        case .off:
+            throw LookError.shareOff
         }
-        outbound[personID] = PersonShareState(resting: resting, timedUntil: duration.endDate(from: clock.now()))
+        outbound[personID] = PersonShareState(
+            resting: .paused,
+            pauseUntil: duration.endDate(from: clock.now()),
+            restoresTo: restores
+        )
     }
 
     public func stopAll() {
@@ -268,11 +311,16 @@ public final class DemoTrustService: ObservableObject {
 
     public func expireTimedShares() {
         let now = clock.now()
-        for (id, state) in outbound where state.timedUntil.map({ $0 <= now }) == true {
-            outbound[id] = PersonShareState(resting: state.resting, timedUntil: nil)
+        func restore(_ state: PersonShareState) -> PersonShareState? {
+            guard state.resting == .paused, let until = state.pauseUntil, until <= now else { return nil }
+            let mode: ShareRestingMode = state.restoresTo == .always ? .always : .untilTheyLook
+            return PersonShareState(resting: mode)
         }
-        for (id, state) in inbound where state.timedUntil.map({ $0 <= now }) == true {
-            inbound[id] = PersonShareState(resting: state.resting, timedUntil: nil)
+        for (id, state) in outbound {
+            if let next = restore(state) { outbound[id] = next }
+        }
+        for (id, state) in inbound {
+            if let next = restore(state) { inbound[id] = next }
         }
     }
 
@@ -292,12 +340,9 @@ public final class DemoTrustService: ObservableObject {
         expireTimedShares()
         let now = clock.now()
         let presentation = (inbound[subject.id] ?? PersonShareState()).presentation(at: now)
-        if presentation.isOff { throw LookError.shareOff }
+        if presentation.isOff || presentation.isPaused { throw LookError.shareOff }
         if presentation.isAvailable { throw LookError.lookRequiresSealed }
-        if let open = snapshots[subject.id], now.timeIntervalSince(open.event.at) < 30 * 60 {
-            return open
-        }
-        guard let live = vault(for: subject.id).latest(now: now, window: 3 * 3600) else { throw LookError.noPartner }
+        guard let live = vault(for: subject.id).latest(now: now) else { throw LookError.noPartner }
         let event = LookEvent(
             viewerID: you.id, viewerName: you.displayName,
             subjectID: subject.id, subjectName: subject.displayName,
@@ -355,19 +400,31 @@ public final class DemoTrustService: ObservableObject {
     public func visiblePoint(for personID: UUID) -> LocationPoint? {
         let now = clock.now()
         if inbound[personID]?.presentation(at: now).isAvailable == true {
-            return vault(for: personID).latest(now: now, window: 3 * 3600)
+            return vault(for: personID).latest(now: now)
         }
         return snapshots[personID]?.live
     }
 
     public func visibleMapPins() -> [(id: UUID, name: String, point: LocationPoint, live: Bool)] {
-        circle.compactMap { member in
-            guard let point = visiblePoint(for: member.id) else { return nil }
-            return (member.id, member.person.displayName, point, member.isAvailable)
+        guard coverage.isCovered else { return [] }
+        return circle.compactMap { member in
+            guard member.isAvailable, let point = member.livePoint else { return nil }
+            return (member.id, member.person.displayName, point, true)
         }
     }
 
     public func revoke(personID: UUID) {
+        let name = members.first { $0.id == personID }?.displayName ?? "Someone"
+        lookLog.append(LookEvent(
+            viewerID: you.id,
+            viewerName: you.displayName,
+            subjectID: personID,
+            subjectName: name,
+            at: clock.now(),
+            historyWindowHours: 0,
+            includedLive: false,
+            kind: .removed
+        ))
         members.removeAll { $0.id == personID }
         vaults[personID] = nil
         outbound[personID] = nil
@@ -389,7 +446,7 @@ public final class DemoTrustService: ObservableObject {
         var phase = tickPhase
         for id in [you.id] + members.map(\.id) {
             let vault = vault(for: id)
-            let last = vault.latest(now: now, window: 3 * 3600) ?? LocationTrail.home
+            let last = vault.latest(now: now) ?? LocationTrail.home
             vault.ingest(LocationTrail.step(last, at: now, phase: phase))
             phase += 0.8
         }

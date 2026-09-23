@@ -2,18 +2,21 @@ namespace TrustApi.Domain;
 
 public static class TrustRules
 {
-    public const int FreeHistoryHours = 2;
-    public const int ProHistoryHours = 24;
+    /// Free person-screen history. Plus reads <see cref="ProHistoryDays"/>.
+    public const int FreeHistoryHours = 24;
+    public const int ProHistoryDays = 30;
+    public static TimeSpan HistoryWindow(bool hasPlus) =>
+        hasPlus ? TimeSpan.FromDays(ProHistoryDays) : TimeSpan.FromHours(FreeHistoryHours);
+    public static int HistoryWindowHours(bool hasPlus) =>
+        hasPlus ? ProHistoryDays * 24 : FreeHistoryHours;
     /// Free: <=5 (per the product model). Plus (née Circle): <=20.
     public const int FreeSeats = 5;
     public const int ProSeats = 20;
     public const int FreeLookLogDays = 30;
     public const int ProLookLogDays = 365;
-    /// Server GPS window: enough for a Look snapshot and the dormant Plus "extend" path, then
-    /// pruned. Not a dossier. M1 tightens this from 26h to ~3h.
-    public static readonly TimeSpan LocationRetention = TimeSpan.FromHours(3);
-    /// Open Looks expire so a killed client cannot leave a live pin forever.
-    public static readonly TimeSpan ActiveLookTtl = TimeSpan.FromMinutes(30);
+    /// How long GPS is stored while any outbound share is Sealed, Always, or Paused.
+    /// Off (and an empty circle) drops the trail. This is not a 3-hour prune.
+    public static readonly TimeSpan LocationRetention = TimeSpan.FromDays(ProHistoryDays);
     /// If last home/away signal is older than this at a promise deadline, copy is "no signal".
     public static readonly TimeSpan PresenceSignalStale = TimeSpan.FromMinutes(30);
     /// View (Available) log entries dedupe within this window so re-opening the same person's
@@ -175,6 +178,23 @@ public sealed record PhoneChallenge(
     int SendCount,
     DateTimeOffset WindowStartedAt);
 
+/// SMS budget for verification texts. Account and phone keys roll every hour.
+/// Account-day and global-day keys roll every 24 hours.
+public sealed record SmsSendBudget(
+    string ScopeKey,
+    DateTimeOffset WindowStartedAt,
+    int SendCount,
+    DateTimeOffset? LastSentAt)
+{
+    public static string AccountKey(Guid accountId) => $"account:{accountId:N}";
+
+    public static string AccountDayKey(Guid accountId) => $"account-day:{accountId:N}";
+
+    public static string PhoneKey(string e164) => $"phone:{e164}";
+
+    public static string GlobalDayKey() => "global-day";
+}
+
 public sealed record Presence(
     DateTimeOffset LastActiveAt,
     int BatteryPercent,
@@ -192,31 +212,63 @@ public enum ShareResting
     /// Not sharing at all. The default for both sides of a fresh join.
     Off,
     UntilTheyLook,
-    Always
+    Always,
+    /// Temporarily not revealing. <see cref="ShareState.RestoresTo"/> returns when the timer ends.
+    Paused
 }
 
-public sealed record ShareState(ShareResting Resting, DateTimeOffset? TimedUntil)
+public sealed record ShareState(
+    ShareResting Resting,
+    DateTimeOffset? PauseUntil = null,
+    ShareResting? RestoresTo = null)
 {
     /// Join default is Off/Off — invite is not permission.
-    public static ShareState Default { get; } = new(ShareResting.Off, null);
+    public static ShareState Default { get; } = new(ShareResting.Off);
 
-    public SharePresentation Presentation(DateTimeOffset now)
+    /// Mode a reader should use. An expired pause behaves as the restored mode
+    /// even if the sweep has not rewritten the row yet.
+    public ShareResting Effective(DateTimeOffset now)
     {
-        if (TimedUntil is { } until && until > now)
+        if (Resting != ShareResting.Paused)
         {
-            return new SharePresentation.Timed(until, Resting);
+            return Resting;
         }
 
-        return Resting switch
+        if (PauseUntil is { } until && until > now)
         {
-            ShareResting.Always => SharePresentation.Always.Instance,
-            ShareResting.Off => SharePresentation.Off.Instance,
-            _ => SharePresentation.UntilTheyLook.Instance
-        };
+            return ShareResting.Paused;
+        }
+
+        return RestoresTo == ShareResting.Always ? ShareResting.Always : ShareResting.UntilTheyLook;
     }
 
-    public bool RevealsLive(DateTimeOffset now) =>
-        Presentation(now) is SharePresentation.Always or SharePresentation.Timed;
+    public SharePresentation Presentation(DateTimeOffset now) => Effective(now) switch
+    {
+        ShareResting.Always => SharePresentation.Always.Instance,
+        ShareResting.Off => SharePresentation.Off.Instance,
+        ShareResting.Paused => new SharePresentation.Paused(
+            PauseUntil ?? now,
+            RestoresTo == ShareResting.Always ? ShareResting.Always : ShareResting.UntilTheyLook),
+        _ => SharePresentation.UntilTheyLook.Instance
+    };
+
+    public bool RevealsLive(DateTimeOffset now) => Effective(now) == ShareResting.Always;
+
+    /// Sealed and Always upload. Pause keeps the existing trail but does not add points. Off does not.
+    public bool AcceptsLocation(DateTimeOffset now)
+    {
+        var mode = Effective(now);
+        return mode is ShareResting.Always or ShareResting.UntilTheyLook;
+    }
+
+    public bool SharesHistory(DateTimeOffset now) => AcceptsLocation(now);
+
+    /// Paused still holds the trail so restore is not empty. Off does not.
+    public bool KeepsTrail(DateTimeOffset now)
+    {
+        var mode = Effective(now);
+        return mode is ShareResting.Always or ShareResting.UntilTheyLook or ShareResting.Paused;
+    }
 }
 
 public abstract record SharePresentation
@@ -236,7 +288,7 @@ public abstract record SharePresentation
         public static Always Instance { get; } = new();
     }
 
-    public sealed record Timed(DateTimeOffset Ends, ShareResting RevertsTo) : SharePresentation;
+    public sealed record Paused(DateTimeOffset Ends, ShareResting RevertsTo) : SharePresentation;
 }
 
 public sealed record Invite(
@@ -250,7 +302,9 @@ public sealed record Invite(
 public enum LookKind
 {
     Look,
-    View
+    View,
+    /// The pair was revoked. Not a location read.
+    Removed
 }
 
 public sealed record LookEvent(
@@ -263,13 +317,6 @@ public sealed record LookEvent(
     int HistoryWindowHours,
     bool IncludedLive,
     LookKind Kind = LookKind.Look);
-
-public sealed record ActiveLook(
-    Guid LookId,
-    Guid ViewerId,
-    Guid SubjectId,
-    int HistoryWindowHours,
-    DateTimeOffset OpenedAt);
 
 public sealed record LookSession(
     LookEvent Event,
@@ -308,7 +355,9 @@ public sealed record CircleSnapshot(
     IReadOnlyList<CircleMember> Members,
     CircleCoverage Coverage,
     Invite? PendingInvite,
+    /// Always null. A Look is the snapshot returned by POST /looks, not an open session.
     LookSession? ActiveSession,
+    /// Always null. The receipt is the push, not a lingering watched state.
     LookEvent? BeingWatched,
     IReadOnlyList<LookEvent> LookLog,
     int RetainedLookLogCount,
@@ -326,55 +375,30 @@ public sealed record CircleCoverage(
     public bool CanExtendHistory => IsCovered;
     public bool CanExportLookLog => IsCovered;
 
-    public string? Banner
-    {
-        get
-        {
-            if (!IsCovered || string.IsNullOrWhiteSpace(SponsorName))
-            {
-                return null;
-            }
-
-            return ActingIsSponsor
-                ? "Your Plus covers this circle"
-                : $"{SponsorName}’s Plus covers this circle";
-        }
-    }
+    /// Plus is this account only. A friend's Plus never produces a banner here.
+    public string? Banner => IsCovered && ActingIsSponsor ? "Plus is on this account" : null;
 }
 
-public enum TimedShareDuration
+public enum PauseDuration
 {
-    FifteenMinutes,
     OneHour,
-    FourHours,
-    EightHours
+    EightHours,
+    OneDay,
+    TwoDays,
+    ThreeDays
 }
 
-public static class TimedShare
+public static class PauseShare
 {
-    public static DateTimeOffset EndAt(TimedShareDuration duration, DateTimeOffset now) => duration switch
+    public static DateTimeOffset EndAt(PauseDuration duration, DateTimeOffset now) => duration switch
     {
-        TimedShareDuration.FifteenMinutes => now.AddMinutes(15),
-        TimedShareDuration.OneHour => now.AddHours(1),
-        TimedShareDuration.FourHours => now.AddHours(4),
-        TimedShareDuration.EightHours => now.AddHours(8),
+        PauseDuration.OneHour => now.AddHours(1),
+        PauseDuration.EightHours => now.AddHours(8),
+        PauseDuration.OneDay => now.AddDays(1),
+        PauseDuration.TwoDays => now.AddDays(2),
+        PauseDuration.ThreeDays => now.AddDays(3),
         _ => now.AddHours(1)
     };
-
-    public static string AfterPhrase(TimedShareDuration duration) => duration switch
-    {
-        TimedShareDuration.FifteenMinutes => "After 15 minutes",
-        TimedShareDuration.OneHour => "After 1 hour",
-        TimedShareDuration.FourHours => "After 4 hours",
-        TimedShareDuration.EightHours => "After 8 hours",
-        _ => "After 1 hour"
-    };
-}
-
-public static class ActiveLookRules
-{
-    public static bool IsExpired(ActiveLook look, DateTimeOffset now) =>
-        now - look.OpenedAt >= TrustRules.ActiveLookTtl;
 }
 
 public sealed class TrustException : Exception
@@ -390,7 +414,7 @@ public sealed class TrustException : Exception
         new("confirmation_required", "Looking requires an explicit confirm.");
 
     public static TrustException NotConnected() =>
-        new("not_connected", "This person is not in your circle.");
+        new("not_connected", "This person is not connected to you.");
 
     public static TrustException PairInactive() =>
         new("pair_inactive", "This pair is no longer active.");
@@ -405,7 +429,7 @@ public sealed class TrustException : Exception
         new("pro_required", "Plus is required for this.");
 
     public static TrustException NoLocation() =>
-        new("no_location", "There is no location in escrow yet.");
+        new("no_location", "Getting location.");
 
     public static TrustException ShareOff() =>
         new("share_off", "This person has sharing off.");
@@ -443,6 +467,9 @@ public sealed class TrustException : Exception
     public static TrustException PhoneInUse() =>
         new("phone_in_use", "That phone is already on another Trust account.");
 
+    public static TrustException OwnPhone() =>
+        new("own_phone", "That number is already on this account.");
+
     public static TrustException InvalidHandle() =>
         new("invalid_handle", "That handle isn’t valid.");
 
@@ -466,6 +493,8 @@ public interface ITrustStore
     Task RevokeMembershipAsync(Guid a, Guid b, CancellationToken cancellationToken);
     Task<ShareState> GetShareAsync(Guid grantor, Guid grantee, CancellationToken cancellationToken);
     Task UpsertShareAsync(Guid grantor, Guid grantee, ShareState state, CancellationToken cancellationToken);
+    /// Rewrites expired pauses back to <see cref="ShareState.RestoresTo"/>.
+    Task RestoreExpiredPausesAsync(DateTimeOffset now, CancellationToken cancellationToken);
     Task<Presence> GetPresenceAsync(Guid accountId, DateTimeOffset fallbackNow, CancellationToken cancellationToken);
     Task UpsertPresenceAsync(Guid accountId, Presence presence, CancellationToken cancellationToken);
     Task IngestLocationAsync(Guid accountId, LocationFix fix, CancellationToken cancellationToken);
@@ -478,17 +507,11 @@ public interface ITrustStore
         CancellationToken cancellationToken);
     Task<LocationFix?> LatestLocationAsync(Guid accountId, CancellationToken cancellationToken);
     Task InsertLookEventAsync(LookEvent look, CancellationToken cancellationToken);
-    Task UpdateLookEventHistoryHoursAsync(Guid lookId, int historyWindowHours, CancellationToken cancellationToken);
     Task<IReadOnlyList<LookEvent>> ListLooksAsync(
         Guid accountId,
         DateTimeOffset since,
         CancellationToken cancellationToken);
     Task<int> LooksTodayAsync(Guid viewerId, DateTimeOffset startOfDay, CancellationToken cancellationToken);
-    Task SetActiveLookAsync(ActiveLook look, CancellationToken cancellationToken);
-    Task<ActiveLook?> GetActiveLookAsync(Guid viewerId, Guid subjectId, CancellationToken cancellationToken);
-    Task<ActiveLook?> GetLookAtMeAsync(Guid subjectId, CancellationToken cancellationToken);
-    Task ClearActiveLookAsync(Guid viewerId, Guid? subjectId, CancellationToken cancellationToken);
-    Task<IReadOnlyList<ActiveLook>> ListExpiredActiveLooksAsync(DateTimeOffset olderThan, CancellationToken cancellationToken);
     Task PruneAllLocationsAsync(DateTimeOffset olderThan, CancellationToken cancellationToken);
     Task<Invite?> FindInviteByCodeAsync(string code, CancellationToken cancellationToken);
     Task<Invite?> FindPendingInviteAsync(Guid creatorId, CancellationToken cancellationToken);
@@ -502,6 +525,8 @@ public interface ITrustStore
     Task<PhoneChallenge?> GetPhoneChallengeAsync(Guid accountId, CancellationToken cancellationToken);
     Task UpsertPhoneChallengeAsync(PhoneChallenge challenge, CancellationToken cancellationToken);
     Task ClearPhoneChallengeAsync(Guid accountId, CancellationToken cancellationToken);
+    Task<SmsSendBudget?> GetSmsSendBudgetAsync(string scopeKey, CancellationToken cancellationToken);
+    Task UpsertSmsSendBudgetAsync(SmsSendBudget budget, CancellationToken cancellationToken);
 
     Task SetPresenceGrantAsync(Guid subjectId, Guid trusteeId, bool enabled, DateTimeOffset updatedAt, CancellationToken cancellationToken);
     Task<PresenceGrant?> GetPresenceGrantAsync(Guid subjectId, Guid trusteeId, CancellationToken cancellationToken);

@@ -10,6 +10,8 @@ final class LookReceiptNotifier: NSObject, ObservableObject, UNUserNotificationC
     private let installationKey = "trust.push.installation-id"
     private var client: TrustClient?
     private var registeredToken: String?
+    private var lastUploadedToken: String?
+    private var lastUploadedInstallation: UUID?
 
     override init() {
         super.init()
@@ -19,27 +21,41 @@ final class LookReceiptNotifier: NSObject, ObservableObject, UNUserNotificationC
 
     func prepare(client: TrustClient) {
         self.client = client
-        refreshStatus()
-        if authorization == .authorized || authorization == .provisional {
-            UIApplication.shared.registerForRemoteNotifications()
+        Task {
+            await registerForPushIfAllowed()
+            await uploadTokenIfNeeded()
         }
     }
 
     func refreshStatus() {
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            DispatchQueue.main.async {
-                self.authorization = settings.authorizationStatus
-            }
+        Task { await loadAuthorization() }
+    }
+
+    /// The published status is filled in asynchronously, so a check right after
+    /// `requestAuthorization` still sees `.notDetermined` and never registers.
+    /// Read settings (or the grant) before asking APNs for a device token.
+    func requestPermission() async {
+        let granted = (try? await UNUserNotificationCenter.current()
+            .requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+        await loadAuthorization()
+        if granted || Self.canRegister(authorization) {
+            UIApplication.shared.registerForRemoteNotifications()
         }
     }
 
-    func requestPermission() async {
-        _ = try? await UNUserNotificationCenter.current()
-            .requestAuthorization(options: [.alert, .sound, .badge])
-        refreshStatus()
-        if authorization == .authorized || authorization == .provisional {
-            UIApplication.shared.registerForRemoteNotifications()
-        }
+    private func registerForPushIfAllowed() async {
+        await loadAuthorization()
+        guard Self.canRegister(authorization) else { return }
+        UIApplication.shared.registerForRemoteNotifications()
+    }
+
+    private func loadAuthorization() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        authorization = settings.authorizationStatus
+    }
+
+    private static func canRegister(_ status: UNAuthorizationStatus) -> Bool {
+        status == .authorized || status == .provisional
     }
 
     func unregister() async {
@@ -47,40 +63,35 @@ final class LookReceiptNotifier: NSObject, ObservableObject, UNUserNotificationC
             try? await client?.removePushDevice(installationId: installationId)
         }
         registeredToken = nil
+        lastUploadedToken = nil
+        lastUploadedInstallation = nil
         client = nil
-        cancelTimedEnd()
-    }
-
-    private static let timedEndIdentifier = "trust.timed-share.end"
-
-    /// Local notice when a For a while share seals again. One pending request at a time —
-    /// the newest timer wins, which matches the server (one timed overlay per edge, latest set).
-    func scheduleTimedEnd(at date: Date) {
-        let center = UNUserNotificationCenter.current()
-        center.removePendingNotificationRequests(withIdentifiers: [Self.timedEndIdentifier])
-        let content = UNMutableNotificationContent()
-        content.title = TrustCopy.appName
-        content.body = TrustCopy.timerEnded
-        content.sound = .default
-        let interval = max(1, date.timeIntervalSinceNow)
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
-        center.add(UNNotificationRequest(identifier: Self.timedEndIdentifier, content: content, trigger: trigger))
-    }
-
-    func cancelTimedEnd() {
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [Self.timedEndIdentifier])
     }
 
     nonisolated func didRegister(deviceToken: Data) {
         let token = deviceToken.map { String(format: "%02x", $0) }.joined()
         Task { @MainActor in
             registeredToken = token
-            guard let client, let installationId else { return }
-            try? await client.registerPushDevice(
+            await uploadTokenIfNeeded()
+        }
+    }
+
+    /// APNs can deliver the token before sign-in has a client. Keep the token and upload
+    /// once both exist, including when the installation id changes under the same token.
+    private func uploadTokenIfNeeded() async {
+        guard let client, let token = registeredToken, let installationId else { return }
+        guard token != lastUploadedToken || installationId != lastUploadedInstallation else { return }
+        do {
+            try await client.registerPushDevice(
                 installationId: installationId,
                 token: token,
                 environment: Self.apnsEnvironment
             )
+            lastUploadedToken = token
+            lastUploadedInstallation = installationId
+        } catch {
+            lastUploadedToken = nil
+            lastUploadedInstallation = nil
         }
     }
 

@@ -5,7 +5,6 @@ namespace TrustApi.Infrastructure.Notifications;
 public interface ILookReceiptPublisher
 {
     Task NotifyLookAsync(LookEvent look, CancellationToken cancellationToken);
-    Task NotifyLookExtendedAsync(LookEvent look, CancellationToken cancellationToken);
     Task NotifyQuietAsync(Guid accountId, string title, string body, string kind, CancellationToken cancellationToken);
     Task NotifyHomeArrivalAsync(Guid subjectId, CancellationToken cancellationToken);
 }
@@ -19,17 +18,9 @@ public sealed class LookReceiptPublisher(
     public Task NotifyLookAsync(LookEvent look, CancellationToken cancellationToken) =>
         NotifyQuietAsync(
             look.SubjectId,
-            look.ViewerName + " viewed your location",
-            "They can see your live location and the last " + look.HistoryWindowHours + " hours of history.",
+            look.ViewerName + " looked at your location",
+            "One snapshot of your current place.",
             "look",
-            cancellationToken);
-
-    public Task NotifyLookExtendedAsync(LookEvent look, CancellationToken cancellationToken) =>
-        NotifyQuietAsync(
-            look.SubjectId,
-            look.ViewerName + " extended the look",
-            "They can now see the last " + look.HistoryWindowHours + " hours of history.",
-            "look_extend",
             cancellationToken);
 
     public async Task NotifyQuietAsync(
@@ -116,8 +107,6 @@ public sealed class LookReceiptPublisher(
 public sealed class NoOpLookReceiptPublisher : ILookReceiptPublisher
 {
     public Task NotifyLookAsync(LookEvent look, CancellationToken cancellationToken) => Task.CompletedTask;
-
-    public Task NotifyLookExtendedAsync(LookEvent look, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task NotifyQuietAsync(
         Guid accountId,

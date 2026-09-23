@@ -10,19 +10,20 @@ constexpr char kServiceUuid[] = "8f9a0000-4a0a-4a4a-9f6d-0f6d2b2f1000";
 constexpr char kCommandUuid[] = "8f9a0001-4a0a-4a4a-9f6d-0f6d2b2f1000";
 constexpr char kTelemetryUuid[] = "8f9a0002-4a0a-4a4a-9f6d-0f6d2b2f1000";
 
-// Pin map for the Adafruit ESP32-C3 DevKitM-01 and DRV8833.
-constexpr uint8_t kLeftInputOnePin = 3;
-constexpr uint8_t kLeftInputTwoPin = 4;
-constexpr uint8_t kRightInputOnePin = 5;
-constexpr uint8_t kRightInputTwoPin = 6;
-constexpr uint8_t kLeftEncoderAPin = 7;
-constexpr uint8_t kLeftEncoderBPin = 8;
-constexpr uint8_t kRightEncoderAPin = 9;
-constexpr uint8_t kRightEncoderBPin = 10;
+// Header pins on the ESP32-S3-DevKitC-1 (Adafruit 5364) with a DRV8833.
+// Avoid strapping pins 0/3/45/46 and the USB pins 19/20.
+constexpr uint8_t kLeftInputOnePin = 4;
+constexpr uint8_t kLeftInputTwoPin = 5;
+constexpr uint8_t kRightInputOnePin = 6;
+constexpr uint8_t kRightInputTwoPin = 7;
+constexpr uint8_t kLeftEncoderAPin = 15;
+constexpr uint8_t kLeftEncoderBPin = 16;
+constexpr uint8_t kRightEncoderAPin = 17;
+constexpr uint8_t kRightEncoderBPin = 18;
 constexpr uint8_t kLeftBumperPin = 1;
 constexpr uint8_t kRightBumperPin = 2;
-constexpr uint8_t kEmergencyStopPin = 18;
-constexpr uint8_t kBatteryAdcPin = 0;
+constexpr uint8_t kEmergencyStopPin = 8;
+constexpr uint8_t kBatteryAdcPin = 9;
 
 constexpr uint32_t kCommandTimeoutMs = 300;
 constexpr uint32_t kTelemetryPeriodMs = 100;

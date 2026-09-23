@@ -28,6 +28,17 @@ struct LoginView: View {
             VStack(spacing: 14) {
                 #if DEBUG
                 Button {
+                    Task { await model.signInWithLocalAPI() }
+                } label: {
+                    Text(model.isSigningIn ? TrustCopy.signingIn : "Local API")
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                }
+                .buttonStyle(TrustOutlineButtonStyle())
+                .disabled(model.isSigningIn)
+                .accessibilityIdentifier("local-api-sign-in")
+                .accessibilityHint("Signs in to the local API. Not the offline fixture.")
+
+                Button {
                     model.enterDemo()
                 } label: {
                     Text(TrustCopy.seeTheApp)
@@ -35,6 +46,7 @@ struct LoginView: View {
                 }
                 .buttonStyle(TrustOutlineButtonStyle())
                 .disabled(model.isSigningIn)
+                .accessibilityIdentifier("see-the-app")
                 .accessibilityHint(TrustCopy.demoBannerBody)
                 #endif
 
