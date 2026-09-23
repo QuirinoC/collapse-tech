@@ -33,10 +33,13 @@ export default function TermsPage() {
           without permission.
         </p>
         <p>
-          A Trust account needs a verification text. Details are at{" "}
-          <Link href="https://jointrust.app/terms">jointrust.app/terms</Link>. We do not share, sell, or
-          provide your mobile phone number or messaging consent data to third parties
-          or affiliates for marketing or promotional purposes.
+          A Trust account needs a verification code. You request it by checking a box that
+          starts empty. That box is the consent, separate from these terms. At most 8 texts a
+          day. Message and data rates may apply. Reply HELP for help or STOP to opt out. The
+          full terms are on this site at{" "}
+          <Link href="/trust/terms">/trust/terms</Link>. We do not share, sell, or provide your
+          mobile phone number or messaging consent data to third parties or affiliates for
+          marketing or promotional purposes.
         </p>
       </div>
       <Link className="text-link" href="/">Back to Collapse <span>↖</span></Link>

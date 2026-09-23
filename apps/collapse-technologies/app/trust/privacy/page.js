@@ -41,7 +41,7 @@ export default function TrustPrivacyPage() {
           </li>
           <li>
             Location: precise location points your phone sends while sharing is on. They are held
-            in escrow so a trusted adult peer can look, and are pruned on a rolling basis (see
+            in escrow so someone you added can look, and are removed on a rolling basis (see
             below).
           </li>
           <li>

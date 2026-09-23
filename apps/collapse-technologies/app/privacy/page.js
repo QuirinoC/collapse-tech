@@ -33,7 +33,8 @@ export default function PrivacyPage() {
           will say so plainly.
         </p>
         <p>
-          Trust, our iOS app, may text a verification code you request. We do not share,
+          Trust texts a verification code to finish the account. At most 8 texts a day. Message
+          and data rates may apply. Reply HELP for help or STOP to opt out. We do not share,
           sell, or provide your mobile phone number or messaging consent data to third parties
           or affiliates for marketing or promotional purposes. Text messaging originator opt-in
           data and consent will not be shared with any third parties. The Trust policy is at{" "}
