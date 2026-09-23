@@ -19,7 +19,8 @@ export default function TrustTermsPage() {
         <p>
           Last updated 22 September 2026. Trust is made and operated by Collapse
           Technologies. By using the Trust iOS app you agree to these terms and to the{" "}
-          <Link href="/trust/privacy">Privacy Policy</Link>.
+          <Link href="/trust/privacy">Privacy Policy</Link>. Agreeing to these terms is not
+          consent to text messages.
         </p>
 
         <p><strong>Who it is for</strong></p>
@@ -73,10 +74,11 @@ export default function TrustTermsPage() {
 
         <p><strong>Text messages</strong></p>
         <p>
-          Trust texts a verification code to finish the account, after you sign in with Apple,
-          type your own number, and check the box. The box starts empty. At most 8 texts a day.
-          Message and data rates may apply. Reply <strong>HELP</strong> for help or{" "}
-          <strong>STOP</strong> to cancel. The screen is at{" "}
+          The account needs a verification code. You ask for it on the phone screen by checking
+          a box that starts empty. That box is the consent. It is separate from these terms.
+          Send code stays off until the box is checked. At most 8 texts a day. Message and data
+          rates may apply. Reply <strong>HELP</strong> for help or <strong>STOP</strong> to
+          cancel. The screen is at{" "}
           <Link href="/trust/sms">collapsetechnologies.com/trust/sms</Link>. Support is{" "}
           <a href="mailto:hello@collapsetechnologies.com">hello@collapsetechnologies.com</a> and{" "}
           <Link href="/trust/support">the support page</Link>. Carriers are not liable for delayed
