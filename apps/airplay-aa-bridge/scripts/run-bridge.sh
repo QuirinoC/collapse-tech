@@ -88,7 +88,7 @@ start_injector() {
     python3 "${ROOT}/bridge/inject_h264.py" \
       --aa-socket "$AIRPLAY_AA_SOCKET" \
       --h264-source "$AIRPLAY_AA_H264" \
-      >"$AIRPLAY_AA_LOGDIR/inject.log" 2>&1 &
+      >>"$AIRPLAY_AA_LOGDIR/inject.log" 2>&1 &
   INJ_PID=$!
 }
 
@@ -97,7 +97,7 @@ SOCKET_READY=0
 
 echo "airplay-aa-bridge running aa=${AA_PID} pipe=${PIPE_PID}"
 echo "AirPlay name: ${AIRPLAY_AA_NAME} (cast-ready; waiting for car USB AOAP)"
-echo "USB: plug Pi USB-C data port into the car Android Auto USB."
+echo "USB: plug Pi USB-C data port into the car, or Mac DHU (scripts/run-mac-dhu.sh)."
 
 # Keep AirPlay up and attach injector once AAServer's socket appears.
 # Only exit when the AAServer supervisor dies (systemd Restart=always).

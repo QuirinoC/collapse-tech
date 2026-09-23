@@ -122,6 +122,13 @@ echo "==> Building UxPlay + AAServer"
 export AIRPLAY_AA_PREFIX="$PREFIX"
 bash "$PREFIX/scripts/build-deps.sh"
 
+# Prefer non-expired GAL engineering certs (DHU rejects AACS CarService cert after 2022).
+if [[ -f "$PREFIX/certs/android_auto.crt" && -f "$PREFIX/certs/android_auto.key" ]]; then
+  echo "==> Installing non-expired AA TLS identity for DHU/HU testing"
+  install -m 644 "$PREFIX/certs/android_auto.crt" "$PREFIX/libexec/aaserver/android_auto.crt"
+  install -m 644 "$PREFIX/certs/android_auto.key" "$PREFIX/libexec/aaserver/android_auto.key"
+fi
+
 echo "==> Generating idle black H.264"
 python3 "$PREFIX/bridge/gen_idle_h264.py" \
   --width 800 --height 480 --fps 30 \
@@ -144,7 +151,8 @@ Next steps:
        sudo systemctl start airplay-aa-bridge
        sudo journalctl -u airplay-aa-bridge -f
   3. On your Mac/iPhone: AirPlay screen mirror to "${AIRPLAY_AA_NAME:-Pi AirPlay AA}"
-  4. Plug the Pi USB-C/OTG *data* port into the car USB (or Mac running OpenAuto).
+  4. Plug the Pi USB-C/OTG *data* port into the car USB, or into a Mac and run
+     apps/airplay-aa-bridge/scripts/run-mac-dhu.sh (see docs/mac-testing.md).
      Use a cable that carries data, not charge-only.
 
 Mac head-unit simulator tips: see docs/mac-testing.md
