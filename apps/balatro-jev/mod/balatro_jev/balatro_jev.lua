@@ -375,26 +375,33 @@ local function ensure_hooks(dt)
   end
 end
 
+local love_wrapper = nil
+
 local function wrap_love_update()
   if not love then
     return
   end
-  local current = love.update
-  if current and current.__balatro_jev then
+  if love.update == love_wrapper and love_wrapper ~= nil then
     return
   end
-  local prev = current
+  local prev = love.update
+  -- Avoid wrapping ourselves repeatedly if prev is already our wrapper.
+  if prev == love_wrapper then
+    return
+  end
   local wrapper
   wrapper = function(dt)
-    if prev then
+    if prev and prev ~= wrapper then
       prev(dt)
     end
+    -- Someone replaced love.update — re-wrap next frame.
     if love.update ~= wrapper then
+      love_wrapper = nil
       wrap_love_update()
     end
     ensure_hooks(dt)
   end
-  wrapper.__balatro_jev = true
+  love_wrapper = wrapper
   love.update = wrapper
   print("[balatro_jev] wrapped love.update")
 end
