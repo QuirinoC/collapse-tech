@@ -44,10 +44,11 @@ local function map_phase()
   local st = G.STATE
   if st == G.STATES.BLIND_SELECT then
     return "blind_select"
-  elseif st == G.STATES.SELECTING_HAND
-    or st == G.STATES.HAND_PLAYED
-    or st == G.STATES.DRAW_TO_HAND then
+  elseif st == G.STATES.SELECTING_HAND then
+    -- Only SELECTING_HAND is actionable; HAND_PLAYED / DRAW_TO_HAND are transitions.
     return "hand"
+  elseif st == G.STATES.HAND_PLAYED or st == G.STATES.DRAW_TO_HAND then
+    return "unknown"
   elseif st == G.STATES.SHOP then
     return "shop"
   elseif st == G.STATES.ROUND_EVAL then
