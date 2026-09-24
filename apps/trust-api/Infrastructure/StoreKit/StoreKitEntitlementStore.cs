@@ -92,6 +92,38 @@ public sealed class PostgresStoreKitEntitlementStore(string connectionString) : 
         return true;
     }
 
+    public async Task RefreshExpiredCoveragesAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var list = new NpgsqlCommand(
+            "SELECT DISTINCT account_id FROM trust.storekit_transactions;",
+            connection);
+        await using var reader = await list.ExecuteReaderAsync(cancellationToken);
+        var accountIds = new List<Guid>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            accountIds.Add(reader.GetGuid(0));
+        }
+
+        await reader.CloseAsync();
+        foreach (var accountId in accountIds)
+        {
+            await using var db = await connection.BeginTransactionAsync(cancellationToken);
+            await RefreshCircleAsync(connection, db, accountId, cancellationToken);
+            await db.CommitAsync(cancellationToken);
+        }
+    }
+
+    public async Task RefreshAccountCoverageAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var db = await connection.BeginTransactionAsync(cancellationToken);
+        await RefreshCircleAsync(connection, db, accountId, cancellationToken);
+        await db.CommitAsync(cancellationToken);
+    }
+
     private static async Task<Guid?> ReadTokenAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction db,
@@ -187,7 +219,8 @@ public sealed class PostgresStoreKitEntitlementStore(string connectionString) : 
                     WHERE revoked_at IS NULL AND expires_at > now()
                 ),
                 circle_source = (SELECT product_id FROM latest)
-            WHERE account_id = $1;
+            WHERE account_id = $1
+              AND EXISTS (SELECT 1 FROM latest);
             """,
             connection,
             db);
@@ -274,6 +307,23 @@ public sealed class MemoryStoreKitEntitlementStore(ITrustStore accounts) : IStor
         return true;
     }
 
+    public async Task RefreshExpiredCoveragesAsync(CancellationToken cancellationToken)
+    {
+        HashSet<Guid> accountIds;
+        lock (_gate)
+        {
+            accountIds = _owners.Values.ToHashSet();
+        }
+
+        foreach (var accountId in accountIds)
+        {
+            await RefreshAsync(accountId, cancellationToken);
+        }
+    }
+
+    public Task RefreshAccountCoverageAsync(Guid accountId, CancellationToken cancellationToken) =>
+        RefreshAsync(accountId, cancellationToken);
+
     private async Task RefreshAsync(Guid accountId, CancellationToken cancellationToken)
     {
         var account = await accounts.FindAccountAsync(accountId, cancellationToken);
@@ -291,14 +341,18 @@ public sealed class MemoryStoreKitEntitlementStore(ITrustStore accounts) : IStor
                 .FirstOrDefault();
         }
 
-        var active = latest is not null
-            && latest.RevokedAt is null
-            && latest.ExpiresAt > DateTimeOffset.UtcNow;
+        // Review unlock / test grants with no StoreKit row stay untouched.
+        if (latest is null)
+        {
+            return;
+        }
+
+        var active = latest.RevokedAt is null && latest.ExpiresAt > DateTimeOffset.UtcNow;
         await accounts.UpdateAccountAsync(
             account with
             {
                 HasCircle = active,
-                CircleSource = latest?.ProductId
+                CircleSource = latest.ProductId
             },
             cancellationToken);
     }

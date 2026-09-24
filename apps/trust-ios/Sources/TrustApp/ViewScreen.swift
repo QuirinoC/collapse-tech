@@ -127,8 +127,21 @@ struct ViewScreen: View {
                 .padding(.bottom, 20)
 
                 if let point {
-                    pinMap(point, name: member.person.displayName)
-                        .padding(.bottom, 14)
+                    if let snapshot, snapshot.event.historyWindowHours > 0, snapshot.trail.count > 1 {
+                        trailMap(snapshot.trail, live: snapshot.live, name: member.person.displayName)
+                            .padding(.bottom, 14)
+                    } else {
+                        pinMap(point, name: member.person.displayName)
+                            .padding(.bottom, 14)
+                    }
+                }
+
+                if !isAvailable, let snapshot, snapshot.event.historyWindowHours <= 0 {
+                    Button(TrustCopy.seeTrail(hours: model.coverage.historyHours)) {
+                        model.extendOpenLook(personID: personID)
+                    }
+                    .buttonStyle(TrustOutlineButtonStyle(compact: true))
+                    .padding(.bottom, 10)
                 }
 
                 HStack(spacing: 10) {
@@ -150,8 +163,10 @@ struct ViewScreen: View {
                 }
 
                 TrustInfoStrip(
-                    glyph: isAvailable ? "eye" : "lock",
-                    text: isAvailable ? TrustCopy.stripLive : TrustCopy.stripSnapshot
+                    glyph: isAvailable ? "eye" : (snapshot?.event.historyWindowHours ?? 0) > 0 ? "point.topleft.down.to.point.bottomright.curvepath" : "lock",
+                    text: isAvailable
+                        ? TrustCopy.stripLive
+                        : (snapshot?.event.historyWindowHours ?? 0) > 0 ? TrustCopy.stripTrail : TrustCopy.stripSnapshot
                 )
                 .padding(.top, 18)
 
@@ -224,6 +239,29 @@ struct ViewScreen: View {
         .onAppear { position = .region(Self.region(for: point)) }
         .onChange(of: point) { _, next in position = .region(Self.region(for: next)) }
         .accessibilityLabel(TrustCopy.pinAccessibility(name: name, live: isAvailable))
+    }
+
+    /// Open Look trail — retained points for this Look only (not a Log breadcrumb).
+    private func trailMap(_ trail: [LocationPoint], live: LocationPoint, name: String) -> some View {
+        Map(position: $position, interactionModes: [.pan, .zoom]) {
+            ForEach(Array(trail.enumerated()), id: \.offset) { index, point in
+                Annotation(index == trail.count - 1 ? name : "", coordinate: point.coordinate) {
+                    if index == trail.count - 1 {
+                        TrustMapPin(initials: name.trustInitials, live: false)
+                    } else {
+                        Circle()
+                            .fill(Color(hex: 0xA8B09A).opacity(0.85))
+                            .frame(width: 10, height: 10)
+                    }
+                }
+            }
+        }
+        .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
+        .frame(height: 220)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color(hex: 0xDFE4D6), lineWidth: 1))
+        .onAppear { position = .region(Self.region(for: live)) }
+        .accessibilityLabel(TrustCopy.pinAccessibility(name: name, live: false))
     }
 
     private static func region(for point: LocationPoint) -> MKCoordinateRegion {

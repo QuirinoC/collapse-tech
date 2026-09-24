@@ -183,6 +183,9 @@ public enum TrustCopy {
     public static var stripSnapshot: String {
         value("strip_snapshot", defaultValue: "One snapshot. It does not update.")
     }
+    public static var stripTrail: String {
+        value("strip_trail", defaultValue: "Open Look trail from retained points. Not a driving log.")
+    }
     public static var stripLive: String {
         value("strip_live", defaultValue: "Updates while they share Always.")
     }
@@ -237,6 +240,41 @@ public enum TrustCopy {
     }
     public static func showOnMap(name: String) -> String {
         format("show_on_map", defaultValue: "Show %@ on the map", name)
+    }
+
+    public static var homeIsSetLabel: String {
+        value("home_is_set_label", defaultValue: "Home is set on this phone.")
+    }
+    public static var homeNeedsAlways: String {
+        value("home_needs_always", defaultValue: "Allow Always location so Home and Away update when Trust is closed.")
+    }
+    public static var homeNotSetLabel: String {
+        value("home_not_set_label", defaultValue: "No Home place yet.")
+    }
+    public static var homePlace: String { value("home_place", defaultValue: "Home place") }
+    public static var homePlaceNote: String {
+        value(
+            "home_place_note",
+            defaultValue: "Set from where you are now. Coordinates stay on this phone. With Always location, Trust marks Home or Away for your circle."
+        )
+    }
+    public static func seeTrail(hours: Int) -> String {
+        if hours >= 24 {
+            let days = hours / 24
+            return format("see_trail_days", defaultValue: "See last %d days", days)
+        }
+        return format("see_trail_hours", defaultValue: "See last %d hours", hours)
+    }
+    public static var setHomeHere: String { value("set_home_here", defaultValue: "Use current location as Home") }
+    public static var clearHome: String { value("clear_home", defaultValue: "Clear Home") }
+    public static var homeNeedsLocation: String {
+        value("home_needs_location", defaultValue: "Allow location, then set Home from where you are.")
+    }
+    public static var homeSetToast: String {
+        value("home_set_toast", defaultValue: "Home set on this phone. Presence can follow the boundary.")
+    }
+    public static var homeClearedToast: String {
+        value("home_cleared_toast", defaultValue: "Home cleared. Presence stays manual.")
     }
 
     // MARK: Sharing (T2)
@@ -370,6 +408,8 @@ public enum TrustCopy {
             "phone_consent",
             defaultValue: "Text me a Trust verification code. Up to 8 texts a day. Message and data rates may apply. Reply HELP for help or STOP to opt out.")
     }
+    public static var verificationCode: String { value("verification_code", defaultValue: "Code") }
+    public static var verifyCode: String { value("verify_code", defaultValue: "Verify") }
     public static var phoneNumber: String { value("phone_number", defaultValue: "Phone number") }
     public static var phonePlaceholder: String { value("phone_placeholder", defaultValue: "(415) 555-0100") }
     public static var sendCode: String { value("send_code", defaultValue: "Send code") }

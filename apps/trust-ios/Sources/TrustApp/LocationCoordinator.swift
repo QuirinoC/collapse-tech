@@ -34,7 +34,6 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
         manager.distanceFilter = 50
         manager.activityType = .other
         manager.pausesLocationUpdatesAutomatically = true
-        // Never the blue navigation pill. That indicator is for turn-by-turn, and Trust is not navigating.
         manager.showsBackgroundLocationIndicator = false
         manager.allowsBackgroundLocationUpdates = false
         authorization = manager.authorizationStatus
@@ -98,8 +97,9 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
         setSharingTier(sharing ? (sharingTier == .off ? .available : sharingTier) : .off)
     }
 
-    /// Off stops the stack. Sealed stays coarse (significant-change). Always is finer.
-    /// A Look does not raise accuracy.
+    /// Off stops the stack. Sealed and Always keep continuous updates while
+    /// authorized Always, including when the app is inactive, so a locked phone
+    /// still has a fresh point for a Look. The blue location pill stays off.
     func setSharingTier(_ tier: LocationSharingTier) {
         sharingTier = tier
         isSharing = tier != .off
@@ -109,6 +109,13 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
             didRequestPreciseThisSession = false
         }
         applyTracking()
+    }
+
+    func clearHome() {
+        homeStore.clear()
+        homeIsSet = false
+        lastPostedHomeState = nil
+        applyHomeMonitoring()
     }
 
     func setHomeMonitoring(_ enabled: Bool) {
@@ -184,6 +191,10 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
                 self.pendingAlwaysAfterWhenInUse = false
             }
             self.requestPreciseIfNeeded()
+            // Home set earlier without Always: start the region once Always lands.
+            if self.homeStore.isSet && self.hasAlways {
+                self.monitoringHome = true
+            }
             self.applyTracking()
         }
     }
@@ -243,7 +254,7 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
         manager.allowsBackgroundLocationUpdates = background
         manager.showsBackgroundLocationIndicator = false
         manager.activityType = .other
-        manager.pausesLocationUpdatesAutomatically = sharingTier != .available
+        manager.pausesLocationUpdatesAutomatically = sharingTier == .off
 
         switch sharingTier {
         case .off:
@@ -264,11 +275,7 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
             manager.distanceFilter = 200
             if background || wantsForegroundUpdates {
                 manager.startMonitoringSignificantLocationChanges()
-                if isAppActive || isMapActive {
-                    manager.startUpdatingLocation()
-                } else {
-                    manager.stopUpdatingLocation()
-                }
+                manager.startUpdatingLocation()
             } else {
                 manager.stopUpdatingLocation()
                 manager.stopMonitoringSignificantLocationChanges()

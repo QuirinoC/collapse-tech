@@ -1,15 +1,17 @@
 using TrustApi.Application;
 using TrustApi.Domain;
+using TrustApi.Infrastructure.StoreKit;
 
 namespace TrustApi.Infrastructure;
 
 /// <summary>
-/// Prunes GPS trails past retention (keeping the last fix while a share is still on)
-/// and marks due promises.
+/// Restores timed pauses, prunes GPS past retention, marks due promises,
+/// and recomputes StoreKit Plus from transaction expiry so sticky has_circle cannot linger.
 /// </summary>
 public sealed class TrustSweepService(
     ITrustStore store,
     TrustEngine engine,
+    IStoreKitEntitlementStore storeKit,
     TimeProvider time,
     ILogger<TrustSweepService> logger) : BackgroundService
 {
@@ -49,5 +51,6 @@ public sealed class TrustSweepService(
         await store.RestoreExpiredPausesAsync(now, cancellationToken);
         await store.PruneAllLocationsAsync(now - TrustRules.LocationRetention, cancellationToken);
         await engine.EvaluateDuePromisesAsync(cancellationToken);
+        await storeKit.RefreshExpiredCoveragesAsync(cancellationToken);
     }
 }

@@ -101,6 +101,7 @@ final class AppModel: ObservableObject {
     @Published private var presenceOverride: HomePresenceKind?
 
     @Published var phoneDraft = ""
+    @Published var phoneConsentChecked = false
     @Published var phoneCodeDraft = ""
     @Published var phoneNotice: String?
     @Published var phoneCodeSent = false
@@ -1100,7 +1101,10 @@ final class AppModel: ObservableObject {
             return
         }
         #endif
-        // Phone texts stay off until the 2FA campaign can send. Sign in continues without a code.
+        if let you = snapshot?.you {
+            phase = Self.phase(for: you)
+            return
+        }
         if onboardingComplete {
             phase = .home
         } else {
@@ -1108,7 +1112,22 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Handle first, then a verified phone, then Home. A missing phone never lands on Home.
+    private static func phase(for you: Person) -> AppPhase {
+        let handleReady: Bool
+        if let handle = you.handle, case .valid = TrustHandle.status(of: handle) {
+            handleReady = true
+        } else {
+            handleReady = false
+        }
+        if !handleReady { return .handle }
+        if !you.phoneVerified { return .phone }
+        return .home
+    }
+
     func sendPhoneCode() async {
+        phoneNotice = nil
+        guard phoneConsentChecked else { return }
         let phone = phoneDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !phone.isEmpty, !isSendingPhone else {
             if phone.isEmpty { phoneNotice = TrustCopy.enterPhone }
@@ -1147,6 +1166,7 @@ final class AppModel: ObservableObject {
 
     private func resetPhoneDraft() {
         phoneDraft = ""
+        phoneConsentChecked = false
         phoneCodeDraft = ""
         phoneNotice = nil
         phoneCodeSent = false
@@ -1317,10 +1337,73 @@ final class AppModel: ObservableObject {
         location.onLocations = { [weak self] points in
             self?.enqueueLocations(points)
         }
-        // Presence is manual in 1.0. Geofenced Home/Away (Places) is the 1.1 Plus item, so the
-        // coordinator's region callbacks stay unwired here.
-        location.onHomePresence = nil
+        location.onHomePresence = { [weak self] kind in
+            self?.postGeofencePresence(kind)
+        }
+        syncHomeMonitoring()
+    }
+
+    /// Home geofence drives Home/Away when a place is set and Always is granted.
+    /// Manual triad remains an override. Hidden is never posted from the geofence.
+    func syncHomeMonitoring() {
+        location.setHomeMonitoring(location.homeIsSet)
+    }
+
+    private func postGeofencePresence(_ kind: HomePresenceKind) {
+        guard kind == .home || kind == .away else { return }
+        if myPresence == .hidden { return }
+        if isDemoMode {
+            demo?.setMyPresence(kind)
+            publishDemoSnapshot()
+            return
+        }
+        Task {
+            do {
+                try await client.postHomePresence(state: kind)
+                await refresh()
+            } catch {
+                // Soft-fail: next location tick retries.
+            }
+        }
+    }
+
+    func setHomeFromCurrentLocation() {
+        guard requireOnline() || isDemoMode else { return }
+        location.requestWhenInUse()
+        guard let saved = location.setHomeFromCurrentFix(label: "Home") else {
+            showToast(TrustCopy.homeNeedsLocation)
+            return
+        }
+        if isDemoMode {
+            showToast(TrustCopy.homeSetToast)
+            syncHomeMonitoring()
+            if !location.hasAlways { showingAlwaysExplainer = true }
+            return
+        }
+        Task {
+            do {
+                try await client.setHomePlace(placeID: saved.placeID, label: saved.label)
+                showToast(TrustCopy.homeSetToast)
+                syncHomeMonitoring()
+                if !location.hasAlways {
+                    showingAlwaysExplainer = true
+                }
+                await refresh()
+            } catch {
+                location.clearHome()
+                showToast(plainMessage(for: error))
+            }
+        }
+    }
+
+    func clearHomePlace() {
+        location.clearHome()
         location.setHomeMonitoring(false)
+        if isDemoMode {
+            showToast(TrustCopy.homeClearedToast)
+            return
+        }
+        showToast(TrustCopy.homeClearedToast)
     }
 
     private func syncLocationSharing() {

@@ -1,12 +1,12 @@
 import SwiftUI
 import TrustCore
 
-/// Phone number and one SMS code, after Sign in with Apple.
+/// Phone gate. A verification text finishes the account. The checkbox starts empty;
+/// Send code stays off until it is checked.
 struct PhoneView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.trustPalette) private var palette
     @FocusState private var focused: Field?
-    @State private var agreedToTexts = false
 
     private enum Field {
         case phone
@@ -35,80 +35,77 @@ struct PhoneView: View {
 
                 VStack(alignment: .leading, spacing: 18) {
                     TrustFieldLabel(title: TrustCopy.phoneNumber, hint: nil) {
-                        TextField(TrustCopy.phonePlaceholder, text: $model.phoneDraft)
+                        TextField("415 555 0100", text: $model.phoneDraft)
                             .textContentType(.telephoneNumber)
                             .keyboardType(.phonePad)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
-                            .submitLabel(.send)
                             .font(TrustTheme.ui(17))
                             .foregroundStyle(palette.ink)
                             .focused($focused, equals: .phone)
-                            .onSubmit { Task { await model.sendPhoneCode() } }
                             .padding(14)
                             .background(palette.paper)
                             .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(Color(hex: 0xDEDFD5), lineWidth: 1))
-                            .accessibilityIdentifier("phone-number")
                     }
 
-                    Toggle(isOn: $agreedToTexts) {
-                        Text(TrustCopy.phoneConsent)
-                            .trustFont(15)
-                            .foregroundStyle(palette.ink)
-                            .fixedSize(horizontal: false, vertical: true)
+                    Button {
+                        model.phoneConsentChecked.toggle()
+                    } label: {
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: model.phoneConsentChecked ? "checkmark.square.fill" : "square")
+                                .font(TrustTheme.ui(20))
+                                .foregroundStyle(model.phoneConsentChecked ? palette.accent : palette.ink)
+                                .padding(.top, 1)
+                            Text(TrustCopy.phoneConsent)
+                                .font(TrustTheme.ui(15))
+                                .foregroundStyle(palette.ink)
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
-                    .tint(palette.accent)
-                    .accessibilityIdentifier("phone-consent")
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(TrustCopy.phoneConsent)
+                    .accessibilityAddTraits(model.phoneConsentChecked ? .isSelected : [])
 
-                    HStack(spacing: 16) {
-                        Link(TrustCopy.privacy, destination: AppConfiguration.privacyURL)
-                        Link(TrustCopy.terms, destination: AppConfiguration.termsURL)
-                    }
-                    .trustFont(15)
-
-                    Button(model.phoneCodeSent ? TrustCopy.resendCode : TrustCopy.sendCode) {
-                        focused = .code
+                    Button(TrustCopy.sendCode) {
+                        focused = nil
                         Task { await model.sendPhoneCode() }
                     }
                     .buttonStyle(TrustFilledButtonStyle())
-                    .disabled(
-                        !agreedToTexts
-                            || model.isSendingPhone
-                            || model.phoneDraft.trimmingCharacters(in: .whitespaces).isEmpty)
-                    .accessibilityIdentifier("send-phone-code")
+                    .disabled(!canSend)
 
                     if model.phoneCodeSent {
-                        TrustFieldLabel(title: TrustCopy.phoneCode, hint: nil) {
-                            TextField(TrustCopy.codePlaceholderShort, text: $model.phoneCodeDraft)
+                        TrustFieldLabel(title: TrustCopy.verificationCode, hint: nil) {
+                            TextField("000000", text: $model.phoneCodeDraft)
                                 .textContentType(.oneTimeCode)
                                 .keyboardType(.numberPad)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .submitLabel(.done)
                                 .font(TrustTheme.ui(17))
                                 .foregroundStyle(palette.ink)
                                 .focused($focused, equals: .code)
-                                .onSubmit { Task { await model.verifyPhoneCode() } }
+                                .onChange(of: model.phoneCodeDraft) { _, value in
+                                    let digits = value.filter(\.isNumber)
+                                    if digits != value || digits.count > 6 {
+                                        model.phoneCodeDraft = String(digits.prefix(6))
+                                    }
+                                }
                                 .padding(14)
                                 .background(palette.paper)
                                 .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(Color(hex: 0xDEDFD5), lineWidth: 1))
-                                .accessibilityIdentifier("phone-code")
                         }
 
-                        Button(TrustCopy.verify) {
+                        Button(TrustCopy.verifyCode) {
                             focused = nil
                             Task { await model.verifyPhoneCode() }
                         }
                         .buttonStyle(TrustFilledButtonStyle())
-                        .disabled(model.isSendingPhone || model.phoneCodeDraft.trimmingCharacters(in: .whitespaces).isEmpty)
-                        .accessibilityIdentifier("verify-phone-code")
+                        .disabled(model.isSendingPhone || model.phoneCodeDraft.count != 6)
                     }
 
                     if let notice = model.phoneNotice, !notice.isEmpty {
                         Text(notice)
                             .font(TrustTheme.ui(13))
                             .foregroundStyle(palette.accent)
-                            .accessibilityIdentifier("phone-notice")
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding(.top, 28)
@@ -129,6 +126,12 @@ struct PhoneView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .background(palette.paper.ignoresSafeArea())
-        .onAppear { focused = model.phoneCodeSent ? .code : .phone }
+        .onAppear { focused = .phone }
+    }
+
+    private var canSend: Bool {
+        model.phoneConsentChecked
+            && !model.phoneDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !model.isSendingPhone
     }
 }

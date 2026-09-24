@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Security.Cryptography;
 using System.Text.Json;
 using TrustApi.Application;
 using TrustApi.Domain;
@@ -51,15 +52,21 @@ public sealed class HandleTests
     [Fact]
     public async Task SettingHandleCompletesOnboarding()
     {
-        var engine = new TrustEngine(new MemoryTrustStore(), TimeProvider.System);
+        var store = new MemoryTrustStore();
+        var engine = new TrustEngine(store, TimeProvider.System);
         var account = await engine.SignInAsync("development", "handle-sam", "You", CancellationToken.None);
         Assert.False(account.OnboardingComplete);
 
         await engine.SetHandleAsync(account.Id, "@Jordan", CancellationToken.None);
+        var named = await engine.GetCircleAsync(account.Id, CancellationToken.None);
+        Assert.False(named.You.OnboardingComplete);
+        Assert.Equal("jordan", named.You.Handle);
+        Assert.Equal("jordan", named.You.DisplayName);
+
+        await store.SetVerifiedPhoneAsync(account.Id, "+15555550199", DateTimeOffset.UtcNow, CancellationToken.None);
         var circle = await engine.GetCircleAsync(account.Id, CancellationToken.None);
         Assert.True(circle.You.OnboardingComplete);
-        Assert.Equal("jordan", circle.You.Handle);
-        Assert.Equal("jordan", circle.You.DisplayName);
+        Assert.True(circle.You.HasVerifiedPhone);
     }
 
     [Fact]
@@ -144,7 +151,32 @@ public sealed class HandleApiTests : IClassFixture<TrustApiFactory>
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", payload.Token);
         var circleResponse = await _client.SendAsync(circleRequest);
         circleResponse.EnsureSuccessStatusCode();
-        var circle = await circleResponse.Content.ReadFromJsonAsync<CircleHandleWire>(Json);
+        var named = await circleResponse.Content.ReadFromJsonAsync<CircleHandleWire>(Json);
+        Assert.False(named!.You.OnboardingComplete);
+        Assert.Equal(handle, named.You.Handle);
+
+        var phone = $"+1555555{RandomNumberGenerator.GetInt32(1000, 10000)}";
+        using var send = new HttpRequestMessage(HttpMethod.Post, "/api/v1/me/phone/send");
+        send.Headers.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", payload.Token);
+        send.Content = JsonContent.Create(new { phone });
+        var sendResponse = await _client.SendAsync(send);
+        sendResponse.EnsureSuccessStatusCode();
+        var otp = await sendResponse.Content.ReadFromJsonAsync<PhoneSendWire>(Json);
+
+        using var verify = new HttpRequestMessage(HttpMethod.Post, "/api/v1/me/phone/verify");
+        verify.Headers.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", payload.Token);
+        verify.Content = JsonContent.Create(new { phone, code = otp!.DevelopmentCode });
+        var verifyResponse = await _client.SendAsync(verify);
+        verifyResponse.EnsureSuccessStatusCode();
+
+        using var doneRequest = new HttpRequestMessage(HttpMethod.Get, "/api/v1/circle");
+        doneRequest.Headers.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", payload.Token);
+        var doneResponse = await _client.SendAsync(doneRequest);
+        doneResponse.EnsureSuccessStatusCode();
+        var circle = await doneResponse.Content.ReadFromJsonAsync<CircleHandleWire>(Json);
         Assert.True(circle!.You.OnboardingComplete);
         Assert.Equal(handle, circle.You.Handle);
     }
@@ -178,6 +210,7 @@ public sealed class HandleApiTests : IClassFixture<TrustApiFactory>
 
     private sealed record SessionHandleWire(string Token, HandlePersonWire You);
     private sealed record HandlePersonWire(Guid Id, string DisplayName, bool OnboardingComplete, string? Handle);
+    private sealed record PhoneSendWire(string? DevelopmentCode);
     private sealed record AvailabilityWire(string Handle, bool Available, string? Code);
     private sealed record CircleHandleWire(HandlePersonWire You);
 }

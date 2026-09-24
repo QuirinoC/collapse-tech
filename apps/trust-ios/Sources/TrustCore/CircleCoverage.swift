@@ -22,6 +22,7 @@ public struct CircleCoverage: Equatable, Sendable {
     /// Recent place list on the person screen. Plus keeps a longer trail; free still shows history.
     public static let freeHistoryHours = 24
     public static let plusHistoryDays = 30
+    public static let proHistoryHours = 30 * 24
 
     public init(
         isCovered: Bool,
@@ -50,7 +51,12 @@ public struct CircleCoverage: Equatable, Sendable {
 
     public var hasPlacePings: Bool { isCovered }
 
-    public var canExtendHistory: Bool { isCovered }
+    /// Free can open a 24h Look trail; Plus opens 30 days. Look itself stays one snapshot.
+    public var canExtendHistory: Bool { true }
+
+    public var historyHours: Int {
+        isCovered ? Self.proHistoryHours : Self.freeHistoryHours
+    }
 
     public var canExportLookLog: Bool { isCovered }
 

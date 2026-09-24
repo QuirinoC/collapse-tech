@@ -14,10 +14,10 @@ struct RootView: View {
             switch model.phase {
             case .login:
                 LoginView()
-            case .phone:
-                PhoneView()
             case .handle:
                 HandleView()
+            case .phone:
+                PhoneView()
             case .home:
                 MainShellView()
             }
