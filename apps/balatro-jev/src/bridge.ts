@@ -86,6 +86,7 @@ export function parseState(raw: unknown): BalatroState {
     raw_state: s.raw_state,
     raw_state_name: s.raw_state_name,
     has_blind_select_ui: s.has_blind_select_ui,
+    cash_out_ready: s.cash_out_ready,
     notes: s.notes,
   };
   state.phase = normalizePhase(state);

@@ -93,6 +93,26 @@ local function raw_state_name()
   return tostring(G.STATE)
 end
 
+-- Cash Out button is a separate UIBox (major=G.round_eval) created only AFTER
+-- payout animation rows finish. Calling G.FUNCS.cash_out before it exists
+-- nils G.round_eval while queued add_round_eval_row events still run → crash.
+local function find_cash_out_button()
+  if not (G and G.I and G.I.UIBOX) then
+    return nil
+  end
+  for _, box in ipairs(G.I.UIBOX) do
+    if box and box.get_UIE_by_ID then
+      local ok, btn = pcall(function()
+        return box:get_UIE_by_ID("cash_out_button")
+      end)
+      if ok and btn and btn.config and btn.config.button == "cash_out" then
+        return btn
+      end
+    end
+  end
+  return nil
+end
+
 -- Never stuck unknown when in BLIND_SELECT / SELECTING_HAND / SHOP.
 local function map_phase()
   if not (G and G.STATE and G.STATES) then
@@ -108,7 +128,11 @@ local function map_phase()
   elseif st == G.STATES.SHOP then
     return "shop"
   elseif st == G.STATES.ROUND_EVAL then
-    return "round_eval"
+    -- Wait for cash_out_button; premature cash_out crashes common_events.lua:1227.
+    if find_cash_out_button() then
+      return "round_eval"
+    end
+    return "unknown"
   elseif st == G.STATES.GAME_OVER then
     return "game_over"
   elseif st == G.STATES.TAROT_PACK
@@ -347,6 +371,7 @@ function M.dump()
     raw_state = G and G.STATE or nil,
     raw_state_name = raw_state_name(),
     has_blind_select_ui = G and G.blind_select ~= nil or false,
+    cash_out_ready = find_cash_out_button() ~= nil,
     notes = "balatro_jev dump v4 full-context",
   }
 end

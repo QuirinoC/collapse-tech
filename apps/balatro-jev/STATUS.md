@@ -1,44 +1,38 @@
-# balatro-jev status (brain-merge / 0.3.0)
+# balatro-jev status (cashout-crash fix / brain-merge)
 
 ## Branch
 
-`cursor/balatro-jev-brain-merge-35ca` — consolidates:
+`cursor/balatro-cashout-crash-c808` (off `cursor/balatro-jev-brain-merge-35ca`)
 
-- **full-context-6ed5**: rich Lua/state dump, full legal Choice sets (~58 hand options), curated discards
-- **full-brain-7b2a**: poker combo labels + **never discard a valid Jev Choice on low confidence**
+## Crash root cause (2026-09-23 20:44)
 
-## Critical fix (low-conf trap gone)
+**Error:** `functions/common_events.lua:1227: attempt to index field 'round_eval' (a nil value)`
 
-**Root cause of dumb plays:** live Jev returned a valid made-hand id at low confidence
-(`~0.33`), then the bridge threw it away and ran mock → first `play_hand` stubs like
-`play_0_1_2`.
+**Cause:** Watch kept rewriting `cash_out` (new `decided_at`) while ROUND_EVAL payout
+animation was still running. Lua called `G.FUNCS.cash_out` before the real
+`cash_out_button` existed → cash_out nilled `G.round_eval` while queued
+`add_round_eval_row` events still indexed it → hard crash. Triple apply in the
+launch log confirmed re-entrancy.
 
-**Fix:** keep any legal Choice id even below `MIN_ACTION_CONFIDENCE`. Combo-aware mock
-only on API failure or unknown/stale action id.
+## Fix (mod 0.2.2)
 
-## Proof
+1. **state.lua** — `phase=round_eval` only when `cash_out_button` is present and
+   pressable (`config.button == "cash_out"`); otherwise `unknown` mid-anim.
+2. **actions.lua** — cash_out only via the real UI button; refuse if not ready.
+3. **balatro_jev.lua** — skip duplicate successful one-shots when watch rewrites JSON.
+4. **watch (index.ts)** — do not re-fire one-shots after `action_result.ok=true`;
+   wait when legal set is empty.
+
+## Lovely / launcher
+
+`run_lovely_macos.sh` is the real injector (`DYLD_INSERT_LIBRARIES=liblovely.dylib`).
+Not a DO_NOT_LAUNCH stub.
+
+## Operator
 
 ```bash
 cd apps/balatro-jev
-npm run proof:brain
-# also: npm run mock:pair && npm run mock:pair-flush
-```
-
-Verified on this branch:
-
-- mock pair-hand → `play_pair_AH_AS` (58 options)
-- mock pair-flush → `play_flush_AH_KH_QH_JH_9H` (61 options)
-- live pair-flush → `play_flush_AH_KH_QH_JH_9H` conf=0.990
-- simulated conf=0.225 → **keeps** flush (no mock override)
-- unknown id → combo-aware mock flush
-
-Runtime left **STOPPED** (`.DO_NOT_LAUNCH` + launch script blocker). Do not relaunch
-watch/game unless Juan asks.
-
-## Operator (offline)
-
-```bash
 npm run typecheck
-npm run proof:brain
-npm run simulate
+npm run smoke:lua
+npm run launch:macos   # then npm run watch in another terminal if desired
 ```

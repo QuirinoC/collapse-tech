@@ -117,6 +117,8 @@ export interface BalatroState {
   raw_state?: number | string;
   raw_state_name?: string;
   has_blind_select_ui?: boolean;
+  /** True only when the Cash Out button exists (payout anim finished). */
+  cash_out_ready?: boolean;
   notes?: string;
 }
 

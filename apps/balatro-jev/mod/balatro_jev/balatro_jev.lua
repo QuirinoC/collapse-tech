@@ -6,7 +6,7 @@
 --- PRIORITY: 0
 --- BADGE_COLOUR: E85D04
 --- PREFIX: bjev
---- VERSION: 0.2.1
+--- VERSION: 0.2.2
 ----------------------------------------------
 ------------ MOD CODE ------------------------
 
@@ -222,6 +222,10 @@ local tick_count = 0
 local last_heartbeat = 0
 local hooked_game_update = nil
 local hook_attempts = 0
+-- Successful one-shot applies must not re-fire while phase is unchanged
+-- (watch rewrites action.json with a new decided_at every stuck cycle).
+local last_ok_action_id = nil
+local last_ok_phase = nil
 
 local function try_apply()
   local raw = read_file(ACTION_FILE)
@@ -234,6 +238,37 @@ local function try_apply()
   end
 
   local action = parse_action(raw)
+  -- Same logical action already succeeded this phase → absorb rewrite, do not re-fire.
+  if
+    action
+    and action.id
+    and last_ok_action_id == action.id
+    and last_ok_phase ~= nil
+  then
+    local cur_phase = nil
+    pcall(function()
+      if state_mod and state_mod.dump then
+        cur_phase = state_mod.dump().phase
+      end
+    end)
+    if cur_phase == last_ok_phase then
+      write_file(ACTION_APPLIED_FILE, raw)
+      write_file(
+        ACTION_RESULT_FILE,
+        to_json({
+          ok = true,
+          kind = action.kind,
+          id = action.id,
+          detail = "skipped_duplicate_ok",
+          at = os.time(),
+          raw_state = G and G.STATE or nil,
+          has_blind_select = G and G.blind_select ~= nil or false,
+        })
+      )
+      return
+    end
+  end
+
   print(
     "[balatro_jev] APPLY request kind="
       .. tostring(action and action.kind)
@@ -276,6 +311,22 @@ local function try_apply()
     })
   )
   write_file(ACTION_APPLIED_FILE, raw)
+
+  if applied_ok and action and action.id then
+    last_ok_action_id = action.id
+    last_ok_phase = nil
+    pcall(function()
+      if state_mod and state_mod.dump then
+        last_ok_phase = state_mod.dump().phase
+      end
+    end)
+  elseif not applied_ok then
+    -- Failed applies may be retried after bridge rewrites decided_at.
+    if action and action.id == last_ok_action_id then
+      last_ok_action_id = nil
+      last_ok_phase = nil
+    end
+  end
 end
 
 local function tick_main(dt)
@@ -330,6 +381,11 @@ local function tick_main(dt)
             .. " blind_select_ui="
             .. tostring(G and G.blind_select ~= nil)
         )
+        -- Phase change clears one-shot success latch so the next visit can act.
+        if last_phase ~= nil and state.phase ~= last_ok_phase then
+          last_ok_action_id = nil
+          last_ok_phase = nil
+        end
         last_phase = state.phase
       end
     end)
@@ -415,7 +471,7 @@ _G.BalatroJev = {
   ensure_hooks = ensure_hooks,
 }
 
-print("[balatro_jev] loaded — writing " .. STATE_FILE .. " (v0.2.1 Game:update hook)")
+print("[balatro_jev] loaded — writing " .. STATE_FILE .. " (v0.2.2 cash_out button gate)")
 
 ----------------------------------------------
 ------------ MOD CODE END --------------------

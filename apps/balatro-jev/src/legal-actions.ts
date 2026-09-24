@@ -313,6 +313,8 @@ export function deriveLegalActions(state: BalatroState): LegalAction[] {
       break;
     }
     case "round_eval":
+      // Lua only emits round_eval when cash_out_button is ready; still gate.
+      if (state.cash_out_ready === false) break;
       actions.push({
         id: "cash_out",
         kind: "cash_out",

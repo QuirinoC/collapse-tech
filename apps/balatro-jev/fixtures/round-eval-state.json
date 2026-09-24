@@ -4,8 +4,9 @@
   "ante": 1,
   "round": 1,
   "money": 4,
+  "cash_out_ready": true,
   "jokers": [
     { "index": 0, "id": "j_joker", "name": "Joker", "sell_value": 2 }
   ],
-  "notes": "Fixture: post-blind cash-out screen."
+  "notes": "Fixture: post-blind cash-out screen (button ready)."
 }

@@ -158,6 +158,25 @@ local function card_from_area(area, index)
   return area.cards[i + 1]
 end
 
+-- Real Cash Out button lives in a UIBox with major=G.round_eval, registered in
+-- G.I.UIBOX. It only appears after payout animation completes.
+local function find_cash_out_button()
+  if not (G and G.I and G.I.UIBOX) then
+    return nil
+  end
+  for _, box in ipairs(G.I.UIBOX) do
+    if box and box.get_UIE_by_ID then
+      local ok, btn = pcall(function()
+        return box:get_UIE_by_ID("cash_out_button")
+      end)
+      if ok and btn and btn.config and btn.config.button == "cash_out" then
+        return btn
+      end
+    end
+  end
+  return nil
+end
+
 --- Apply one action table { id, kind, label, params }
 --- @return boolean ok, string|nil err
 function M.apply(action)
@@ -319,8 +338,19 @@ function M.apply(action)
     if not (G.FUNCS and G.FUNCS.cash_out) then
       return false, "G.FUNCS.cash_out missing"
     end
-    local ok, err = pcall(function() G.FUNCS.cash_out({ config = {} }) end)
-    if ok then return true, nil end
+    -- MUST wait for cash_out_button. Early cash_out removes G.round_eval while
+    -- add_round_eval_row events still index it → common_events.lua crash.
+    local btn = find_cash_out_button()
+    if not btn then
+      return false, "cash_out button not ready (payout anim still running)"
+    end
+    if not G.round_eval then
+      return false, "G.round_eval missing (already cashed out?)"
+    end
+    local ok, err = pcall(function()
+      G.FUNCS.cash_out(btn)
+    end)
+    if ok then return true, "cash_out_button" end
     return false, "cash_out error: " .. tostring(err)
   end
 

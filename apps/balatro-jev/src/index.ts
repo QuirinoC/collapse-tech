@@ -158,7 +158,24 @@ async function runWatch(ipcDir: string, actionPath: string): Promise<void> {
 
       let decision = await decideFromState(state);
 
+      // No legal moves (e.g. ROUND_EVAL payout anim → phase unknown) → wait.
+      if (decision.legal_actions.length === 0) {
+        if (now - lastWaitingLog >= 5000) {
+          lastWaitingLog = now;
+          console.log(
+            `[balatro-jev] WAITING phase=${state.phase}` +
+              ` raw=${state.raw_state_name ?? "?"}` +
+              ` cash_out_ready=${state.cash_out_ready ?? "?"}` +
+              ` — no legal actions yet`,
+          );
+        }
+        lastFingerprint = fp;
+        return;
+      }
+
       // Escape hatch: same action on same state repeatedly → force progress fallback.
+      // Never force-rewrite a one-shot that already succeeded (cash_out / leave_shop /
+      // select_blind) — that re-entrancy crashed Balatro (round_eval nil).
       if (
         fp === lastFingerprint &&
         decision.chosen.action.id === lastActionId
@@ -168,8 +185,52 @@ async function runWatch(ipcDir: string, actionPath: string): Promise<void> {
         sameDecisionCount = 1;
       }
 
+      const oneShotKinds = new Set([
+        "cash_out",
+        "leave_shop",
+        "select_blind",
+        "skip_blind",
+        "new_run",
+      ]);
+      if (
+        fp === lastFingerprint &&
+        decision.chosen.action.id === lastActionId &&
+        oneShotKinds.has(decision.chosen.action.kind)
+      ) {
+        // Only suppress rewrite if Lua already reported ok for this id.
+        // Failed select_blind / cash_out-not-ready must still retry.
+        let priorOk: boolean | null = null;
+        try {
+          const resultPath = path.join(ipcDir, "action_result.json");
+          const resultText = await readFile(resultPath, "utf8");
+          const result = JSON.parse(resultText) as {
+            ok?: boolean;
+            id?: string;
+          };
+          if (result.id === lastActionId) {
+            priorOk = Boolean(result.ok);
+          }
+        } catch {
+          priorOk = null;
+        }
+        if (priorOk === true) {
+          if (now - lastWaitingLog >= 5000) {
+            lastWaitingLog = now;
+            console.log(
+              `[balatro-jev] WAITING one-shot ${lastActionId} to take effect` +
+                ` (phase=${state.phase} apply already ok)`,
+            );
+          }
+          return;
+        }
+      }
+
       if (sameDecisionCount >= MAX_SAME_DECISIONS) {
         const legal = deriveLegalActions(state);
+        if (legal.length === 0) {
+          lastFingerprint = fp;
+          return;
+        }
         const escape =
           legal.find((a) =>
             [
