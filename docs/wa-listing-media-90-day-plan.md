@@ -248,6 +248,6 @@ Mark boxes in this file or a notes app; keep the same list. Weeks are Thursday-s
 
 ## Related repo docs
 
-- Trust handoff and follow-ups live in repo root (`TRUST-CLOUD-HANDOFF.md` and related) — software, not this sidecar.
+- Trust software lives under `apps/trust-ios` / `apps/trust-api` on `main` (see `apps/trust-ios/PENDING.md`) — software, not this sidecar.
 - Pixelboard outreach: `docs/pixelboard-outreach-tracker.md` — do not expand that program this quarter.
 - iPhone Rover: `docs/iphone-rover/` — parked; do not execute the cart.

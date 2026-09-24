@@ -4,11 +4,11 @@ L3 gate: **Release archive → Internal Testing**, production API + sandbox IAP,
 
 | | |
 | --- | --- |
-| Workspace | `collapse-tech-trust-demo` (`quirinoc-ship-pending-wip`) |
+| Workspace | `collapse-tech` (`main`) |
 | Bundle | `com.collapsetechnologies.trust` |
 | Team | `3S529795M9` |
 | ASC App ID | `6806879060` |
-| Version / build | **1.0 (6)** (`MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` in `project.yml`) |
+| Version / build | **1.0 (18)** (`MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` in `project.yml`) |
 | Scheme to archive | **`Trust`** (Release). Do **not** archive `Trust-Sandbox` — that scheme is Debug / Dev API only. |
 | API | `https://trust.collapsetechnologies.com` (Release `TRUST_BASE_URL` in `project.yml`) |
 | IAP | Sandbox (free). Product IDs stay `com.collapsetechnologies.trust.circle.monthly` / `.annual` |

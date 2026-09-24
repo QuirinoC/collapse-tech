@@ -1,6 +1,6 @@
-# Trust Circle for iPhone and iPad
+# Trust for iPhone and iPad
 
-Native SwiftUI app for adult-peer location escrow. List-first: **Circle · Sharing · Invite · You**. Location stays **Sealed** until someone **Looks** — a notify-first confirm, then one snapshot and a receipt push. People who share **Always / For a while** are **Available**: View without a sheet, every view logged, never a push. Screen inventory: `SCREENS.md`; design source of truth: `design-mocks/duo-gpt6/`.
+Native SwiftUI app for adult-peer location escrow. **Home is map + draggable People sheet** (People · Log · You). Location stays **Sealed** until someone **Looks** — a notify-first confirm, then one snapshot and a receipt push. People who share **Always / For a while** are **Available**: View without a sheet, every view logged, never a push. Screen inventory: `SCREENS.md`. Design history (list-first mocks superseded): `design-mocks/duo-gpt6/`.
 
 The product backend is `apps/trust-api` (ASP.NET Core + Postgres). This app does not use an in-memory demo as the backend. Debug builds behave like Release (real Sign in with Apple, real — possibly empty — circle); the offline demo circle is opt-in only, via the DEBUG **See the app** button on Login or `TRUST_DEMO=1` in the scheme (`SIMCTL_CHILD_TRUST_DEMO=1` with `simctl launch`).
 
@@ -18,7 +18,7 @@ Google Maps is out (billing and tracking optics). **Mapbox / MapLibre** is the r
 
 **Masthead Paper** is the default: Didot for **Trust** (large lockup; Home Screen name is **Trust Circle**), Space Grotesk for **Collapse Technologies** (same as Pixelboard and the studio site; a step smaller than the previous system-folio mark), SF for UI, white paper, black ink, red `#E10600` as the only chromatic. Light only — Night Edition was removed for 1.0.
 
-Login is paper only: wordmark, **Trust**, rule, Sign in with Apple, legal links. (The earlier Canvas atlas background was dropped in M0.) Design source of truth: `design-mocks/duo-gpt6/`.
+Login is paper only: wordmark, **Trust**, rule, Sign in with Apple, legal links. (The earlier Canvas atlas background was dropped in M0.) Design history: `design-mocks/duo-gpt6/` (list-first home superseded by Round 8 map+sheet).
 
 ## Open and run
 
@@ -74,7 +74,7 @@ Bundle ID: `com.collapsetechnologies.trust`.
 
 ## First-open and look flow
 
-1. Collapse Technologies, **Trust** (hero lockup; product name is **Trust Circle**), Sign in with Apple (`apple.logo`, identity token → API). Terms of Service, Privacy, and Support sit in one row (`https://collapsetechnologies.com/trust/…`). No extra legal line under the button.
+1. Collapse Technologies, **Trust** (hero lockup; product name **Trust**; Home Screen / ASC display name may still read **Trust Circle**), Sign in with Apple (`apple.logo`, identity token → API). Terms of Service, Privacy, and Support sit in one row (`https://collapsetechnologies.com/trust/…`). No extra legal line under the button.
 2. After Apple, **Your handle** if a unique handle is not set yet. Handle is the identity (like `jordan` / `@jordan`). Completing it is required before the Circle. A display name from Apple is kept if it already exists — not asked here. After account delete, this returns.
 3. **People** (home) is map + draggable sheet (build 15 / Round 8). Apple MapKit fills the top; the bottom sheet lists people under SHARED WITH YOU. Sealed rows show Home / Away (or “presence hidden”) and a **Look** pill; Available rows (Always toward you) show **View**. Recenter control sits above the sheet. **Do not ship list-first Circle** — that IA is obsolete.
 4. **Look** confirm leads with the consequence — “Maya will be notified.” — then “one location snapshot — not a live feed”. The subject gets a remote receipt (APNs). No “don’t ask again.” Their share stays Sealed afterwards.

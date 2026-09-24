@@ -4,12 +4,12 @@
 
 | | |
 | --- | --- |
-| Workspace | `collapse-tech-trust-demo` (`quirinoc-ship-pending-wip`) |
+| Workspace | `collapse-tech` (`main`) |
 | Bundle | `com.collapsetechnologies.trust` |
 | Team | `3S529795M9` |
 | ASC App ID | `6806879060` |
 | IAP group | `22346972` |
-| Version / build | **1.0 (6+)** — archive the **`Trust`** scheme (Release). Do not archive `Trust-Sandbox`. |
+| Version / build | **1.0 (18)** — archive the **`Trust`** scheme (Release). Do not archive `Trust-Sandbox`. Home IA is map + draggable People sheet (not list-first Circle). |
 | API | `https://trust.collapsetechnologies.com` |
 | English only | `CFBundleLocalizations` = `en` |
 | Export compliance | `ITSAppUsesNonExemptEncryption` = **false** (HTTPS / standard encryption only) |
