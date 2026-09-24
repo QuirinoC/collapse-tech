@@ -12,6 +12,7 @@ using TrustApi.Contracts.V1;
 using TrustApi.Domain;
 using TrustApi.Infrastructure;
 using TrustApi.Infrastructure.Identity;
+using TrustApi.Infrastructure.StoreKit;
 
 namespace TrustApi.Tests;
 
@@ -109,7 +110,7 @@ public sealed class TrustEngineTests
         var session = lookResult.Session;
         Assert.Equal(0, session.Event.HistoryWindowHours);
         var extended = await engine.ExtendLookAsync(you.Id, alex.Person.Id, CancellationToken.None);
-        Assert.Equal(24, extended.Event.HistoryWindowHours);
+        Assert.Equal(TrustRules.ProHistoryHours, extended.Event.HistoryWindowHours);
         await engine.PlacePingAsync(you.Id, CancellationToken.None);
     }
 
@@ -231,41 +232,54 @@ public sealed class TrustEngineTests
     }
 
     [Fact]
-    public async Task IngestPrunesPointsOlderThanRetention()
+    public async Task IngestPrunesFreePointsAfter24HoursAndKeepsPlusFor30Days()
     {
+        Assert.Equal(24, TrustRules.FreeHistoryHours);
+        Assert.Equal(30 * 24, TrustRules.ProHistoryHours);
+        Assert.Equal(TimeSpan.FromHours(24), TrustRules.LocationRetention(false));
+        Assert.Equal(TimeSpan.FromDays(30), TrustRules.LocationRetention(true));
+
         var start = new DateTimeOffset(2026, 8, 30, 12, 0, 0, TimeSpan.Zero);
         var time = new MutableTimeProvider { UtcNow = start };
         var engine = NewEngine(out var store, time);
         var (sam, jordan) = await PairAsync(engine);
         await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.UntilTheyLook, null, CancellationToken.None);
-        await engine.IngestAsync(
-            sam.Id,
-            new LocationFix(start, 37.75, -122.41),
-            80,
-            false,
-            CancellationToken.None);
-        // Retention is ~3h in M1 (down from 26h).
-        time.UtcNow = start.Add(TrustRules.LocationRetention).AddHours(1);
-        await engine.IngestAsync(
-            sam.Id,
-            new LocationFix(time.UtcNow, 37.76, -122.42),
-            80,
-            false,
-            CancellationToken.None);
-        var kept = await store.UnlockLocationsAsync(
-            sam.Id,
-            start.AddDays(-2),
-            time.UtcNow.AddMinutes(1),
-            CancellationToken.None);
-        Assert.Single(kept);
-        Assert.Equal(37.76, kept[0].Latitude);
+        await engine.GrantCircleAsync(jordan.Id, "test", CancellationToken.None);
+        await engine.SetShareAsync(jordan.Id, sam.Id, ShareResting.UntilTheyLook, null, CancellationToken.None);
+        await engine.IngestAsync(sam.Id, new LocationFix(start, 37.75, -122.41), 80, false, CancellationToken.None);
+        await engine.IngestAsync(jordan.Id, new LocationFix(start, 37.80, -122.40), 80, false, CancellationToken.None);
+
+        time.UtcNow = start.Add(TrustRules.LocationRetention(false)).AddHours(1);
+        var storeKit = new MemoryStoreKitEntitlementStore(store);
+        var sweep = new TrustSweepService(
+            store,
+            engine,
+            storeKit,
+            time,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TrustSweepService>.Instance);
+        await sweep.SweepOnceAsync(CancellationToken.None);
+
+        var freeKept = await store.UnlockLocationsAsync(sam.Id, start.AddDays(-2), time.UtcNow.AddMinutes(1), CancellationToken.None);
+        Assert.Empty(freeKept);
+        var plusKept = await store.UnlockLocationsAsync(jordan.Id, start.AddDays(-40), time.UtcNow.AddMinutes(1), CancellationToken.None);
+        Assert.Single(plusKept);
+        Assert.Equal(37.80, plusKept[0].Latitude);
+
+        await engine.IngestAsync(sam.Id, new LocationFix(time.UtcNow, 37.76, -122.42), 80, false, CancellationToken.None);
+        var freeAfterIngest = await store.UnlockLocationsAsync(sam.Id, start.AddDays(-2), time.UtcNow.AddMinutes(1), CancellationToken.None);
+        Assert.Single(freeAfterIngest);
+        Assert.Equal(37.76, freeAfterIngest[0].Latitude);
+
+        time.UtcNow = start.Add(TrustRules.LocationRetention(true)).AddHours(1);
+        await sweep.SweepOnceAsync(CancellationToken.None);
+        var plusAfter = await store.UnlockLocationsAsync(jordan.Id, start.AddDays(-40), time.UtcNow.AddMinutes(1), CancellationToken.None);
+        Assert.Empty(plusAfter);
     }
 
     [Fact]
     public async Task PlusExtendStillReadsATrailWithinRetentionFromStore()
     {
-        // Extend (dormant Plus feature, not shipped UX in M1) still returns a trail — it just
-        // can't see further back than the ~3h retention window prunes to.
+        // Extend still returns a trail, bounded by the subject's own retention (24 hours free, 30 days Plus).
         var time = new MutableTimeProvider { UtcNow = new DateTimeOffset(2026, 8, 30, 18, 0, 0, TimeSpan.Zero) };
         var engine = NewEngine(out _, time);
         var (sam, jordan) = await PairAsync(engine);
@@ -290,9 +304,9 @@ public sealed class TrustEngineTests
         Assert.Single(look.Trail);
 
         var extended = await engine.ExtendLookAsync(jordan.Id, sam.Id, CancellationToken.None);
-        Assert.Equal(24, extended.Event.HistoryWindowHours);
-        // 11 points 20 minutes apart span ~3h40m; the ~3h retention prunes the oldest one.
-        Assert.Equal(10, extended.Trail.Count);
+        Assert.Equal(TrustRules.ProHistoryHours, extended.Event.HistoryWindowHours);
+        // 11 points over ~3.5h stay inside the free 24-hour retention of the subject.
+        Assert.Equal(11, extended.Trail.Count);
     }
 
     [Fact]
@@ -311,6 +325,110 @@ public sealed class TrustEngineTests
         await engine.RevokeAsync(sam.Id, jordan.Id, CancellationToken.None);
         Assert.Null(await store.LatestLocationAsync(sam.Id, CancellationToken.None));
         Assert.Null(await store.LatestLocationAsync(jordan.Id, CancellationToken.None));
+        var samLog = await store.ListLooksAsync(sam.Id, DateTimeOffset.MinValue, CancellationToken.None);
+        Assert.Contains(samLog, look => look.Kind == LookKind.Removed && look.ViewerId == sam.Id && look.SubjectId == jordan.Id);
+        var jordanLog = await store.ListLooksAsync(jordan.Id, DateTimeOffset.MinValue, CancellationToken.None);
+        Assert.Contains(jordanLog, look => look.Kind == LookKind.Removed && look.ViewerId == sam.Id);
+    }
+
+    [Fact]
+    public async Task PauseBlocksLookWithoutRemovingThePair()
+    {
+        var engine = NewEngine(out _);
+        var (sam, jordan) = await PairAsync(engine);
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.UntilTheyLook, null, CancellationToken.None);
+        await engine.IngestAsync(
+            sam.Id,
+            new LocationFix(DateTimeOffset.UtcNow, 37.76, -122.42),
+            70,
+            false,
+            CancellationToken.None);
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.Pause, null, CancellationToken.None);
+
+        var circle = await engine.GetCircleAsync(sam.Id, CancellationToken.None);
+        Assert.Contains(circle.Members, member => member.Person.Id == jordan.Id);
+        var outbound = circle.Members.Single(member => member.Person.Id == jordan.Id).OutboundShare;
+        Assert.Equal(ShareResting.Pause, outbound.Resting);
+
+        var blocked = await Assert.ThrowsAsync<TrustException>(() =>
+            engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None));
+        Assert.Equal("share_off", blocked.Code);
+    }
+
+    [Fact]
+    public async Task FreeExtendLookUnlocksTwentyFourHourTrail()
+    {
+        var time = new MutableTimeProvider { UtcNow = new DateTimeOffset(2026, 8, 30, 18, 0, 0, TimeSpan.Zero) };
+        var engine = NewEngine(out _, time);
+        var (sam, jordan) = await PairAsync(engine);
+        await engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.UntilTheyLook, null, CancellationToken.None);
+        await engine.SetShareAsync(jordan.Id, sam.Id, ShareResting.UntilTheyLook, null, CancellationToken.None);
+        await engine.IngestAsync(
+            sam.Id,
+            new LocationFix(time.UtcNow.AddHours(-2), 37.75, -122.41),
+            80,
+            false,
+            CancellationToken.None);
+        await engine.IngestAsync(
+            sam.Id,
+            new LocationFix(time.UtcNow, 37.76, -122.42),
+            80,
+            false,
+            CancellationToken.None);
+
+        var opened = await engine.LookAsync(jordan.Id, sam.Id, true, CancellationToken.None);
+        Assert.Equal(0, opened.Session.Event.HistoryWindowHours);
+        Assert.Single(opened.Session.Trail);
+
+        var extended = await engine.ExtendLookAsync(jordan.Id, sam.Id, CancellationToken.None);
+        Assert.Equal(TrustRules.FreeHistoryHours, extended.Event.HistoryWindowHours);
+        Assert.Equal(2, extended.Trail.Count);
+    }
+
+    [Fact]
+    public async Task StoreKitCoverageClearsWhenTransactionExpires()
+    {
+        var accounts = new MemoryTrustStore();
+        var storeKit = new MemoryStoreKitEntitlementStore(accounts);
+        var engine = new TrustEngine(accounts, TimeProvider.System);
+        var you = await engine.SignInAsync("development", "plus-sticky", "Plus", CancellationToken.None);
+        var token = await storeKit.GetOrCreateAccountTokenAsync(you.Id, CancellationToken.None);
+        var now = DateTimeOffset.UtcNow;
+        var txn = new VerifiedStoreKitTransaction(
+            "txn-1",
+            "orig-1",
+            "plus.monthly",
+            token,
+            "Sandbox",
+            now.AddDays(-20),
+            now.AddDays(10),
+            null);
+        Assert.Equal(StoreKitApplyOutcome.Applied, await storeKit.ApplyAsync(you.Id, txn, CancellationToken.None));
+        Assert.True((await accounts.FindAccountAsync(you.Id, CancellationToken.None))!.HasCircle);
+
+        // Missed EXPIRED notification: coverage must fall when expiry is in the past.
+        var expired = txn with
+        {
+            TransactionId = "txn-2",
+            SignedAt = now,
+            ExpiresAt = now.AddMinutes(-1)
+        };
+        Assert.Equal(StoreKitApplyOutcome.Applied, await storeKit.ApplyAsync(you.Id, expired, CancellationToken.None));
+        Assert.False((await accounts.FindAccountAsync(you.Id, CancellationToken.None))!.HasCircle);
+
+        // Sticky flag: force has_circle true while the stored txn is expired, then refresh at read time.
+        await accounts.UpdateAccountAsync(
+            (await accounts.FindAccountAsync(you.Id, CancellationToken.None))! with { HasCircle = true },
+            CancellationToken.None);
+        Assert.True((await accounts.FindAccountAsync(you.Id, CancellationToken.None))!.HasCircle);
+        await storeKit.RefreshAccountCoverageAsync(you.Id, CancellationToken.None);
+        Assert.False((await accounts.FindAccountAsync(you.Id, CancellationToken.None))!.HasCircle);
+
+        await accounts.UpdateAccountAsync(
+            (await accounts.FindAccountAsync(you.Id, CancellationToken.None))! with { HasCircle = true },
+            CancellationToken.None);
+        await storeKit.RefreshExpiredCoveragesAsync(CancellationToken.None);
+        Assert.False((await accounts.FindAccountAsync(you.Id, CancellationToken.None))!.HasCircle);
     }
 
     [Fact]
@@ -418,7 +536,7 @@ public sealed class TrustEngineTests
         Assert.Equal(0, opened.Session.Event.HistoryWindowHours);
         await engine.ExtendLookAsync(jordan.Id, sam.Id, CancellationToken.None);
         var log = await store.ListLooksAsync(sam.Id, DateTimeOffset.MinValue, CancellationToken.None);
-        Assert.Contains(log, look => look.Id == opened.Session.Event.Id && look.HistoryWindowHours == 24);
+        Assert.Contains(log, look => look.Id == opened.Session.Event.Id && look.HistoryWindowHours == TrustRules.ProHistoryHours);
     }
 
     [Fact]
@@ -568,6 +686,57 @@ public sealed class TrustEngineTests
         var circle = await engine.GetCircleAsync(you.Id, CancellationToken.None);
         Assert.Equal(TrustRules.FreeSeats + 1, circle.Members.Count);
         Assert.Equal(TrustRules.ProSeats, circle.Coverage.SeatLimit);
+    }
+
+    [Fact]
+    public async Task FriendPlusDoesNotCoverSeatsAlwaysOrHistory()
+    {
+        var engine = NewEngine(out _);
+        var (sam, jordan) = await PairAsync(engine);
+        await engine.GrantCircleAsync(jordan.Id, "test", CancellationToken.None);
+
+        var samCircle = await engine.GetCircleAsync(sam.Id, CancellationToken.None);
+        Assert.False(samCircle.Coverage.IsCovered);
+        Assert.False(samCircle.Coverage.ActingIsSponsor);
+        Assert.Equal(TrustRules.FreeSeats, samCircle.Coverage.SeatLimit);
+        Assert.Equal(TrustRules.FreeLookLogDays, samCircle.Coverage.LookLogDays);
+        Assert.True(samCircle.Coverage.CanExtendHistory);
+        Assert.Equal(TrustRules.FreeHistoryHours, samCircle.Coverage.HistoryHours);
+
+        var always = await Assert.ThrowsAsync<TrustException>(() =>
+            engine.SetShareAsync(sam.Id, jordan.Id, ShareResting.Always, null, CancellationToken.None));
+        Assert.Equal("pro_required", always.Code);
+
+        var noLook = await Assert.ThrowsAsync<TrustException>(() =>
+            engine.ExtendLookAsync(sam.Id, jordan.Id, CancellationToken.None));
+        Assert.Equal("pair_inactive", noLook.Code);
+
+        for (var i = 0; i < TrustRules.FreeSeats - 1; i++)
+        {
+            var friend = await engine.SignInAsync(
+                "development",
+                $"nofree-{i}-{Guid.NewGuid():N}",
+                $"Friend{i}",
+                CancellationToken.None);
+            var invite = await engine.CreateInviteAsync(sam.Id, CancellationToken.None);
+            await engine.AcceptInviteAsync(friend.Id, invite.Code, CancellationToken.None);
+        }
+
+        var overflow = await engine.SignInAsync(
+            "development",
+            $"overflow-{Guid.NewGuid():N}",
+            "Overflow",
+            CancellationToken.None);
+        var overflowInvite = await engine.CreateInviteAsync(sam.Id, CancellationToken.None);
+        var blocked = await Assert.ThrowsAsync<TrustException>(() =>
+            engine.AcceptInviteAsync(overflow.Id, overflowInvite.Code, CancellationToken.None));
+        Assert.Equal("seat_limit", blocked.Code);
+
+        var jordanCircle = await engine.GetCircleAsync(jordan.Id, CancellationToken.None);
+        Assert.True(jordanCircle.Coverage.IsCovered);
+        Assert.True(jordanCircle.Coverage.ActingIsSponsor);
+        Assert.Equal(TrustRules.ProSeats, jordanCircle.Coverage.SeatLimit);
+        Assert.Equal(TrustRules.ProLookLogDays, jordanCircle.Coverage.LookLogDays);
     }
 
     [Fact]

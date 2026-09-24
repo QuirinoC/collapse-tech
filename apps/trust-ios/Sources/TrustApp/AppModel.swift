@@ -9,6 +9,8 @@ enum AppPhase: Equatable {
     case login
     /// A2 — pick `@handle` once after the first Sign in with Apple.
     case handle
+    /// A verification text is required before Home.
+    case phone
     case home
 }
 
@@ -103,6 +105,11 @@ final class AppModel: ObservableObject {
     @Published var onboardingNotice: String?
     @Published var handleAvailability: Bool?
     @Published var isOnboardingBusy = false
+    @Published var phoneDraft = ""
+    @Published var phoneConsentChecked = false
+    @Published var phoneCodeDraft = ""
+    @Published var phoneCodeSent = false
+    @Published var phoneNotice: String?
     private var handleCheckTask: Task<Void, Never>?
     private var demo: DemoTrustService?
     private var demoTickTask: Task<Void, Never>?
@@ -142,7 +149,7 @@ final class AppModel: ObservableObject {
 
     var outboundActiveCount: Int {
         let now = Date()
-        return circle.filter { !$0.share.presentation(at: now).isOff }.count
+        return circle.filter { !$0.share.presentation(at: now).isNotSharing }.count
     }
 
     var myPresence: HomePresenceKind {
@@ -203,6 +210,9 @@ final class AppModel: ObservableObject {
         if auth.isAuthenticated, !isDemoMode, let cached = client.cachedCircle() {
             // Paint the last good circle immediately; refresh() decides whether it is stale.
             snapshot = cached
+            if !Self.debugDemoLaunch(sessionToken: auth.sessionToken) {
+                phase = Self.phase(for: cached.you)
+            }
         }
         bind()
     }
@@ -456,16 +466,17 @@ final class AppModel: ObservableObject {
             snapshot = fresh
             isOffline = false
             presenceOverride = nil
-            if enterHome {
+            if enterHome || phase == .home {
                 routeAfterAuth(onboardingComplete: fresh.you.onboardingComplete)
             }
             // Prefer `/circle` inboundShare; keep Look-probe ids only when presentation is still unknown.
             notSharingWithYou = notSharingWithYou.filter { id in
                 guard let member = fresh.members.first(where: { $0.id == id }) else { return false }
-                if let inbound = member.inboundPresentation { return inbound.isOff }
+                if let inbound = member.inboundPresentation { return inbound.isNotSharing }
                 return !member.isAvailable
             }
             syncLocationSharing()
+            syncHomeMonitoring()
             await flushIngestQueue()
             await reconcilePresenceGrants()
             if let watched = fresh.beingWatched, watched.id != lastBeingWatchedID {
@@ -484,13 +495,13 @@ final class AppModel: ObservableObject {
             }
             syncLocationSharing()
             if enterHome, auth.isAuthenticated {
-                routeAfterAuth(onboardingComplete: fallbackOnboardingComplete ?? snapshot?.you.onboardingComplete ?? true)
+                routeAfterAuth(onboardingComplete: fallbackOnboardingComplete ?? snapshot?.you.onboardingComplete ?? false)
             }
         } catch {
             showToast(plainMessage(for: error))
             syncLocationSharing()
             if enterHome, auth.isAuthenticated {
-                routeAfterAuth(onboardingComplete: fallbackOnboardingComplete ?? snapshot?.you.onboardingComplete ?? true)
+                routeAfterAuth(onboardingComplete: fallbackOnboardingComplete ?? snapshot?.you.onboardingComplete ?? false)
             }
         }
     }
@@ -648,6 +659,7 @@ final class AppModel: ObservableObject {
                 if let demo {
                     switch mode {
                     case .off: demo.setOff(personID: personID)
+                    case .pause: demo.setPause(personID: personID)
                     case .untilTheyLook: demo.setUntilTheyLook(personID: personID)
                     case .always: try demo.setAlways(personID: personID)
                     }
@@ -659,6 +671,8 @@ final class AppModel: ObservableObject {
                 switch mode {
                 case .off:
                     showToast(TrustCopy.sharingStopped(name: name))
+                case .pause:
+                    showToast(TrustCopy.sharingPaused(name: name))
                 case .untilTheyLook:
                     showToast(TrustCopy.modeUpdated(name: name, mode: TrustCopy.untilTheyLook))
                     afterFirstShare()
@@ -702,6 +716,53 @@ final class AppModel: ObservableObject {
         setResting(.off, for: personID)
     }
 
+    func pauseSharing(personID: UUID) {
+        setResting(.pause, for: personID)
+    }
+
+    func removePerson(personID: UUID) {
+        guard requireOnline() else { return }
+        let name = member(personID)?.firstName ?? TrustCopy.them
+        Task {
+            do {
+                if let demo {
+                    demo.revoke(personID: personID)
+                    publishDemoSnapshot()
+                } else {
+                    try await client.revoke(personID: personID)
+                    openedSnapshots[personID] = nil
+                    await refresh()
+                }
+                if circlePath.last == .view(personID) {
+                    circlePath = []
+                }
+                showToast(TrustCopy.personRemoved(name: name))
+            } catch {
+                showToast(plainMessage(for: error))
+            }
+        }
+    }
+
+    func extendOpenLook(personID: UUID) {
+        guard requireOnline() || isDemoMode else { return }
+        Task {
+            do {
+                let session: LookSession
+                if let demo {
+                    session = try demo.extendLook(subjectID: personID)
+                    publishDemoSnapshot()
+                } else {
+                    session = try await client.extendLook(subjectID: personID)
+                    await refresh()
+                }
+                openedSnapshots[personID] = session
+                showToast(TrustCopy.stripTrail)
+            } catch {
+                showToast(plainMessage(for: error))
+            }
+        }
+    }
+
     func stopAll() {
         guard requireOnline() else { return }
         Task {
@@ -709,7 +770,7 @@ final class AppModel: ObservableObject {
                 demo.stopAll()
                 publishDemoSnapshot()
             } else {
-                for member in circle where !member.share.presentation(at: Date()).isOff {
+                for member in circle where !member.share.presentation(at: Date()).isNotSharing {
                     try? await client.setShare(personID: member.id, resting: .off, timed: nil)
                 }
                 await refresh()
@@ -745,6 +806,7 @@ final class AppModel: ObservableObject {
         } else {
             location.requestAlways()
         }
+        syncHomeMonitoring()
     }
 
     // MARK: Presence triad (global, free)
@@ -896,7 +958,7 @@ final class AppModel: ObservableObject {
             do {
                 try await client.setHandle(handle)
                 await finishOnboardingIfComplete()
-                if phase != .home {
+                if phase == .handle {
                     onboardingNotice = TrustCopy.enterHandle
                 }
             } catch {
@@ -929,14 +991,44 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func sendPhoneCode() async {
+        phoneNotice = nil
+        guard phoneConsentChecked else { return }
+        let phone = phoneDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !phone.isEmpty else { return }
+        isOnboardingBusy = true
+        defer { isOnboardingBusy = false }
+        do {
+            _ = try await client.sendPhoneCode(phone: phone)
+            phoneCodeSent = true
+        } catch {
+            phoneNotice = plainMessage(for: error)
+        }
+    }
+
+    func verifyPhoneCode() async {
+        phoneNotice = nil
+        let phone = phoneDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let code = phoneCodeDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !phone.isEmpty, code.count == 6 else { return }
+        isOnboardingBusy = true
+        defer { isOnboardingBusy = false }
+        do {
+            try await client.verifyPhoneCode(phone: phone, code: code)
+            await finishOnboardingIfComplete()
+            if phase == .phone {
+                phoneNotice = TrustCopy.apiError(code: "otp_invalid", fallback: nil)
+            }
+        } catch {
+            phoneNotice = plainMessage(for: error)
+        }
+    }
+
     private func finishOnboardingIfComplete() async {
         await refresh()
-        let complete = snapshot?.you.onboardingComplete == true
-        if complete {
-            routeAfterAuth(onboardingComplete: true)
-            if phase == .home, !inviteCodeDraft.isEmpty {
-                joinInvite()
-            }
+        routeAfterAuth(onboardingComplete: snapshot?.you.onboardingComplete == true)
+        if phase == .home, !inviteCodeDraft.isEmpty {
+            joinInvite()
         }
     }
 
@@ -947,11 +1039,42 @@ final class AppModel: ObservableObject {
             return
         }
         #endif
-        if onboardingComplete {
-            phase = .home
+        let next: AppPhase
+        if let you = snapshot?.you {
+            next = Self.phase(for: you)
         } else {
-            beginOnboarding()
+            next = onboardingComplete ? .home : .handle
         }
+        if next == .handle {
+            if phase != .handle {
+                beginOnboarding()
+            } else {
+                phase = .handle
+            }
+        } else {
+            phase = next
+        }
+    }
+
+    /// Handle first, then a verified phone, then Home. A missing phone never lands on Home.
+    private static func phase(for you: Person) -> AppPhase {
+        let handleReady: Bool
+        if let handle = you.handle, case .valid = TrustHandle.status(of: handle) {
+            handleReady = true
+        } else {
+            handleReady = false
+        }
+        if !handleReady { return .handle }
+        if !you.phoneVerified { return .phone }
+        return .home
+    }
+
+    private static func debugDemoLaunch(sessionToken: String?) -> Bool {
+        #if DEBUG
+        return debugDemoRequested(sessionToken: sessionToken)
+        #else
+        return false
+        #endif
     }
 
     private func beginOnboarding() {
@@ -970,6 +1093,11 @@ final class AppModel: ObservableObject {
         onboardingNotice = nil
         handleAvailability = nil
         isOnboardingBusy = false
+        phoneDraft = ""
+        phoneConsentChecked = false
+        phoneCodeDraft = ""
+        phoneCodeSent = false
+        phoneNotice = nil
     }
 
     // MARK: Plus (StoreKit 2 — SubscriptionStoreView submits JWS here)
@@ -1055,7 +1183,13 @@ final class AppModel: ObservableObject {
             TrustCopy.lookLogExportRow(
                 timestamp: event.at.ISO8601Format(),
                 line: event.logLine(youID: youID),
-                kind: event.kind == .view ? TrustCopy.kindView : TrustCopy.kindLook
+                kind: {
+                    switch event.kind {
+                    case .view: return TrustCopy.kindView
+                    case .removed: return TrustCopy.kindRemoved
+                    case .look: return TrustCopy.kindLook
+                    }
+                }()
             )
         }
         .joined(separator: "\n")
@@ -1118,10 +1252,78 @@ final class AppModel: ObservableObject {
         location.onLocations = { [weak self] points in
             self?.enqueueLocations(points)
         }
-        // Presence is manual in 1.0. Geofenced Home/Away (Places) is the 1.1 Plus item, so the
-        // coordinator's region callbacks stay unwired here.
-        location.onHomePresence = nil
+        location.onHomePresence = { [weak self] kind in
+            self?.postGeofencePresence(kind)
+        }
+        syncHomeMonitoring()
+    }
+
+    /// Home geofence drives Home/Away when a place is set and Always is granted.
+    /// Desire monitoring whenever Home is set — do not force it off just because
+    /// Always is not granted yet; region monitoring starts when Always arrives.
+    /// Manual triad remains an override. Hidden is never posted from the geofence.
+    func syncHomeMonitoring() {
+        location.setHomeMonitoring(location.homeIsSet)
+    }
+
+    private func postGeofencePresence(_ kind: HomePresenceKind) {
+        guard kind == .home || kind == .away else { return }
+        if myPresence == .hidden { return }
+        if isDemoMode {
+            demo?.setMyPresence(kind)
+            publishDemoSnapshot()
+            return
+        }
+        guard !isOffline else { return }
+        presenceOverride = kind
+        Task {
+            do {
+                try await client.postHomePresence(state: kind)
+                await reconcilePresenceGrants(force: true)
+                await refresh()
+            } catch {
+                presenceOverride = nil
+            }
+        }
+    }
+
+    func setHomeFromCurrentLocation() {
+        guard requireOnline() || isDemoMode else { return }
+        location.requestWhenInUse()
+        guard let saved = location.setHomeFromCurrentFix(label: "Home") else {
+            showToast(TrustCopy.homeNeedsLocation)
+            return
+        }
+        if isDemoMode {
+            showToast(TrustCopy.homeSetToast)
+            syncHomeMonitoring()
+            if !location.hasAlways { showingAlwaysExplainer = true }
+            return
+        }
+        Task {
+            do {
+                try await client.setHomePlace(placeID: saved.placeID, label: saved.label)
+                showToast(TrustCopy.homeSetToast)
+                syncHomeMonitoring()
+                if !location.hasAlways {
+                    showingAlwaysExplainer = true
+                }
+                await refresh()
+            } catch {
+                location.clearHome()
+                showToast(plainMessage(for: error))
+            }
+        }
+    }
+
+    func clearHomePlace() {
+        location.clearHome()
         location.setHomeMonitoring(false)
+        if isDemoMode {
+            showToast(TrustCopy.homeClearedToast)
+            return
+        }
+        showToast(TrustCopy.homeClearedToast)
     }
 
     private func syncLocationSharing() {

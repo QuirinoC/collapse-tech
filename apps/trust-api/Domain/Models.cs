@@ -2,16 +2,19 @@ namespace TrustApi.Domain;
 
 public static class TrustRules
 {
-    public const int FreeHistoryHours = 2;
-    public const int ProHistoryHours = 24;
+    /// Location history kept for a Look trail. Look itself is still one snapshot.
+    /// Free is 24 hours. Plus is 30 days — not a 24-hour extend of a 2-hour look.
+    public const int FreeHistoryHours = 24;
+    public const int ProHistoryHours = 30 * 24;
     /// Free: <=5 (per the product model). Plus (née Circle): <=20.
     public const int FreeSeats = 5;
     public const int ProSeats = 20;
     public const int FreeLookLogDays = 30;
     public const int ProLookLogDays = 365;
-    /// Server GPS window: enough for a Look snapshot and the dormant Plus "extend" path, then
-    /// pruned. Not a dossier. M1 tightens this from 26h to ~3h.
-    public static readonly TimeSpan LocationRetention = TimeSpan.FromHours(3);
+
+    /// GPS retention follows the account's own plan, then prune. A friend's Plus does not extend it.
+    public static TimeSpan LocationRetention(bool hasPlus) =>
+        hasPlus ? TimeSpan.FromHours(ProHistoryHours) : TimeSpan.FromHours(FreeHistoryHours);
     /// Open Looks expire so a killed client cannot leave a live pin forever.
     public static readonly TimeSpan ActiveLookTtl = TimeSpan.FromMinutes(30);
     /// If last home/away signal is older than this at a promise deadline, copy is "no signal".
@@ -158,7 +161,7 @@ public sealed record Account(
 
     public bool HasHandle => AccountHandle.IsChosen(Handle);
 
-    public bool OnboardingComplete => HasHandle;
+    public bool OnboardingComplete => HasHandle && HasVerifiedPhone;
 
     public string PublicName => HasHandle ? $"@{Handle}" : DisplayName;
 }
@@ -191,6 +194,8 @@ public enum ShareResting
 {
     /// Not sharing at all. The default for both sides of a fresh join.
     Off,
+    /// Temporarily not sharing while staying in the list. Free; not Off, not removed.
+    Pause,
     UntilTheyLook,
     Always
 }
@@ -211,12 +216,17 @@ public sealed record ShareState(ShareResting Resting, DateTimeOffset? TimedUntil
         {
             ShareResting.Always => SharePresentation.Always.Instance,
             ShareResting.Off => SharePresentation.Off.Instance,
+            ShareResting.Pause => SharePresentation.Pause.Instance,
             _ => SharePresentation.UntilTheyLook.Instance
         };
     }
 
     public bool RevealsLive(DateTimeOffset now) =>
         Presentation(now) is SharePresentation.Always or SharePresentation.Timed;
+
+    /// Off or Pause — no Look, no Available. Membership stays.
+    public bool IsNotSharing(DateTimeOffset now) =>
+        Presentation(now) is SharePresentation.Off or SharePresentation.Pause;
 }
 
 public abstract record SharePresentation
@@ -224,6 +234,12 @@ public abstract record SharePresentation
     public sealed record Off : SharePresentation
     {
         public static Off Instance { get; } = new();
+    }
+
+    /// Temporarily not sharing; person stays in the list.
+    public sealed record Pause : SharePresentation
+    {
+        public static Pause Instance { get; } = new();
     }
 
     public sealed record UntilTheyLook : SharePresentation
@@ -250,7 +266,9 @@ public sealed record Invite(
 public enum LookKind
 {
     Look,
-    View
+    View,
+    /// Pair was removed from the circle. Log-only; no coordinates.
+    Removed
 }
 
 public sealed record LookEvent(
@@ -323,7 +341,9 @@ public sealed record CircleCoverage(
     public int SeatLimit => IsCovered ? TrustRules.ProSeats : TrustRules.FreeSeats;
     public int LookLogDays => IsCovered ? TrustRules.ProLookLogDays : TrustRules.FreeLookLogDays;
     public bool HasPlacePings => IsCovered;
-    public bool CanExtendHistory => IsCovered;
+    /// Free can open a 24h Look trail; Plus opens 30 days. Look itself stays one snapshot.
+    public bool CanExtendHistory => true;
+    public int HistoryHours => IsCovered ? TrustRules.ProHistoryHours : TrustRules.FreeHistoryHours;
     public bool CanExportLookLog => IsCovered;
 
     public string? Banner
@@ -428,6 +448,9 @@ public sealed class TrustException : Exception
     public static TrustException OtpCooldown() =>
         new("otp_cooldown", "Wait a moment before requesting another code.");
 
+    public static TrustException OtpDailyLimit() =>
+        new("otp_daily_limit", "Too many codes today. Try again tomorrow.");
+
     public static TrustException OtpExpired() =>
         new("otp_expired", "That code expired. Request a new one.");
 
@@ -489,7 +512,10 @@ public interface ITrustStore
     Task<ActiveLook?> GetLookAtMeAsync(Guid subjectId, CancellationToken cancellationToken);
     Task ClearActiveLookAsync(Guid viewerId, Guid? subjectId, CancellationToken cancellationToken);
     Task<IReadOnlyList<ActiveLook>> ListExpiredActiveLooksAsync(DateTimeOffset olderThan, CancellationToken cancellationToken);
-    Task PruneAllLocationsAsync(DateTimeOffset olderThan, CancellationToken cancellationToken);
+    Task PruneLocationsByPlanAsync(
+        DateTimeOffset freeOlderThan,
+        DateTimeOffset plusOlderThan,
+        CancellationToken cancellationToken);
     Task<Invite?> FindInviteByCodeAsync(string code, CancellationToken cancellationToken);
     Task<Invite?> FindPendingInviteAsync(Guid creatorId, CancellationToken cancellationToken);
     Task InsertInviteAsync(Invite invite, CancellationToken cancellationToken);
@@ -502,6 +528,14 @@ public interface ITrustStore
     Task<PhoneChallenge?> GetPhoneChallengeAsync(Guid accountId, CancellationToken cancellationToken);
     Task UpsertPhoneChallengeAsync(PhoneChallenge challenge, CancellationToken cancellationToken);
     Task ClearPhoneChallengeAsync(Guid accountId, CancellationToken cancellationToken);
+    /// Reserves one SMS send for today. False when this account has hit 8 or the server has hit 40.
+    Task<bool> TryConsumePhoneSendAsync(
+        Guid accountId,
+        DateTimeOffset sentAt,
+        DateTimeOffset dayStart,
+        int accountDailyCap,
+        int globalDailyCap,
+        CancellationToken cancellationToken);
 
     Task SetPresenceGrantAsync(Guid subjectId, Guid trusteeId, bool enabled, DateTimeOffset updatedAt, CancellationToken cancellationToken);
     Task<PresenceGrant?> GetPresenceGrantAsync(Guid subjectId, Guid trusteeId, CancellationToken cancellationToken);

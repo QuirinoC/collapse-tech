@@ -14,6 +14,9 @@ public interface ISmsOtpSender
 
 public sealed class TwilioSmsSender(IHttpClientFactory http, IOptions<TwilioOptions> options) : ISmsOtpSender
 {
+    public static string MessageBody(string code) =>
+        $"Trust code: {code}. Expires in 10 minutes. Reply STOP to opt out.";
+
     public bool IsConfigured => options.Value.IsConfigured;
 
     public async Task SendAsync(string e164, string code, CancellationToken cancellationToken)
@@ -32,7 +35,7 @@ public sealed class TwilioSmsSender(IHttpClientFactory http, IOptions<TwilioOpti
         var form = new Dictionary<string, string>
         {
             ["To"] = e164,
-            ["Body"] = $"Trust code: {code}. Expires in 10 minutes."
+            ["Body"] = MessageBody(code)
         };
         if (!string.IsNullOrWhiteSpace(twilio.MessagingServiceSid))
         {

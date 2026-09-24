@@ -247,6 +247,7 @@ public static class ContractMap
         {
             SharePresentation.Always => new ShareDto("always", state.TimedUntil, "always", null, null),
             SharePresentation.Off => new ShareDto("off", null, "off", null, null),
+            SharePresentation.Pause => new ShareDto("pause", null, "pause", null, null),
             SharePresentation.Timed timed => new ShareDto(
                 RestingName(timed.RevertsTo),
                 timed.Ends,
@@ -320,6 +321,7 @@ public static class ContractMap
         "always" => ShareResting.Always,
         "untiltheylook" or "until_they_look" or "sealed" => ShareResting.UntilTheyLook,
         "off" => ShareResting.Off,
+        "pause" or "paused" => ShareResting.Pause,
         null or "" => null,
         _ => null
     };
@@ -348,6 +350,7 @@ public static class ContractMap
     {
         ShareResting.Always => "always",
         ShareResting.Off => "off",
+        ShareResting.Pause => "pause",
         _ => "untilTheyLook"
     };
 
@@ -362,6 +365,7 @@ public static class ContractMap
     private static string LookKindName(LookKind kind) => kind switch
     {
         LookKind.View => "view",
+        LookKind.Removed => "removed",
         _ => "look"
     };
 

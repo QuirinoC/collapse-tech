@@ -20,7 +20,9 @@ public sealed class LookReceiptPublisher(
         NotifyQuietAsync(
             look.SubjectId,
             look.ViewerName + " viewed your location",
-            "They can see your live location and the last " + look.HistoryWindowHours + " hours of history.",
+            look.HistoryWindowHours <= 0
+                ? "One snapshot. This is your receipt."
+                : "They can see your live location and the last " + HistoryLabel(look.HistoryWindowHours) + " of history.",
             "look",
             cancellationToken);
 
@@ -28,7 +30,7 @@ public sealed class LookReceiptPublisher(
         NotifyQuietAsync(
             look.SubjectId,
             look.ViewerName + " extended the look",
-            "They can now see the last " + look.HistoryWindowHours + " hours of history.",
+            "They can now see the last " + HistoryLabel(look.HistoryWindowHours) + " of history.",
             "look_extend",
             cancellationToken);
 
@@ -83,6 +85,17 @@ public sealed class LookReceiptPublisher(
                     device.InstallationId);
             }
         }
+    }
+
+    private static string HistoryLabel(int hours)
+    {
+        if (hours >= 24 && hours % 24 == 0)
+        {
+            var days = hours / 24;
+            return days == 1 ? "1 day" : days + " days";
+        }
+
+        return hours + " hours";
     }
 
     public async Task NotifyHomeArrivalAsync(Guid subjectId, CancellationToken cancellationToken)

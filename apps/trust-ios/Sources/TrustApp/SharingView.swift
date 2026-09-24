@@ -2,12 +2,14 @@ import SwiftUI
 import TrustCore
 
 /// T2 Sharing — what each person can see of you. Until / Always / For a while inline,
-/// Stop on every row. Always and For a while carry a Plus mark when not covered; tapping
-/// them is the intent-triggered paywall placement (server answers `pro_required`).
+/// Pause and Stop on every row, Remove to drop the pair. Always and For a while carry a
+/// Plus mark when not covered; tapping them is the intent-triggered paywall placement.
 struct SharingView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.trustPalette) private var palette
     @State private var stopTarget: TrustedPerson?
+    @State private var pauseTarget: TrustedPerson?
+    @State private var removeTarget: TrustedPerson?
 
     var body: some View {
         ScrollView {
@@ -45,9 +47,13 @@ struct SharingView: View {
                     TrustSectionHeading(TrustCopy.youShareWith(count: model.circle.count))
 
                     ForEach(model.circle) { member in
-                        OutboundRow(member: member, seed: seed(member)) {
-                            stopTarget = member
-                        }
+                        OutboundRow(
+                            member: member,
+                            seed: seed(member),
+                            onPause: { pauseTarget = member },
+                            onStop: { stopTarget = member },
+                            onRemove: { removeTarget = member }
+                        )
                         TrustRowDivider()
                     }
 
@@ -88,6 +94,28 @@ struct SharingView: View {
             }
             Button(TrustCopy.cancel, role: .cancel) { stopTarget = nil }
         }
+        .confirmationDialog(
+            pauseTarget.map { TrustCopy.pauseConfirm(name: $0.firstName) } ?? "",
+            isPresented: Binding(get: { pauseTarget != nil }, set: { if !$0 { pauseTarget = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(TrustCopy.pause, role: .destructive) {
+                if let target = pauseTarget { model.pauseSharing(personID: target.id) }
+                pauseTarget = nil
+            }
+            Button(TrustCopy.cancel, role: .cancel) { pauseTarget = nil }
+        }
+        .confirmationDialog(
+            removeTarget.map { TrustCopy.removeConfirm(name: $0.firstName) } ?? "",
+            isPresented: Binding(get: { removeTarget != nil }, set: { if !$0 { removeTarget = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(TrustCopy.remove, role: .destructive) {
+                if let target = removeTarget { model.removePerson(personID: target.id) }
+                removeTarget = nil
+            }
+            Button(TrustCopy.cancel, role: .cancel) { removeTarget = nil }
+        }
     }
 
     private func seed(_ member: TrustedPerson) -> Int {
@@ -95,11 +123,13 @@ struct SharingView: View {
     }
 }
 
-/// `.outbound-row` — person, current state, mode control, description + Stop.
+/// `.outbound-row` — person, current state, mode control, description + Pause / Stop / Remove.
 struct OutboundRow: View {
     let member: TrustedPerson
     var seed: Int = 0
+    let onPause: () -> Void
     let onStop: () -> Void
+    let onRemove: () -> Void
     @EnvironmentObject private var model: AppModel
     @Environment(\.trustPalette) private var palette
 
@@ -111,7 +141,7 @@ struct OutboundRow: View {
 
     private var selection: Mode? {
         switch presentation {
-        case .off: return nil
+        case .off, .pause: return nil
         case .untilTheyLook: return .until
         case .always: return .always
         case .timed: return .timed
@@ -177,6 +207,20 @@ struct OutboundRow: View {
                     .foregroundStyle(Color(hex: 0x7F8375))
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 6)
+                if case .pause = presentation {
+                    Button(TrustCopy.resume) {
+                        model.setResting(.untilTheyLook, for: member.id)
+                    }
+                    .font(TrustTheme.ui(12, weight: .semibold))
+                    .foregroundStyle(palette.ink)
+                    .frame(minHeight: 32)
+                } else if !presentation.isNotSharing {
+                    Button(TrustCopy.pause, action: onPause)
+                        .font(TrustTheme.ui(12, weight: .semibold))
+                        .foregroundStyle(Color(hex: 0x7A7468))
+                        .frame(minHeight: 32)
+                        .accessibilityLabel("\(TrustCopy.pause) · \(member.person.displayName)")
+                }
                 if !presentation.isOff {
                     Button(TrustCopy.stop, action: onStop)
                         .font(TrustTheme.ui(12, weight: .semibold))
@@ -185,6 +229,12 @@ struct OutboundRow: View {
                         .accessibilityLabel("\(TrustCopy.stop) · \(member.person.displayName)")
                 }
             }
+
+            Button(TrustCopy.remove, action: onRemove)
+                .font(TrustTheme.ui(12, weight: .medium))
+                .foregroundStyle(palette.muted)
+                .frame(minHeight: 32, alignment: .leading)
+                .accessibilityLabel("\(TrustCopy.remove) · \(member.person.displayName)")
         }
         .padding(.vertical, 16)
     }
@@ -192,6 +242,7 @@ struct OutboundRow: View {
     private var stateLabel: String {
         switch presentation {
         case .off: return TrustCopy.notSharing
+        case .pause: return TrustCopy.paused
         case .untilTheyLook: return TrustCopy.rowSealedUntilLook
         case .always, .timed: return TrustCopy.rowLocationAvailable
         }
@@ -200,6 +251,7 @@ struct OutboundRow: View {
     private var description: String {
         switch presentation {
         case .off: return TrustCopy.descOff
+        case .pause: return TrustCopy.descPause
         case .untilTheyLook: return TrustCopy.descUntil
         case .always: return TrustCopy.descAlways
         case .timed(let ends, _): return TrustCopy.descTimed(until: ends.formatted(date: .omitted, time: .shortened))

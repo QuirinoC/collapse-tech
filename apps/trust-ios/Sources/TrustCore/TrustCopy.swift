@@ -80,6 +80,20 @@ public enum TrustCopy {
     public static var handleReserved: String { value("handle_reserved", defaultValue: "Reserved") }
     public static var handleInvalid: String { value("handle_invalid", defaultValue: "That handle isn’t valid.") }
     public static var enterHandle: String { value("enter_handle", defaultValue: "Enter a handle to continue.") }
+    public static var yourPhone: String { value("your_phone", defaultValue: "Your phone") }
+    public static var phoneIntro: String {
+        value("phone_intro", defaultValue: "A code is texted to this number.")
+    }
+    public static var phoneNumber: String { value("phone_number", defaultValue: "Phone number") }
+    public static var phoneConsent: String {
+        value(
+            "phone_consent",
+            defaultValue: "Text me a Trust verification code. Up to 8 texts a day. Message and data rates may apply. Reply HELP for help or STOP to opt out."
+        )
+    }
+    public static var sendCode: String { value("send_code", defaultValue: "Send code") }
+    public static var verificationCode: String { value("verification_code", defaultValue: "Code") }
+    public static var verifyCode: String { value("verify_code", defaultValue: "Verify") }
 
     // MARK: Modes & presence (shared vocabulary)
 
@@ -88,6 +102,10 @@ public enum TrustCopy {
     public static var untilTheyLook: String { value("until_they_look", defaultValue: "Until they look") }
     public static var always: String { value("always", defaultValue: "Always") }
     public static var forAWhile: String { value("for_a_while", defaultValue: "For a while") }
+    public static var pause: String { value("pause", defaultValue: "Pause") }
+    public static var paused: String { value("paused", defaultValue: "Paused") }
+    public static var resume: String { value("resume", defaultValue: "Resume") }
+    public static var remove: String { value("remove", defaultValue: "Remove") }
     public static var sealed: String { value("sealed", defaultValue: "Sealed") }
     public static var available: String { value("available", defaultValue: "Available") }
     public static var presenceHome: String { value("presence_home", defaultValue: "Home") }
@@ -174,6 +192,16 @@ public enum TrustCopy {
     public static var stripLive: String {
         value("strip_live", defaultValue: "Location is available while their share is on. Every view is logged.")
     }
+    public static var stripTrail: String {
+        value("strip_trail", defaultValue: "Open Look trail from retained points. Not a driving log.")
+    }
+    public static func seeTrail(hours: Int) -> String {
+        if hours >= 24 {
+            let days = hours / 24
+            return format("see_trail_days", defaultValue: "See last %d days", days)
+        }
+        return format("see_trail_hours", defaultValue: "See last %d hours", hours)
+    }
     public static var circleMap: String { value("circle_map", defaultValue: "Circle map") }
     public static func snapshotAt(_ time: String) -> String { format("snapshot_at", defaultValue: "Snapshot · %@", time) }
     public static func updatedAt(_ time: String) -> String { format("updated_at", defaultValue: "Updated %@", time) }
@@ -241,6 +269,9 @@ public enum TrustCopy {
     public static var rowSealedUntilLook: String { value("row_sealed_until_look", defaultValue: "Sealed until Look") }
     public static var rowLocationAvailable: String { value("row_location_available", defaultValue: "Location available") }
     public static var descOff: String { value("desc_off", defaultValue: "Not sharing. They can’t Look at you.") }
+    public static var descPause: String {
+        value("desc_pause", defaultValue: "Paused — temporarily not sharing. They stay in your list.")
+    }
     public static var descUntil: String { value("desc_until", defaultValue: "Sealed until they Look. You’re notified.") }
     public static var descAlways: String {
         value("desc_always", defaultValue: "Location available to them. Every view is logged.")
@@ -253,8 +284,20 @@ public enum TrustCopy {
     public static var modeKey: String {
         value(
             "mode_key",
-            defaultValue: "Until they look — sealed; one Look, you’re notified.\nAlways — location available until you stop; every view logged.\nFor a while — available on a timer, then seals.\nNothing is invisible."
+            defaultValue: "Until they look — sealed; one Look, you’re notified.\nAlways — location available until you stop; every view logged.\nFor a while — available on a timer, then seals.\nPause — temporarily not sharing; they stay in your list.\nStop — off. Remove drops the pair."
         )
+    }
+    public static func pauseConfirm(name: String) -> String {
+        format("pause_confirm", defaultValue: "Pause sharing with %@? They stay in your list.", name)
+    }
+    public static func removeConfirm(name: String) -> String {
+        format("remove_confirm", defaultValue: "Remove %@ from Trust? You both lose this pair.", name)
+    }
+    public static func sharingPaused(name: String) -> String {
+        format("sharing_paused", defaultValue: "Paused with %@. Not sharing for now.", name)
+    }
+    public static func personRemoved(name: String) -> String {
+        format("person_removed", defaultValue: "%@ removed from Trust.", name)
     }
     public static var howLong: String { value("how_long", defaultValue: "How long") }
     public static func forAWhileWith(name: String) -> String {
@@ -370,6 +413,33 @@ public enum TrustCopy {
     public static var presenceNote: String {
         value("presence_note", defaultValue: "Home / Away / Hidden — separate from whether location is sealed or available.")
     }
+    public static var homePlace: String { value("home_place", defaultValue: "Home place") }
+    public static var homePlaceNote: String {
+        value(
+            "home_place_note",
+            defaultValue: "Set from where you are now. Coordinates stay on this phone. With Always location, Trust marks Home or Away for your circle."
+        )
+    }
+    public static var setHomeHere: String { value("set_home_here", defaultValue: "Use current location as Home") }
+    public static var clearHome: String { value("clear_home", defaultValue: "Clear Home") }
+    public static var homeSetToast: String {
+        value("home_set_toast", defaultValue: "Home set on this phone. Presence can follow the boundary.")
+    }
+    public static var homeClearedToast: String {
+        value("home_cleared_toast", defaultValue: "Home cleared. Presence stays manual.")
+    }
+    public static var homeNeedsLocation: String {
+        value("home_needs_location", defaultValue: "Allow location, then set Home from where you are.")
+    }
+    public static var homeNeedsAlways: String {
+        value("home_needs_always", defaultValue: "Allow Always location so Home and Away update when Trust is closed.")
+    }
+    public static var homeIsSetLabel: String {
+        value("home_is_set_label", defaultValue: "Home is set on this phone.")
+    }
+    public static var homeNotSetLabel: String {
+        value("home_not_set_label", defaultValue: "No Home place yet.")
+    }
     public static var presenceHomeCopy: String {
         value("presence_home_copy", defaultValue: "Your circle can see Home or Away — never coordinates.")
     }
@@ -451,7 +521,7 @@ public enum TrustCopy {
     // MARK: View log (D3)
 
     public static var viewLogIntro: String {
-        value("view_log_intro", defaultValue: "Both directions. Looks at you, and your Looks and views.")
+        value("view_log_intro", defaultValue: "Both directions. Looks, views, and removals — not a GPS trail.")
     }
     public static func viewLogRetention(freeDays: Int) -> String {
         format("view_log_retention", defaultValue: "Free keeps %d days. Plus keeps a year and can export.", freeDays)
@@ -466,8 +536,15 @@ public enum TrustCopy {
     public static func logTheyLooked(name: String) -> String { format("log_they_looked", defaultValue: "%@ looked at you.", name) }
     public static func logYouViewed(name: String) -> String { format("log_you_viewed", defaultValue: "You viewed %@.", name) }
     public static func logTheyViewed(name: String) -> String { format("log_they_viewed", defaultValue: "%@ viewed you.", name) }
+    public static func logYouRemoved(name: String) -> String {
+        format("log_you_removed", defaultValue: "You removed %@.", name)
+    }
+    public static func logTheyRemoved(name: String) -> String {
+        format("log_they_removed", defaultValue: "%@ removed you.", name)
+    }
     public static var kindLook: String { value("kind_look", defaultValue: "Look · notified") }
     public static var kindView: String { value("kind_view", defaultValue: "view logged") }
+    public static var kindRemoved: String { value("kind_removed", defaultValue: "removed") }
     public static func lookLogExportRow(timestamp: String, line: String, kind: String) -> String {
         "\(timestamp)\t\(line)\t\(kind)"
     }
@@ -645,6 +722,24 @@ public enum TrustCopy {
             return value("api_reserved_handle", defaultValue: "That handle is reserved.")
         case "handle_in_use":
             return value("api_handle_in_use", defaultValue: "That handle is taken.")
+        case "invalid_phone":
+            return value("api_invalid_phone", defaultValue: "Enter a valid phone number, including country code.")
+        case "phone_in_use":
+            return value("api_phone_in_use", defaultValue: "That phone is already on another Trust account.")
+        case "otp_cooldown":
+            return value("api_otp_cooldown", defaultValue: "Wait a moment before requesting another code.")
+        case "otp_daily_limit":
+            return value("api_otp_daily_limit", defaultValue: "Too many codes today. Try again tomorrow.")
+        case "otp_expired":
+            return value("api_otp_expired", defaultValue: "That code expired. Request a new one.")
+        case "otp_invalid":
+            return value("api_otp_invalid", defaultValue: "That code does not match.")
+        case "otp_exhausted":
+            return value("api_otp_exhausted", defaultValue: "Too many attempts. Request a new code.")
+        case "otp_send_failed":
+            return value("api_otp_send_failed", defaultValue: "The code could not be sent. Try again.")
+        case "otp_not_configured":
+            return value("api_otp_not_configured", defaultValue: "Phone verification is not available right now.")
         case "invalid_name":
             return value("api_invalid_name", defaultValue: "Enter a display name of at least two characters.")
         case "invalid_state":

@@ -25,6 +25,9 @@ struct YouView: View {
                     presenceSection
                         .padding(.bottom, 26)
 
+                    homePlaceSection
+                        .padding(.bottom, 26)
+
                     plusCard
                         .padding(.bottom, 26)
 
@@ -83,6 +86,7 @@ struct YouView: View {
         }
         .task {
             guard !model.isDemoMode else { return }
+            model.syncHomeMonitoring()
             if let signed = await model.store.refreshEntitlement() {
                 await model.syncCircleEntitlement(signedTransactionInfo: signed)
             }
@@ -160,6 +164,37 @@ struct YouView: View {
         case .away: return TrustCopy.presenceAwayCopy
         case .hidden: return TrustCopy.presenceHiddenCopy
         case .unknown: return TrustCopy.presenceUnknownCopy
+        }
+    }
+
+    // MARK: Home place (on-device coords; server gets presence only)
+
+    private var homePlaceSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            TrustSectionHeading(TrustCopy.homePlace)
+            Text(TrustCopy.homePlaceNote)
+                .trustFont(12)
+                .foregroundStyle(palette.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(model.location.homeIsSet ? TrustCopy.homeIsSetLabel : TrustCopy.homeNotSetLabel)
+                .trustFont(13, weight: .semibold)
+                .foregroundStyle(palette.ink)
+            if model.location.homeIsSet, !model.location.hasAlways {
+                Text(TrustCopy.homeNeedsAlways)
+                    .trustFont(12)
+                    .foregroundStyle(palette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(TrustCopy.allowAlways) { model.requestAlwaysLocation() }
+                    .buttonStyle(TrustOutlineButtonStyle(compact: true))
+            }
+            HStack(spacing: 12) {
+                Button(TrustCopy.setHomeHere) { model.setHomeFromCurrentLocation() }
+                    .buttonStyle(TrustOutlineButtonStyle(compact: true))
+                if model.location.homeIsSet {
+                    Button(TrustCopy.clearHome) { model.clearHomePlace() }
+                        .buttonStyle(TrustTextButtonStyle(color: Color(hex: 0x9C5C51)))
+                }
+            }
         }
     }
 
@@ -372,13 +407,21 @@ struct ViewLogRow: View {
             Text(event.logLine(youID: youID))
                 .font(TrustTheme.ui(14))
                 .foregroundStyle(palette.ink)
-            Text("\(event.at.formatted(date: .abbreviated, time: .shortened)) · \(event.kind == .view ? TrustCopy.kindView : TrustCopy.kindLook)")
+            Text("\(event.at.formatted(date: .abbreviated, time: .shortened)) · \(kindLabel)")
                 .font(TrustTheme.ui(12))
                 .foregroundStyle(palette.muted)
         }
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
+    }
+
+    private var kindLabel: String {
+        switch event.kind {
+        case .view: return TrustCopy.kindView
+        case .removed: return TrustCopy.kindRemoved
+        case .look: return TrustCopy.kindLook
+        }
     }
 }
 

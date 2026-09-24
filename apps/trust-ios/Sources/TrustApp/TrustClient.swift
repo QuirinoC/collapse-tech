@@ -779,7 +779,7 @@ extension PersonDTO {
             id: id,
             displayName: displayName,
             hasPro: hasCircle,
-            onboardingComplete: onboardingComplete ?? (handle != nil),
+            onboardingComplete: onboardingComplete ?? ((handle?.isEmpty == false) && (phoneVerified ?? false)),
             phoneVerified: phoneVerified ?? false,
             handle: handle
         )
@@ -810,6 +810,7 @@ extension ShareDTO {
         switch resting.lowercased() {
         case "always": mode = .always
         case "off": mode = .off
+        case "pause", "paused": mode = .pause
         default: mode = .untilTheyLook
         }
         // `presentation == "timed"` carries `timedEnds` + `revertsTo`; resting is already the revert.
@@ -820,6 +821,8 @@ extension ShareDTO {
         switch presentation.lowercased() {
         case "off":
             return .off
+        case "pause", "paused":
+            return .pause
         case "always":
             return .always
         case "timed":
@@ -827,12 +830,18 @@ extension ShareDTO {
             switch (revertsTo ?? resting).lowercased() {
             case "always": revert = .always
             case "off": revert = .off
+            case "pause", "paused": revert = .pause
             default: revert = .untilTheyLook
             }
             if let ends = timedEnds ?? timedUntil {
                 return .timed(ends: ends, revertsTo: revert)
             }
-            return revert == .always ? .always : (revert == .off ? .off : .untilTheyLook)
+            switch revert {
+            case .always: return .always
+            case .off: return .off
+            case .pause: return .pause
+            case .untilTheyLook: return .untilTheyLook
+            }
         default:
             return .untilTheyLook
         }

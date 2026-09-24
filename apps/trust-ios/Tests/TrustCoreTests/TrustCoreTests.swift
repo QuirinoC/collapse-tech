@@ -118,7 +118,8 @@ final class LookServiceTests: XCTestCase {
 
         service.revoke(personID: jordan)
         XCTAssertTrue(service.members.isEmpty)
-        XCTAssertEqual(service.lookLog.count, 2)
+        XCTAssertEqual(service.lookLog.count, 3)
+        XCTAssertEqual(service.lookLog.filter { $0.kind == .removed }.count, 1)
         XCTAssertThrowsError(try service.look(confirmed: true, subjectID: jordan)) { error in
             XCTAssertEqual(error as? LookError, .pairInactive)
         }
@@ -236,6 +237,16 @@ final class LookServiceTests: XCTestCase {
         XCTAssertEqual(coverage.trustedPeopleLimit, 7)
         XCTAssertEqual(coverage.lookLogRetentionDays, 14)
         XCTAssertEqual(TrustCopy.bannerSponsorCovers(name: "Sam"), "Sam’s Plus covers you")
+        XCTAssertEqual(CircleCoverage.freeHistoryHours, 24)
+        XCTAssertEqual(CircleCoverage.proHistoryHours, 30 * 24)
+        XCTAssertEqual(TrustCopy.yourPhone, "Your phone")
+        XCTAssertEqual(TrustCopy.phoneIntro, "A code is texted to this number.")
+        XCTAssertEqual(
+            TrustCopy.phoneConsent,
+            "Text me a Trust verification code. Up to 8 texts a day. Message and data rates may apply. Reply HELP for help or STOP to opt out."
+        )
+        XCTAssertFalse(TrustCopy.phoneConsent.localizedCaseInsensitiveContains("optional"))
+        XCTAssertFalse(TrustCopy.phoneIntro.localizedCaseInsensitiveContains("without a phone"))
     }
 
     @MainActor

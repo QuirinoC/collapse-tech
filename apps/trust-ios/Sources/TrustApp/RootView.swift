@@ -16,6 +16,8 @@ struct RootView: View {
                 LoginView()
             case .handle:
                 HandleView()
+            case .phone:
+                PhoneView()
             case .home:
                 MainShellView()
             }

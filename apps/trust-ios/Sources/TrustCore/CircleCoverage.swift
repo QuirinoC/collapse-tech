@@ -5,10 +5,10 @@ public enum CircleError: Error, Equatable {
     case seatLimitReached
 }
 
-/// Plus coverage. You are covered when you pay, or when a paying member covers you on
-/// your shared edge. Coverage unlocks capacity and convenience (seats, Always / For a while,
-/// full view log) — never receipts, the seal default, Stop, Hidden, presence, Look, Invite,
-/// or Delete. Server values win when present; the constants are the 1.0 defaults.
+/// Plus is this account only. A friend's Plus does not add seats, Always, history, or log.
+/// Coverage unlocks capacity and convenience (seats, Always / For a while, full view log) —
+/// never receipts, the seal default, Stop, Hidden, presence, Look, Invite, or Delete.
+/// Server values win when present; the constants are the 1.0 defaults.
 public struct CircleCoverage: Equatable, Sendable {
     public var isCovered: Bool
     public var sponsorName: String?
@@ -17,8 +17,8 @@ public struct CircleCoverage: Equatable, Sendable {
     public var serverSeatLimit: Int?
     public var serverLookLogDays: Int?
 
-    public static let freeHistoryHours = 2
-    public static let proHistoryHours = 24
+    public static let freeHistoryHours = 24
+    public static let proHistoryHours = 30 * 24
     public static let freeTrustedPeople = 5
     public static let proTrustedPeople = 20
     public static let freeLookLogDays = 30
@@ -51,7 +51,12 @@ public struct CircleCoverage: Equatable, Sendable {
 
     public var hasPlacePings: Bool { isCovered }
 
-    public var canExtendHistory: Bool { isCovered }
+    /// Free can open a 24h Look trail; Plus opens 30 days. Look itself stays one snapshot.
+    public var canExtendHistory: Bool { true }
+
+    public var historyHours: Int {
+        isCovered ? Self.proHistoryHours : Self.freeHistoryHours
+    }
 
     public var canExportLookLog: Bool { isCovered }
 

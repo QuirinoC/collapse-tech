@@ -1,14 +1,17 @@
 using TrustApi.Application;
 using TrustApi.Domain;
+using TrustApi.Infrastructure.StoreKit;
 
 namespace TrustApi.Infrastructure;
 
 /// <summary>
-/// Closes Look sessions past ActiveLookTtl, prunes GPS past retention, and marks due promises.
+/// Closes Look sessions past ActiveLookTtl, prunes GPS past retention, marks due promises,
+/// and recomputes StoreKit Plus from transaction expiry so sticky has_circle cannot linger.
 /// </summary>
 public sealed class TrustSweepService(
     ITrustStore store,
     TrustEngine engine,
+    IStoreKitEntitlementStore storeKit,
     TimeProvider time,
     ILogger<TrustSweepService> logger) : BackgroundService
 {
@@ -57,7 +60,11 @@ public sealed class TrustSweepService(
                 look.SubjectId);
         }
 
-        await store.PruneAllLocationsAsync(now - TrustRules.LocationRetention, cancellationToken);
+        await store.PruneLocationsByPlanAsync(
+            now - TrustRules.LocationRetention(false),
+            now - TrustRules.LocationRetention(true),
+            cancellationToken);
         await engine.EvaluateDuePromisesAsync(cancellationToken);
+        await storeKit.RefreshExpiredCoveragesAsync(cancellationToken);
     }
 }

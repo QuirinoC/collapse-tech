@@ -26,6 +26,8 @@ public sealed class PhoneVerificationService(
     public const int ResendCooldownSeconds = 45;
     public const int MaxAttempts = 5;
     public const int MaxSendsPerHour = 8;
+    public const int MaxSendsPerDay = 8;
+    public const int MaxGlobalSendsPerDay = 40;
 
     public async Task<PhoneCodeSendResult> SendAsync(
         Guid accountId,
@@ -70,6 +72,19 @@ public sealed class PhoneVerificationService(
         if (!sms.IsConfigured && !allowBypass)
         {
             throw TrustException.OtpNotConfigured();
+        }
+
+        var dayStart = new DateTimeOffset(now.UtcDateTime.Date, TimeSpan.Zero);
+        var reserved = await store.TryConsumePhoneSendAsync(
+            accountId,
+            now,
+            dayStart,
+            MaxSendsPerDay,
+            MaxGlobalSendsPerDay,
+            cancellationToken);
+        if (!reserved)
+        {
+            throw TrustException.OtpDailyLimit();
         }
 
         var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");

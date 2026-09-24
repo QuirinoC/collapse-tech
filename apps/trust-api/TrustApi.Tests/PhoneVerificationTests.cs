@@ -44,7 +44,7 @@ public sealed class PhoneVerificationTests
     }
 
     [Fact]
-    public void HandleCompletesOnboarding()
+    public void HandleWithoutVerifiedPhoneIsNotOnboardingComplete()
     {
         var account = new Account(
             Guid.NewGuid(),
@@ -56,8 +56,28 @@ public sealed class PhoneVerificationTests
             DateTimeOffset.UtcNow,
             Handle: "jordan");
         Assert.True(account.HasHandle);
-        Assert.True(account.OnboardingComplete);
+        Assert.False(account.HasVerifiedPhone);
+        Assert.False(account.OnboardingComplete);
         Assert.Equal("@jordan", account.PublicName);
+    }
+
+    [Fact]
+    public void HandleAndVerifiedPhoneCompletesOnboarding()
+    {
+        var account = new Account(
+            Guid.NewGuid(),
+            "apple",
+            "sub",
+            "You",
+            false,
+            null,
+            DateTimeOffset.UtcNow,
+            "+15555550100",
+            DateTimeOffset.UtcNow,
+            "jordan");
+        Assert.True(account.HasHandle);
+        Assert.True(account.HasVerifiedPhone);
+        Assert.True(account.OnboardingComplete);
     }
 
     [Fact]
@@ -154,17 +174,89 @@ public sealed class PhoneVerificationTests
         Assert.Equal("phone_in_use", exception.Code);
     }
 
+    [Fact]
+    public void SmsBodyIsTheExactTrustCode()
+    {
+        Assert.Equal(
+            "Trust code: 123456. Expires in 10 minutes. Reply STOP to opt out.",
+            TwilioSmsSender.MessageBody("123456"));
+    }
+
+    [Fact]
+    public async Task ResendCooldownStillBlocksASecondSend()
+    {
+        var time = new MutableTimeProvider { UtcNow = new DateTimeOffset(2026, 9, 23, 12, 0, 0, TimeSpan.Zero) };
+        var store = new MemoryTrustStore();
+        var engine = new TrustEngine(store, time);
+        var account = await engine.SignInAsync("development", "otp-cool", "Sam", CancellationToken.None);
+        var phones = NewPhones(store, new UnconfiguredSms(), NullLogger<PhoneVerificationService>.Instance, Environments.Development, time);
+
+        await phones.SendAsync(account.Id, "+15555550140", CancellationToken.None);
+        time.UtcNow = time.UtcNow.AddSeconds(10);
+        var tooSoon = await Assert.ThrowsAsync<TrustException>(() =>
+            phones.SendAsync(account.Id, "+15555550140", CancellationToken.None));
+        Assert.Equal("otp_cooldown", tooSoon.Code);
+
+        time.UtcNow = time.UtcNow.AddSeconds(PhoneVerificationService.ResendCooldownSeconds);
+        var sent = await phones.SendAsync(account.Id, "+15555550140", CancellationToken.None);
+        Assert.False(string.IsNullOrWhiteSpace(sent.DevelopmentCode));
+    }
+
+    [Fact]
+    public async Task AccountDailyCapIsEightEvenAfterTheHourlyWindowResets()
+    {
+        var start = new DateTimeOffset(2026, 9, 23, 12, 0, 0, TimeSpan.Zero);
+        var time = new MutableTimeProvider { UtcNow = start };
+        var store = new MemoryTrustStore();
+        var engine = new TrustEngine(store, time);
+        var account = await engine.SignInAsync("development", "otp-day", "Sam", CancellationToken.None);
+        var phones = NewPhones(store, new UnconfiguredSms(), NullLogger<PhoneVerificationService>.Instance, Environments.Development, time);
+
+        for (var i = 0; i < PhoneVerificationService.MaxSendsPerDay; i++)
+        {
+            await phones.SendAsync(account.Id, "+15555550141", CancellationToken.None);
+            time.UtcNow = time.UtcNow.AddSeconds(PhoneVerificationService.ResendCooldownSeconds + 1);
+        }
+
+        time.UtcNow = start.AddHours(2);
+        var blocked = await Assert.ThrowsAsync<TrustException>(() =>
+            phones.SendAsync(account.Id, "+15555550141", CancellationToken.None));
+        Assert.Equal("otp_daily_limit", blocked.Code);
+    }
+
+    [Fact]
+    public async Task GlobalDailyCapIsFortyAcrossAccounts()
+    {
+        var time = new MutableTimeProvider { UtcNow = new DateTimeOffset(2026, 9, 23, 15, 0, 0, TimeSpan.Zero) };
+        var store = new MemoryTrustStore();
+        var engine = new TrustEngine(store, time);
+        var phones = NewPhones(store, new UnconfiguredSms(), NullLogger<PhoneVerificationService>.Instance, Environments.Development, time);
+
+        for (var i = 0; i < PhoneVerificationService.MaxGlobalSendsPerDay; i++)
+        {
+            var account = await engine.SignInAsync("development", $"otp-global-{i}", "Sam", CancellationToken.None);
+            await phones.SendAsync(account.Id, $"+1555556{i:0000}", CancellationToken.None);
+        }
+
+        var extra = await engine.SignInAsync("development", "otp-global-extra", "Sam", CancellationToken.None);
+        var blocked = await Assert.ThrowsAsync<TrustException>(() =>
+            phones.SendAsync(extra.Id, "+15555569999", CancellationToken.None));
+        Assert.Equal("otp_daily_limit", blocked.Code);
+        Assert.Null(await store.GetPhoneChallengeAsync(extra.Id, CancellationToken.None));
+    }
+
     private static PhoneVerificationService NewPhones(
         ITrustStore store,
         ISmsOtpSender sms,
         ILogger<PhoneVerificationService> logger,
-        string environment)
+        string environment,
+        TimeProvider? time = null)
     {
         return new PhoneVerificationService(
             store,
             sms,
             new AuthOptions { SigningKey = "development-signing-key-32bytes-min!!" },
-            TimeProvider.System,
+            time ?? TimeProvider.System,
             new TestHostEnvironment { EnvironmentName = environment },
             logger);
     }

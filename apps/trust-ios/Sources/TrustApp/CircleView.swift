@@ -75,7 +75,7 @@ struct CircleView: View {
 
     /// Prefer the inbound share when the payload has it; otherwise the Look-probe set.
     private func isNotSharing(_ member: TrustedPerson) -> Bool {
-        if let inbound = member.inboundPresentation { return inbound.isOff }
+        if let inbound = member.inboundPresentation { return inbound.isNotSharing }
         return model.notSharingWithYou.contains(member.id)
     }
 
@@ -94,7 +94,7 @@ struct CirclePersonRow: View {
     private enum Action { case look, view, none }
 
     private var isNotSharing: Bool {
-        if let inbound = member.inboundPresentation { return inbound.isOff }
+        if let inbound = member.inboundPresentation { return inbound.isNotSharing }
         return model.notSharingWithYou.contains(member.id)
     }
     private var opened: Bool { model.isOpened(member) }

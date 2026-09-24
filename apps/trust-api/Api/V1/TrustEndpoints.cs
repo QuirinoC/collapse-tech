@@ -173,6 +173,7 @@ public static class TrustEndpoints
     public static async Task<IResult> GetCircleAsync(
         ClaimsPrincipal principal,
         TrustEngine engine,
+        IStoreKitEntitlementStore entitlements,
         IOptions<AuthOptions> auth,
         IOptions<StoreKitOptions> storeKit,
         CancellationToken cancellationToken)
@@ -185,6 +186,8 @@ public static class TrustEndpoints
 
         try
         {
+            // Plus from transaction expires_at at read time — not only when Apple sends EXPIRED.
+            await entitlements.RefreshAccountCoverageAsync(accountId.Value, cancellationToken);
             var snapshot = await engine.GetCircleAsync(accountId.Value, cancellationToken);
             return Results.Ok(ContractMap.Circle(
                 snapshot,
@@ -331,18 +334,30 @@ public static class TrustEndpoints
         ShareRequest request,
         ClaimsPrincipal principal,
         TrustEngine engine,
+        IStoreKitEntitlementStore entitlements,
         CancellationToken cancellationToken)
     {
-        return await RunAsync(
-            principal,
-            engine,
-            (id, ct) => engine.SetShareAsync(
-                id,
+        var accountId = AccountClaims.AccountId(principal);
+        if (accountId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        try
+        {
+            await entitlements.RefreshAccountCoverageAsync(accountId.Value, cancellationToken);
+            await engine.SetShareAsync(
+                accountId.Value,
                 personId,
                 ContractMap.ParseResting(request.Resting),
                 ContractMap.ParseTimed(request.Timed),
-                ct),
-            cancellationToken);
+                cancellationToken);
+            return Results.NoContent();
+        }
+        catch (TrustException exception)
+        {
+            return Map(exception);
+        }
     }
 
     public static async Task<IResult> RevokeAsync(

@@ -15,6 +15,7 @@ public sealed class MemoryTrustStore : ITrustStore
     private readonly ConcurrentDictionary<(Guid Viewer, Guid Subject), ActiveLook> _active = new();
     private readonly ConcurrentDictionary<string, Invite> _invites = new();
     private readonly ConcurrentDictionary<Guid, PhoneChallenge> _phoneChallenges = new();
+    private readonly List<(Guid AccountId, DateTimeOffset SentAt)> _phoneSends = [];
     private readonly ConcurrentDictionary<(Guid Subject, Guid Trustee), PresenceGrant> _presenceGrants = new();
     private readonly ConcurrentDictionary<Guid, HomePlace> _homePlaces = new();
     private readonly ConcurrentDictionary<Guid, CurrentHomePresence> _homePresence = new();
@@ -260,13 +261,18 @@ public sealed class MemoryTrustStore : ITrustStore
         return Task.FromResult<IReadOnlyList<ActiveLook>>(expired);
     }
 
-    public Task PruneAllLocationsAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
+    public Task PruneLocationsByPlanAsync(
+        DateTimeOffset freeOlderThan,
+        DateTimeOffset plusOlderThan,
+        CancellationToken cancellationToken)
     {
         lock (_gate)
         {
-            foreach (var list in _locations.Values)
+            foreach (var pair in _locations)
             {
-                list.RemoveAll(fix => fix.Timestamp < olderThan);
+                var plus = _accounts.TryGetValue(pair.Key, out var account) && account.HasCircle;
+                var cutoff = plus ? plusOlderThan : freeOlderThan;
+                pair.Value.RemoveAll(fix => fix.Timestamp < cutoff);
             }
         }
 
@@ -545,6 +551,30 @@ public sealed class MemoryTrustStore : ITrustStore
     {
         _phoneChallenges.TryRemove(accountId, out _);
         return Task.CompletedTask;
+    }
+
+    public Task<bool> TryConsumePhoneSendAsync(
+        Guid accountId,
+        DateTimeOffset sentAt,
+        DateTimeOffset dayStart,
+        int accountDailyCap,
+        int globalDailyCap,
+        CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            var keepFrom = dayStart.AddDays(-1);
+            _phoneSends.RemoveAll(send => send.SentAt < keepFrom);
+            var accountSends = _phoneSends.Count(send => send.AccountId == accountId && send.SentAt >= dayStart);
+            var globalSends = _phoneSends.Count(send => send.SentAt >= dayStart);
+            if (accountSends >= accountDailyCap || globalSends >= globalDailyCap)
+            {
+                return Task.FromResult(false);
+            }
+
+            _phoneSends.Add((accountId, sentAt));
+            return Task.FromResult(true);
+        }
     }
 
     private static (Guid A, Guid B) Order(Guid a, Guid b) =>

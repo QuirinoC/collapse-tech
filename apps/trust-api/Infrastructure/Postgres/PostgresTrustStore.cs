@@ -494,13 +494,26 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
         return looks;
     }
 
-    public async Task PruneAllLocationsAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
+    public async Task PruneLocationsByPlanAsync(
+        DateTimeOffset freeOlderThan,
+        DateTimeOffset plusOlderThan,
+        CancellationToken cancellationToken)
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
-            "DELETE FROM trust.location_points WHERE recorded_at < $1;",
+            """
+            DELETE FROM trust.location_points AS p
+            WHERE p.recorded_at < CASE
+                WHEN EXISTS (
+                    SELECT 1 FROM trust.accounts AS a
+                    WHERE a.account_id = p.account_id AND a.has_circle
+                ) THEN $1
+                ELSE $2
+            END;
+            """,
             connection);
-        command.Parameters.AddWithValue(olderThan);
+        command.Parameters.AddWithValue(plusOlderThan);
+        command.Parameters.AddWithValue(freeOlderThan);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -545,25 +558,25 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        await using (var command = new NpgsqlCommand(
-            """
-            DELETE FROM trust.active_looks WHERE viewer_id = $1 OR subject_id = $1;
-            DELETE FROM trust.look_events WHERE viewer_id = $1 OR subject_id = $1;
-            DELETE FROM trust.location_points WHERE account_id = $1;
-            DELETE FROM trust.presence WHERE account_id = $1;
-            DELETE FROM trust.shares WHERE grantor_id = $1 OR grantee_id = $1;
-            DELETE FROM trust.memberships WHERE person_a = $1 OR person_b = $1;
-            DELETE FROM trust.invites WHERE creator_id = $1;
-            DELETE FROM trust.phone_challenges WHERE account_id = $1;
-            DELETE FROM trust.storekit_transactions WHERE account_id = $1;
-            DELETE FROM trust.storekit_subscription_owners WHERE account_id = $1;
-            DELETE FROM trust.storekit_account_tokens WHERE account_id = $1;
-            DELETE FROM trust.push_devices WHERE account_id = $1;
-            DELETE FROM trust.accounts WHERE account_id = $1;
-            """,
-            connection,
-            transaction))
+        string[] statements =
+        [
+            "DELETE FROM trust.active_looks WHERE viewer_id = $1 OR subject_id = $1;",
+            "DELETE FROM trust.look_events WHERE viewer_id = $1 OR subject_id = $1;",
+            "DELETE FROM trust.location_points WHERE account_id = $1;",
+            "DELETE FROM trust.presence WHERE account_id = $1;",
+            "DELETE FROM trust.shares WHERE grantor_id = $1 OR grantee_id = $1;",
+            "DELETE FROM trust.memberships WHERE person_a = $1 OR person_b = $1;",
+            "DELETE FROM trust.invites WHERE creator_id = $1;",
+            "DELETE FROM trust.phone_challenges WHERE account_id = $1;",
+            "DELETE FROM trust.storekit_transactions WHERE account_id = $1;",
+            "DELETE FROM trust.storekit_subscription_owners WHERE account_id = $1;",
+            "DELETE FROM trust.storekit_account_tokens WHERE account_id = $1;",
+            "DELETE FROM trust.push_devices WHERE account_id = $1;",
+            "DELETE FROM trust.accounts WHERE account_id = $1;"
+        ];
+        foreach (var statement in statements)
         {
+            await using var command = new NpgsqlCommand(statement, connection, transaction);
             command.Parameters.AddWithValue(accountId);
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
@@ -694,6 +707,58 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
             connection);
         command.Parameters.AddWithValue(accountId);
         await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<bool> TryConsumePhoneSendAsync(
+        Guid accountId,
+        DateTimeOffset sentAt,
+        DateTimeOffset dayStart,
+        int accountDailyCap,
+        int globalDailyCap,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using (var lockCommand = new NpgsqlCommand(
+            "LOCK TABLE trust.phone_sends IN EXCLUSIVE MODE;",
+            connection,
+            transaction))
+        {
+            await lockCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using (var prune = new NpgsqlCommand(
+            "DELETE FROM trust.phone_sends WHERE sent_at < $1;",
+            connection,
+            transaction))
+        {
+            prune.Parameters.AddWithValue(dayStart.AddDays(-1));
+            await prune.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using var insert = new NpgsqlCommand(
+            """
+            INSERT INTO trust.phone_sends (account_id, sent_at)
+            SELECT $1, $2
+            WHERE (
+                SELECT COUNT(*) FROM trust.phone_sends
+                WHERE account_id = $1 AND sent_at >= $3
+            ) < $4
+            AND (
+                SELECT COUNT(*) FROM trust.phone_sends
+                WHERE sent_at >= $3
+            ) < $5;
+            """,
+            connection,
+            transaction);
+        insert.Parameters.AddWithValue(accountId);
+        insert.Parameters.AddWithValue(sentAt);
+        insert.Parameters.AddWithValue(dayStart);
+        insert.Parameters.AddWithValue(accountDailyCap);
+        insert.Parameters.AddWithValue(globalDailyCap);
+        var inserted = await insert.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return inserted == 1;
     }
 
     public async Task SetPresenceGrantAsync(
@@ -1008,10 +1073,19 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
     };
 
     private static LookKind ParseLookKind(string value) =>
-        string.Equals(value, "view", StringComparison.OrdinalIgnoreCase) ? LookKind.View : LookKind.Look;
+        value.ToLowerInvariant() switch
+        {
+            "view" => LookKind.View,
+            "removed" => LookKind.Removed,
+            _ => LookKind.Look
+        };
 
-    private static string FormatLookKind(LookKind kind) =>
-        kind == LookKind.View ? "view" : "look";
+    private static string FormatLookKind(LookKind kind) => kind switch
+    {
+        LookKind.View => "view",
+        LookKind.Removed => "removed",
+        _ => "look"
+    };
 
     private static PromiseStatus ParsePromiseStatus(string value) => value.ToLowerInvariant() switch
     {
@@ -1121,6 +1195,7 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
     {
         "always" => ShareResting.Always,
         "off" => ShareResting.Off,
+        "pause" => ShareResting.Pause,
         _ => ShareResting.UntilTheyLook
     };
 
@@ -1128,6 +1203,7 @@ public sealed class PostgresTrustStore(string connectionString) : ITrustStore
     {
         ShareResting.Always => "always",
         ShareResting.Off => "off",
+        ShareResting.Pause => "pause",
         _ => "until_they_look"
     };
 }

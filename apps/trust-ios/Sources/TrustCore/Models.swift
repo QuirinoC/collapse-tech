@@ -180,9 +180,11 @@ public struct LocationPoint: Equatable, Codable, Sendable {
 
 /// `look` — Sealed: notify-first confirm, one snapshot, receipt push.
 /// `view` — Available: no sheet, logged, no push.
+/// `removed` — pair dropped from the circle; Log only.
 public enum LookKind: String, Codable, Sendable, Equatable {
     case look
     case view
+    case removed
 }
 
 public struct LookEvent: Identifiable, Equatable, Codable, Sendable {
@@ -226,6 +228,8 @@ public struct LookEvent: Identifiable, Equatable, Codable, Sendable {
         case (.look, false): return TrustCopy.logTheyLooked(name: viewerName)
         case (.view, true): return TrustCopy.logYouViewed(name: subjectName)
         case (.view, false): return TrustCopy.logTheyViewed(name: viewerName)
+        case (.removed, true): return TrustCopy.logYouRemoved(name: subjectName)
+        case (.removed, false): return TrustCopy.logTheyRemoved(name: viewerName)
         }
     }
 }
@@ -260,6 +264,7 @@ public struct LookReceipt: Equatable, Sendable {
 /// an invite is not a permission.
 public enum ShareRestingMode: String, Codable, Sendable, Equatable {
     case off
+    case pause
     case untilTheyLook
     case always
 
@@ -269,15 +274,16 @@ public enum ShareRestingMode: String, Codable, Sendable, Equatable {
 
 public enum SharePresentation: Equatable, Sendable {
     case off
+    case pause
     case untilTheyLook
     case always
     case timed(ends: Date, revertsTo: ShareRestingMode)
 
-    /// Available = Always or For a while. Sealed = Until they look. Off = nothing.
+    /// Available = Always or For a while. Sealed = Until they look. Off/Pause = nothing.
     public var isAvailable: Bool {
         switch self {
         case .always, .timed: return true
-        case .off, .untilTheyLook: return false
+        case .off, .pause, .untilTheyLook: return false
         }
     }
 
@@ -289,6 +295,14 @@ public enum SharePresentation: Equatable, Sendable {
     public var isOff: Bool {
         if case .off = self { return true }
         return false
+    }
+
+    /// Off or Pause — not sharing; membership stays.
+    public var isNotSharing: Bool {
+        switch self {
+        case .off, .pause: return true
+        default: return false
+        }
     }
 }
 
@@ -308,6 +322,7 @@ public struct PersonShareState: Equatable, Codable, Sendable {
         switch resting {
         case .always: return .always
         case .untilTheyLook: return .untilTheyLook
+        case .pause: return .pause
         case .off: return .off
         }
     }
@@ -316,6 +331,8 @@ public struct PersonShareState: Equatable, Codable, Sendable {
         switch presentation(at: now) {
         case .off:
             return TrustCopy.notSharing
+        case .pause:
+            return TrustCopy.paused
         case .untilTheyLook:
             return TrustCopy.untilTheyLook
         case .always:
@@ -342,19 +359,19 @@ public enum LocationSharingTier: Equatable, Sendable {
     case available
 }
 
-/// Your location is in the product only while at least one outbound share is not Off.
+/// Your location is in the product only while at least one outbound share is actually sharing.
 /// Until they look (escrow), Always, and For a while all require Always so Look
-/// still works when Trust is not open. An all-Off circle is not sharing.
+/// still works when Trust is not open. An all-Off / all-Pause circle is not sharing.
 public enum OutboundLocationSharing: Sendable {
     public static func isActive(shares: [PersonShareState], at now: Date = Date()) -> Bool {
-        shares.contains { !$0.presentation(at: now).isOff }
+        shares.contains { !$0.presentation(at: now).isNotSharing }
     }
 
     /// Tier for the location coordinator. `beingWatched` is a live Look at you — a snapshot
     /// was just taken, so keep the next fix honest for a short while.
     public static func tier(shares: [PersonShareState], beingWatched: Bool = false, at now: Date = Date()) -> LocationSharingTier {
         let presentations = shares.map { $0.presentation(at: now) }
-        guard presentations.contains(where: { !$0.isOff }) else { return .off }
+        guard presentations.contains(where: { !$0.isNotSharing }) else { return .off }
         if beingWatched || presentations.contains(where: \.isAvailable) { return .available }
         return .sealed
     }
