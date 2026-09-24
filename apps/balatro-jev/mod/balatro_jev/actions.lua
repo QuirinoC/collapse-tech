@@ -195,10 +195,11 @@ function M.apply(action)
   end
 
   if kind == "select_blind" then
-    local in_blind_ui = G and G.blind_select
-    local in_blind_state = G and G.STATES and G.STATE == G.STATES.BLIND_SELECT
-    if not (in_blind_ui or in_blind_state) then
-      return false, "not in BLIND_SELECT (state=" .. tostring(G and G.STATE) .. " ui=" .. tostring(in_blind_ui) .. ")"
+    if not (G and G.blind_select) then
+      return false, "blind_select UI not ready (state=" .. tostring(G and G.STATE) .. ")"
+    end
+    if not (G.FUNCS and G.FUNCS.select_blind) then
+      return false, "G.FUNCS.select_blind missing"
     end
     local native = normalize_blind_key(params.native_key or params.blind_id)
       or (G.GAME and G.GAME.blind_on_deck)
@@ -239,10 +240,8 @@ function M.apply(action)
   end
 
   if kind == "skip_blind" then
-    local in_blind_ui = G and G.blind_select
-    local in_blind_state = G and G.STATES and G.STATE == G.STATES.BLIND_SELECT
-    if not (in_blind_ui or in_blind_state) then
-      return false, "not in BLIND_SELECT (state=" .. tostring(G and G.STATE) .. " ui=" .. tostring(in_blind_ui) .. ")"
+    if not (G and G.blind_select) then
+      return false, "blind_select UI not ready (state=" .. tostring(G and G.STATE) .. ")"
     end
     local native = normalize_blind_key(params.native_key or params.blind_id)
       or (G.GAME and G.GAME.blind_on_deck)

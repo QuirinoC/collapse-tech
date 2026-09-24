@@ -17,6 +17,7 @@ const fixtures = [
   "fixtures/unknown-with-blinds-state.json",
   "fixtures/blind-select-state.json",
   "fixtures/hand-state.json",
+  "fixtures/pair-hand-state.json",
   "fixtures/round-eval-state.json",
   "fixtures/shop-state.json",
   "fixtures/pack-open-state.json",

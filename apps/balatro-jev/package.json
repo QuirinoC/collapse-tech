@@ -1,8 +1,8 @@
 {
   "name": "balatro-jev",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
-  "description": "Balatro state → Jev Choice → action bridge (TypeSafe System One, no vision)",
+  "description": "Balatro state \u2192 Jev Choice \u2192 action bridge (TypeSafe System One, no vision)",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -15,7 +15,8 @@
     "smoke:live": "tsx --env-file-if-exists=.env scripts/smoke-jev-live.mts",
     "smoke:phases": "npm run smoke:lua && npm run simulate",
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "mock:pair": "BALATRO_JEV_MODE=mock tsx --env-file-if-exists=.env src/index.ts --once --fixture fixtures/pair-hand-state.json"
   },
   "engines": {
     "node": ">=20"

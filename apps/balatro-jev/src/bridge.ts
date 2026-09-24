@@ -21,12 +21,24 @@ export function normalizePhase(state: BalatroState): Phase {
   if (state.phase !== "unknown" && PHASES.has(state.phase)) {
     return state.phase;
   }
+  // Prefer explicit Lua UI flag; also promote when Select is present.
   if (state.has_blind_select_ui) return "blind_select";
-  if (state.blinds?.some((b) => {
-    const s = (b.status ?? "").toLowerCase();
-    return s === "select";
-  })) {
+  if (
+    state.blinds?.some((b) => {
+      const s = (b.status ?? "").toLowerCase();
+      return s === "select" || s === "current";
+    })
+  ) {
     return "blind_select";
+  }
+  if ((state.raw_state_name ?? "").toUpperCase() === "BLIND_SELECT") {
+    return "blind_select";
+  }
+  if ((state.raw_state_name ?? "").toUpperCase() === "SELECTING_HAND") {
+    return "hand";
+  }
+  if ((state.raw_state_name ?? "").toUpperCase() === "SHOP") {
+    return "shop";
   }
   if (state.hand && state.hand.length > 0) return "hand";
   if (state.shop && state.shop.length > 0) return "shop";
@@ -63,10 +75,13 @@ export function parseState(raw: unknown): BalatroState {
     consumables: s.consumables,
     blinds: s.blinds,
     blind_on_deck: s.blind_on_deck,
+    blind_type: s.blind_type,
     shop: s.shop,
     reroll_cost: s.reroll_cost,
+    shop_can_leave: s.shop_can_leave,
     pack: s.pack,
     pack_choices_left: s.pack_choices_left,
+    deck_remaining: s.deck_remaining,
     legal_actions: s.legal_actions,
     raw_state: s.raw_state,
     raw_state_name: s.raw_state_name,
@@ -82,7 +97,11 @@ export async function decideFromState(
   mode?: JevMode,
 ): Promise<BridgeDecision> {
   const legal_actions = deriveLegalActions(state);
-  const chosen = await chooseAction(state, legal_actions, mode ?? resolveMode());
+  const chosen = await chooseAction(
+    state,
+    legal_actions,
+    mode ?? resolveMode(),
+  );
   return {
     state,
     legal_actions,
@@ -112,9 +131,11 @@ export async function writeDecision(
     model: decision.chosen.model ?? null,
     confidence: decision.chosen.confidence ?? null,
     rationale: decision.chosen.rationale ?? null,
+    tokens: decision.chosen.tokens ?? null,
     phase: decision.state.phase,
     action: decision.chosen.action,
     legal_action_ids: decision.legal_actions.map((a) => a.id),
+    legal_action_count: decision.legal_actions.length,
   };
   await writeFile(actionPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
@@ -130,7 +151,7 @@ export function stateFingerprint(state: BalatroState): string {
     chips_scored: state.chips_scored ?? null,
     hands_left: state.hands_left ?? null,
     discards_left: state.discards_left ?? null,
-    hand: state.hand?.map((c) => [c.index, c.rank, c.suit]) ?? null,
+    hand: state.hand?.map((c) => [c.index, c.rank, c.suit, c.chip_value]) ?? null,
     selected: state.selected ?? null,
     jokers: state.jokers?.map((j) => [j.index, j.id]) ?? null,
     consumables: state.consumables?.map((c) => [c.index, c.id]) ?? null,
@@ -138,6 +159,7 @@ export function stateFingerprint(state: BalatroState): string {
     pack: state.pack?.map((p) => [p.index, p.id]) ?? null,
     blind_on_deck: state.blind_on_deck ?? null,
     blinds: state.blinds?.map((b) => [b.id, b.status]) ?? null,
+    deck_remaining: state.deck_remaining ?? null,
   });
 }
 

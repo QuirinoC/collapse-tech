@@ -82,7 +82,8 @@ async function runOnce(opts: {
   console.log(
     `[balatro-jev] chose ${decision.chosen.action.id} (${decision.chosen.mode}` +
       `${decision.chosen.confidence != null ? ` conf=${decision.chosen.confidence}` : ""}` +
-      `${decision.chosen.model ? ` model=${decision.chosen.model}` : ""})`,
+      `${decision.chosen.model ? ` model=${decision.chosen.model}` : ""}` +
+      `${decision.chosen.tokens ? ` tokens_in=${decision.chosen.tokens.input} tokens_out=${decision.chosen.tokens.output}` : ""})`,
   );
   if (decision.chosen.rationale) {
     console.log(`[balatro-jev] rationale: ${decision.chosen.rationale}`);
@@ -205,7 +206,8 @@ async function runWatch(ipcDir: string, actionPath: string): Promise<void> {
         `[balatro-jev] DECIDE ${reason} phase=${state.phase} → ${decision.chosen.action.id}` +
           ` kind=${decision.chosen.action.kind}` +
           ` (${decision.chosen.mode}` +
-          `${decision.chosen.confidence != null ? ` conf=${typeof decision.chosen.confidence === "number" ? decision.chosen.confidence.toFixed(3) : decision.chosen.confidence}` : ""})`,
+          `${decision.chosen.confidence != null ? ` conf=${typeof decision.chosen.confidence === "number" ? decision.chosen.confidence.toFixed(3) : decision.chosen.confidence}` : ""}` +
+          `${decision.chosen.tokens ? ` tokens_in=${decision.chosen.tokens.input} tokens_out=${decision.chosen.tokens.output}` : ""})`,
       );
       console.log(`[balatro-jev]   legal=[${legalIds}]`);
       if (decision.chosen.rationale) {

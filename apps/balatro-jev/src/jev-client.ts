@@ -2,6 +2,7 @@ import { TypeSafeClient, choice } from "@typesafe-ai/sdk";
 import { toSemanticState } from "./buckets.js";
 import { config, resolveMode, type JevMode } from "./config.js";
 import { toChoiceCriteria } from "./legal-actions.js";
+import { actionId, pickBestHandAction } from "./poker-hands.js";
 import type { BalatroState, ChosenAction, LegalAction } from "./types.js";
 
 export type { JevMode };
@@ -18,18 +19,37 @@ const PHASE_PREFER: Record<string, LegalAction["kind"][]> = {
   unknown: ["select_blind", "new_run", "noop"],
 };
 
-/** Cheap heuristic when no API key / low confidence / live failure. */
+/** Combo-aware heuristic — never random. Used on API failure / low confidence. */
 export function mockChoose(
   state: BalatroState,
   actions: LegalAction[],
 ): ChosenAction {
-  const preferKinds = PHASE_PREFER[state.phase] ?? [];
   const prefer = (kinds: LegalAction["kind"][]) =>
     actions.find((a) => kinds.includes(a.kind));
 
-  // Shop: prefer affordable joker buy, else leave (don't burn money on endless rerolls).
   let picked: LegalAction | undefined;
-  if (state.phase === "shop") {
+
+  if (state.phase === "hand" && (state.hand?.length ?? 0) > 0) {
+    const best = pickBestHandAction(state.hand!, {
+      handsLeft: state.hands_left ?? 1,
+      discardsLeft: state.discards_left ?? 0,
+    });
+    if (best) {
+      const id = actionId(
+        best.kind === "play_hand" ? "play" : "discard",
+        best.combo,
+      );
+      picked =
+        actions.find((a) => a.id === id) ??
+        actions.find(
+          (a) =>
+            a.kind === best.kind &&
+            JSON.stringify(a.params?.card_indices) ===
+              JSON.stringify(best.combo.indices),
+        ) ??
+        actions.find((a) => a.kind === best.kind);
+    }
+  } else if (state.phase === "shop") {
     picked =
       actions.find((a) => a.kind === "buy" && String(a.id).includes("joker")) ??
       prefer(["buy"]) ??
@@ -39,12 +59,10 @@ export function mockChoose(
     picked = prefer(["select_blind"]) ?? prefer(["skip_blind"]);
   } else if (state.phase === "menu") {
     picked = prefer(["new_run"]);
-  } else if (state.phase === "hand") {
-    picked = prefer(["play_hand"]) ?? prefer(["discard"]);
   } else if (state.phase === "pack_open") {
     picked = prefer(["pack_select"]) ?? prefer(["pack_skip"]);
   } else {
-    picked = prefer(preferKinds);
+    picked = prefer(PHASE_PREFER[state.phase] ?? []);
   }
 
   picked = picked ?? prefer(["noop"]) ?? actions[0]!;
@@ -53,7 +71,7 @@ export function mockChoose(
     action: picked,
     mode: "mock",
     confidence: 1,
-    rationale: `mock heuristic for phase=${state.phase}`,
+    rationale: `mock combo-aware heuristic for phase=${state.phase}`,
   };
 }
 
@@ -61,11 +79,11 @@ function safeFallback(actions: LegalAction[], reason: string): ChosenAction {
   const prefer = (kinds: LegalAction["kind"][]) =>
     actions.find((a) => kinds.includes(a.kind));
   const picked =
-    prefer(["noop"]) ??
     prefer(["leave_shop", "cash_out"]) ??
     prefer(["select_blind"]) ??
     prefer(["pack_skip"]) ??
     prefer(["go_to_menu"]) ??
+    prefer(["noop"]) ??
     actions[0]!;
   return {
     action: picked,
@@ -87,7 +105,11 @@ export async function liveChoose(
     );
   }
 
+  // Only skip Jev when there is truly one forced action.
   if (actions.length === 1) {
+    console.log(
+      `[balatro-jev] JEV skip single forced action=${actions[0]!.id} kind=${actions[0]!.kind}`,
+    );
     return {
       action: actions[0]!,
       mode: "live",
@@ -110,6 +132,10 @@ export async function liveChoose(
   });
 
   const criteria = toChoiceCriteria(actions);
+  console.log(
+    `[balatro-jev] JEV call phase=${state.phase} options=${actions.length} model=${model}`,
+  );
+
   const response = await client.systemOne({
     model,
     state: toSemanticState(state, actions),
@@ -120,28 +146,42 @@ export async function liveChoose(
             "Which currently legal action should be taken next in this Balatro run?",
           inspect: [
             "`phase`",
+            "`ante`",
+            "`blind`",
             "`hand`",
             "`jokers`",
+            "`consumables`",
             "`chip_pressure`",
-            "`hands`",
-            "`discards`",
+            "`hands_left`",
+            "`discards_left`",
             "`money`",
             "`shop`",
-            "`pack`",
+            "`pack_open`",
             "`blinds`",
+            "`deck_remaining`",
             "`legal_action_ids`",
             "`objective`",
           ],
           focus:
-            "Pick exactly one id from the criteria. Prefer clearing the blind; in shop leave after useful buys; in packs take the strongest card; do not invent actions.",
+            "Pick exactly one id from the criteria. Prefer made poker hands (pair+) over high-card when scoring the blind; in shop buy strong jokers then leave; in packs take the strongest card; do not invent actions.",
         },
         criteria,
       ),
     },
   });
 
+  const tokens = {
+    input: response.usage.input_tokens,
+    output: response.usage.output_tokens,
+  };
   const selectedId = response.answers.action.choice;
   const confidence = response.answers.action.confidence;
+
+  console.log(
+    `[balatro-jev] JEV result action=${selectedId} conf=${confidence.toFixed(3)}` +
+      ` tokens_in=${tokens.input} tokens_out=${tokens.output} model=${response.model}`,
+  );
+
   const action = actions.find((a) => a.id === selectedId);
 
   if (!action) {
@@ -151,6 +191,7 @@ export async function liveChoose(
       mode: "live",
       confidence: 0,
       model: response.model,
+      tokens,
       rationale: `stale/unknown choice id=${selectedId}; mock fallback ${fallback.action.id}`,
     };
   }
@@ -162,6 +203,7 @@ export async function liveChoose(
       mode: "live",
       confidence,
       model: response.model,
+      tokens,
       rationale: `low confidence (${confidence.toFixed(3)} < ${config.minActionConfidence}); used mock fallback ${fallback.action.id}`,
     };
   }
@@ -171,6 +213,7 @@ export async function liveChoose(
     mode: "live",
     confidence,
     model: response.model,
+    tokens,
     rationale: `jev choice=${selectedId}`,
   };
 }
@@ -185,6 +228,11 @@ export async function chooseAction(
       return await liveChoose(state, actions);
     } catch (err) {
       const fallback = mockChoose(state, actions);
+      console.log(
+        `[balatro-jev] JEV failed → mock fallback ${fallback.action.id}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
       return {
         action: fallback.action,
         mode: "live",

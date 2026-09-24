@@ -17,12 +17,14 @@ export interface CardRef {
   enhancement?: string | null;
   edition?: string | null;
   seal?: string | null;
+  chip_value?: number | null;
 }
 
 export interface JokerRef {
   index: number;
   id: string;
   name: string;
+  effect?: string | null;
   sell_value?: number;
 }
 
@@ -31,6 +33,7 @@ export interface ConsumableRef {
   id: string;
   name: string;
   set?: string;
+  effect?: string | null;
   sell_value?: number;
 }
 
@@ -38,9 +41,9 @@ export interface BlindOption {
   id: "small" | "big" | "boss" | string;
   name: string;
   skippable?: boolean;
-  /** Native Balatro key: Small | Big | Boss */
   native_key?: string;
   status?: string;
+  chips?: number | null;
 }
 
 export interface ShopItem {
@@ -49,9 +52,7 @@ export interface ShopItem {
   id: string;
   name: string;
   cost: number;
-  /** Which shop CardArea: shop_jokers | shop_vouchers | shop_booster */
   area?: "shop_jokers" | "shop_vouchers" | "shop_booster" | string;
-  /** 0-based slot within that area */
   slot?: number;
 }
 
@@ -60,10 +61,10 @@ export interface PackCard {
   id: string;
   name: string;
   kind?: string;
+  effect?: string | null;
 }
 
 export interface LegalAction {
-  /** Stable id used as Choice label (alphanumeric + underscore). */
   id: string;
   kind:
     | "play_hand"
@@ -81,9 +82,10 @@ export interface LegalAction {
     | "new_run"
     | "go_to_menu"
     | "noop";
-  /** Human-readable label for Jev + logs. */
   label: string;
-  /** Extra params the Lua apply layer needs. */
+  what?: string;
+  not_for?: string;
+  score?: number;
   params?: Record<string, unknown>;
 }
 
@@ -103,15 +105,15 @@ export interface BalatroState {
   jokers?: JokerRef[];
   consumables?: ConsumableRef[];
   blinds?: BlindOption[];
-  /** Current blind on deck: small | big | boss */
   blind_on_deck?: string;
+  blind_type?: string;
   shop?: ShopItem[];
   reroll_cost?: number;
+  shop_can_leave?: boolean;
   pack?: PackCard[];
   pack_choices_left?: number;
-  /** Optional: mod can precompute; bridge derives if missing. */
+  deck_remaining?: number;
   legal_actions?: LegalAction[];
-  /** Debug: numeric G.STATE from Lua dump */
   raw_state?: number | string;
   raw_state_name?: string;
   has_blind_select_ui?: boolean;
@@ -124,6 +126,7 @@ export interface ChosenAction {
   confidence?: number;
   model?: string;
   rationale?: string;
+  tokens?: { input: number; output: number };
 }
 
 export interface BridgeDecision {

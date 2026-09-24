@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "phase": "hand",
+  "ante": 1,
+  "round": 1,
+  "money": 4,
+  "chips_needed": 300,
+  "chips_scored": 0,
+  "hands_left": 4,
+  "discards_left": 3,
+  "hand_size": 8,
+  "deck_remaining": 44,
+  "blind_type": "Small Blind",
+  "blind_on_deck": "small",
+  "hand": [
+    { "index": 0, "rank": "A", "suit": "Hearts", "chip_value": 11 },
+    { "index": 1, "rank": "A", "suit": "Spades", "chip_value": 11 },
+    { "index": 2, "rank": "K", "suit": "Clubs", "chip_value": 10 },
+    { "index": 3, "rank": "9", "suit": "Diamonds", "chip_value": 9 },
+    { "index": 4, "rank": "7", "suit": "Hearts", "chip_value": 7 },
+    { "index": 5, "rank": "5", "suit": "Spades", "chip_value": 5 },
+    { "index": 6, "rank": "3", "suit": "Clubs", "chip_value": 3 },
+    { "index": 7, "rank": "2", "suit": "Diamonds", "chip_value": 2 }
+  ],
+  "jokers": [
+    {
+      "index": 0,
+      "id": "j_joker",
+      "name": "Joker",
+      "effect": "+4 Mult",
+      "sell_value": 2
+    }
+  ],
+  "consumables": [],
+  "notes": "Fixture: clear Ace pair — Jev/mock must prefer play pair of Aces."
+}

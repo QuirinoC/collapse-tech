@@ -1,5 +1,7 @@
 -- Build versioned JSON-ish Lua tables matching apps/balatro-jev/src/types.ts
 -- Field paths verified against Steam Balatro 1.0.1o.
+-- Rich dump: phase, ante, blind, chips, hands/discards, money, hand cards,
+-- jokers+effect, consumables, shop offers, pack, blinds, deck_remaining.
 
 local M = {}
 
@@ -28,6 +30,48 @@ local function card_key(card)
   end, "unknown")
 end
 
+local function card_effect(card)
+  return safe(function()
+    if not card then return nil end
+    local center = card.config and card.config.center
+    if center and center.key then
+      local text = localize({ type = "descriptions", key = center.key, set = center.set or "Joker" })
+      if type(text) == "table" then
+        local parts = {}
+        for _, line in ipairs(text) do
+          if type(line) == "table" then
+            parts[#parts + 1] = table.concat(line, " ")
+          elseif type(line) == "string" then
+            parts[#parts + 1] = line
+          end
+        end
+        local joined = table.concat(parts, " ")
+        if #joined > 0 then
+          return joined:sub(1, 160)
+        end
+      elseif type(text) == "string" and #text > 0 then
+        return text:sub(1, 160)
+      end
+    end
+    if card.ability and card.ability.name then
+      return tostring(card.ability.name)
+    end
+    return nil
+  end, nil)
+end
+
+local function chip_value(card)
+  return safe(function()
+    if card.get_chip_bonus then
+      return card:get_chip_bonus()
+    end
+    if card.base and card.base.nominal then
+      return card.base.nominal
+    end
+    return nil
+  end, nil)
+end
+
 local function shop_kind(card)
   local set = safe(function() return card.ability.set end, nil)
   if set == "Joker" then return "joker" end
@@ -49,21 +93,15 @@ local function raw_state_name()
   return tostring(G.STATE)
 end
 
+-- Never stuck unknown when in BLIND_SELECT / SELECTING_HAND / SHOP.
 local function map_phase()
   if not (G and G.STATE and G.STATES) then
     return "unknown"
   end
   local st = G.STATE
 
-  -- UI presence is the strongest signal for blind select (enum can lag during transitions).
-  if G.blind_select then
-    return "blind_select"
-  end
-
-  if st == G.STATES.BLIND_SELECT then
-    return "blind_select"
-  elseif st == G.STATES.SELECTING_HAND then
-    -- Only SELECTING_HAND is actionable; HAND_PLAYED / DRAW_TO_HAND are transitions.
+  -- Actionable hand only; transitions stay unknown so apply does not fire mid-anim.
+  if st == G.STATES.SELECTING_HAND then
     return "hand"
   elseif st == G.STATES.HAND_PLAYED or st == G.STATES.DRAW_TO_HAND then
     return "unknown"
@@ -84,9 +122,9 @@ local function map_phase()
     or st == G.STATES.SPLASH
     or st == G.STATES.DEMO_CTA then
     return "menu"
+  elseif st == G.STATES.BLIND_SELECT or G.blind_select then
+    return "blind_select"
   elseif st == G.STATES.NEW_ROUND then
-    -- Transition into blind select UI; still not actionable until G.blind_select exists,
-    -- but report blind_select when round_resets already shows a Select blind.
     local rr = G.GAME and G.GAME.round_resets
     local states = rr and rr.blind_states
     if states and (states.Small == "Select" or states.Big == "Select" or states.Boss == "Select") then
@@ -113,11 +151,19 @@ local function dump_blinds()
       local name = safe(function()
         return localize({ type = "name_text", key = blind_def.key, set = "Blind" })
       end, key .. " Blind")
+      local chips = safe(function()
+        if not blind_def then return nil end
+        if G.GAME.blind and G.GAME.blind_on_deck == key then
+          return G.GAME.blind.chips
+        end
+        return nil
+      end, nil)
       blinds[#blinds + 1] = {
         id = id_map[key],
         name = name,
         native_key = key,
         status = status,
+        chips = chips,
         skippable = key ~= "Boss" and (status == "Select" or status == "Current"),
       }
     end
@@ -160,6 +206,7 @@ local function dump_pack()
       id = card_key(card),
       name = card_name(card),
       kind = shop_kind(card),
+      effect = card_effect(card),
     }
   end
   return #pack > 0 and pack or nil
@@ -173,7 +220,8 @@ function M.dump()
   local money = 0
   local chips_needed, chips_scored, hands_left, discards_left
   local hand, jokers, consumables, blinds, shop, pack, selected
-  local blind_on_deck, reroll_cost, pack_choices_left
+  local blind_on_deck, blind_type, reroll_cost, pack_choices_left
+  local deck_remaining, shop_can_leave
 
   if G and G.GAME then
     ante = safe(function() return G.GAME.round_resets.ante end, ante)
@@ -189,7 +237,21 @@ function M.dump()
     if on then
       blind_on_deck = string.lower(on)
     end
+    blind_type = safe(function()
+      if G.GAME.blind and G.GAME.blind.name then return G.GAME.blind.name end
+      return blind_on_deck
+    end, blind_on_deck)
   end
+
+  deck_remaining = safe(function()
+    if G.deck and G.deck.cards then return #G.deck.cards end
+    return nil
+  end, nil)
+
+  shop_can_leave = safe(function()
+    if G.STATE == G.STATES.SHOP then return true end
+    return nil
+  end, nil)
 
   hand = {}
   if G and G.hand and G.hand.cards then
@@ -201,6 +263,7 @@ function M.dump()
         enhancement = safe(function() return card.ability and card.ability.effect end, nil),
         edition = safe(function() return card.edition and card.edition.type end, nil),
         seal = safe(function() return card.seal end, nil),
+        chip_value = chip_value(card),
       }
     end
   end
@@ -224,6 +287,7 @@ function M.dump()
         index = i - 1,
         id = card_key(j),
         name = card_name(j),
+        effect = card_effect(j),
         sell_value = safe(function() return j.sell_cost end, nil),
       }
     end
@@ -237,6 +301,7 @@ function M.dump()
         id = card_key(c),
         name = card_name(c),
         set = safe(function() return c.ability.set end, nil),
+        effect = card_effect(c),
         sell_value = safe(function() return c.sell_cost end, nil),
       }
     end
@@ -246,10 +311,9 @@ function M.dump()
   shop = dump_shop()
   pack = dump_pack()
 
-  -- Infer blind_select from blinds if enum/UI lagged but a Select blind is present mid-run.
   if phase == "unknown" and blinds then
     for _, b in ipairs(blinds) do
-      if b.status == "Select" then
+      if b.status == "Select" or b.status == "Current" then
         phase = "blind_select"
         break
       end
@@ -273,14 +337,17 @@ function M.dump()
     consumables = #consumables > 0 and consumables or nil,
     blinds = blinds,
     blind_on_deck = blind_on_deck,
+    blind_type = blind_type,
     shop = shop,
     reroll_cost = reroll_cost,
+    shop_can_leave = shop_can_leave,
     pack = pack,
     pack_choices_left = pack_choices_left,
+    deck_remaining = deck_remaining,
     raw_state = G and G.STATE or nil,
     raw_state_name = raw_state_name(),
     has_blind_select_ui = G and G.blind_select ~= nil or false,
-    notes = "balatro_jev dump v3",
+    notes = "balatro_jev dump v4 full-context",
   }
 end
 
