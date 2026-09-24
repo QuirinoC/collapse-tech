@@ -294,12 +294,11 @@ export function enumerateDiscardCombos(hand: CardRef[]): RankedCombo[] {
     const lowest = [...dead].sort(
       (a, b) => rankValue(a.rank) - rankValue(b.rank),
     );
-    const pool = lowest.slice(0, Math.min(6, lowest.length));
-    for (let k = 1; k <= Math.min(5, pool.length); k++) {
-      for (const subset of combinations(pool, k)) {
-        pushDead(subset, "low_dead", 40 + k + rankValue(subset[0]!.rank) * 0.01);
-      }
-    }
+    // Curated discard sizes (not all C(n,k) — keeps Choice focused).
+    pushDead(lowest.slice(0, 1), "low_dead", 40);
+    if (lowest.length >= 2) pushDead(lowest.slice(0, 2), "low_dead", 45);
+    if (lowest.length >= 3) pushDead(lowest.slice(0, 3), "low_dead", 48);
+    if (lowest.length >= 5) pushDead(lowest.slice(0, 5), "low_dead", 49);
   }
   const bySuit = new Map<string, CardRef[]>();
   for (const c of hand) {
@@ -318,12 +317,11 @@ export function enumerateDiscardCombos(hand: CardRef[]): RankedCombo[] {
   if (bestSuit && bestSuitCount >= 3) {
     const off = hand.filter((c) => c.suit !== bestSuit);
     pushDead(off, "off_suit", 55 + bestSuitCount);
-    for (let k = 1; k <= Math.min(5, off.length); k++) {
-      pushDead(
-        [...off].sort((a, b) => rankValue(a.rank) - rankValue(b.rank)).slice(0, k),
-        "off_suit",
-        52 + k,
-      );
+    const lowestOff = [...off].sort(
+      (a, b) => rankValue(a.rank) - rankValue(b.rank),
+    );
+    if (lowestOff.length >= 2) {
+      pushDead(lowestOff.slice(0, 2), "off_suit", 54);
     }
   }
   const seen = new Set<string>();
@@ -333,6 +331,7 @@ export function enumerateDiscardCombos(hand: CardRef[]): RankedCombo[] {
     if (seen.has(key)) continue;
     seen.add(key);
     uniq.push(c);
+    if (uniq.length >= 12) break;
   }
   return uniq;
 }
