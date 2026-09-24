@@ -24,6 +24,14 @@ npm run proof:brain
 # also: npm run mock:pair && npm run mock:pair-flush
 ```
 
+Verified on this branch:
+
+- mock pair-hand → `play_pair_AH_AS` (58 options)
+- mock pair-flush → `play_flush_AH_KH_QH_JH_9H` (61 options)
+- live pair-flush → `play_flush_AH_KH_QH_JH_9H` conf=0.990
+- simulated conf=0.225 → **keeps** flush (no mock override)
+- unknown id → combo-aware mock flush
+
 Runtime left **STOPPED** (`.DO_NOT_LAUNCH` + launch script blocker). Do not relaunch
 watch/game unless Juan asks.
 
