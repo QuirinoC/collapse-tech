@@ -33,8 +33,9 @@ animation was still running. Lua called `G.FUNCS.cash_out` before the real
 
 ## Runtime now
 
-- **Game: RUNNING** (idle, no watch) — stable at menu/splash
-- **Watch: STOPPED** (do not auto-relaunch aggressive watch unless Juan asks)
+- **Game: STOPPED** (Juan asked STOP — do not relaunch)
+- **Watch: STOPPED**
+- **DO_NOT_LAUNCH** markers restored + Steam `run_lovely_macos.sh` stubbed
 
 ```bash
 cd apps/balatro-jev
