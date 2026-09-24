@@ -1,55 +1,24 @@
-# balatro-jev status (2026-09-24)
+# balatro-jev status (full-context / 0.3.0)
 
-## Done on this Mac
+## Architecture
 
-- Steam Balatro + Lovely v0.10.0 + Steamodded 26.829.0 installed
-- Mod symlinked: `Mods/balatro_jev` → `apps/balatro-jev/mod/balatro_jev`
-- `.env` IPC: `BALATRO_JEV_IPC_DIR=…/Balatro/balatro_jev` (gitignored)
-- **Full-run loop:** legal actions + Lua apply for menu / blind / hand / round_eval / shop / pack / game_over
-- Watch loop: confidence gates, poll + stuck re-engage, forced progress escape
-- **0.2.1 fix:** durable `Game:update` hook (state dump was dying after splash), phase inference for `blind_select` / `menu`, louder DECIDE/APPLY logs
+Full Lua state dump → full legal Choice options → Jev (live when ≥2 options) → Lua apply.
 
-## Operator path
+## Done
 
-```bash
-# Terminal A
-cd ~/dev/collapse-tech/apps/balatro-jev && npm run watch
+- Rich state: hand `chip_value`, joker/consumable `effect`, `shop_can_leave`, `deck_remaining`, blinds
+- Phase map: `BLIND_SELECT` / `SELECTING_HAND` / `SHOP` never stuck `unknown`
+- Hand: every made-hand combo (pair+) + draws + ranked high-cards; discard subsets; 255 cap after score
+- Shop/pack/blind/menu/round_eval/game_over: full legal sets with `{ what, not_for }` criteria
+- Live Jev logged (action, conf, tokens); mock combo-aware fallback
+- Fixture `pair-hand-state.json` for Ace-pair preference
 
-# Terminal B — do NOT use Steam Play
-npm run launch:macos
-```
+## Operator
 
-1. Mods menu → **Balatro Jev** enabled.
-2. On title (`phase=menu`) bridge tries `new_run`; or click Play once if stake UI blocks.
-3. On blind select watch should log `DECIDE … → select_blind_small`; mod prints `APPLY result … ok=true`.
-4. Heartbeat: `…/Balatro/balatro_jev/heartbeat.txt` should refresh every ~2s while the game runs.
-
-## Phase status
-
-| Phase | Playable? |
-| --- | --- |
-| Menu / title | Best-effort `new_run` via `G.FUNCS.start_run(nil, {stake=1})` |
-| Blind select / skip | Yes — `G.blind_select_opts` + `select_blind` / `skip_blind` |
-| Hand play / discard | Yes |
-| Round eval cash-out | Yes — `G.FUNCS.cash_out` |
-| Shop buy / sell / use / reroll / leave | Yes — shop Card refs + `toggle_shop` |
-| Pack open select / skip | Yes — `G.pack_cards` + `skip_booster` |
-| Game over new run / menu | Best-effort — `start_run` / `go_to_menu` |
-
-## Offline checks
+Do not relaunch watch/game unless Juan asks. Offline:
 
 ```bash
 npm run typecheck
-npm run smoke:phases
+npm run mock:pair
 npm run simulate
 ```
-
-## Still fragile
-
-- Consumables that need a hand target may no-op without a highlighted card.
-- Buying during shop UI spawn (~0.43s) can miss the card — watch loop retries.
-- Menu `new_run` may still need a manual stake click on some builds.
-
-## Undo Lovely
-
-Delete `liblovely.dylib` + `run_lovely_macos.sh` from the Steam Balatro folder. Game binary untouched.
