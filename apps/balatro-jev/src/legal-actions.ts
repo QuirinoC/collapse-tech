@@ -316,15 +316,63 @@ export function deriveLegalActions(state: BalatroState): LegalAction[] {
       });
       break;
     }
+    case "menu": {
+      actions.push({
+        id: "new_run",
+        kind: "new_run",
+        label: "Start a new run from title",
+        params: { stake: 1 },
+      });
+      break;
+    }
     case "unknown":
-    default:
+    default: {
+      // Safety net: blinds already showing Select → treat as blind_select.
+      const selectBlind = state.blinds?.find((b) => {
+        const s = (b.status ?? "").toLowerCase();
+        return s === "select" || s === "current";
+      });
+      if (selectBlind || state.has_blind_select_ui) {
+        const current = selectBlind ?? state.blinds?.[0];
+        if (current) {
+          actions.push({
+            id: `select_blind_${current.id}`,
+            kind: "select_blind",
+            label: `Select ${current.name}`,
+            params: {
+              blind_id: current.id,
+              native_key: current.native_key ?? capitalize(current.id),
+            },
+          });
+          const skippable =
+            current.skippable != null
+              ? current.skippable
+              : current.id === "big" || current.id === "small";
+          if (skippable && current.id !== "boss") {
+            actions.push({
+              id: `skip_blind_${current.id}`,
+              kind: "skip_blind",
+              label: `Skip ${current.name}`,
+              params: {
+                blind_id: current.id,
+                native_key: current.native_key ?? capitalize(current.id),
+              },
+            });
+          }
+          break;
+        }
+      }
       actions.push({
         id: "noop",
         kind: "noop",
         label: "No-op (phase not actionable yet)",
-        params: { phase: state.phase },
+        params: {
+          phase: state.phase,
+          raw_state_name: state.raw_state_name ?? null,
+        },
       });
       break;
+    }
   }
 
   return ensureNoop(uniqActions(actions), state.phase);

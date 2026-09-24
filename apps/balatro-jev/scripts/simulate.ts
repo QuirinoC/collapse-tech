@@ -13,6 +13,8 @@ import { deriveLegalActions } from "../src/legal-actions.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixtures = [
+  "fixtures/menu-state.json",
+  "fixtures/unknown-with-blinds-state.json",
   "fixtures/blind-select-state.json",
   "fixtures/hand-state.json",
   "fixtures/round-eval-state.json",
@@ -22,6 +24,7 @@ const fixtures = [
 ];
 
 const EXPECTED_KINDS: Record<string, string[]> = {
+  menu: ["new_run"],
   blind_select: ["select_blind", "skip_blind"],
   hand: ["play_hand", "discard"],
   round_eval: ["cash_out"],

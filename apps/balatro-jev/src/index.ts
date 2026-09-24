@@ -96,6 +96,9 @@ async function runWatch(ipcDir: string, actionPath: string): Promise<void> {
   console.log(
     `[balatro-jev] poll=${WATCH_POLL_MS}ms stuck=${STUCK_REENGAGE_MS}ms max_same=${MAX_SAME_DECISIONS}`,
   );
+  console.log(
+    `[balatro-jev] tip: if phase=menu → waiting for new_run / Play; if phase=blind_select → should choose select_blind`,
+  );
 
   let busy = false;
   let queued = false;
@@ -103,6 +106,7 @@ async function runWatch(ipcDir: string, actionPath: string): Promise<void> {
   let lastDecisionAt = 0;
   let lastActionId = "";
   let sameDecisionCount = 0;
+  let lastWaitingLog = 0;
 
   const tick = async (reason: string) => {
     if (busy) {
@@ -116,15 +120,39 @@ async function runWatch(ipcDir: string, actionPath: string): Promise<void> {
       const fp = stateFingerprint(state);
       const now = Date.now();
 
+      if (state.phase === "menu" || state.phase === "unknown") {
+        if (now - lastWaitingLog >= 5000) {
+          lastWaitingLog = now;
+          console.log(
+            `[balatro-jev] WAITING phase=${state.phase}` +
+              ` raw=${state.raw_state_name ?? "?"}` +
+              ` blinds=${state.blinds?.map((b) => `${b.id}:${b.status}`).join(",") ?? "none"}` +
+              ` ui=${state.has_blind_select_ui ?? false}` +
+              ` — ${
+                state.phase === "menu"
+                  ? "will try new_run (or click Play once)"
+                  : "no actionable phase yet"
+              }`,
+          );
+        }
+      }
+
       // Skip identical state unless stuck long enough to re-engage.
       if (fp === lastFingerprint) {
         const stuck = now - lastDecisionAt >= STUCK_REENGAGE_MS;
         if (!stuck) return;
         console.log(
-          `[balatro-jev] stuck on phase=${state.phase} for ${STUCK_REENGAGE_MS}ms — re-engaging (${reason})`,
+          `[balatro-jev] STUCK phase=${state.phase} for ${STUCK_REENGAGE_MS}ms — re-engaging (${reason})`,
         );
       } else {
         sameDecisionCount = 0;
+        console.log(
+          `[balatro-jev] STATE CHANGE phase=${state.phase}` +
+            ` ante=${state.ante} round=${state.round}` +
+            ` money=$${state.money}` +
+            ` blinds=${state.blinds?.map((b) => `${b.id}:${b.status}`).join(",") ?? "none"}` +
+            ` raw=${state.raw_state_name ?? "?"}`,
+        );
       }
 
       let decision = await decideFromState(state);
@@ -143,12 +171,17 @@ async function runWatch(ipcDir: string, actionPath: string): Promise<void> {
         const legal = deriveLegalActions(state);
         const escape =
           legal.find((a) =>
-            ["leave_shop", "cash_out", "select_blind", "pack_skip", "play_hand"].includes(
-              a.kind,
-            ),
+            [
+              "select_blind",
+              "new_run",
+              "leave_shop",
+              "cash_out",
+              "pack_skip",
+              "play_hand",
+            ].includes(a.kind),
           ) ?? mockChoose(state, legal).action;
         console.log(
-          `[balatro-jev] forcing progress escape → ${escape.id} (same decision x${sameDecisionCount})`,
+          `[balatro-jev] FORCE ESCAPE → ${escape.id} kind=${escape.kind} (same decision x${sameDecisionCount})`,
         );
         decision = {
           ...decision,
@@ -167,14 +200,18 @@ async function runWatch(ipcDir: string, actionPath: string): Promise<void> {
       lastDecisionAt = now;
       lastActionId = decision.chosen.action.id;
 
+      const legalIds = decision.legal_actions.map((a) => a.id).join(", ");
       console.log(
-        `[balatro-jev] ${reason} phase=${state.phase} → ${decision.chosen.action.id}` +
+        `[balatro-jev] DECIDE ${reason} phase=${state.phase} → ${decision.chosen.action.id}` +
+          ` kind=${decision.chosen.action.kind}` +
           ` (${decision.chosen.mode}` +
-          `${decision.chosen.confidence != null ? ` conf=${decision.chosen.confidence.toFixed?.(3) ?? decision.chosen.confidence}` : ""})`,
+          `${decision.chosen.confidence != null ? ` conf=${typeof decision.chosen.confidence === "number" ? decision.chosen.confidence.toFixed(3) : decision.chosen.confidence}` : ""})`,
       );
+      console.log(`[balatro-jev]   legal=[${legalIds}]`);
       if (decision.chosen.rationale) {
-        console.log(`[balatro-jev] rationale: ${decision.chosen.rationale}`);
+        console.log(`[balatro-jev]   rationale: ${decision.chosen.rationale}`);
       }
+      console.log(`[balatro-jev]   wrote ${actionPath}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (!msg.includes("ENOENT") && !msg.includes("Unexpected end")) {

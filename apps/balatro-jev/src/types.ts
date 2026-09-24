@@ -7,6 +7,7 @@ export type Phase =
   | "pack_open"
   | "round_eval"
   | "game_over"
+  | "menu"
   | "unknown";
 
 export interface CardRef {
@@ -110,6 +111,10 @@ export interface BalatroState {
   pack_choices_left?: number;
   /** Optional: mod can precompute; bridge derives if missing. */
   legal_actions?: LegalAction[];
+  /** Debug: numeric G.STATE from Lua dump */
+  raw_state?: number | string;
+  raw_state_name?: string;
+  has_blind_select_ui?: boolean;
   notes?: string;
 }
 

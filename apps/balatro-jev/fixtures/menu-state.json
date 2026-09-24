@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "phase": "menu",
+  "ante": 1,
+  "round": 0,
+  "money": 0,
+  "raw_state_name": "MENU",
+  "notes": "Title / main menu — bridge should offer new_run."
+}

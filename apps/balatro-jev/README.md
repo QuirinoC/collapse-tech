@@ -50,8 +50,9 @@ npm run launch:macos
 ```
 
 1. Confirm Mods menu shows **Balatro Jev**.
-2. Start a run (menu → New Run). Jev does not auto-start from the title screen yet.
-3. Bridge logs phase transitions and chosen actions; mod applies them in-game.
+2. Title screen: bridge may send `new_run` (stake 1). If stake UI blocks, click Play once.
+3. Blind select: watch logs `DECIDE … select_blind_*`; mod logs `APPLY result … ok=true`.
+4. Heartbeat file `…/Balatro/balatro_jev/heartbeat.txt` should refresh ~every 2s (proves Lua tick is alive).
 
 Offline:
 
@@ -67,6 +68,7 @@ npm run typecheck
 
 | Phase | Legal actions (TS) | Lua apply |
 | --- | --- | --- |
+| `menu` | `new_run` | `G.FUNCS.start_run(nil, {stake=1})` |
 | `blind_select` | `select_blind`, `skip_blind` | `G.FUNCS.select_blind` / `skip_blind` via `G.blind_select_opts` UI refs (synth fallback) |
 | `hand` | `play_hand`, `discard` (candidate sets) | highlight → `play_cards_from_highlighted` / `discard_cards_from_highlighted` |
 | `round_eval` | `cash_out` | `G.FUNCS.cash_out({config={}})` |
@@ -78,7 +80,7 @@ npm run typecheck
 
 | Gap | Missing / risk |
 | --- | --- |
-| Title → first run | No auto `start_run` from main menu without UI stake selection; Juan starts the run once |
+| Menu stake overlay | `new_run` uses stake 1; some builds still show stake UI that needs a click |
 | Consumable targeting | `use_card` on targeted tarots may need a highlighted hand card; untargeted use may no-op |
 | Shop vouchers/boosters mid-animation | Apply during shop card UI spawn delay (~0.43s) can miss the card |
 | `new_run` after game over | Relies on `G.FUNCS.start_run`; overlay/stake UI may still need a click on some builds |

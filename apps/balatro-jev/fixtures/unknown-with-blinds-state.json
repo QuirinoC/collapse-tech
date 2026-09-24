@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "phase": "unknown",
+  "ante": 1,
+  "round": 0,
+  "money": 0,
+  "hands_left": 0,
+  "discards_left": 0,
+  "chips_scored": 0,
+  "reroll_cost": 5,
+  "blinds": [
+    { "id": "small", "name": "Small Blind", "skippable": true, "native_key": "Small", "status": "Select" },
+    { "id": "big", "name": "Big Blind", "skippable": false, "native_key": "Big", "status": "Upcoming" },
+    { "id": "boss", "name": "Boss Blind", "skippable": false, "native_key": "Boss", "status": "Upcoming" }
+  ],
+  "notes": "Regression: unknown phase but blinds already Select — bridge must infer blind_select."
+}
