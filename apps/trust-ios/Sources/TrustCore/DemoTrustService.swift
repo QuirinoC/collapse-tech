@@ -434,6 +434,26 @@ public final class DemoTrustService: ObservableObject {
         snapshots[personID] = nil
     }
 
+
+    /// Free: 24h trail. Plus: 30 days. Requires an open Look session.
+    public func extendLook(subjectID: UUID) throws -> LookSession {
+        guard let open = snapshots[subjectID] else { throw LookError.pairInactive }
+        let now = clock.now()
+        let hours = coverage.historyHours
+        let trail = vault(for: subjectID).unlock(now: now, window: TimeInterval(hours * 3600))
+        guard let live = trail.last ?? vault(for: subjectID).latest(now: now, window: 3 * 3600) else {
+            throw LookError.noPartner
+        }
+        var event = open.event
+        event.historyWindowHours = hours
+        let session = LookSession(id: open.id, event: event, live: live, trail: trail.isEmpty ? [live] : trail)
+        snapshots[subjectID] = session
+        if let index = lookLog.firstIndex(where: { $0.id == event.id }) {
+            lookLog[index] = event
+        }
+        return session
+    }
+
     public func peekEscrow(for personID: UUID) -> [LocationPoint] {
         vault(for: personID).peekPlaintext()
     }
