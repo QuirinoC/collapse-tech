@@ -1,0 +1,3 @@
+# Agents were fighting (launch vs kill). Balatro must stay stopped.
+# Delete this file (and /tmp/BALATRO_JEV_DO_NOT_LAUNCH, ~/.balatro-jev-stop/DO_NOT_LAUNCH)
+# and restore Steam run_lovely_macos.sh.STOPPED_BY_AGENT only when Juan asks to run again.
