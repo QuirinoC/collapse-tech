@@ -437,6 +437,24 @@ final class TrustClient {
         return (payload.logged, payload.event?.model)
     }
 
+
+    func closeLook(subjectID: UUID?) async throws {
+        var path = "/api/v1/looks/close"
+        if let subjectID {
+            path += "?subjectId=\(subjectID.uuidString)"
+        }
+        try await postEmpty(path: path, body: EmptyBody())
+    }
+
+    func extendLook(subjectID: UUID) async throws -> LookSession {
+        let payload: LookSessionDTO = try await post(
+            path: "/api/v1/looks/\(subjectID.uuidString)/extend",
+            body: EmptyBody(),
+            authorized: true
+        )
+        return payload.model
+    }
+
     /// Resting `off|untilTheyLook|always`, or pause `1h|8h|1d|2d|3d`.
     /// Always without Plus → 402 `pro_required`. Pause is free and stored on the server.
     func setShare(personID: UUID, resting: ShareRestingMode?, pause: PauseDuration?) async throws {
