@@ -36,11 +36,10 @@ public final class DemoTrustService: ObservableObject {
     // MARK: Snapshot
 
     public var coverage: CircleCoverage {
-        let sponsor = you.hasPro ? you : members.first(where: \.hasPro)
-        return CircleCoverage(
-            isCovered: sponsor != nil,
-            sponsorName: sponsor?.displayName,
-            actingIsSponsor: sponsor?.id == you.id
+        CircleCoverage(
+            isCovered: you.hasPro,
+            sponsorName: you.hasPro ? you.displayName : nil,
+            actingIsSponsor: you.hasPro
         )
     }
 
@@ -99,7 +98,7 @@ public final class DemoTrustService: ObservableObject {
     /// Maya Until, Leo Always, Inês For a while, Jules Until, the rest Off. You are on Free.
     public func startLeanDemo() {
         let now = clock.now()
-        you = Person(displayName: "Alex Laurent", hasPro: false, onboardingComplete: true, handle: "alex")
+        you = Person(displayName: "Alex Laurent", hasPro: false, onboardingComplete: true, phoneVerified: true, handle: "alex")
         members = []
         vaults = [:]
         outbound = [:]
@@ -227,6 +226,10 @@ public final class DemoTrustService: ObservableObject {
         outbound[personID] = PersonShareState(resting: .off)
     }
 
+    public func setPause(personID: UUID) {
+        outbound[personID] = PersonShareState(resting: .pause)
+    }
+
     public func setUntilTheyLook(personID: UUID) {
         outbound[personID] = PersonShareState(resting: .untilTheyLook)
     }
@@ -292,7 +295,7 @@ public final class DemoTrustService: ObservableObject {
         expireTimedShares()
         let now = clock.now()
         let presentation = (inbound[subject.id] ?? PersonShareState()).presentation(at: now)
-        if presentation.isOff { throw LookError.shareOff }
+        if presentation.isNotSharing { throw LookError.shareOff }
         if presentation.isAvailable { throw LookError.lookRequiresSealed }
         if let open = snapshots[subject.id], now.timeIntervalSince(open.event.at) < 30 * 60 {
             return open
@@ -368,6 +371,17 @@ public final class DemoTrustService: ObservableObject {
     }
 
     public func revoke(personID: UUID) {
+        let name = members.first { $0.id == personID }?.displayName ?? "Someone"
+        lookLog.append(LookEvent(
+            viewerID: you.id,
+            viewerName: you.displayName,
+            subjectID: personID,
+            subjectName: name,
+            at: clock.now(),
+            historyWindowHours: 0,
+            includedLive: false,
+            kind: .removed
+        ))
         members.removeAll { $0.id == personID }
         vaults[personID] = nil
         outbound[personID] = nil
@@ -375,6 +389,25 @@ public final class DemoTrustService: ObservableObject {
         presenceByPerson[personID] = nil
         placeLabels[personID] = nil
         snapshots[personID] = nil
+    }
+
+    /// Free: 24h trail. Plus: 30 days. Requires an open Look session.
+    public func extendLook(subjectID: UUID) throws -> LookSession {
+        guard let open = snapshots[subjectID] else { throw LookError.pairInactive }
+        let now = clock.now()
+        let hours = coverage.historyHours
+        let trail = vault(for: subjectID).unlock(now: now, window: TimeInterval(hours * 3600))
+        guard let live = trail.last ?? vault(for: subjectID).latest(now: now, window: 3 * 3600) else {
+            throw LookError.noPartner
+        }
+        var event = open.event
+        event.historyWindowHours = hours
+        let session = LookSession(id: open.id, event: event, live: live, trail: trail.isEmpty ? [live] : trail)
+        snapshots[subjectID] = session
+        if let index = lookLog.firstIndex(where: { $0.id == event.id }) {
+            lookLog[index] = event
+        }
+        return session
     }
 
     public func peekEscrow(for personID: UUID) -> [LocationPoint] {
