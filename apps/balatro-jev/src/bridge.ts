@@ -24,7 +24,7 @@ export function normalizePhase(state: BalatroState): Phase {
   if (state.has_blind_select_ui) return "blind_select";
   if (state.blinds?.some((b) => {
     const s = (b.status ?? "").toLowerCase();
-    return s === "select" || s === "current";
+    return s === "select";
   })) {
     return "blind_select";
   }
