@@ -55,14 +55,9 @@ local function map_phase()
   end
   local st = G.STATE
 
-  -- UI presence is the strongest signal for blind select (enum can lag during transitions).
-  if G.blind_select then
-    return "blind_select"
-  end
-
-  if st == G.STATES.BLIND_SELECT then
-    return "blind_select"
-  elseif st == G.STATES.SELECTING_HAND
+  -- Hand/shop/pack/eval win over a lingering G.blind_select UIBox.
+  -- After Select, DRAW_TO_HAND can briefly leave G.blind_select non-nil.
+  if st == G.STATES.SELECTING_HAND
     or st == G.STATES.HAND_PLAYED
     or st == G.STATES.DRAW_TO_HAND then
     return "hand"
@@ -83,9 +78,10 @@ local function map_phase()
     or st == G.STATES.SPLASH
     or st == G.STATES.DEMO_CTA then
     return "menu"
+  elseif st == G.STATES.BLIND_SELECT or G.blind_select then
+    return "blind_select"
   elseif st == G.STATES.NEW_ROUND then
-    -- Transition into blind select UI; still not actionable until G.blind_select exists,
-    -- but report blind_select when round_resets already shows a Select blind.
+    -- Transition into blind select; report when a Select blind is already present.
     local rr = G.GAME and G.GAME.round_resets
     local states = rr and rr.blind_states
     if states and (states.Small == "Select" or states.Big == "Select" or states.Boss == "Select") then
