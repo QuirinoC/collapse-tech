@@ -62,10 +62,13 @@ export function toSemanticState(
     selected: state.selected ?? [],
     jokers: (state.jokers ?? []).map((j) => j.name || j.id),
     shop: (state.shop ?? []).map((s) => `${s.name}@$${s.cost}`),
+    pack: (state.pack ?? []).map((p) => p.name || p.id),
     blinds: (state.blinds ?? []).map((b) => b.name || b.id),
+    blind_on_deck: state.blind_on_deck ?? null,
+    consumables: (state.consumables ?? []).map((c) => c.name || c.id),
     legal_action_ids: legalActions.map((a) => a.id),
     notes: state.notes ?? null,
     objective:
-      "Pick the single best currently legal action to progress a strong Balatro run. Prefer clearing blinds efficiently; respect hands/discards left and money.",
+      "Pick the single best currently legal action to progress a strong Balatro run. Prefer clearing blinds efficiently; in shop buy strong jokers then leave; in packs take the best card; respect hands/discards left and money.",
   };
 }

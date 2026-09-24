@@ -5,6 +5,7 @@ export type Phase =
   | "hand"
   | "shop"
   | "pack_open"
+  | "round_eval"
   | "game_over"
   | "unknown";
 
@@ -21,12 +22,24 @@ export interface JokerRef {
   index: number;
   id: string;
   name: string;
+  sell_value?: number;
+}
+
+export interface ConsumableRef {
+  index: number;
+  id: string;
+  name: string;
+  set?: string;
+  sell_value?: number;
 }
 
 export interface BlindOption {
   id: "small" | "big" | "boss" | string;
   name: string;
   skippable?: boolean;
+  /** Native Balatro key: Small | Big | Boss */
+  native_key?: string;
+  status?: string;
 }
 
 export interface ShopItem {
@@ -35,6 +48,17 @@ export interface ShopItem {
   id: string;
   name: string;
   cost: number;
+  /** Which shop CardArea: shop_jokers | shop_vouchers | shop_booster */
+  area?: "shop_jokers" | "shop_vouchers" | "shop_booster" | string;
+  /** 0-based slot within that area */
+  slot?: number;
+}
+
+export interface PackCard {
+  index: number;
+  id: string;
+  name: string;
+  kind?: string;
 }
 
 export interface LegalAction {
@@ -48,8 +72,13 @@ export interface LegalAction {
     | "buy"
     | "reroll"
     | "cash_out"
+    | "leave_shop"
     | "use_consumable"
     | "sell"
+    | "pack_select"
+    | "pack_skip"
+    | "new_run"
+    | "go_to_menu"
     | "noop";
   /** Human-readable label for Jev + logs. */
   label: string;
@@ -71,8 +100,14 @@ export interface BalatroState {
   hand?: CardRef[];
   selected?: number[];
   jokers?: JokerRef[];
+  consumables?: ConsumableRef[];
   blinds?: BlindOption[];
+  /** Current blind on deck: small | big | boss */
+  blind_on_deck?: string;
   shop?: ShopItem[];
+  reroll_cost?: number;
+  pack?: PackCard[];
+  pack_choices_left?: number;
   /** Optional: mod can precompute; bridge derives if missing. */
   legal_actions?: LegalAction[];
   notes?: string;

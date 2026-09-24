@@ -11,7 +11,9 @@
     "watch": "tsx --env-file-if-exists=.env src/index.ts --watch",
     "launch:macos": "bash scripts/macos-launch-lovely.sh",
     "simulate": "BALATRO_JEV_MODE=${BALATRO_JEV_MODE:-mock} tsx --env-file-if-exists=.env scripts/simulate.ts",
+    "smoke:lua": "tsx --env-file-if-exists=.env scripts/smoke-lua-apply.ts",
     "smoke:live": "tsx --env-file-if-exists=.env scripts/smoke-jev-live.mts",
+    "smoke:phases": "npm run smoke:lua && npm run simulate",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

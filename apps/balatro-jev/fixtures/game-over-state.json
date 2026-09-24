@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "phase": "game_over",
+  "ante": 3,
+  "round": 8,
+  "money": 12,
+  "jokers": [
+    { "index": 0, "id": "j_joker", "name": "Joker", "sell_value": 2 }
+  ],
+  "notes": "Fixture: run ended."
+}

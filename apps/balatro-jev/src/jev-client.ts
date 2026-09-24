@@ -7,21 +7,44 @@ import type { BalatroState, ChosenAction, LegalAction } from "./types.js";
 export type { JevMode };
 export { resolveMode };
 
-/** Cheap heuristic when no API key: prefer play > buy joker > select small > first. */
+const PHASE_PREFER: Record<string, LegalAction["kind"][]> = {
+  blind_select: ["select_blind", "skip_blind"],
+  hand: ["play_hand", "discard"],
+  shop: ["buy", "leave_shop", "reroll", "sell"],
+  pack_open: ["pack_select", "pack_skip"],
+  round_eval: ["cash_out"],
+  game_over: ["new_run", "go_to_menu"],
+  unknown: ["noop"],
+};
+
+/** Cheap heuristic when no API key / low confidence / live failure. */
 export function mockChoose(
   state: BalatroState,
   actions: LegalAction[],
 ): ChosenAction {
+  const preferKinds = PHASE_PREFER[state.phase] ?? [];
   const prefer = (kinds: LegalAction["kind"][]) =>
     actions.find((a) => kinds.includes(a.kind));
 
-  const picked =
-    prefer(["play_hand"]) ??
-    prefer(["buy"]) ??
-    prefer(["select_blind"]) ??
-    prefer(["cash_out"]) ??
-    prefer(["discard"]) ??
-    actions[0]!;
+  // Shop: prefer affordable joker buy, else leave (don't burn money on endless rerolls).
+  let picked: LegalAction | undefined;
+  if (state.phase === "shop") {
+    picked =
+      actions.find((a) => a.kind === "buy" && String(a.id).includes("joker")) ??
+      prefer(["buy"]) ??
+      prefer(["leave_shop", "cash_out"]) ??
+      prefer(["reroll"]);
+  } else if (state.phase === "blind_select") {
+    picked = prefer(["select_blind"]) ?? prefer(["skip_blind"]);
+  } else if (state.phase === "hand") {
+    picked = prefer(["play_hand"]) ?? prefer(["discard"]);
+  } else if (state.phase === "pack_open") {
+    picked = prefer(["pack_select"]) ?? prefer(["pack_skip"]);
+  } else {
+    picked = prefer(preferKinds);
+  }
+
+  picked = picked ?? prefer(["noop"]) ?? actions[0]!;
 
   return {
     action: picked,
@@ -36,8 +59,10 @@ function safeFallback(actions: LegalAction[], reason: string): ChosenAction {
     actions.find((a) => kinds.includes(a.kind));
   const picked =
     prefer(["noop"]) ??
-    prefer(["cash_out"]) ??
+    prefer(["leave_shop", "cash_out"]) ??
     prefer(["select_blind"]) ??
+    prefer(["pack_skip"]) ??
+    prefer(["go_to_menu"]) ??
     actions[0]!;
   return {
     action: picked,
@@ -99,11 +124,13 @@ export async function liveChoose(
             "`discards`",
             "`money`",
             "`shop`",
+            "`pack`",
+            "`blinds`",
             "`legal_action_ids`",
             "`objective`",
           ],
           focus:
-            "Pick exactly one id from the criteria. Prefer clearing the blind; do not invent actions.",
+            "Pick exactly one id from the criteria. Prefer clearing the blind; in shop leave after useful buys; in packs take the strongest card; do not invent actions.",
         },
         criteria,
       ),
@@ -115,10 +142,14 @@ export async function liveChoose(
   const action = actions.find((a) => a.id === selectedId);
 
   if (!action) {
-    return safeFallback(
-      actions,
-      `stale/unknown choice id=${selectedId}; falling back`,
-    );
+    const fallback = mockChoose(state, actions);
+    return {
+      action: fallback.action,
+      mode: "live",
+      confidence: 0,
+      model: response.model,
+      rationale: `stale/unknown choice id=${selectedId}; mock fallback ${fallback.action.id}`,
+    };
   }
 
   if (confidence < config.minActionConfidence) {
@@ -147,7 +178,17 @@ export async function chooseAction(
   mode: JevMode = resolveMode(),
 ): Promise<ChosenAction> {
   if (mode === "live") {
-    return liveChoose(state, actions);
+    try {
+      return await liveChoose(state, actions);
+    } catch (err) {
+      const fallback = mockChoose(state, actions);
+      return {
+        action: fallback.action,
+        mode: "live",
+        confidence: 0,
+        rationale: `live Jev failed (${err instanceof Error ? err.message : String(err)}); mock fallback ${fallback.action.id}`,
+      };
+    }
   }
   return mockChoose(state, actions);
 }

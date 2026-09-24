@@ -4,13 +4,17 @@
   "ante": 1,
   "round": 1,
   "money": 12,
+  "reroll_cost": 5,
   "jokers": [
-    { "index": 0, "id": "j_joker", "name": "Joker" }
+    { "index": 0, "id": "j_joker", "name": "Joker", "sell_value": 2 }
+  ],
+  "consumables": [
+    { "index": 0, "id": "c_fool", "name": "The Fool", "set": "Tarot", "sell_value": 1 }
   ],
   "shop": [
-    { "index": 0, "kind": "joker", "id": "j_greedy_joker", "name": "Greedy Joker", "cost": 5 },
-    { "index": 1, "kind": "joker", "id": "j_lusty_joker", "name": "Lusty Joker", "cost": 5 },
-    { "index": 2, "kind": "pack", "id": "p_standard", "name": "Standard Pack", "cost": 4 }
+    { "index": 0, "slot": 0, "area": "shop_jokers", "kind": "joker", "id": "j_greedy_joker", "name": "Greedy Joker", "cost": 5 },
+    { "index": 1, "slot": 1, "area": "shop_jokers", "kind": "joker", "id": "j_lusty_joker", "name": "Lusty Joker", "cost": 5 },
+    { "index": 2, "slot": 0, "area": "shop_booster", "kind": "pack", "id": "p_standard", "name": "Standard Pack", "cost": 4 }
   ],
-  "notes": "Fixture: post-blind shop with affordable jokers."
+  "notes": "Fixture: post-blind shop with affordable jokers + pack."
 }

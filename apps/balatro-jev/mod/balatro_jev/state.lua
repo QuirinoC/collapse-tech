@@ -1,5 +1,5 @@
 -- Build versioned JSON-ish Lua tables matching apps/balatro-jev/src/types.ts
--- Steamodded / Balatro APIs vary by game version — TODOs mark integration points.
+-- Field paths verified against Steam Balatro 1.0.1o.
 
 local M = {}
 
@@ -9,29 +9,138 @@ local function safe(fn, fallback)
   return fallback
 end
 
+local function card_name(card)
+  return safe(function()
+    if card.ability and card.ability.name then return card.ability.name end
+    if card.config and card.config.center and card.config.center.name then
+      return card.config.center.name
+    end
+    if card.config and card.config.center and card.config.center.key then
+      return card.config.center.key
+    end
+    return "Card"
+  end, "Card")
+end
+
+local function card_key(card)
+  return safe(function()
+    return card.config.center.key
+  end, "unknown")
+end
+
+local function shop_kind(card)
+  local set = safe(function() return card.ability.set end, nil)
+  if set == "Joker" then return "joker" end
+  if set == "Booster" then return "pack" end
+  if set == "Voucher" then return "voucher" end
+  if card.ability and card.ability.consumeable then return "consumable" end
+  return "unknown"
+end
+
+local function map_phase()
+  if not (G and G.STATE and G.STATES) then
+    return "unknown"
+  end
+  local st = G.STATE
+  if st == G.STATES.BLIND_SELECT then
+    return "blind_select"
+  elseif st == G.STATES.SELECTING_HAND
+    or st == G.STATES.HAND_PLAYED
+    or st == G.STATES.DRAW_TO_HAND then
+    return "hand"
+  elseif st == G.STATES.SHOP then
+    return "shop"
+  elseif st == G.STATES.ROUND_EVAL then
+    return "round_eval"
+  elseif st == G.STATES.GAME_OVER then
+    return "game_over"
+  elseif st == G.STATES.TAROT_PACK
+    or st == G.STATES.PLANET_PACK
+    or st == G.STATES.SPECTRAL_PACK
+    or st == G.STATES.STANDARD_PACK
+    or st == G.STATES.BUFFOON_PACK then
+    return "pack_open"
+  end
+  return "unknown"
+end
+
+local function dump_blinds()
+  local blinds = {}
+  if not (G and G.GAME and G.GAME.round_resets) then
+    return nil
+  end
+  local rr = G.GAME.round_resets
+  local order = { "Small", "Big", "Boss" }
+  local id_map = { Small = "small", Big = "big", Boss = "boss" }
+  for _, key in ipairs(order) do
+    local status = rr.blind_states and rr.blind_states[key]
+    if status and status ~= "Hide" then
+      local choice = rr.blind_choices and rr.blind_choices[key]
+      local blind_def = choice and G.P_BLINDS and G.P_BLINDS[choice]
+      local name = safe(function()
+        return localize({ type = "name_text", key = blind_def.key, set = "Blind" })
+      end, key .. " Blind")
+      blinds[#blinds + 1] = {
+        id = id_map[key],
+        name = name,
+        native_key = key,
+        status = status,
+        skippable = key ~= "Boss" and (status == "Select" or status == "Current"),
+      }
+    end
+  end
+  return #blinds > 0 and blinds or nil
+end
+
+local function dump_shop()
+  local shop = {}
+  local flat = 0
+  local function add_area(area_name, area)
+    if not (area and area.cards) then return end
+    for slot, card in ipairs(area.cards) do
+      shop[#shop + 1] = {
+        index = flat,
+        slot = slot - 1,
+        area = area_name,
+        kind = shop_kind(card),
+        id = card_key(card),
+        name = card_name(card),
+        cost = safe(function() return card.cost end, 0),
+      }
+      flat = flat + 1
+    end
+  end
+  add_area("shop_jokers", G.shop_jokers)
+  add_area("shop_vouchers", G.shop_vouchers)
+  add_area("shop_booster", G.shop_booster)
+  return #shop > 0 and shop or nil
+end
+
+local function dump_pack()
+  local pack = {}
+  if not (G and G.pack_cards and G.pack_cards.cards) then
+    return nil
+  end
+  for i, card in ipairs(G.pack_cards.cards) do
+    pack[#pack + 1] = {
+      index = i - 1,
+      id = card_key(card),
+      name = card_name(card),
+      kind = shop_kind(card),
+    }
+  end
+  return #pack > 0 and pack or nil
+end
+
 --- @return table BalatroState v1
 function M.dump()
-  -- TODO: replace with real G.GAME / G.hand / G.jokers reads under Steamodded.
-  local phase = "unknown"
+  local phase = map_phase()
   local ante = 1
   local round = 1
   local money = 0
   local chips_needed, chips_scored, hands_left, discards_left
-  local hand, jokers, blinds, shop, selected, legal_actions
-
-  if G and G.STATE then
-    -- Heuristic mapping; verify against current Balatro enums.
-    local st = G.STATE
-    if st == G.STATES.BLIND_SELECT then
-      phase = "blind_select"
-    elseif st == G.STATES.SELECTING_HAND or st == G.STATES.HAND_PLAYED or st == G.STATES.DRAW_TO_HAND then
-      phase = "hand"
-    elseif st == G.STATES.SHOP then
-      phase = "shop"
-    elseif st == G.STATES.GAME_OVER then
-      phase = "game_over"
-    end
-  end
+  local hand, jokers, consumables, blinds, shop, pack, selected
+  local blind_on_deck, reroll_cost, pack_choices_left
 
   if G and G.GAME then
     ante = safe(function() return G.GAME.round_resets.ante end, ante)
@@ -41,9 +150,14 @@ function M.dump()
     chips_scored = safe(function() return G.GAME.chips end, nil)
     hands_left = safe(function() return G.GAME.current_round.hands_left end, nil)
     discards_left = safe(function() return G.GAME.current_round.discards_left end, nil)
+    reroll_cost = safe(function() return G.GAME.current_round.reroll_cost end, nil)
+    pack_choices_left = safe(function() return G.GAME.pack_choices end, nil)
+    local on = safe(function() return G.GAME.blind_on_deck end, nil)
+    if on then
+      blind_on_deck = string.lower(on)
+    end
   end
 
-  -- Hand cards
   hand = {}
   if G and G.hand and G.hand.cards then
     for i, card in ipairs(G.hand.cards) do
@@ -75,14 +189,29 @@ function M.dump()
     for i, j in ipairs(G.jokers.cards) do
       jokers[#jokers + 1] = {
         index = i - 1,
-        id = safe(function() return j.config.center.key end, "unknown"),
-        name = safe(function() return j.ability and j.ability.name or j.config.center.name end, "Joker"),
+        id = card_key(j),
+        name = card_name(j),
+        sell_value = safe(function() return j.sell_cost end, nil),
       }
     end
   end
 
-  -- Blinds / shop: leave nil so the Node bridge derives legal actions from phase.
-  -- TODO: enumerate selectable blinds and shop offers with stable ids.
+  consumables = {}
+  if G and G.consumeables and G.consumeables.cards then
+    for i, c in ipairs(G.consumeables.cards) do
+      consumables[#consumables + 1] = {
+        index = i - 1,
+        id = card_key(c),
+        name = card_name(c),
+        set = safe(function() return c.ability.set end, nil),
+        sell_value = safe(function() return c.sell_cost end, nil),
+      }
+    end
+  end
+
+  blinds = dump_blinds()
+  shop = dump_shop()
+  pack = dump_pack()
 
   return {
     version = 1,
@@ -94,14 +223,18 @@ function M.dump()
     chips_scored = chips_scored,
     hands_left = hands_left,
     discards_left = discards_left,
-    hand_size = hand and #hand or nil,
+    hand_size = #hand > 0 and #hand or nil,
     hand = #hand > 0 and hand or nil,
     selected = #selected > 0 and selected or nil,
     jokers = #jokers > 0 and jokers or nil,
+    consumables = #consumables > 0 and consumables or nil,
     blinds = blinds,
+    blind_on_deck = blind_on_deck,
     shop = shop,
-    legal_actions = legal_actions,
-    notes = "dumped by balatro_jev Lua mod; verify Steamodded field paths",
+    reroll_cost = reroll_cost,
+    pack = pack,
+    pack_choices_left = pack_choices_left,
+    notes = "balatro_jev dump v2",
   }
 end
 

@@ -2,15 +2,13 @@
 
 ## Done on this Mac
 
-- Steam Balatro found: `~/Library/Application Support/Steam/steamapps/common/Balatro/Balatro.app`
-- Lovely **v0.10.0** (aarch64) installed beside the `.app`
-- Steamodded **26.829.0** at `~/Library/Application Support/Balatro/Mods/smods`
-- Mod symlinked: `Mods/balatro_jev` → repo `apps/balatro-jev/mod/balatro_jev`
-- Smoke launch: Lovely + SMODS + mod loaded; wrote `…/Balatro/balatro_jev/state.json`
+- Steam Balatro + Lovely v0.10.0 + Steamodded 26.829.0 installed
+- Mod symlinked: `Mods/balatro_jev` → `apps/balatro-jev/mod/balatro_jev`
 - `.env` IPC: `BALATRO_JEV_IPC_DIR=…/Balatro/balatro_jev` (gitignored)
-- Lua: `play_hand` / `discard` wired to real `G.FUNCS.*`
+- **Full-run loop (this branch):** legal actions + Lua apply for blind / hand / round_eval / shop / pack / game_over
+- Watch loop: confidence gates, poll + stuck re-engage, forced progress escape
 
-## When you sit down
+## Operator path
 
 ```bash
 # Terminal A
@@ -18,21 +16,38 @@ cd ~/dev/collapse-tech/apps/balatro-jev && npm run watch
 
 # Terminal B — do NOT use Steam Play
 npm run launch:macos
-# or: sh "$HOME/Library/Application Support/Steam/steamapps/common/Balatro/run_lovely_macos.sh"
 ```
 
-1. Confirm Mods menu shows **Balatro Jev**.
-2. Start a run → enter a hand.
-3. Watch Terminal A: `state.json` should show `phase: "hand"` and cards; bridge writes `action.json`.
-4. Mod should highlight + play/discard.
+1. Mods menu → **Balatro Jev** enabled.
+2. Start a run from the menu (title-screen auto-start not wired).
+3. Bridge logs `phase=… → action_id`; mod prints `apply … => true`.
 
-## Still manual / TODO
+## Phase status
 
-- Blind select / skip / shop buy / sell / use consumable need UI `e` refs.
-- If Gatekeeper blocks Lovely: Privacy & Security → Allow Anyway.
-- **Refund tip:** keep Steam playtime under **2h** while testing if you might refund.
+| Phase | Playable? |
+| --- | --- |
+| Blind select / skip | Yes — `G.blind_select_opts` + `select_blind` / `skip_blind` |
+| Hand play / discard | Yes |
+| Round eval cash-out | Yes — `G.FUNCS.cash_out` |
+| Shop buy / sell / use / reroll / leave | Yes — shop Card refs + `toggle_shop` |
+| Pack open select / skip | Yes — `G.pack_cards` + `skip_booster` |
+| Game over new run / menu | Best-effort — `start_run` / `go_to_menu` (overlay may need manual confirm) |
 
-## Undo Lovely (non-destructive)
+## Offline checks
 
-Delete only these from the Steam Balatro folder: `liblovely.dylib`, `run_lovely_macos.sh`.  
-Remove `~/Library/Application Support/Balatro/Mods/` if you want mods gone. Game binary untouched.
+```bash
+npm run typecheck
+npm run smoke:phases   # Lua FUNCS ↔ kinds + fixture cycle
+npm run simulate       # mock full phase cycle
+# BALATRO_JEV_MODE=live npm run simulate   # spends Jev credits
+```
+
+## Still fragile
+
+- Consumables that need a hand target may no-op without a highlighted card.
+- Buying during shop UI spawn (~0.43s) can miss the card — watch loop retries.
+- Title → New Run still manual.
+
+## Undo Lovely
+
+Delete `liblovely.dylib` + `run_lovely_macos.sh` from the Steam Balatro folder. Game binary untouched.

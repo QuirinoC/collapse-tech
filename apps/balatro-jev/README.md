@@ -1,19 +1,20 @@
 # balatro-jev
 
-Balatro **state → Jev Choice → action** bridge.
+Balatro **state → Jev Choice → action** bridge for a full autonomous run loop (no vision).
 
 1. Steamodded Lua mod dumps `state.json` and applies `action.json`.
 2. TypeScript derives legal actions and asks **TypeSafe Jev** (`choice` over those ids), or uses a **mock** heuristic with no API key.
+3. Watch loop continuously decide+apply with confidence gates and stuck-state escapes.
 
 ## Layout
 
 ```
 apps/balatro-jev/
   src/                 CLI, bridge, Jev client, legal-action derivation
-  fixtures/            sample states for offline runs
+  fixtures/            sample states for offline runs (all phases)
   ipc/                 default state.json / action.json exchange dir
   mod/balatro_jev/     Steamodded mod (symlinked into Mods/)
-  scripts/             helpers (simulate, macos launch notes)
+  scripts/             simulate, smoke, macos launch
 ```
 
 ## Setup (Node)
@@ -31,105 +32,81 @@ Never commit `.env`.
 
 ### IPC path (macOS)
 
-Love2D save dir for Steam Balatro:
-
-```
-~/Library/Application Support/Balatro/
-```
-
-The mod writes under `balatro_jev/` inside that folder. Set in `.env`:
-
 ```bash
 BALATRO_JEV_IPC_DIR=/Users/<you>/Library/Application Support/Balatro/balatro_jev
 ```
 
-(See `.env.example`.)
+## Operator path (macOS)
 
-## macOS: Steamodded + Lovely (Steam install only)
+Steam’s Play button does **not** load Lovely. Use two terminals:
 
-Official docs: [Installing Steamodded on Mac](https://docs.smods.dev/Installation/Installing%20Steamodded%20mac/) · [Lovely injector](https://github.com/ethangreen-dev/lovely-injector)
+```bash
+# Terminal A — bridge
+cd ~/dev/collapse-tech/apps/balatro-jev
+npm run watch
 
-**Do not use Arcade / App Store Balatro.** Use Steam’s copy.
+# Terminal B — game with Lovely + Steamodded
+npm run launch:macos
+```
 
-### Already applied on this machine (agent)
+1. Confirm Mods menu shows **Balatro Jev**.
+2. Start a run (menu → New Run). Jev does not auto-start from the title screen yet.
+3. Bridge logs phase transitions and chosen actions; mod applies them in-game.
+
+Offline:
+
+```bash
+npm run mock
+npm run simulate          # full phase cycle (mock)
+npm run smoke:phases      # Lua FUNCS check + simulate
+npm run smoke:live        # live Choice smoke (needs key)
+npm run typecheck
+```
+
+## Phase coverage
+
+| Phase | Legal actions (TS) | Lua apply |
+| --- | --- | --- |
+| `blind_select` | `select_blind`, `skip_blind` | `G.FUNCS.select_blind` / `skip_blind` via `G.blind_select_opts` UI refs (synth fallback) |
+| `hand` | `play_hand`, `discard` (candidate sets) | highlight → `play_cards_from_highlighted` / `discard_cards_from_highlighted` |
+| `round_eval` | `cash_out` | `G.FUNCS.cash_out({config={}})` |
+| `shop` | `buy`, `sell`, `use_consumable`, `reroll`, `leave_shop` | `buy_from_shop` / `use_card` (booster+voucher) / `sell_card` / `reroll_shop` / `toggle_shop` |
+| `pack_open` | `pack_select`, `pack_skip` | `use_card` on `G.pack_cards` / `skip_booster` |
+| `game_over` | `new_run`, `go_to_menu` | `start_run` / `go_to_menu` |
+
+### Still blocked / fragile
+
+| Gap | Missing / risk |
+| --- | --- |
+| Title → first run | No auto `start_run` from main menu without UI stake selection; Juan starts the run once |
+| Consumable targeting | `use_card` on targeted tarots may need a highlighted hand card; untargeted use may no-op |
+| Shop vouchers/boosters mid-animation | Apply during shop card UI spawn delay (~0.43s) can miss the card |
+| `new_run` after game over | Relies on `G.FUNCS.start_run`; overlay/stake UI may still need a click on some builds |
+
+## macOS: Steamodded + Lovely
 
 | Piece | Path |
 | --- | --- |
 | Steam game | `~/Library/Application Support/Steam/steamapps/common/Balatro/Balatro.app` |
-| Lovely | `…/Balatro/liblovely.dylib` + `run_lovely_macos.sh` (v0.10.0 aarch64) |
-| Steamodded | `~/Library/Application Support/Balatro/Mods/smods` (26.829.0) |
-| Our mod | `~/Library/Application Support/Balatro/Mods/balatro_jev` → symlink to `apps/balatro-jev/mod/balatro_jev` |
+| Lovely | `…/Balatro/liblovely.dylib` + `run_lovely_macos.sh` |
+| Steamodded | `~/Library/Application Support/Balatro/Mods/smods` |
+| Our mod | `Mods/balatro_jev` → symlink to `apps/balatro-jev/mod/balatro_jev` |
 
-### Launch (required on Mac)
+If Gatekeeper blocks: Privacy & Security → Allow Anyway, or `xattr -rd com.apple.quarantine liblovely.dylib`.
 
-Steam’s Play button does **not** load Lovely on macOS. Launch via Terminal:
+## Watch-loop safety
 
-```bash
-cd "$HOME/Library/Application Support/Steam/steamapps/common/Balatro"
-sh run_lovely_macos.sh
-```
-
-Or drag `run_lovely_macos.sh` onto **Terminal.app**.
-
-If macOS blocks `liblovely.dylib`: System Settings → Privacy & Security → Allow Anyway, or:
-
-```bash
-xattr -rd com.apple.quarantine liblovely.dylib
-```
-
-In-game you should see a Lovely console window and a **Mods** button (Steamodded). Enable **Balatro Jev**.
-
-### Re-install from scratch (if needed)
-
-1. Download Lovely Arm release `lovely-aarch64-apple-darwin.tar.gz` from [releases](https://github.com/ethangreen-dev/lovely-injector/releases).
-2. Extract `liblovely.dylib` + `run_lovely_macos.sh` into the Steam Balatro folder (same folder as `Balatro.app`).
-3. Download Steamodded “Source code (zip)” from [smods releases](https://github.com/Steamodded/smods/releases/latest).
-4. Put the inner folder at `~/Library/Application Support/Balatro/Mods/smods/` (not nested `smods/smods`).
-5. Symlink our mod:
-
-```bash
-ln -sfn "$PWD/apps/balatro-jev/mod/balatro_jev" \
-  "$HOME/Library/Application Support/Balatro/Mods/balatro_jev"
-```
-
-## Run (bridge + game)
-
-```bash
-# Terminal A — after Lovely/Steamodded launch shows Mods
-cd apps/balatro-jev
-npm run watch
-
-# Terminal B — launch game with injector
-cd "$HOME/Library/Application Support/Steam/steamapps/common/Balatro"
-sh run_lovely_macos.sh
-```
-
-Offline (no game):
-
-```bash
-npm run mock          # hand fixture → mock decision → ipc/action.json
-npm run simulate      # cycle all fixtures (mock)
-npm start -- --once --fixture fixtures/shop-state.json
-npm run smoke:live    # direct live Choice smoke (needs key)
-npm run typecheck
-```
-
-## Control status
-
-| Action | Status |
-| --- | --- |
-| `play_hand` / `discard` | Wired: highlight by 0-based indices → `G.FUNCS.play_cards_from_highlighted` / `discard_cards_from_highlighted` |
-| `reroll` | Best-effort `G.FUNCS.reroll_shop({})` |
-| `cash_out` | Best-effort in `ROUND_EVAL`; leave-shop via `toggle_shop` may need UI `e` |
-| `select_blind` / `skip_blind` / `buy` / `sell` / `use_consumable` | TODO — native FUNCS expect a UI element (`e.config.ref_table`) |
-
-## Refund-safe tip
-
-If you might refund on Steam, keep total playtime **under 2 hours** while testing mods.
+- Confidence below `MIN_ACTION_CONFIDENCE` → mock heuristic fallback
+- Live API errors → mock fallback (never stall)
+- Identical state for `BALATRO_JEV_STUCK_MS` (default 8s) → re-decide
+- Same action repeated `BALATRO_JEV_MAX_SAME` times → force leave/select/play escape
+- Poll every `BALATRO_JEV_POLL_MS` (default 1.5s) in addition to `fs.watch`
 
 ## Protocol
 
-- **state.json** `version: 1` — `phase`, resources, `hand` / `jokers` / `shop`, optional `legal_actions`
+- **state.json** `version: 1` — `phase`, resources, `hand` / `jokers` / `shop` / `pack` / `blinds`
 - **action.json** — `{ action: { id, kind, label, params }, mode, confidence, model, … }`
 
-Action `id`s are the Jev Choice labels. Below `MIN_ACTION_CONFIDENCE` the bridge falls back to the mock heuristic.
+## Refund-safe tip
+
+Keep Steam playtime **under 2 hours** while testing if you might refund.

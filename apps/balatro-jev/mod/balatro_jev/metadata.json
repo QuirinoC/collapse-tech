@@ -9,6 +9,6 @@
   "main_file": "balatro_jev.lua",
   "priority": 0,
   "badge_colour": "E85D04",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "dependencies": []
 }

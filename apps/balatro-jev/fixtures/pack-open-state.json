@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "phase": "pack_open",
+  "ante": 1,
+  "round": 1,
+  "money": 6,
+  "pack_choices_left": 1,
+  "jokers": [
+    { "index": 0, "id": "j_joker", "name": "Joker", "sell_value": 2 }
+  ],
+  "pack": [
+    { "index": 0, "id": "c_mercury", "name": "Mercury", "kind": "consumable" },
+    { "index": 1, "id": "c_venus", "name": "Venus", "kind": "consumable" },
+    { "index": 2, "id": "c_earth", "name": "Earth", "kind": "consumable" }
+  ],
+  "notes": "Fixture: planet pack open."
+}

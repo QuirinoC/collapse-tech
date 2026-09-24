@@ -8,13 +8,22 @@ import {
   decideFromState,
   defaultIpcDir,
   parseState,
+  stateFingerprint,
   writeDecision,
 } from "./bridge.js";
 import { config } from "./config.js";
-import { resolveMode } from "./jev-client.js";
+import { mockChoose, resolveMode } from "./jev-client.js";
+import { deriveLegalActions } from "./legal-actions.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(__dirname, "..");
+
+/** Poll interval when fs.watch is quiet — never stall forever. */
+const WATCH_POLL_MS = Number(process.env.BALATRO_JEV_POLL_MS ?? "1500");
+/** Re-decide same fingerprint after this many ms (stuck-state escape). */
+const STUCK_REENGAGE_MS = Number(process.env.BALATRO_JEV_STUCK_MS ?? "8000");
+/** After this many identical decisions without state change, force mock leave/select. */
+const MAX_SAME_DECISIONS = Number(process.env.BALATRO_JEV_MAX_SAME ?? "3");
 
 function usage(): never {
   console.log(`balatro-jev — Balatro state → Jev Choice → action bridge
@@ -23,6 +32,7 @@ Usage:
   npm start -- --once [--fixture <path>] [--state <path>] [--action <path>]
   npm run mock
   npm run watch
+  npm run launch:macos
   npm run simulate
   npm run smoke:live
 
@@ -32,6 +42,7 @@ Env:
   BALATRO_JEV_MODE       mock | live
   BALATRO_JEV_IPC_DIR    directory for state.json / action.json (default: ./ipc)
   MIN_ACTION_CONFIDENCE  Choice confidence floor (default 0.45)
+  BALATRO_JEV_POLL_MS    watch poll interval (default 1500)
 `);
   process.exit(1);
 }
@@ -82,37 +93,114 @@ async function runOnce(opts: {
 async function runWatch(ipcDir: string, actionPath: string): Promise<void> {
   const statePath = path.join(ipcDir, "state.json");
   console.log(`[balatro-jev] watching ${statePath} (mode=${resolveMode()})`);
+  console.log(
+    `[balatro-jev] poll=${WATCH_POLL_MS}ms stuck=${STUCK_REENGAGE_MS}ms max_same=${MAX_SAME_DECISIONS}`,
+  );
 
   let busy = false;
   let queued = false;
+  let lastFingerprint = "";
+  let lastDecisionAt = 0;
+  let lastActionId = "";
+  let sameDecisionCount = 0;
 
-  const tick = async () => {
+  const tick = async (reason: string) => {
     if (busy) {
       queued = true;
       return;
     }
     busy = true;
     try {
-      await runOnce({ statePath, actionPath });
+      const text = await readFile(statePath, "utf8");
+      const state = parseState(JSON.parse(text) as unknown);
+      const fp = stateFingerprint(state);
+      const now = Date.now();
+
+      // Skip identical state unless stuck long enough to re-engage.
+      if (fp === lastFingerprint) {
+        const stuck = now - lastDecisionAt >= STUCK_REENGAGE_MS;
+        if (!stuck) return;
+        console.log(
+          `[balatro-jev] stuck on phase=${state.phase} for ${STUCK_REENGAGE_MS}ms — re-engaging (${reason})`,
+        );
+      } else {
+        sameDecisionCount = 0;
+      }
+
+      let decision = await decideFromState(state);
+
+      // Escape hatch: same action on same state repeatedly → force progress fallback.
+      if (
+        fp === lastFingerprint &&
+        decision.chosen.action.id === lastActionId
+      ) {
+        sameDecisionCount += 1;
+      } else {
+        sameDecisionCount = 1;
+      }
+
+      if (sameDecisionCount >= MAX_SAME_DECISIONS) {
+        const legal = deriveLegalActions(state);
+        const escape =
+          legal.find((a) =>
+            ["leave_shop", "cash_out", "select_blind", "pack_skip", "play_hand"].includes(
+              a.kind,
+            ),
+          ) ?? mockChoose(state, legal).action;
+        console.log(
+          `[balatro-jev] forcing progress escape → ${escape.id} (same decision x${sameDecisionCount})`,
+        );
+        decision = {
+          ...decision,
+          chosen: {
+            action: escape,
+            mode: decision.chosen.mode,
+            confidence: 0,
+            rationale: `forced escape after ${sameDecisionCount} identical decisions`,
+          },
+        };
+        sameDecisionCount = 0;
+      }
+
+      await writeDecision(decision, actionPath);
+      lastFingerprint = fp;
+      lastDecisionAt = now;
+      lastActionId = decision.chosen.action.id;
+
+      console.log(
+        `[balatro-jev] ${reason} phase=${state.phase} → ${decision.chosen.action.id}` +
+          ` (${decision.chosen.mode}` +
+          `${decision.chosen.confidence != null ? ` conf=${decision.chosen.confidence.toFixed?.(3) ?? decision.chosen.confidence}` : ""})`,
+      );
+      if (decision.chosen.rationale) {
+        console.log(`[balatro-jev] rationale: ${decision.chosen.rationale}`);
+      }
     } catch (err) {
-      console.error(`[balatro-jev] watch cycle failed:`, err);
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes("ENOENT") && !msg.includes("Unexpected end")) {
+        console.error(`[balatro-jev] watch cycle failed:`, err);
+      }
     } finally {
       busy = false;
       if (queued) {
         queued = false;
-        void tick();
+        void tick("queued");
       }
     }
   };
 
   watch(path.dirname(statePath), { persistent: true }, (_event, filename) => {
     if (!filename || filename !== path.basename(statePath)) return;
-    void tick();
+    void tick("fs");
   });
+
+  setInterval(() => {
+    void tick("poll");
+  }, WATCH_POLL_MS);
 
   try {
     await readFile(statePath, "utf8");
-    await tick();
+    await tick("boot");
   } catch {
     console.log(`[balatro-jev] waiting for first state dump…`);
   }

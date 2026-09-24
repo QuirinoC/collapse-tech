@@ -4,14 +4,15 @@
   "ante": 2,
   "round": 1,
   "money": 8,
+  "blind_on_deck": "big",
   "jokers": [
-    { "index": 0, "id": "j_joker", "name": "Joker" },
-    { "index": 1, "id": "j_greedy_joker", "name": "Greedy Joker" }
+    { "index": 0, "id": "j_joker", "name": "Joker", "sell_value": 2 },
+    { "index": 1, "id": "j_greedy_joker", "name": "Greedy Joker", "sell_value": 3 }
   ],
   "blinds": [
-    { "id": "small", "name": "Small Blind", "skippable": false },
-    { "id": "big", "name": "Big Blind", "skippable": true },
-    { "id": "boss", "name": "The Hook", "skippable": false }
+    { "id": "small", "name": "Small Blind", "skippable": false, "native_key": "Small", "status": "Defeated" },
+    { "id": "big", "name": "Big Blind", "skippable": true, "native_key": "Big", "status": "Select" },
+    { "id": "boss", "name": "The Hook", "skippable": false, "native_key": "Boss", "status": "Upcoming" }
   ],
-  "notes": "Fixture: ante-2 blind select."
+  "notes": "Fixture: ante-2 big-blind select."
 }
