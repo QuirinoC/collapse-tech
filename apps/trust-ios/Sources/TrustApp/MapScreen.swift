@@ -2,7 +2,7 @@ import MapKit
 import SwiftUI
 import TrustCore
 
-/// D2 Map — secondary. Pins are Available people plus snapshots opened this session.
+/// D2 Map — secondary push from View. Pins follow the same Plus gating as home.
 /// Sealed people are never on the map. Regular width: full-bleed map + trailing panel.
 struct MapScreen: View {
     @EnvironmentObject private var model: AppModel
@@ -11,7 +11,7 @@ struct MapScreen: View {
     @State private var position: MapCameraPosition = .automatic
     @State private var selectedID: UUID?
 
-    private var pins: [AppModel.MapPin] { model.mapPins }
+    private var pins: [AppModel.MapPin] { model.homeMapPins }
     private var sealedCount: Int { max(0, model.circle.count - pins.count) }
     private var selected: AppModel.MapPin? {
         pins.first { $0.id == selectedID } ?? pins.first
@@ -45,7 +45,7 @@ struct MapScreen: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.left").font(.system(size: 14, weight: .semibold))
-                        Text(TrustCopy.circle)
+                        Text(TrustCopy.people)
                     }
                     .trustFont(15, weight: .medium)
                     .foregroundStyle(palette.ink)
@@ -185,7 +185,7 @@ struct MapScreen: View {
                         .foregroundStyle(palette.muted)
                 }
                 Spacer()
-                TrustBadge(glyph: pin.live ? "eye" : "lock", text: pin.live ? TrustCopy.available : TrustCopy.oneLook)
+                TrustBadge(glyph: pin.live ? "eye" : "lock", text: pin.live ? TrustCopy.always : TrustCopy.oneLook)
             }
         }
         .padding(.horizontal, TrustTheme.gutter)

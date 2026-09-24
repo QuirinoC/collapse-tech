@@ -166,6 +166,21 @@ public struct PromiseSnapshot: Identifiable, Equatable, Codable, Sendable {
     }
 }
 
+/// One stop on a person's location history. Newest first on the person screen.
+public struct LocationVisit: Equatable, Sendable, Identifiable {
+    public var id: UUID
+    public var label: String
+    public var at: Date
+    public var point: LocationPoint?
+
+    public init(id: UUID = UUID(), label: String, at: Date, point: LocationPoint? = nil) {
+        self.id = id
+        self.label = label
+        self.at = at
+        self.point = point
+    }
+}
+
 public struct LocationPoint: Equatable, Codable, Sendable {
     public var timestamp: Date
     public var latitude: Double
@@ -183,6 +198,7 @@ public struct LocationPoint: Equatable, Codable, Sendable {
 public enum LookKind: String, Codable, Sendable, Equatable {
     case look
     case view
+    case removed
 }
 
 public struct LookEvent: Identifiable, Equatable, Codable, Sendable {
@@ -226,6 +242,17 @@ public struct LookEvent: Identifiable, Equatable, Codable, Sendable {
         case (.look, false): return TrustCopy.logTheyLooked(name: viewerName)
         case (.view, true): return TrustCopy.logYouViewed(name: subjectName)
         case (.view, false): return TrustCopy.logTheyViewed(name: viewerName)
+        case (.removed, true): return TrustCopy.logYouRemoved(name: subjectName)
+        case (.removed, false): return TrustCopy.logTheyRemoved(name: viewerName)
+        }
+    }
+
+    /// Log subtitle. Removed is not a Look and not a View.
+    public var logKindLabel: String {
+        switch kind {
+        case .look: return TrustCopy.kindLook
+        case .view: return TrustCopy.kindView
+        case .removed: return TrustCopy.kindRemoved
         }
     }
 }
@@ -262,6 +289,7 @@ public enum ShareRestingMode: String, Codable, Sendable, Equatable {
     case off
     case untilTheyLook
     case always
+    case paused
 
     /// Wire value for `PATCH /people/{id}/share`.
     public var apiValue: String { rawValue }
@@ -271,14 +299,12 @@ public enum SharePresentation: Equatable, Sendable {
     case off
     case untilTheyLook
     case always
-    case timed(ends: Date, revertsTo: ShareRestingMode)
+    case paused(ends: Date, revertsTo: ShareRestingMode)
 
-    /// Available = Always or For a while. Sealed = Until they look. Off = nothing.
+    /// Always is the only live share. Pause is not visible.
     public var isAvailable: Bool {
-        switch self {
-        case .always, .timed: return true
-        case .off, .untilTheyLook: return false
-        }
+        if case .always = self { return true }
+        return false
     }
 
     public var isSealed: Bool {
@@ -286,29 +312,53 @@ public enum SharePresentation: Equatable, Sendable {
         return false
     }
 
+    public var isPaused: Bool {
+        if case .paused = self { return true }
+        return false
+    }
+
     public var isOff: Bool {
         if case .off = self { return true }
         return false
+    }
+
+    /// Sealed and Always upload. Pause and Off do not.
+    public var acceptsLocation: Bool {
+        switch self {
+        case .always, .untilTheyLook: return true
+        case .off, .paused: return false
+        }
     }
 }
 
 public struct PersonShareState: Equatable, Codable, Sendable {
     public var resting: ShareRestingMode
-    public var timedUntil: Date?
+    public var pauseUntil: Date?
+    public var restoresTo: ShareRestingMode?
 
-    public init(resting: ShareRestingMode = .off, timedUntil: Date? = nil) {
+    public init(
+        resting: ShareRestingMode = .off,
+        pauseUntil: Date? = nil,
+        restoresTo: ShareRestingMode? = nil
+    ) {
         self.resting = resting
-        self.timedUntil = timedUntil
+        self.pauseUntil = pauseUntil
+        self.restoresTo = restoresTo
     }
 
     public func presentation(at now: Date) -> SharePresentation {
-        if let timedUntil, timedUntil > now {
-            return .timed(ends: timedUntil, revertsTo: resting)
+        if resting == .paused {
+            if let pauseUntil, pauseUntil > now {
+                let restores = restoresTo == .always ? ShareRestingMode.always : .untilTheyLook
+                return .paused(ends: pauseUntil, revertsTo: restores)
+            }
+            return restoresTo == .always ? .always : .untilTheyLook
         }
         switch resting {
         case .always: return .always
         case .untilTheyLook: return .untilTheyLook
         case .off: return .off
+        case .paused: return .off
         }
     }
 
@@ -320,73 +370,104 @@ public struct PersonShareState: Equatable, Codable, Sendable {
             return TrustCopy.untilTheyLook
         case .always:
             return TrustCopy.always
-        case .timed(let ends, _):
-            let minutes = max(1, Int(ceil(ends.timeIntervalSince(now) / 60)))
-            if minutes >= 60 {
-                return "\(minutes / 60)h \(minutes % 60)m"
-            }
-            return "\(minutes)m"
+        case .paused:
+            return TrustCopy.pause
         }
     }
 }
 
-/// How hard the device works for the circle. Review-critical: tracking is `off` unless an
-/// outbound share is on; Sealed-only circles get coarse fixes and significant-change
-/// wake-ups; anyone Available (or a fresh Look at you) earns finer, more frequent fixes.
+/// How hard the device works. Off and Pause do not upload. Sealed is coarse.
+/// Always uses the finer tier. A Look does not.
 public enum LocationSharingTier: Equatable, Sendable {
-    /// Every outbound share is Off — location is not in the product.
     case off
-    /// Only Until-they-look shares: hundred-metre fixes, larger distance filter, significant change.
     case sealed
-    /// Always / For a while toward someone, or someone just Looked: best accuracy, tight filter.
     case available
 }
 
-/// Your location is in the product only while at least one outbound share is not Off.
-/// Until they look (escrow), Always, and For a while all require Always so Look
-/// still works when Trust is not open. An all-Off circle is not sharing.
+/// Upload while any outbound share is Sealed or Always. Pause does not upload.
 public enum OutboundLocationSharing: Sendable {
     public static func isActive(shares: [PersonShareState], at now: Date = Date()) -> Bool {
-        shares.contains { !$0.presentation(at: now).isOff }
+        shares.contains { $0.presentation(at: now).acceptsLocation }
     }
 
-    /// Tier for the location coordinator. `beingWatched` is a live Look at you — a snapshot
-    /// was just taken, so keep the next fix honest for a short while.
-    public static func tier(shares: [PersonShareState], beingWatched: Bool = false, at now: Date = Date()) -> LocationSharingTier {
+    public static func tier(shares: [PersonShareState], at now: Date = Date()) -> LocationSharingTier {
         let presentations = shares.map { $0.presentation(at: now) }
-        guard presentations.contains(where: { !$0.isOff }) else { return .off }
-        if beingWatched || presentations.contains(where: \.isAvailable) { return .available }
+        guard presentations.contains(where: \.acceptsLocation) else { return .off }
+        if presentations.contains(where: \.isAvailable) { return .available }
         return .sealed
     }
 }
 
-/// For a while durations — the only four the API accepts.
-public enum TimedShareDuration: String, CaseIterable, Sendable, Equatable {
-    case fifteenMinutes = "15m"
+/// Server pause durations. The phone does not keep the timer.
+public enum PauseDuration: String, CaseIterable, Sendable, Equatable {
     case oneHour = "1h"
-    case fourHours = "4h"
     case eightHours = "8h"
+    case oneDay = "1d"
+    case twoDays = "2d"
+    case threeDays = "3d"
 
-    public var minutes: Int {
+    public var seconds: TimeInterval {
         switch self {
-        case .fifteenMinutes: return 15
-        case .oneHour: return 60
-        case .fourHours: return 240
-        case .eightHours: return 480
+        case .oneHour: return 3600
+        case .eightHours: return 8 * 3600
+        case .oneDay: return 24 * 3600
+        case .twoDays: return 2 * 24 * 3600
+        case .threeDays: return 3 * 24 * 3600
         }
     }
 
     public var label: String {
         switch self {
-        case .fifteenMinutes: return TrustCopy.timed15m
-        case .oneHour: return TrustCopy.timed1h
-        case .fourHours: return TrustCopy.timed4h
-        case .eightHours: return TrustCopy.timed8h
+        case .oneHour: return "1 hour"
+        case .eightHours: return "8 hours"
+        case .oneDay: return "1 day"
+        case .twoDays: return "2 days"
+        case .threeDays: return "3 days"
         }
     }
 
     public func endDate(from now: Date) -> Date {
-        now.addingTimeInterval(TimeInterval(minutes * 60))
+        now.addingTimeInterval(seconds)
+    }
+
+    public static func matching(seconds: TimeInterval) -> PauseDuration {
+        allCases.min { abs($0.seconds - seconds) < abs($1.seconds - seconds) } ?? .oneHour
+    }
+}
+
+/// Rules the person row, map, and history window share. Tested without a device.
+public enum TrustProductRules {
+    public static let freeHistoryHours = 24
+    public static let plusHistoryDays = 30
+
+    public static func historyWindowHours(viewerHasPlus: Bool) -> Int {
+        viewerHasPlus ? plusHistoryDays * 24 : freeHistoryHours
+    }
+
+    public enum Peek: Equatable {
+        case look
+        case view
+        case none
+    }
+
+    /// Row tap opens the person. It is not a Look.
+    public static func rowOpensPerson() -> Bool { true }
+
+    public static func peek(inbound: SharePresentation) -> Peek {
+        switch inbound {
+        case .untilTheyLook: return .look
+        case .always: return .view
+        case .off, .paused: return .none
+        }
+    }
+
+    /// Live pin only when they are Always and you have Plus.
+    public static func showsLivePin(viewerHasPlus: Bool, inbound: SharePresentation) -> Bool {
+        viewerHasPlus && inbound.isAvailable
+    }
+
+    public static func pauseWireValue(_ duration: PauseDuration) -> String {
+        duration.rawValue
     }
 }
 
@@ -407,16 +488,20 @@ public struct TrustedPerson: Identifiable, Equatable, Sendable {
     /// Their share toward you, when the server says. Nil = not in the payload (pre-`inboundShare`
     /// servers), so the client only learns "Off" from a `share_off` Look answer.
     public var inboundPresentation: SharePresentation?
+    /// Points collected while they are sharing. Empty when the payload has none.
+    /// Newest is not assumed to be the only point.
+    public var locationHistory: [LocationVisit]
 
     public var id: UUID { person.id }
     public var displayName: String { person.identity }
     /// First name for sheets and toasts ("Look at Maya?").
     public var firstName: String { person.displayName.trustFirstName }
 
-    /// Circle row semantics (design SoT Round 7).
-    public var isAvailable: Bool { inboundLive }
-    public var isSealed: Bool { !inboundLive }
-    /// True only when the server said their share toward you is Off. Unknown reads false.
+    /// Their share toward you is Always. Sealed, Paused, and Off are not live pins.
+    public var isAvailable: Bool { inboundPresentation?.isAvailable == true }
+    public var isSealed: Bool { inboundPresentation?.isSealed == true }
+    public var isPaused: Bool { inboundPresentation?.isPaused == true }
+    /// True only when the server said their share toward you is Off.
     public var isNotSharingWithYou: Bool { inboundPresentation?.isOff == true }
 
     /// Home / Away when visible; nil means the row reads "presence hidden".
@@ -435,7 +520,8 @@ public struct TrustedPerson: Identifiable, Equatable, Sendable {
         inboundPresenceGranted: Bool = false,
         homePresence: HomePresenceSnapshot? = nil,
         promise: PromiseSnapshot? = nil,
-        inboundPresentation: SharePresentation? = nil
+        inboundPresentation: SharePresentation? = nil,
+        locationHistory: [LocationVisit] = []
     ) {
         self.person = person
         self.presence = presence
@@ -447,6 +533,7 @@ public struct TrustedPerson: Identifiable, Equatable, Sendable {
         self.homePresence = homePresence
         self.promise = promise
         self.inboundPresentation = inboundPresentation
+        self.locationHistory = locationHistory
     }
 }
 

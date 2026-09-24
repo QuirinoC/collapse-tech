@@ -1,10 +1,9 @@
 import Foundation
 
 /// Client-side buffer of GPS points waiting to reach the API.
-/// Server retention is 26 hours; this matches that so a failed ingest does not
-/// drop the Look trail. Not a 30-day on-device dossier.
+/// Matches the server's 30-day retention so a failed upload can still fill a Plus trail.
 public struct LocationIngestBuffer: Equatable, Codable, Sendable {
-    public static let retention: TimeInterval = 26 * 60 * 60
+    public static let retention: TimeInterval = 30 * 24 * 60 * 60
 
     public var points: [LocationPoint]
 

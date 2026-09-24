@@ -50,6 +50,17 @@
                ReferencedContainer = "container:Trust.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "33753F0B8DE2D72C33BB08C5"
+               BuildableName = "TrustUITests.xctest"
+               BlueprintName = "TrustUITests"
+               ReferencedContainer = "container:Trust.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

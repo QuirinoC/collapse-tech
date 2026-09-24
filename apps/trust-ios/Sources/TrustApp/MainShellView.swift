@@ -1,40 +1,43 @@
 import SwiftUI
 import TrustCore
 
-/// T1–T4 shell: "Trust." masthead with a caption that follows the route, native `TabView`,
-/// offline strip, toast. Sheets that can open from any tab live here.
+/// People owns the map. Sharing, Log, and You keep the Trust. masthead.
 struct MainShellView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.trustPalette) private var palette
 
     var body: some View {
         VStack(spacing: 0) {
-            masthead
+            if showsMasthead {
+                masthead
+            }
             if model.isOffline, let since = model.snapshot?.fetchedAt {
                 TrustOfflineBanner(since: since) {
                     Task { await model.refresh() }
                 }
             }
-            TabView(selection: $model.selectedTab) {
+            ZStack {
                 CircleView()
-                    .tabItem { Label(MainTab.circle.title, systemImage: MainTab.circle.systemImage) }
-                    .tag(MainTab.circle)
-
+                    .opacity(model.selectedTab == .circle ? 1 : 0)
+                    .allowsHitTesting(model.selectedTab == .circle)
+                    .accessibilityHidden(model.selectedTab != .circle)
                 SharingView()
-                    .tabItem { Label(MainTab.sharing.title, systemImage: MainTab.sharing.systemImage) }
-                    .tag(MainTab.sharing)
-
-                InviteView()
-                    .tabItem { Label(MainTab.invite.title, systemImage: MainTab.invite.systemImage) }
-                    .tag(MainTab.invite)
-
+                    .opacity(model.selectedTab == .sharing ? 1 : 0)
+                    .allowsHitTesting(model.selectedTab == .sharing)
+                    .accessibilityHidden(model.selectedTab != .sharing)
+                ViewLogView(inSheet: false, asTab: true)
+                    .opacity(model.selectedTab == .log ? 1 : 0)
+                    .allowsHitTesting(model.selectedTab == .log)
+                    .accessibilityHidden(model.selectedTab != .log)
                 YouView()
-                    .tabItem { Label(MainTab.you.title, systemImage: MainTab.you.systemImage) }
-                    .tag(MainTab.you)
+                    .opacity(model.selectedTab == .you ? 1 : 0)
+                    .allowsHitTesting(model.selectedTab == .you)
+                    .accessibilityHidden(model.selectedTab != .you)
             }
-            .tint(palette.accent)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            paperTabBar
         }
-        .background(palette.paper.ignoresSafeArea())
+        .background(palette.paper.ignoresSafeArea(edges: .bottom))
         .overlay(alignment: .bottom) {
             if let toast = model.toast {
                 TrustToastView(toast: toast) { model.toast = nil }
@@ -57,17 +60,6 @@ struct MainShellView: View {
                 .presentationCornerRadius(28)
                 .trustFormSheet()
         }
-        .sheet(isPresented: $model.showingViewLog) {
-            NavigationStack {
-                ViewLogView(inSheet: true)
-            }
-            .environmentObject(model)
-            .environment(\.trustPalette, palette)
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
-            .presentationBackground(palette.paper)
-            .trustFormSheet()
-        }
         .sheet(isPresented: $model.showingPaywall) {
             PlusPaywall()
                 .environmentObject(model)
@@ -86,26 +78,45 @@ struct MainShellView: View {
                 .presentationBackground(palette.paper)
                 .trustFormSheet()
         }
-        .sheet(item: timedShareTarget) { target in
-            DurationSheet(personID: target.id)
-                .environmentObject(model)
-                .environment(\.trustPalette, palette)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(palette.paper)
-                .trustFormSheet()
+    }
+
+    /// Opaque paper bar in the safe area. The system tab bar on iOS 26 is a glass pill
+    /// whose content inset is taller than the pill, which clipped the People list.
+    private var paperTabBar: some View {
+        HStack(spacing: 0) {
+            ForEach(MainTab.allCases) { tab in
+                let selected = model.selectedTab == tab
+                Button {
+                    model.selectedTab = tab
+                } label: {
+                    VStack(spacing: 3) {
+                        Image(systemName: tab.systemImage)
+                            .font(.system(size: 20, weight: .semibold))
+                        Text(tab.title)
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .foregroundStyle(selected ? palette.accent : palette.muted)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 14)
+                    .padding(.bottom, 6)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(tab.title)
+                .accessibilityIdentifier("tab-\(tab.rawValue)")
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+        .background(palette.paper.ignoresSafeArea(edges: .bottom))
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(palette.ink.opacity(0.08))
+                .frame(height: 0.5)
         }
     }
 
-    private struct TimedShareTarget: Identifiable {
-        let id: UUID
-    }
-
-    private var timedShareTarget: Binding<TimedShareTarget?> {
-        Binding(
-            get: { model.timedSharePersonID.map(TimedShareTarget.init) },
-            set: { model.timedSharePersonID = $0?.id }
-        )
+    /// Map owns the top on People; masthead stays on Sharing / Log / You.
+    private var showsMasthead: Bool {
+        model.selectedTab != .circle
     }
 
     /// `.app-header`: wordmark left, route caption right.
@@ -120,7 +131,7 @@ struct MainShellView: View {
             Text(caption.uppercased())
                 .font(TrustTheme.folio(9))
                 .tracking(1.2)
-                .foregroundStyle(Color(hex: 0x73756C))
+                .foregroundStyle(palette.muted)
                 .accessibilityHidden(true)
         }
         .padding(.horizontal, TrustTheme.gutter)
@@ -133,9 +144,9 @@ struct MainShellView: View {
         switch model.selectedTab {
         case .circle:
             if model.circlePath.last == .map { return TrustCopy.map }
-            return TrustCopy.circle
+            return TrustCopy.people
         case .sharing: return TrustCopy.sharing
-        case .invite: return TrustCopy.inviteTab
+        case .log: return TrustCopy.log
         case .you: return TrustCopy.you
         }
     }

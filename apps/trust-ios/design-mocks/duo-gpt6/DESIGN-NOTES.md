@@ -129,3 +129,40 @@ Circle was showing **Home · Sealed** for everyone, including people who already
 Demo inbound: Leo + Eli Always, Jules For a while → Available; rest Sealed. Eli stays Hidden presence but location Available.
 
 Sharing outbound copy aligned: Until = sealed until Look; Always/For a while = location available + views logged.
+
+---
+
+## Round 8 — People home (map + sheet)
+
+**Decision:** Home is Apple MapKit (top ~2/3) + draggable bottom sheet with the existing
+people list. This supersedes the open “Presence Board hybrid” question in `PENDING.md`.
+
+**Naming**
+- Product: **Trust** (not “Trust Circle” in UI).
+- Tab: **People** (not Circle — Life360 collision).
+- Map pill: account name, or **You + N** — never “your circle”.
+
+**Chrome (minimal)**
+- Group pill (top center), locate control, member pins when allowed.
+- No Check-in / SOS / layers / pets-keys-places / invite progress cards.
+
+**Palette (not Life360 purple)**
+
+| Token | Hex |
+|---|---|
+| paper / sheet | `#FFFEFA` |
+| canvas | `#EEEDE8` |
+| ink / chromeInk | `#141613` |
+| muted | `#5E605A` |
+| accent | `#E10600` |
+| accentSoft | `#FFE8E2` |
+| pinLive | `#1F3D34` |
+| chrome | `#FFFFFF` |
+
+**Type:** SF Rounded semibold for map pill/pins (contrast on MapKit); SF for list;
+Didot wordmark stays on Sharing / Invite / You only (masthead hidden on People).
+
+**Gating:** Free → Look snapshot pins only. Plus (`coverage.isCovered`) → Available +
+snapshots (`homeMapPins`). Presence triad stays free.
+
+**Code SoT:** `Sources/TrustApp/CircleView.swift`, `TrustTheme.swift`, `TrustCopy.swift`.

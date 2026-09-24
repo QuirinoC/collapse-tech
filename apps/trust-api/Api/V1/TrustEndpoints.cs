@@ -29,14 +29,14 @@ public static class TrustEndpoints
         auth.MapPut("/me/handle", SetHandleAsync);
         auth.MapPost("/me/phone/send", SendPhoneCodeAsync);
         auth.MapPost("/me/phone/verify", VerifyPhoneCodeAsync);
+        auth.MapPost("/people/phone", AddPersonByPhoneAsync).RequireRateLimiting(RateLimitPolicies.Invite);
         auth.MapPost("/invites", CreateInviteAsync).RequireRateLimiting(RateLimitPolicies.Invite);
         auth.MapPost("/invites/accept", AcceptInviteAsync).RequireRateLimiting(RateLimitPolicies.Invite);
         auth.MapPatch("/people/{personId:guid}/share", SetShareAsync);
+        auth.MapGet("/people/{personId:guid}/history", HistoryAsync);
         auth.MapPost("/people/{personId:guid}/revoke", RevokeAsync);
         auth.MapPost("/location", IngestAsync).RequireRateLimiting(RateLimitPolicies.Location);
         auth.MapPost("/looks", LookAsync).RequireRateLimiting(RateLimitPolicies.Look);
-        auth.MapPost("/looks/close", CloseLookAsync).RequireRateLimiting(RateLimitPolicies.Look);
-        auth.MapPost("/looks/{subjectId:guid}/extend", ExtendLookAsync).RequireRateLimiting(RateLimitPolicies.Look);
         auth.MapPost("/views", ViewAsync).RequireRateLimiting(RateLimitPolicies.Look);
         auth.MapPost("/presence/check-in", CheckInAsync);
         auth.MapPost("/presence/place-ping", PlacePingAsync);
@@ -302,6 +302,29 @@ public static class TrustEndpoints
         }
     }
 
+    public static async Task<IResult> AddPersonByPhoneAsync(
+        AddPersonByPhoneRequest request,
+        ClaimsPrincipal principal,
+        PhoneVerificationService phones,
+        CancellationToken cancellationToken)
+    {
+        var accountId = AccountClaims.AccountId(principal);
+        if (accountId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        try
+        {
+            var result = await phones.AddPersonAsync(accountId.Value, request.Phone, cancellationToken);
+            return Results.Ok(new AddPersonByPhoneResponse(result.Outcome, result.SmsSent, result.DevelopmentCode));
+        }
+        catch (TrustException exception)
+        {
+            return Map(exception);
+        }
+    }
+
     public static async Task<IResult> CreateInviteAsync(
         ClaimsPrincipal principal,
         TrustEngine engine,
@@ -340,9 +363,32 @@ public static class TrustEndpoints
                 id,
                 personId,
                 ContractMap.ParseResting(request.Resting),
-                ContractMap.ParseTimed(request.Timed),
+                ContractMap.ParsePause(request.Pause),
                 ct),
             cancellationToken);
+    }
+
+    public static async Task<IResult> HistoryAsync(
+        Guid personId,
+        ClaimsPrincipal principal,
+        TrustEngine engine,
+        CancellationToken cancellationToken)
+    {
+        var accountId = AccountClaims.AccountId(principal);
+        if (accountId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        try
+        {
+            var points = await engine.HistoryAsync(accountId.Value, personId, cancellationToken);
+            return Results.Ok(new HistoryResponse(points.Select(ContractMap.LocationRequired).ToList()));
+        }
+        catch (TrustException exception)
+        {
+            return Map(exception);
+        }
     }
 
     public static async Task<IResult> RevokeAsync(
@@ -425,40 +471,6 @@ public static class TrustEndpoints
         }
     }
 
-    public static async Task<IResult> CloseLookAsync(
-        [FromQuery] Guid? subjectId,
-        ClaimsPrincipal principal,
-        TrustEngine engine,
-        CancellationToken cancellationToken)
-    {
-        return await RunAsync(principal, engine, (id, ct) => engine.CloseLookAsync(id, subjectId, ct), cancellationToken);
-    }
-
-    public static async Task<IResult> ExtendLookAsync(
-        Guid subjectId,
-        ClaimsPrincipal principal,
-        TrustEngine engine,
-        ILookReceiptPublisher receipts,
-        CancellationToken cancellationToken)
-    {
-        var accountId = AccountClaims.AccountId(principal);
-        if (accountId is null)
-        {
-            return Results.Unauthorized();
-        }
-
-        try
-        {
-            var session = await engine.ExtendLookAsync(accountId.Value, subjectId, cancellationToken);
-            await receipts.NotifyLookExtendedAsync(session.Event, cancellationToken);
-            return Results.Ok(ContractMap.Session(session));
-        }
-        catch (TrustException exception)
-        {
-            return Map(exception);
-        }
-    }
-
     public static async Task<IResult> CheckInAsync(
         ClaimsPrincipal principal,
         TrustEngine engine,
@@ -518,7 +530,7 @@ public static class TrustEndpoints
         var state = ContractMap.ParseHomeState(request.State);
         if (state is null)
         {
-            return Results.BadRequest(new ApiError("invalid_state", "State must be home, away, or unknown."));
+            return Results.BadRequest(new ApiError("invalid_state", "State must be home, away, or hidden."));
         }
 
         try
@@ -615,7 +627,7 @@ public static class TrustEndpoints
         return Results.Json(
             new ApiError(
                 "storekit_unverified",
-                "This server verifies signed App Store transactions. Purchase or restore Circle, then the app submits the signed transaction."),
+                "This server verifies signed App Store transactions. Purchase or restore Plus, then the app submits the signed transaction."),
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 

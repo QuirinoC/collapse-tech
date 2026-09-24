@@ -155,7 +155,7 @@ LOOK vs VIEW
 BACKGROUND LOCATION
 While Using is enough for Map / View “miles from you.”
 Always is requested only after the first outbound share that is not Off (Sharing → Until they look / Always / For a while). Login does not ask for Always.
-Background updates and the blue indicator run only while Always is granted AND at least one outbound share ≠ Off. Sealed uses coarse + significant-change. Available uses finer updates.
+Background updates run only while Always is granted AND at least one outbound share ≠ Off. The blue Dynamic Island navigation pill stays off. Sealed uses coarse + significant-change. Available uses finer updates.
 Purpose strings are in the binary (While Using / Always). We do not sell location.
 
 UNLOCK PLUS FOR REVIEW

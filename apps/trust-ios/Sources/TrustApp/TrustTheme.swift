@@ -1,8 +1,8 @@
 import SwiftUI
 import TrustCore
 
-/// Masthead tokens from the design SoT (`design-mocks/duo-gpt6/styles.css`):
-/// paper, ink, `#E10600` as the only chromatic. Light only.
+/// Visual tokens for Trust home (map + sheet). Brand red `#E10600` stays the only
+/// chromatic accent — not Life360 purple. Map chrome is high-contrast white/ink.
 struct TrustPalette: Equatable {
     var paper: Color
     var canvas: Color
@@ -14,18 +14,35 @@ struct TrustPalette: Equatable {
     var accentSoft: Color
     var accentOn: Color
     var sage: Color
+    /// Floating map controls / group pill fill.
+    var chrome: Color
+    var chromeInk: Color
+    var chromeMuted: Color
+    /// Available (live) map pin.
+    var pinLive: Color
+    /// Look snapshot pin.
+    var pinLook: Color
+    var sheet: Color
 
+    /// Hex tokens (SoT): paper `#FFFEFA`, ink `#141613`, accent `#E10600`,
+    /// pinLive `#1F3D34`, chrome `#FFFFFF`, sheet `#FFFEFA`, muted `#5E605A`.
     static let paper = TrustPalette(
         paper: Color(hex: 0xFFFEFA),
-        canvas: Color(hex: 0xF0EFEB),
-        ink: Color(hex: 0x20211F),
-        muted: Color(hex: 0x74756F),
-        line: Color(hex: 0xE8E7E1),
-        surface: Color(hex: 0xF3F3EC),
+        canvas: Color(hex: 0xEEEDE8),
+        ink: Color(hex: 0x141613),
+        muted: Color(hex: 0x5E605A),
+        line: Color(hex: 0xE0DFD8),
+        surface: Color(hex: 0xF5F4EF),
         accent: Color(hex: 0xE10600),
-        accentSoft: Color(hex: 0xFFF0EB),
+        accentSoft: Color(hex: 0xFFE8E2),
         accentOn: .white,
-        sage: Color(hex: 0xE7ECE2)
+        sage: Color(hex: 0xDCE5D6),
+        chrome: .white,
+        chromeInk: Color(hex: 0x141613),
+        chromeMuted: Color(hex: 0x4A4C46),
+        pinLive: Color(hex: 0x1F3D34),
+        pinLook: Color(hex: 0x141613),
+        sheet: Color(hex: 0xFFFEFA)
     )
 }
 
@@ -59,6 +76,11 @@ enum TrustTheme {
     static let gutter: CGFloat = 22
     /// iPad: list columns stay readable; Map is full-bleed (M3).
     static let readableWidth: CGFloat = 640
+
+    /// Rounded system UI for map chrome (pill) — denser, more readable over MapKit.
+    static func chrome(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
+        .system(size: size, weight: weight, design: .rounded)
+    }
 
     /// Serif display — wordmark, page titles, names on View.
     static func display(_ size: CGFloat) -> Font {

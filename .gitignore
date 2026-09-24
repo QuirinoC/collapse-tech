@@ -9,6 +9,8 @@ playwright-report/
 .vercel
 .wrangler/
 .DS_Store
+apps/jev-desk/.env
+apps/jev-desk/data/
 
 # .NET build artifacts
 [Bb]in/
