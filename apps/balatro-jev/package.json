@@ -16,7 +16,9 @@
     "smoke:phases": "npm run smoke:lua && npm run simulate",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "mock:pair": "BALATRO_JEV_MODE=mock tsx --env-file-if-exists=.env src/index.ts --once --fixture fixtures/pair-hand-state.json"
+    "mock:pair": "BALATRO_JEV_MODE=mock tsx --env-file-if-exists=.env src/index.ts --once --fixture fixtures/pair-hand-state.json",
+    "mock:pair-flush": "BALATRO_JEV_MODE=mock tsx --env-file-if-exists=.env src/index.ts --once --fixture fixtures/pair-flush-state.json",
+    "proof:brain": "tsx --env-file-if-exists=.env scripts/proof-brain-merge.ts"
   },
   "engines": {
     "node": ">=20"

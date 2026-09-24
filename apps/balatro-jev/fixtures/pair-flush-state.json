@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "phase": "hand",
+  "ante": 1,
+  "round": 1,
+  "money": 4,
+  "chips_needed": 300,
+  "chips_scored": 0,
+  "hands_left": 4,
+  "discards_left": 3,
+  "hand_size": 8,
+  "deck_remaining": 44,
+  "blind_type": "Small Blind",
+  "blind_on_deck": "small",
+  "hand": [
+    { "index": 0, "rank": "A", "suit": "Hearts", "chip_value": 11 },
+    { "index": 1, "rank": "A", "suit": "Diamonds", "chip_value": 11 },
+    { "index": 2, "rank": "K", "suit": "Hearts", "chip_value": 10 },
+    { "index": 3, "rank": "Q", "suit": "Hearts", "chip_value": 10 },
+    { "index": 4, "rank": "J", "suit": "Hearts", "chip_value": 10 },
+    { "index": 5, "rank": "9", "suit": "Hearts", "chip_value": 9 },
+    { "index": 6, "rank": "2", "suit": "Clubs", "chip_value": 2 },
+    { "index": 7, "rank": "3", "suit": "Spades", "chip_value": 3 }
+  ],
+  "selected": [],
+  "jokers": [],
+  "consumables": [],
+  "notes": "Fixture: pocket Aces + 5-heart flush. Expect play_flush (mock) or valid play_pair/play_flush (live)."
+}

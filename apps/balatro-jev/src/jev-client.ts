@@ -19,7 +19,7 @@ const PHASE_PREFER: Record<string, LegalAction["kind"][]> = {
   unknown: ["select_blind", "new_run", "noop"],
 };
 
-/** Combo-aware heuristic — never random. Used on API failure / low confidence. */
+/** Combo-aware heuristic — never random. Used only on API failure / unknown action id. */
 export function mockChoose(
   state: BalatroState,
   actions: LegalAction[],
@@ -132,8 +132,9 @@ export async function liveChoose(
   });
 
   const criteria = toChoiceCriteria(actions);
+  const optionKeys = Object.keys(criteria);
   console.log(
-    `[balatro-jev] JEV call phase=${state.phase} options=${actions.length} model=${model}`,
+    `[balatro-jev] JEV CALL phase=${state.phase} options=${optionKeys.length} keys=[${optionKeys.join(", ")}] model=${model}`,
   );
 
   const response = await client.systemOne({
@@ -149,9 +150,13 @@ export async function liveChoose(
             "`ante`",
             "`blind`",
             "`hand`",
+            "`hand.best_made`",
+            "`hand.draws`",
+            "`hand.cards`",
             "`jokers`",
             "`consumables`",
             "`chip_pressure`",
+            "`chips_remaining`",
             "`hands_left`",
             "`discards_left`",
             "`money`",
@@ -159,11 +164,14 @@ export async function liveChoose(
             "`pack_open`",
             "`blinds`",
             "`deck_remaining`",
+            "`play_options`",
+            "`discard_options`",
+            "`preference_order`",
             "`legal_action_ids`",
             "`objective`",
           ],
           focus:
-            "Pick exactly one id from the criteria. Prefer made poker hands (pair+) over high-card when scoring the blind; in shop buy strong jokers then leave; in packs take the strongest card; do not invent actions.",
+            "Pick exactly one id from the criteria. In hand phase: prefer MADE poker hands (flush > straight > three > two_pair > pair) over draws and high card; never invent actions. Elsewhere: clear blinds; in shop leave after useful buys; in packs take the strongest card.",
         },
         criteria,
       ),
@@ -174,12 +182,48 @@ export async function liveChoose(
     input: response.usage.input_tokens,
     output: response.usage.output_tokens,
   };
-  const selectedId = response.answers.action.choice;
-  const confidence = response.answers.action.confidence;
+  return resolveLiveChoice({
+    state,
+    actions,
+    selectedId: response.answers.action.choice,
+    confidence: response.answers.action.confidence,
+    model: response.model,
+    tokens,
+    optionCount: optionKeys.length,
+  });
+}
+
+/**
+ * Map a live Choice answer onto a legal action.
+ * Valid ids are ALWAYS kept — even below MIN_ACTION_CONFIDENCE.
+ * Mock only for unknown/stale ids (API failure is handled by chooseAction).
+ */
+export function resolveLiveChoice(args: {
+  state: BalatroState;
+  actions: LegalAction[];
+  selectedId: string;
+  confidence: number;
+  model?: string;
+  tokens?: { input: number; output: number };
+  optionCount?: number;
+}): ChosenAction {
+  const {
+    state,
+    actions,
+    selectedId,
+    confidence,
+    model,
+    tokens,
+    optionCount = actions.length,
+  } = args;
 
   console.log(
-    `[balatro-jev] JEV result action=${selectedId} conf=${confidence.toFixed(3)}` +
-      ` tokens_in=${tokens.input} tokens_out=${tokens.output} model=${response.model}`,
+    `[balatro-jev] JEV RESULT choice=${selectedId} conf=${confidence.toFixed(3)}` +
+      ` options=${optionCount}` +
+      (tokens
+        ? ` tokens_in=${tokens.input} tokens_out=${tokens.output}`
+        : "") +
+      (model ? ` model=${model}` : ""),
   );
 
   const action = actions.find((a) => a.id === selectedId);
@@ -190,31 +234,27 @@ export async function liveChoose(
       action: fallback.action,
       mode: "live",
       confidence: 0,
-      model: response.model,
+      model,
       tokens,
-      rationale: `stale/unknown choice id=${selectedId}; mock fallback ${fallback.action.id}`,
+      rationale: `stale/unknown choice id=${selectedId}; combo-aware mock fallback ${fallback.action.id}`,
     };
   }
 
+  // Keep valid Jev choice even below MIN_ACTION_CONFIDENCE.
+  // (Old trap: conf 0.33 → throw away pair/flush → dumb mock play_0_1_2.)
   if (confidence < config.minActionConfidence) {
-    const fallback = mockChoose(state, actions);
-    return {
-      action: fallback.action,
-      mode: "live",
-      confidence,
-      model: response.model,
-      tokens,
-      rationale: `low confidence (${confidence.toFixed(3)} < ${config.minActionConfidence}); used mock fallback ${fallback.action.id}`,
-    };
+    console.log(
+      `[balatro-jev] JEV low conf ${confidence.toFixed(3)} < ${config.minActionConfidence} — keeping valid choice ${selectedId}`,
+    );
   }
 
   return {
     action,
     mode: "live",
     confidence,
-    model: response.model,
+    model,
     tokens,
-    rationale: `jev choice=${selectedId}`,
+    rationale: `jev choice=${selectedId} conf=${confidence.toFixed(3)} options=${optionCount}`,
   };
 }
 
@@ -229,7 +269,7 @@ export async function chooseAction(
     } catch (err) {
       const fallback = mockChoose(state, actions);
       console.log(
-        `[balatro-jev] JEV failed → mock fallback ${fallback.action.id}: ${
+        `[balatro-jev] JEV failed → combo-aware mock fallback ${fallback.action.id}: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
@@ -237,7 +277,7 @@ export async function chooseAction(
         action: fallback.action,
         mode: "live",
         confidence: 0,
-        rationale: `live Jev failed (${err instanceof Error ? err.message : String(err)}); mock fallback ${fallback.action.id}`,
+        rationale: `live Jev failed (${err instanceof Error ? err.message : String(err)}); combo-aware mock fallback ${fallback.action.id}`,
       };
     }
   }

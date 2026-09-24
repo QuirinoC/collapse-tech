@@ -6,7 +6,7 @@ Architecture:
 
 1. **Steamodded Lua mod** dumps rich named JSON (`state.json`) every ~0.5s and applies `action.json`.
 2. **TypeScript bridge** always derives the **full legal action set** for the phase (poker combos, shop offers, blinds, packs, …), capped at 255 Choice options after scoring.
-3. **TypeSafe Jev** (`choice` over those ids) picks one action when there are ≥2 options. Mock is combo-aware (not random) and only used on API failure or low confidence.
+3. **TypeSafe Jev** (`choice` over those ids) picks one action when there are ≥2 options. Mock is combo-aware (not random) and only used on API failure or unknown action id — **never** on low confidence alone.
 4. **Lua apply** executes every action kind in-game.
 
 No toy heuristics as the main path. No skip-Jev-on-single-action nonsense except when there is truly one forced action. No noop loops when the phase is actionable.
@@ -107,7 +107,8 @@ Choice criteria use structured `{ what, not_for }` per option. If enumeration ex
 - `BALATRO_JEV_MODE=live` → `systemOne` Choice whenever there are **≥2** legal options
 - Skip Jev only for a single forced action
 - Log every call: action, confidence, `tokens_in` / `tokens_out`
-- On API failure or confidence below `MIN_ACTION_CONFIDENCE` → **combo-aware mock** (plays best made hand, not random)
+- Valid Choice ids are **kept even below** `MIN_ACTION_CONFIDENCE` (log only)
+- On API failure or unknown/stale action id → **combo-aware mock** (plays best made hand, not random)
 
 ## Lua apply
 
@@ -130,8 +131,8 @@ Choice criteria use structured `{ what, not_for }` per option. If enumeration ex
 
 ## Watch-loop safety
 
-- Confidence below `MIN_ACTION_CONFIDENCE` → mock fallback
-- Live API errors → mock fallback (never stall)
+- Confidence below `MIN_ACTION_CONFIDENCE` → **keep** valid Jev choice (no mock override)
+- Live API errors / unknown id → combo-aware mock fallback (never stall)
 - Identical state for `BALATRO_JEV_STUCK_MS` (default 8s) → re-decide
 - Same action repeated `BALATRO_JEV_MAX_SAME` times → force progress escape
 - Poll every `BALATRO_JEV_POLL_MS` (default 1.5s)

@@ -1,5 +1,6 @@
 import type { JsonValue } from "@typesafe-ai/sdk";
 import type { BalatroState, CardRef, LegalAction } from "./types.js";
+import { enumeratePlayCombos } from "./poker-hands.js";
 
 export function chipPressure(state: BalatroState): string {
   const need = state.chips_needed;
@@ -42,11 +43,36 @@ function compactCard(c: CardRef): { [key: string]: JsonValue } {
   };
 }
 
+function handSummary(state: BalatroState): { [key: string]: JsonValue } {
+  const hand = state.hand ?? [];
+  const combos = enumeratePlayCombos(hand);
+  return {
+    size: hand.length,
+    cards: hand.map(compactCard),
+    best_made: combos
+      .filter((c) => c.made)
+      .slice(0, 8)
+      .map((c) => `${c.handType}:${c.cardsKey}`),
+    draws: combos
+      .filter(
+        (c) =>
+          c.handType === "flush_draw" || c.handType === "straight_draw",
+      )
+      .slice(0, 4)
+      .map((c) => `${c.handType}:${c.cardsKey}`),
+  };
+}
+
 /** Rich named JSON for System One — full run context for every phase. */
 export function toSemanticState(
   state: BalatroState,
   legalActions: LegalAction[],
 ): { [key: string]: JsonValue } {
+  const chipsNeeded = state.chips_needed ?? null;
+  const chipsScored = state.chips_scored ?? 0;
+  const chipsRemaining =
+    chipsNeeded != null ? Math.max(0, chipsNeeded - chipsScored) : null;
+
   return {
     game: "balatro",
     phase: state.phase,
@@ -55,8 +81,9 @@ export function toSemanticState(
     blind: {
       on_deck: state.blind_on_deck ?? null,
       type: state.blind_type ?? null,
-      chips_needed: state.chips_needed ?? null,
-      chips_scored: state.chips_scored ?? null,
+      chips_needed: chipsNeeded,
+      chips_scored: chipsScored,
+      chips_remaining: chipsRemaining,
       chip_pressure: chipPressure(state),
       options: (state.blinds ?? []).map((b) => ({
         id: b.id,
@@ -69,13 +96,14 @@ export function toSemanticState(
     money: moneyBucket(state.money),
     money_exact: state.money,
     chip_pressure: chipPressure(state),
-    chips_needed: state.chips_needed ?? null,
-    chips_scored: state.chips_scored ?? null,
+    chips_needed: chipsNeeded,
+    chips_scored: chipsScored,
+    chips_remaining: chipsRemaining,
     hands_left: state.hands_left ?? null,
     discards_left: state.discards_left ?? null,
     hands: resourceBucket(state.hands_left, "hands"),
     discards: resourceBucket(state.discards_left, "discards"),
-    hand: (state.hand ?? []).map(compactCard),
+    hand: handSummary(state),
     selected: state.selected ?? [],
     jokers: (state.jokers ?? []).map((j) => ({
       index: j.index,
@@ -125,8 +153,16 @@ export function toSemanticState(
     deck_remaining: state.deck_remaining ?? null,
     legal_action_ids: legalActions.map((a) => a.id),
     legal_action_count: legalActions.length,
+    play_options: legalActions
+      .filter((a) => a.kind === "play_hand")
+      .map((a) => `${a.id} (${a.label})`),
+    discard_options: legalActions
+      .filter((a) => a.kind === "discard")
+      .map((a) => `${a.id} (${a.label})`),
     notes: state.notes ?? null,
+    preference_order:
+      "made_hand (flush>straight>three>two_pair>pair) > flush/straight draw via discard > weak high card",
     objective:
-      "Pick the single best currently legal action. Prefer made poker hands (pair+) when playing; clear blinds efficiently; in shop buy strong jokers then leave; in packs take the best card; respect hands/discards left and money.",
+      "Pick the single best currently legal action. Prefer made poker hands (flush > straight > three > two_pair > pair) over draws and high card; clear blinds efficiently; in shop buy strong jokers then leave; in packs take the best card; respect hands/discards left and money.",
   };
 }

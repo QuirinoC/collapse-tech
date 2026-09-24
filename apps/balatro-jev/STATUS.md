@@ -1,24 +1,36 @@
-# balatro-jev status (full-context / 0.3.0)
+# balatro-jev status (brain-merge / 0.3.0)
 
-## Architecture
+## Branch
 
-Full Lua state dump → full legal Choice options → Jev (live when ≥2 options) → Lua apply.
+`cursor/balatro-jev-brain-merge-35ca` — consolidates:
 
-## Done
+- **full-context-6ed5**: rich Lua/state dump, full legal Choice sets (~58 hand options), curated discards
+- **full-brain-7b2a**: poker combo labels + **never discard a valid Jev Choice on low confidence**
 
-- Rich state: hand `chip_value`, joker/consumable `effect`, `shop_can_leave`, `deck_remaining`, blinds
-- Phase map: `BLIND_SELECT` / `SELECTING_HAND` / `SHOP` never stuck `unknown`
-- Hand: every made-hand combo (pair+) + draws + ranked high-cards; discard subsets; 255 cap after score
-- Shop/pack/blind/menu/round_eval/game_over: full legal sets with `{ what, not_for }` criteria
-- Live Jev logged (action, conf, tokens); mock combo-aware fallback
-- Fixture `pair-hand-state.json` for Ace-pair preference
+## Critical fix (low-conf trap gone)
 
-## Operator
+**Root cause of dumb plays:** live Jev returned a valid made-hand id at low confidence
+(`~0.33`), then the bridge threw it away and ran mock → first `play_hand` stubs like
+`play_0_1_2`.
 
-Do not relaunch watch/game unless Juan asks. Offline:
+**Fix:** keep any legal Choice id even below `MIN_ACTION_CONFIDENCE`. Combo-aware mock
+only on API failure or unknown/stale action id.
+
+## Proof
+
+```bash
+cd apps/balatro-jev
+npm run proof:brain
+# also: npm run mock:pair && npm run mock:pair-flush
+```
+
+Runtime left **STOPPED** (`.DO_NOT_LAUNCH` + launch script blocker). Do not relaunch
+watch/game unless Juan asks.
+
+## Operator (offline)
 
 ```bash
 npm run typecheck
-npm run mock:pair
+npm run proof:brain
 npm run simulate
 ```
