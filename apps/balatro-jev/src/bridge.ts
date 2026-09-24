@@ -18,6 +18,27 @@ const PHASES = new Set<Phase>([
 
 /** If Lua lags on phase, infer actionable phase from payload shape. */
 export function normalizePhase(state: BalatroState): Phase {
+  const raw = (state.raw_state_name ?? "").toUpperCase();
+  // Prefer authoritative G.STATE name over a stale/lingering phase string.
+  if (
+    raw === "SELECTING_HAND" ||
+    raw === "HAND_PLAYED" ||
+    raw === "DRAW_TO_HAND"
+  ) {
+    return "hand";
+  }
+  if (raw === "BLIND_SELECT") return "blind_select";
+  if (raw === "SHOP") return "shop";
+  if (raw === "ROUND_EVAL") return "round_eval";
+  if (raw === "GAME_OVER") return "game_over";
+  if (raw === "MENU" || raw === "SPLASH" || raw === "DEMO_CTA") return "menu";
+  if (
+    raw.includes("PACK") ||
+    raw === "SMODS_BOOSTER_OPENED"
+  ) {
+    return "pack_open";
+  }
+
   if (state.phase !== "unknown" && PHASES.has(state.phase)) {
     return state.phase;
   }
@@ -31,8 +52,6 @@ export function normalizePhase(state: BalatroState): Phase {
   if (state.hand && state.hand.length > 0) return "hand";
   if (state.shop && state.shop.length > 0) return "shop";
   if (state.pack && state.pack.length > 0) return "pack_open";
-  const raw = (state.raw_state_name ?? "").toUpperCase();
-  if (raw === "MENU" || raw === "SPLASH" || raw === "DEMO_CTA") return "menu";
   return state.phase;
 }
 
