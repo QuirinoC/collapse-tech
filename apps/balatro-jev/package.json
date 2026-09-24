@@ -1,6 +1,6 @@
 {
   "name": "balatro-jev",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Balatro state → Jev Choice → action bridge (TypeSafe System One, no vision)",
   "type": "module",
