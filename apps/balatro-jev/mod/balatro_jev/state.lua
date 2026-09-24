@@ -248,7 +248,7 @@ function M.dump()
   -- Infer blind_select from blinds if enum/UI lagged but a Select blind is present mid-run.
   if phase == "unknown" and blinds then
     for _, b in ipairs(blinds) do
-      if b.status == "Select" or b.status == "Current" then
+      if b.status == "Select" then
         phase = "blind_select"
         break
       end

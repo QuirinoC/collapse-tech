@@ -330,7 +330,7 @@ export function deriveLegalActions(state: BalatroState): LegalAction[] {
       // Safety net: blinds already showing Select → treat as blind_select.
       const selectBlind = state.blinds?.find((b) => {
         const s = (b.status ?? "").toLowerCase();
-        return s === "select" || s === "current";
+        return s === "select";
       });
       if (selectBlind || state.has_blind_select_ui) {
         const current = selectBlind ?? state.blinds?.[0];
