@@ -1,9 +1,13 @@
 -- balatro_jev config
--- Point IPC_DIR at the Node bridge's ipc/ folder (absolute path recommended).
+-- Default entry (balatro_jev.lua) writes under Love2D save:
+--   ~/Library/Application Support/Balatro/balatro_jev/
+-- Point the Node bridge there via BALATRO_JEV_IPC_DIR (see apps/balatro-jev/.env).
+--
+-- Optional: set IPC_DIR to an absolute path and switch metadata.json main_file
+-- to main.lua if you want the modular absolute-path IPC path instead.
 return {
-  -- Absolute path to apps/balatro-jev/ipc on the machine running Balatro.
-  -- TODO: auto-detect or expose a Steamodded config UI.
-  IPC_DIR = nil, -- e.g. "/Users/you/dev/collapse-tech/apps/balatro-jev/ipc"
+  -- Absolute path for main.lua IPC (nil = use save-dir balatro_jev/ via balatro_jev.lua).
+  IPC_DIR = nil,
 
   -- Poll interval (Love frames / steps) for reading action.json
   ACTION_POLL_FRAMES = 15,

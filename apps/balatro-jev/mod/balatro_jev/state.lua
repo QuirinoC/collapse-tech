@@ -59,10 +59,14 @@ function M.dump()
   end
 
   selected = {}
-  if G and G.hand and G.hand.highlighted then
-    for i, card in ipairs(G.hand.highlighted) do
-      -- TODO: map highlighted card object → hand index
-      selected[#selected + 1] = i - 1
+  if G and G.hand and G.hand.highlighted and G.hand.cards then
+    for _, hcard in ipairs(G.hand.highlighted) do
+      for i, card in ipairs(G.hand.cards) do
+        if card == hcard then
+          selected[#selected + 1] = i - 1
+          break
+        end
+      end
     end
   end
 

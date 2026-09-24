@@ -102,45 +102,88 @@ local function read_file(path)
   return data
 end
 
---- Snapshot whatever we can from G (Balatro globals). Many fields are TODOs until verified in-game.
+local function map_phase()
+  if not (G and G.STATE and G.STATES) then
+    return "unknown"
+  end
+  local st = G.STATE
+  if st == G.STATES.BLIND_SELECT then
+    return "blind_select"
+  elseif st == G.STATES.SELECTING_HAND
+    or st == G.STATES.HAND_PLAYED
+    or st == G.STATES.DRAW_TO_HAND then
+    return "hand"
+  elseif st == G.STATES.SHOP then
+    return "shop"
+  elseif st == G.STATES.ROUND_EVAL then
+    return "round_eval"
+  elseif st == G.STATES.GAME_OVER then
+    return "game_over"
+  end
+  return "unknown"
+end
+
+local function highlight_hand_indices(idxs)
+  if not (G and G.hand and G.hand.cards and G.STATE == G.STATES.SELECTING_HAND) then
+    return false, "not in SELECTING_HAND"
+  end
+  if type(idxs) ~= "table" or #idxs < 1 then
+    return false, "empty card_indices"
+  end
+  if G.hand.unhighlight_all then
+    G.hand:unhighlight_all()
+  end
+  local limit = (G.hand.config and G.hand.config.highlighted_limit) or 5
+  local n = 0
+  for _, zero_idx in ipairs(idxs) do
+    local i = tonumber(zero_idx)
+    if i == nil then return false, "non-numeric card index" end
+    local card = G.hand.cards[i + 1]
+    if not card then return false, "card index out of range: " .. tostring(i) end
+    if n >= limit then break end
+    G.hand:add_to_highlighted(card)
+    n = n + 1
+  end
+  if n < 1 then return false, "no cards highlighted" end
+  return true, nil
+end
+
+--- Snapshot from Balatro globals (G.STATE / G.GAME / G.hand / G.jokers).
 local function dump_state()
   local state = {
     version = 1,
-    phase = "unknown",
+    phase = map_phase(),
     ante = 1,
     round = 1,
     money = 0,
     hand = {},
     jokers = {},
-    notes = "Steamodded stub dump; fill TODOs against live Balatro APIs",
+    notes = "balatro_jev dump",
   }
 
-  -- TODO: confirm actual Balatro / Steamodded globals (G.STATE, G.GAME, G.hand, …)
   if G and G.GAME then
     state.ante = (G.GAME.round_resets and G.GAME.round_resets.ante) or G.GAME.ante or state.ante
     state.round = G.GAME.round or state.round
     state.money = G.GAME.dollars or state.money
     state.hands_left = G.GAME.current_round and G.GAME.current_round.hands_left or nil
     state.discards_left = G.GAME.current_round and G.GAME.current_round.discards_left or nil
-    -- TODO: chips_needed / chips_scored from blind requirements
-  end
-
-  -- Phase detection — TODO: map G.STATE enums (SELECTING_HAND, SHOP, BLIND_SELECT, …)
-  if G and G.STATE then
-    -- Placeholder stringification; replace with real enum table when available.
-    state.phase = tostring(G.STATE)
-    state.notes = "phase is tostring(G.STATE); map to hand|shop|blind_select|…"
+    if G.GAME.blind and G.GAME.blind.chips then
+      state.chips_needed = G.GAME.blind.chips
+    end
+    state.chips_scored = G.GAME.chips
   end
 
   if G and G.hand and G.hand.cards then
     for i, card in ipairs(G.hand.cards) do
-      -- TODO: read rank/suit/enhancement from card.config.card / card.base
       local rank = (card.base and card.base.value) or "?"
       local suit = (card.base and card.base.suit) or "?"
       state.hand[#state.hand + 1] = {
         index = i - 1,
         rank = tostring(rank),
         suit = tostring(suit),
+        enhancement = card.ability and card.ability.effect or nil,
+        edition = card.edition and card.edition.type or nil,
+        seal = card.seal,
       }
     end
   end
@@ -156,6 +199,7 @@ local function dump_state()
   end
 
   -- Optional: precompute legal_actions in Lua later; TS derives for now.
+  -- TODO: enumerate blinds (G.GAME.round_resets.blind_choices) and shop offers.
   return state
 end
 
@@ -166,32 +210,58 @@ local function apply_action(action)
 
   local kind = action.kind
   local params = action.params or {}
+  local idxs = params.card_indices or params.indices or {}
 
   if kind == "noop" then
     return true, "noop"
   elseif kind == "play_hand" then
-    -- TODO: select cards by params.card_indices then trigger play
-    -- e.g. highlight G.hand.cards[i+1], then G.FUNCS.play_cards_from_highlighted()
-    return false, "TODO: play_hand via Balatro FUNCS"
+    local ok, err = highlight_hand_indices(idxs)
+    if not ok then return false, err end
+    if not (G.FUNCS and G.FUNCS.play_cards_from_highlighted) then
+      return false, "play_cards_from_highlighted missing"
+    end
+    G.FUNCS.play_cards_from_highlighted()
+    return true, "played"
   elseif kind == "discard" then
-    -- TODO: G.FUNCS.discard_cards_from_highlighted()
-    return false, "TODO: discard via Balatro FUNCS"
+    local ok, err = highlight_hand_indices(idxs)
+    if not ok then return false, err end
+    if not (G.FUNCS and G.FUNCS.discard_cards_from_highlighted) then
+      return false, "discard_cards_from_highlighted missing"
+    end
+    G.FUNCS.discard_cards_from_highlighted()
+    return true, "discarded"
   elseif kind == "select_blind" then
-    -- TODO: select blind by params.blind_id
-    return false, "TODO: select_blind"
+    -- TODO: G.FUNCS.select_blind(e) needs blind-select UI e.config.ref_table
+    return false, "TODO: select_blind needs UI e.config.ref_table"
   elseif kind == "skip_blind" then
-    return false, "TODO: skip_blind"
+    -- TODO: G.FUNCS.skip_blind(e) needs e.UIBox tag_container
+    return false, "TODO: skip_blind needs UI e.UIBox"
   elseif kind == "buy" then
-    -- TODO: buy shop item at params.shop_index
-    return false, "TODO: buy"
+    -- TODO: G.FUNCS.buy_from_shop(e) with shop Card as e.config.ref_table
+    return false, "TODO: buy needs shop Card ref"
   elseif kind == "reroll" then
-    return false, "TODO: reroll shop"
+    if G.FUNCS and G.FUNCS.reroll_shop then
+      local ok, err = pcall(function() G.FUNCS.reroll_shop({}) end)
+      if ok then return true, "rerolled" end
+      return false, tostring(err)
+    end
+    return false, "reroll_shop missing"
   elseif kind == "cash_out" then
+    if G.STATE == G.STATES.ROUND_EVAL and G.FUNCS.cash_out then
+      local ok, err = pcall(function() G.FUNCS.cash_out({ config = {} }) end)
+      if ok then return true, "cash_out" end
+      return false, tostring(err)
+    end
+    if G.STATE == G.STATES.SHOP and G.FUNCS.toggle_shop then
+      local ok, err = pcall(function() G.FUNCS.toggle_shop({ config = {} }) end)
+      if ok then return true, "toggle_shop" end
+      return false, "TODO: leave shop — " .. tostring(err)
+    end
     return false, "TODO: cash_out / leave shop"
   elseif kind == "use_consumable" then
-    return false, "TODO: use_consumable"
+    return false, "TODO: use_consumable needs Card UI ref"
   elseif kind == "sell" then
-    return false, "TODO: sell"
+    return false, "TODO: sell needs Card UI ref"
   end
 
   return false, "unknown kind " .. tostring(kind)

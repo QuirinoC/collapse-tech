@@ -85,7 +85,25 @@ local function try_apply_action()
     return
   end
 
-  local ok, detail = actions_mod.apply({ id = id, kind = kind, params = {} })
+  local indices = {}
+  local block = body:match('"card_indices"%s*:%s*%[([^%]]*)%]')
+  if block then
+    for n in block:gmatch("(%-?%d+)") do
+      indices[#indices + 1] = tonumber(n)
+    end
+  end
+  local shop_index = tonumber(body:match('"shop_index"%s*:%s*(%-?%d+)'))
+  local blind_id = body:match('"blind_id"%s*:%s*"([^"]+)"')
+
+  local ok, detail = actions_mod.apply({
+    id = id,
+    kind = kind,
+    params = {
+      card_indices = indices,
+      shop_index = shop_index,
+      blind_id = blind_id,
+    },
+  })
   print("[balatro_jev] apply " .. tostring(kind) .. " ok=" .. tostring(ok) .. " " .. tostring(detail))
   ipc_mod.clear_action(config.IPC_DIR)
   last_state_hash = nil -- force re-dump after apply
