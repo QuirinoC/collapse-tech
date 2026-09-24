@@ -835,6 +835,27 @@ final class AppModel: ObservableObject {
         }
     }
 
+
+    func extendOpenLook(personID: UUID) {
+        guard requireOnline() || isDemoMode else { return }
+        Task {
+            do {
+                let session: LookSession
+                if let demo {
+                    session = try demo.extendLook(subjectID: personID)
+                    publishDemoSnapshot()
+                } else {
+                    session = try await client.extendLook(subjectID: personID)
+                    await refresh()
+                }
+                openedSnapshots[personID] = session
+                showToast(TrustCopy.stripTrail)
+            } catch {
+                showToast(plainMessage(for: error))
+            }
+        }
+    }
+
     func stopAll() {
         guard requireOnline() else { return }
         Task {

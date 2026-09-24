@@ -428,6 +428,7 @@ struct ViewLogRow: View {
 /// D3 View log — chronological, both directions. Free keeps 30 days; Plus keeps a year + export.
 struct ViewLogView: View {
     var inSheet: Bool
+    var asTab: Bool = false
     @EnvironmentObject private var model: AppModel
     @Environment(\.trustPalette) private var palette
     @Environment(\.dismiss) private var dismiss
@@ -435,8 +436,9 @@ struct ViewLogView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                TrustPageTitle(text: TrustCopy.viewLog)
+                TrustPageTitle(text: asTab ? TrustCopy.log : TrustCopy.viewLog)
                     .padding(.top, 4)
+                if !asTab {
                 Text(TrustCopy.viewLogIntro)
                     .font(TrustTheme.ui(13))
                     .foregroundStyle(palette.muted)
@@ -446,6 +448,7 @@ struct ViewLogView: View {
                     .foregroundStyle(palette.muted)
                     .padding(.top, 4)
                     .padding(.bottom, 18)
+                }
 
                 if model.lookLog.isEmpty {
                     Text(TrustCopy.noViewsYet)
@@ -483,22 +486,24 @@ struct ViewLogView: View {
             .trustReadableWidth()
         }
         .background(palette.paper.ignoresSafeArea())
-        .toolbar(.visible, for: .navigationBar)
+        .toolbar(asTab ? .hidden : .visible, for: .navigationBar)
         .toolbarBackground(palette.paper, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    if inSheet { model.showingViewLog = false } else { dismiss() }
-                } label: {
-                    HStack(spacing: 4) {
-                        if !inSheet {
-                            Image(systemName: "chevron.left").font(.system(size: 14, weight: .semibold))
+            if !asTab {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        if inSheet { model.showingViewLog = false } else { dismiss() }
+                    } label: {
+                        HStack(spacing: 4) {
+                            if !inSheet {
+                                Image(systemName: "chevron.left").font(.system(size: 14, weight: .semibold))
+                            }
+                            Text(inSheet ? TrustCopy.close : TrustCopy.you)
                         }
-                        Text(inSheet ? TrustCopy.close : TrustCopy.you)
+                        .font(TrustTheme.ui(15, weight: .medium))
+                        .foregroundStyle(palette.ink)
                     }
-                    .font(TrustTheme.ui(15, weight: .medium))
-                    .foregroundStyle(palette.ink)
                 }
             }
         }
