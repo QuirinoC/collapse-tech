@@ -214,7 +214,7 @@ Fixture (`DemoTrustService.startLeanDemo()`): Maya Sealed (Look), Leo Available 
 
 | # | Shot | `TRUST_SCREENSHOT` | What to show |
 | --- | --- | --- | --- |
-| 1 | **Circle** | `circle` | SHARED WITH YOU. Maya **Look**, Leo **View**. No `+`, no counters. |
+| 1 | **People** | `circle` | Map + draggable sheet. SHARED WITH YOU list. Maya **Look**, Leo **View**. No `+`, no counters. |
 | 2 | **Look** | `look` | Confirm sheet on Maya: “Maya will be notified.” then one snapshot — not a live feed. |
 | 3 | **View** | `view` | D1 on Leo: live, receipt/log line, muted one-pin map. No confirm sheet. |
 | 4 | **Sharing** | `share` | Per-person Until / Always / For a while + Stop. Plus lock on Always / timed (Free fixture). |

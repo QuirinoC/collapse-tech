@@ -50,4 +50,13 @@ public interface IStoreKitEntitlementStore
     Task<bool> ApplyNotificationAsync(
         VerifiedStoreKitTransaction transaction,
         CancellationToken cancellationToken);
+
+    /// Recompute has_circle from the latest StoreKit row's expires_at so a missed
+    /// EXPIRED notification cannot leave Plus sticky forever. Accounts with no
+    /// StoreKit history (review unlock, test grants) are left alone.
+    Task RefreshExpiredCoveragesAsync(CancellationToken cancellationToken);
+
+    /// Same expiry check for one account — call on circle / share reads so Plus
+    /// does not stick until the next sweep.
+    Task RefreshAccountCoverageAsync(Guid accountId, CancellationToken cancellationToken);
 }

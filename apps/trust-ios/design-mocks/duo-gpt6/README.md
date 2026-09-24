@@ -1,3 +1,5 @@
+> **Not the ship UI for home.** Round 8 map + draggable People sheet (`Sources/TrustApp/CircleView.swift`, `debf974`) supersedes list-first Circle. Keep these mocks for history; do not implement list-only Circle as 1.0.
+
 # Trust Circle — interactive design prototype
 
 A self-contained, interactive iOS design presentation. No build, runtime dependencies, remote fonts, map SDK, or API calls.
@@ -17,7 +19,7 @@ Then visit `http://127.0.0.1:8767/` (gallery) or `http://127.0.0.1:8767/app.html
 | Link | Experience |
 | --- | --- |
 | `index.html` | Six-phone gallery, editorial aside, and design tokens |
-| `app.html#circle` | Nine people, list-first; Home / Away / Hidden presence; locations sealed; Map as a secondary link |
+| `app.html#circle` | Nine people *(historical list-first mock)*; Home / Away / Hidden; Map link. **Ship UI is Round 8 map+sheet.** |
 | `app.html#look` | Notification-aware Look confirmation sheet |
 | `app.html#view` | Privacy guard: still sealed until confirmed |
 | `app.html#view-demo` | Post-look neighborhood, distance, snapshot, and receipt |

@@ -6,7 +6,6 @@ struct PhoneView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.trustPalette) private var palette
     @FocusState private var focused: Field?
-    @State private var agreedToTexts = false
 
     private enum Field {
         case phone
@@ -51,7 +50,7 @@ struct PhoneView: View {
                             .accessibilityIdentifier("phone-number")
                     }
 
-                    Toggle(isOn: $agreedToTexts) {
+                    Toggle(isOn: $model.phoneConsentChecked) {
                         Text(TrustCopy.phoneConsent)
                             .trustFont(15)
                             .foregroundStyle(palette.ink)
@@ -72,7 +71,7 @@ struct PhoneView: View {
                     }
                     .buttonStyle(TrustFilledButtonStyle())
                     .disabled(
-                        !agreedToTexts
+                        !model.phoneConsentChecked
                             || model.isSendingPhone
                             || model.phoneDraft.trimmingCharacters(in: .whitespaces).isEmpty)
                     .accessibilityIdentifier("send-phone-code")

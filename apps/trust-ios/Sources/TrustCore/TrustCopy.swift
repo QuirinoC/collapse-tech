@@ -420,6 +420,33 @@ public enum TrustCopy {
     public static var presenceNote: String {
         value("presence_note", defaultValue: "Home / Away / Hidden — separate from whether location is sealed or available.")
     }
+    public static var homePlace: String { value("home_place", defaultValue: "Home place") }
+    public static var homePlaceNote: String {
+        value(
+            "home_place_note",
+            defaultValue: "Set from where you are now. Coordinates stay on this phone. With Always location, Trust marks Home or Away for your circle."
+        )
+    }
+    public static var setHomeHere: String { value("set_home_here", defaultValue: "Use current location as Home") }
+    public static var clearHome: String { value("clear_home", defaultValue: "Clear Home") }
+    public static var homeSetToast: String {
+        value("home_set_toast", defaultValue: "Home set on this phone. Presence can follow the boundary.")
+    }
+    public static var homeClearedToast: String {
+        value("home_cleared_toast", defaultValue: "Home cleared. Presence stays manual.")
+    }
+    public static var homeNeedsLocation: String {
+        value("home_needs_location", defaultValue: "Allow location, then set Home from where you are.")
+    }
+    public static var homeNeedsAlways: String {
+        value("home_needs_always", defaultValue: "Allow Always location so Home and Away update when Trust is closed.")
+    }
+    public static var homeIsSetLabel: String {
+        value("home_is_set_label", defaultValue: "Home is set on this phone.")
+    }
+    public static var homeNotSetLabel: String {
+        value("home_not_set_label", defaultValue: "No Home place yet.")
+    }
     public static var presenceHomeCopy: String {
         value("presence_home_copy", defaultValue: "Home or Away. Not a location.")
     }

@@ -7,10 +7,10 @@ import UIKit
 
 enum AppPhase: Equatable {
     case login
-    /// Phone number and one SMS code. Sign in with Apple stays the login.
-    case phone
     /// A2 — pick `@handle` once after the first Sign in with Apple.
     case handle
+    /// A verification text is required before Home.
+    case phone
     case home
 }
 
@@ -101,6 +101,7 @@ final class AppModel: ObservableObject {
     @Published private var presenceOverride: HomePresenceKind?
 
     @Published var phoneDraft = ""
+    @Published var phoneConsentChecked = false
     @Published var phoneCodeDraft = ""
     @Published var phoneNotice: String?
     @Published var phoneCodeSent = false
@@ -205,6 +206,9 @@ final class AppModel: ObservableObject {
         if auth.isAuthenticated, !isDemoMode, let cached = client.cachedCircle() {
             // Paint the last good circle immediately; refresh() decides whether it is stale.
             snapshot = cached
+            if !Self.debugDemoRequested(sessionToken: auth.sessionToken) {
+                phase = Self.phase(for: cached.you)
+            }
         }
         bind()
     }
@@ -535,10 +539,11 @@ final class AppModel: ObservableObject {
             snapshot = fresh
             isOffline = false
             presenceOverride = nil
-            if enterHome {
+            if enterHome || phase == .home || phase == .handle || phase == .phone {
                 routeAfterAuth(onboardingComplete: fresh.you.onboardingComplete)
             }
             syncLocationSharing()
+            syncHomeMonitoring()
             await flushIngestQueue()
         } catch TrustClientError.unauthorized {
             signOut()
@@ -552,13 +557,13 @@ final class AppModel: ObservableObject {
             }
             syncLocationSharing()
             if enterHome, auth.isAuthenticated {
-                routeAfterAuth(onboardingComplete: fallbackOnboardingComplete ?? snapshot?.you.onboardingComplete ?? true)
+                routeAfterAuth(onboardingComplete: fallbackOnboardingComplete ?? snapshot?.you.onboardingComplete ?? false)
             }
         } catch {
             showToast(plainMessage(for: error))
             syncLocationSharing()
             if enterHome, auth.isAuthenticated {
-                routeAfterAuth(onboardingComplete: fallbackOnboardingComplete ?? snapshot?.you.onboardingComplete ?? true)
+                routeAfterAuth(onboardingComplete: fallbackOnboardingComplete ?? snapshot?.you.onboardingComplete ?? false)
             }
         }
     }
@@ -1100,15 +1105,39 @@ final class AppModel: ObservableObject {
             return
         }
         #endif
-        // Phone texts stay off until the 2FA campaign can send. Sign in continues without a code.
-        if onboardingComplete {
-            phase = .home
+        let next: AppPhase
+        if let you = snapshot?.you {
+            next = Self.phase(for: you)
         } else {
-            beginOnboarding()
+            next = onboardingComplete ? .home : .handle
+        }
+        if next == .handle {
+            if phase != .handle {
+                beginOnboarding()
+            } else {
+                phase = .handle
+            }
+        } else {
+            phase = next
         }
     }
 
+    /// Handle first, then a verified phone, then Home. A missing phone never lands on Home.
+    private static func phase(for you: Person) -> AppPhase {
+        let handleReady: Bool
+        if let handle = you.handle, case .valid = TrustHandle.status(of: handle) {
+            handleReady = true
+        } else {
+            handleReady = false
+        }
+        if !handleReady { return .handle }
+        if !you.phoneVerified { return .phone }
+        return .home
+    }
+
     func sendPhoneCode() async {
+        phoneNotice = nil
+        guard phoneConsentChecked else { return }
         let phone = phoneDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !phone.isEmpty, !isSendingPhone else {
             if phone.isEmpty { phoneNotice = TrustCopy.enterPhone }
@@ -1139,7 +1168,7 @@ final class AppModel: ObservableObject {
         do {
             try await client.verifyPhoneCode(phone: phone, code: code)
             phoneNotice = nil
-            await refresh(enterHome: true)
+            await finishOnboardingIfComplete()
         } catch {
             phoneNotice = plainMessage(for: error)
         }
@@ -1147,6 +1176,7 @@ final class AppModel: ObservableObject {
 
     private func resetPhoneDraft() {
         phoneDraft = ""
+        phoneConsentChecked = false
         phoneCodeDraft = ""
         phoneNotice = nil
         phoneCodeSent = false
@@ -1169,6 +1199,7 @@ final class AppModel: ObservableObject {
         onboardingNotice = nil
         handleAvailability = nil
         isOnboardingBusy = false
+        resetPhoneDraft()
     }
 
     // MARK: Plus (StoreKit 2 — SubscriptionStoreView submits JWS here)
@@ -1317,10 +1348,72 @@ final class AppModel: ObservableObject {
         location.onLocations = { [weak self] points in
             self?.enqueueLocations(points)
         }
-        // Presence is manual in 1.0. Geofenced Home/Away (Places) is the 1.1 Plus item, so the
-        // coordinator's region callbacks stay unwired here.
-        location.onHomePresence = nil
+        location.onHomePresence = { [weak self] kind in
+            self?.postGeofencePresence(kind)
+        }
+        syncHomeMonitoring()
+    }
+
+    /// Home geofence drives Home/Away when a place is set and Always is granted.
+    /// Desire monitoring whenever Home is set — region monitoring starts when Always arrives.
+    /// Manual triad remains an override. Hidden is never posted from the geofence.
+    func syncHomeMonitoring() {
+        location.setHomeMonitoring(location.homeIsSet)
+    }
+
+    private func postGeofencePresence(_ kind: HomePresenceKind) {
+        guard kind == .home || kind == .away else { return }
+        if myPresence == .hidden { return }
+        if isDemoMode {
+            demo?.setMyPresence(kind)
+            publishDemoSnapshot()
+            return
+        }
+        guard !isOffline else { return }
+        presenceOverride = kind
+        Task {
+            do {
+                try await client.postHomePresence(state: kind)
+                await refresh()
+            } catch {
+                presenceOverride = nil
+            }
+        }
+    }
+
+    func setHomeFromCurrentLocation() {
+        guard requireOnline() || isDemoMode else { return }
+        location.requestWhenInUse()
+        guard let saved = location.setHomeFromCurrentFix(label: "Home") else {
+            showToast(TrustCopy.homeNeedsLocation)
+            return
+        }
+        if isDemoMode {
+            showToast(TrustCopy.homeSetToast)
+            syncHomeMonitoring()
+            if !location.hasAlways { showingAlwaysExplainer = true }
+            return
+        }
+        Task {
+            do {
+                try await client.setHomePlace(placeID: saved.placeID, label: saved.label)
+                showToast(TrustCopy.homeSetToast)
+                syncHomeMonitoring()
+                if !location.hasAlways {
+                    showingAlwaysExplainer = true
+                }
+                await refresh()
+            } catch {
+                location.clearHome()
+                showToast(plainMessage(for: error))
+            }
+        }
+    }
+
+    func clearHomePlace() {
+        location.clearHome()
         location.setHomeMonitoring(false)
+        showToast(TrustCopy.homeClearedToast)
     }
 
     private func syncLocationSharing() {

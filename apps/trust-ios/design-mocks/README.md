@@ -1,3 +1,5 @@
+> **Home IA:** map + draggable People sheet (Round 8 / `debf974`). The `duo-gpt6` folder keeps list-first Circle as history only — do not ship list-only.
+
 # Trust Circle — HTML design mocks
 
 Static phone frames for the Trust rework (sealed-by-default, Look ritual, paper/Didot/#E10600). Not Life360 clones. No build step.

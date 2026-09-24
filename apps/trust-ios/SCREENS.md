@@ -12,8 +12,8 @@ One job: share location with people you trust. Sealed by default; Look is never 
 |---|---|---|---|
 | A1 | **Login** | `LoginView` | Signed out. `Trust.`, one-line promise, Sign in with Apple, Terms · Privacy · Support. DEBUG **See the app** enters the offline fixture. |
 | A2 | **Handle** | `HandleView` | Once after first Apple sign-in. `@handle` → `PUT /me/handle`. |
-| — | **Shell** | `MainShellView` | `Trust.` masthead + caption that follows the route; native 4-tab `TabView`; offline strip; toast. |
-| T1 | **Circle** | `CircleView` | SHARED WITH YOU + Map →. Rows: Sealed → **Look**; Available → **View**; Hidden presence reads “presence hidden”. Optional NOT SHARING WITH YOU section (learned from a `share_off` answer). No `+`, no counters. |
+| — | **Shell** | `MainShellView` | People hides masthead (map owns chrome). Sharing / Log / You keep `Trust.` masthead. Four tabs: People, Sharing, Log, You. Offline strip; toast. |
+| T1 | **People** | `CircleView` | **Map + draggable people sheet** (build 15 / Round 8). MapKit top ~2/3, sheet with SHARED WITH YOU list + recenter. Rows: Sealed → **Look**; Available → **View**; Hidden presence reads “presence hidden”. Optional NOT SHARING WITH YOU. No `+`, no counters. **Not** list-first / Map-as-link. |
 | T2 | **Sharing** | `SharingView` | Per person: Until they look · Always · For a while + Stop. Always / For a while carry a Plus mark when not covered and answer `402 pro_required` with the paywall. |
 | T3 | **Invite** | `InviteView` | “I trust you with my location.” Share link (`https://trust.collapsetechnologies.com/i/CODE`, `trust://invite/CODE`) or enter a code. Invite ≠ permission — join is Off both ways. |
 | T4 | **You** | `YouView` | Profile · STATUS · PRESENCE triad (Home / Away / Hidden, free) · Trust Plus card · SETTINGS · VIEW LOG · Stop all · Sign out · Delete · legal. |
@@ -48,7 +48,7 @@ One job: share location with people you trust. Sealed by default; Look is never 
 | `POST /views` | Available only, no push. `{ logged, event? }`; `view_requires_available` → Look confirm instead. |
 | `POST /me/home/presence` | `home \| away \| hidden`. Client keeps every edge’s presence grant enabled so the global triad shows across the circle; Hidden is withheld server-side. |
 | `POST /session/apple` | Sends the SHA-256 `nonce` set on the SIWA request. |
-| `LookEventDTO.kind` | `look \| view` → view-log copy. |
+| `LookEventDTO.kind` | `look \| view \| removed` → view-log copy. |
 | `CoverageDTO.seatLimit / lookLogDays` | Server values win (Free 5 / Plus 20). |
 
 ## Location / push
@@ -56,7 +56,7 @@ One job: share location with people you trust. Sealed by default; Look is never 
 - Track only while any outbound share ≠ Off (`OutboundLocationSharing.isActive(shares:)`).
 - While-Using is requested only when View / Map needs “miles from you”. Always is explained, then requested, after the first non-Off share.
 - Push: Look receipt (APNs, server). View is log-only. Timed end → local notification.
-- Presence is manual in 1.0; the geofence callbacks in `LocationCoordinator` stay unwired.
+- Presence triad stays manual override. When Home place is set + Always is granted, the Home geofence posts Home/Away via `LocationCoordinator` → `AppModel.postGeofencePresence`. Hidden is never posted from the geofence.
 
 ## Demo fixture (See the app / `TRUST_DEMO=1`)
 

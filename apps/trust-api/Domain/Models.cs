@@ -161,7 +161,7 @@ public sealed record Account(
 
     public bool HasHandle => AccountHandle.IsChosen(Handle);
 
-    public bool OnboardingComplete => HasHandle;
+    public bool OnboardingComplete => HasHandle && HasVerifiedPhone;
 
     public string PublicName => HasHandle ? $"@{Handle}" : DisplayName;
 }

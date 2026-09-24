@@ -111,6 +111,13 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
         applyTracking()
     }
 
+    func clearHome() {
+        homeStore.clear()
+        homeIsSet = false
+        lastPostedHomeState = nil
+        applyHomeMonitoring()
+    }
+
     func setHomeMonitoring(_ enabled: Bool) {
         monitoringHome = enabled && homeStore.isSet
         applyHomeMonitoring()
@@ -184,6 +191,11 @@ final class LocationCoordinator: NSObject, ObservableObject, CLLocationManagerDe
                 self.pendingAlwaysAfterWhenInUse = false
             }
             self.requestPreciseIfNeeded()
+            // Home set earlier without Always: start the region once Always lands.
+            if self.homeStore.isSet && self.hasAlways {
+                self.monitoringHome = true
+                self.applyHomeMonitoring()
+            }
             self.applyTracking()
         }
     }

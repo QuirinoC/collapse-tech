@@ -46,7 +46,7 @@ public sealed class PhoneVerificationTests
     }
 
     [Fact]
-    public void HandleCompletesOnboarding()
+    public void HandleWithoutVerifiedPhoneIsNotOnboardingComplete()
     {
         var account = new Account(
             Guid.NewGuid(),
@@ -58,6 +58,27 @@ public sealed class PhoneVerificationTests
             DateTimeOffset.UtcNow,
             Handle: "jordan");
         Assert.True(account.HasHandle);
+        Assert.False(account.HasVerifiedPhone);
+        Assert.False(account.OnboardingComplete);
+        Assert.Equal("@jordan", account.PublicName);
+    }
+
+    [Fact]
+    public void HandleAndVerifiedPhoneCompletesOnboarding()
+    {
+        var account = new Account(
+            Guid.NewGuid(),
+            "apple",
+            "sub",
+            "You",
+            false,
+            null,
+            DateTimeOffset.UtcNow,
+            "+15555550100",
+            DateTimeOffset.UtcNow,
+            "jordan");
+        Assert.True(account.HasHandle);
+        Assert.True(account.HasVerifiedPhone);
         Assert.True(account.OnboardingComplete);
         Assert.Equal("@jordan", account.PublicName);
     }

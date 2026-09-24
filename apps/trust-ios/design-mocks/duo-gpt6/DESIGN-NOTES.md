@@ -1,3 +1,8 @@
+> **SUPERSEDED HOME IA:** List-first Circle (Rounds 1–7) is **not** the ship UI.
+> Canonical home is **map + draggable People sheet** (Round 8 / `debf974` / build 15).
+> Do **not** ship list-only Circle or treat “Map is a secondary text link” as product truth.
+> Keep this folder for history and Round 8 notes only.
+
 # Trust Circle — design notes (post–GPT-6 credit block)
 
 > **Duo status:** `gpt_6_astra` ran the first HTML pass successfully earlier today (session `7667109`). Follow-up rounds failed: *“You don't have enough GitLab Credits to run GitLab Duo Agent Platform.”*
@@ -91,7 +96,7 @@ Plus sells **capacity + convenience**, not privacy.
 - You: 3-segment control (not a boolean toggle)
 - Demo data: Inês, Eli, Noah start Hidden
 
-**Counters removed:** stats strip gone. Circle is list-first under SHARED WITH YOU + Map link.
+**Counters removed:** stats strip gone. *(Historical Round 5: list-first under SHARED WITH YOU + Map link — superseded by Round 8 map+sheet.)*
 
 **Duo GPT-6 max rethink:** attempted; blocked on GitLab Credits. Abandoned — see Round 6.
 
@@ -99,7 +104,7 @@ Plus sells **capacity + convenience**, not privacy.
 
 ## Round 6 — Fable 5.1 local pass (Duo abandoned; GPT-6 follow-ups closed out)
 
-Audit of Rounds 1–5 against the files. Already done and left alone: list-first Circle with wordmark only (R2), no counters (R5), no Circle `+` (R3), Plus teaser on You (R4), presence triad on You + Hidden rows (R5). What was still missing, and what changed:
+Audit of Rounds 1–5 against the files. Already done and left alone: wordmark-only chrome (R2), no counters (R5), no Circle `+` (R3), Plus teaser on You (R4), presence triad on You + Hidden rows (R5). *(List-first Circle from R2 is historical — Round 8 map+sheet is current.)* What was still missing, and what changed:
 
 | Gap | Change |
 |---|---|

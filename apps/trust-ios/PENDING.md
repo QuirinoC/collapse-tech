@@ -53,9 +53,10 @@ now on `main`. (Migration `005_presence_grants.sql` — presence grants / Home p
   screenshots (captured, in repo), IAP rename checklist, submit order — see
   `AppStore/ASC-M6.md`. Screenshots already captured under
   `AppStore/Screenshots/m6/{iphone-69,ipad-13}/`.
-- Trust Circle 1.0 duo-gpt6 IA: list-first Circle, no header `+`, presence triad
-  (Home/Away/Hidden), Sealed (Look) vs Available (View, no-sheet, always logged) — see
-  `design-mocks/duo-gpt6/DESIGN-NOTES.md` Rounds 1–7.
+- Trust Circle 1.0 duo-gpt6 IA (Rounds 1–7 history): presence triad, Sealed (Look) vs
+  Available (View). **Current home IA is Round 8 map + draggable People sheet**
+  (`debf974` / build 15 lineage, restored in `ab9395d`) — **not** list-first Circle.
+  See `design-mocks/duo-gpt6/DESIGN-NOTES.md` Round 8. Do not ship list-only Circle.
 
 ---
 
@@ -86,15 +87,17 @@ now on `main`. (Migration `005_presence_grants.sql` — presence grants / Home p
 
 ---
 
-## Pending — product decision
+## Product decision — home IA (closed)
 
-- **Home screen IA: map + sheet (decided).** Life360-style layout (Apple MapKit top ~
-  2/3 + draggable people sheet) **supersedes** the open “Presence Board hybrid”
-  question. Shipped in code under `Sources/TrustApp/CircleView.swift` (tab label
-  **People**; product name **Trust** — not “Trust Circle” / not “your circle”).
-  Design note: Round 8 in `design-mocks/duo-gpt6/DESIGN-NOTES.md`. List
-  Sealed/Available + Look/View behavior unchanged; Plus still gates multi-person
-  Available pins (`homeMapPins`).
+- **Map + draggable People sheet is the only home IA.** Decided for build 15
+  (`debf974`); restored for TestFlight 17 (`ab9395d`). Apple MapKit top ~2/3 +
+  bottom sheet with the people list. Tab label **People**; product name **Trust**.
+- **List-first Circle is obsolete.** Rounds 1–7 duo-gpt6 mocks and any note that
+  says “Map is a secondary text link” / “no header map” are historical. Agents
+  must not ship list-only Circle as 1.0. Code SoT: `Sources/TrustApp/CircleView.swift`.
+- Sealed/Available + Look/View behavior unchanged; Plus still gates multi-person
+  Available pins (`homeMapPins`). Round 8 notes:
+  `design-mocks/duo-gpt6/DESIGN-NOTES.md`.
 
 ---
 
