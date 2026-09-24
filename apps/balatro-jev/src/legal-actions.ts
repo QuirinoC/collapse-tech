@@ -1,18 +1,13 @@
 import type {
   BalatroState,
-  CardRef,
   LegalAction,
 } from "./types.js";
-
-function cardLabel(state: BalatroState, index: number): string {
-  const c = state.hand?.find((h) => h.index === index);
-  if (!c) return `#${index}`;
-  return `${c.rank}${c.suit[0]?.toUpperCase() ?? ""}`;
-}
-
-function comboId(kind: string, indices: number[]): string {
-  return `${kind}_${indices.join("_") || "none"}`;
-}
+import {
+  actionId,
+  enumerateDiscardCombos,
+  enumeratePlayCombos,
+  type RankedCombo,
+} from "./poker-hands.js";
 
 function uniqActions(actions: LegalAction[]): LegalAction[] {
   const seen = new Set<string>();
@@ -23,78 +18,6 @@ function uniqActions(actions: LegalAction[]): LegalAction[] {
     out.push(a);
   }
   return out;
-}
-
-function rankValue(rank: string): number {
-  const map: Record<string, number> = {
-    Ace: 14,
-    A: 14,
-    King: 13,
-    K: 13,
-    Queen: 12,
-    Q: 12,
-    Jack: 11,
-    J: 11,
-    "10": 10,
-  };
-  if (map[rank] != null) return map[rank]!;
-  const n = Number(rank);
-  return Number.isFinite(n) ? n : 0;
-}
-
-/** Build a few play/discard candidate index sets without exploding C(n,k). */
-function handCandidates(hand: CardRef[]): number[][] {
-  if (hand.length === 0) return [];
-  const byRank = [...hand].sort(
-    (a, b) => rankValue(b.rank) - rankValue(a.rank),
-  );
-  const indices = hand.map((c) => c.index);
-  const top = (n: number) => byRank.slice(0, Math.min(n, byRank.length)).map((c) => c.index);
-  const bottom = (n: number) =>
-    [...byRank]
-      .reverse()
-      .slice(0, Math.min(n, byRank.length))
-      .map((c) => c.index);
-
-  const out: number[][] = [];
-  const push = (xs: number[]) => {
-    if (xs.length === 0) return;
-    const key = [...xs].sort((a, b) => a - b).join(",");
-    if (out.some((y) => [...y].sort((a, b) => a - b).join(",") === key)) return;
-    out.push(xs);
-  };
-
-  push(top(Math.min(5, hand.length)));
-  push(top(Math.min(4, hand.length)));
-  push(top(Math.min(3, hand.length)));
-  push(top(1));
-  push(indices.slice(0, Math.min(5, indices.length)));
-  push(bottom(Math.min(5, hand.length)));
-  push(bottom(Math.min(2, hand.length)));
-
-  // Same-suit flush draw (up to 5)
-  const bySuit = new Map<string, number[]>();
-  for (const c of hand) {
-    const list = bySuit.get(c.suit) ?? [];
-    list.push(c.index);
-    bySuit.set(c.suit, list);
-  }
-  for (const list of bySuit.values()) {
-    if (list.length >= 3) push(list.slice(0, Math.min(5, list.length)));
-  }
-
-  // Pair / trips by rank
-  const byR = new Map<string, number[]>();
-  for (const c of hand) {
-    const list = byR.get(c.rank) ?? [];
-    list.push(c.index);
-    byR.set(c.rank, list);
-  }
-  for (const list of byR.values()) {
-    if (list.length >= 2) push(list.slice(0, Math.min(5, list.length)));
-  }
-
-  return out.slice(0, 10);
 }
 
 function ensureNoop(actions: LegalAction[], phase: string): LegalAction[] {
@@ -109,112 +32,96 @@ function ensureNoop(actions: LegalAction[], phase: string): LegalAction[] {
   ];
 }
 
-/** Derive legal actions when the mod did not supply them. */
+function playAction(combo: RankedCombo): LegalAction {
+  return {
+    id: actionId("play", combo),
+    kind: "play_hand",
+    label: `Play ${combo.label}`,
+    params: {
+      card_indices: combo.indices,
+      hand_type: combo.handType,
+      strength: combo.strength,
+      made: combo.made,
+    },
+  };
+}
+
+function discardAction(combo: RankedCombo): LegalAction {
+  return {
+    id: actionId("discard", combo),
+    kind: "discard",
+    label: `Discard ${combo.label}`,
+    params: {
+      card_indices: combo.indices,
+      hand_type: combo.handType,
+      strength: combo.strength,
+    },
+  };
+}
+
+export function deriveHandActions(state: BalatroState): LegalAction[] {
+  const hand = state.hand ?? [];
+  if (hand.length === 0) return [];
+  const handsLeft = state.hands_left ?? 1;
+  const discardsLeft = state.discards_left ?? 0;
+  const actions: LegalAction[] = [];
+  if (handsLeft > 0) {
+    for (const combo of enumeratePlayCombos(hand)) actions.push(playAction(combo));
+  }
+  if (discardsLeft > 0) {
+    for (const combo of enumerateDiscardCombos(hand)) actions.push(discardAction(combo));
+  }
+  if (state.selected && state.selected.length > 0 && handsLeft > 0) {
+    const idxs = state.selected;
+    const cards = hand.filter((c) => idxs.includes(c.index));
+    if (cards.length > 0) {
+      const combo = enumeratePlayCombos(cards)[0];
+      if (combo) {
+        actions.unshift({
+          ...playAction(combo),
+          id: `play_selected_${combo.handType}_${combo.cardsKey}`.replace(/[^a-zA-Z0-9_]/g, ""),
+          label: `Play selected (${combo.label})`,
+        });
+      }
+    }
+  }
+  return uniqActions(actions);
+}
+
 export function deriveLegalActions(state: BalatroState): LegalAction[] {
+  if (state.phase === "hand") {
+    return ensureNoop(deriveHandActions(state), state.phase);
+  }
   if (state.legal_actions && state.legal_actions.length > 0) {
     return state.legal_actions;
   }
-
   const actions: LegalAction[] = [];
-
   switch (state.phase) {
     case "blind_select": {
       const onDeck = (state.blind_on_deck ?? "small").toLowerCase();
-      const blinds =
-        state.blinds ??
-        [
-          { id: "small", name: "Small Blind", skippable: false, native_key: "Small" },
-          { id: "big", name: "Big Blind", skippable: true, native_key: "Big" },
-          { id: "boss", name: "Boss Blind", skippable: false, native_key: "Boss" },
-        ];
-
+      const blinds = state.blinds ?? [
+        { id: "small", name: "Small Blind", skippable: false, native_key: "Small" },
+        { id: "big", name: "Big Blind", skippable: true, native_key: "Big" },
+        { id: "boss", name: "Boss Blind", skippable: false, native_key: "Boss" },
+      ];
       const current =
         blinds.find((b) => b.id.toLowerCase() === onDeck) ??
         blinds.find((b) => (b.status ?? "").toLowerCase() === "select") ??
         blinds[0];
-
       if (current) {
         actions.push({
           id: `select_blind_${current.id}`,
           kind: "select_blind",
           label: `Select ${current.name}`,
-          params: {
-            blind_id: current.id,
-            native_key: current.native_key ?? capitalize(current.id),
-          },
+          params: { blind_id: current.id, native_key: current.native_key ?? capitalize(current.id) },
         });
-        // Small and Big are skippable in vanilla; Boss is not.
-        const skippable =
-          current.skippable != null
-            ? current.skippable
-            : current.id === "big" || current.id === "small";
+        const skippable = current.skippable != null ? current.skippable : current.id === "big" || current.id === "small";
         if (skippable && current.id !== "boss") {
           actions.push({
             id: `skip_blind_${current.id}`,
             kind: "skip_blind",
             label: `Skip ${current.name}`,
-            params: {
-              blind_id: current.id,
-              native_key: current.native_key ?? capitalize(current.id),
-            },
-          });
-        }
-      } else {
-        for (const blind of blinds) {
-          actions.push({
-            id: `select_blind_${blind.id}`,
-            kind: "select_blind",
-            label: `Select ${blind.name}`,
-            params: {
-              blind_id: blind.id,
-              native_key: blind.native_key ?? capitalize(blind.id),
-            },
-          });
-          if (blind.skippable) {
-            actions.push({
-              id: `skip_blind_${blind.id}`,
-              kind: "skip_blind",
-              label: `Skip ${blind.name}`,
-              params: {
-                blind_id: blind.id,
-                native_key: blind.native_key ?? capitalize(blind.id),
-              },
-            });
-          }
-        }
-      }
-      break;
-    }
-    case "hand": {
-      const hand = state.hand ?? [];
-      const selected =
-        state.selected && state.selected.length > 0
-          ? state.selected
-          : null;
-
-      const candidates = handCandidates(hand);
-      if (selected) candidates.unshift(selected);
-
-      const handsLeft = state.hands_left ?? 1;
-      const discardsLeft = state.discards_left ?? 0;
-
-      for (const idxs of candidates) {
-        if (handsLeft > 0) {
-          const names = idxs.map((i) => cardLabel(state, i)).join(" ");
-          actions.push({
-            id: comboId("play", idxs),
-            kind: "play_hand",
-            label: `Play [${names}]`,
-            params: { card_indices: idxs },
-          });
-        }
-        if (discardsLeft > 0) {
-          const names = idxs.map((i) => cardLabel(state, i)).join(" ");
-          actions.push({
-            id: comboId("discard", idxs),
-            kind: "discard",
-            label: `Discard [${names}]`,
-            params: { card_indices: idxs },
+            params: { blind_id: current.id, native_key: current.native_key ?? capitalize(current.id) },
           });
         }
       }
@@ -263,16 +170,10 @@ export function deriveLegalActions(state: BalatroState): LegalAction[] {
       actions.push({
         id: "reroll_shop",
         kind: "reroll",
-        label:
-          rerollCost != null ? `Reroll shop ($${rerollCost})` : "Reroll shop",
+        label: rerollCost != null ? `Reroll shop ($${rerollCost})` : "Reroll shop",
         params: { reroll_cost: rerollCost ?? null },
       });
-      actions.push({
-        id: "leave_shop",
-        kind: "leave_shop",
-        label: "Leave shop (next round)",
-        params: {},
-      });
+      actions.push({ id: "leave_shop", kind: "leave_shop", label: "Leave shop (next round)", params: {} });
       break;
     }
     case "pack_open": {
@@ -284,53 +185,27 @@ export function deriveLegalActions(state: BalatroState): LegalAction[] {
           params: { pack_index: card.index, item_id: card.id },
         });
       }
-      actions.push({
-        id: "pack_skip",
-        kind: "pack_skip",
-        label: "Skip booster pack",
-        params: {},
-      });
+      actions.push({ id: "pack_skip", kind: "pack_skip", label: "Skip booster pack", params: {} });
       break;
     }
     case "round_eval": {
-      actions.push({
-        id: "cash_out",
-        kind: "cash_out",
-        label: "Cash out (enter shop)",
-        params: {},
-      });
+      actions.push({ id: "cash_out", kind: "cash_out", label: "Cash out (enter shop)", params: {} });
       break;
     }
     case "game_over": {
-      actions.push({
-        id: "new_run",
-        kind: "new_run",
-        label: "Start a new run",
-        params: {},
-      });
-      actions.push({
-        id: "go_to_menu",
-        kind: "go_to_menu",
-        label: "Return to main menu",
-        params: {},
-      });
+      actions.push({ id: "new_run", kind: "new_run", label: "Start a new run", params: {} });
+      actions.push({ id: "go_to_menu", kind: "go_to_menu", label: "Return to main menu", params: {} });
       break;
     }
     case "menu": {
-      actions.push({
-        id: "new_run",
-        kind: "new_run",
-        label: "Start a new run from title",
-        params: { stake: 1 },
-      });
+      actions.push({ id: "new_run", kind: "new_run", label: "Start a new run from title", params: { stake: 1 } });
       break;
     }
     case "unknown":
     default: {
-      // Safety net: blinds already showing Select → treat as blind_select.
       const selectBlind = state.blinds?.find((b) => {
         const s = (b.status ?? "").toLowerCase();
-        return s === "select";
+        return s === "select" || s === "current";
       });
       if (selectBlind || state.has_blind_select_ui) {
         const current = selectBlind ?? state.blinds?.[0];
@@ -339,24 +214,15 @@ export function deriveLegalActions(state: BalatroState): LegalAction[] {
             id: `select_blind_${current.id}`,
             kind: "select_blind",
             label: `Select ${current.name}`,
-            params: {
-              blind_id: current.id,
-              native_key: current.native_key ?? capitalize(current.id),
-            },
+            params: { blind_id: current.id, native_key: current.native_key ?? capitalize(current.id) },
           });
-          const skippable =
-            current.skippable != null
-              ? current.skippable
-              : current.id === "big" || current.id === "small";
+          const skippable = current.skippable != null ? current.skippable : current.id === "big" || current.id === "small";
           if (skippable && current.id !== "boss") {
             actions.push({
               id: `skip_blind_${current.id}`,
               kind: "skip_blind",
               label: `Skip ${current.name}`,
-              params: {
-                blind_id: current.id,
-                native_key: current.native_key ?? capitalize(current.id),
-              },
+              params: { blind_id: current.id, native_key: current.native_key ?? capitalize(current.id) },
             });
           }
           break;
@@ -366,15 +232,11 @@ export function deriveLegalActions(state: BalatroState): LegalAction[] {
         id: "noop",
         kind: "noop",
         label: "No-op (phase not actionable yet)",
-        params: {
-          phase: state.phase,
-          raw_state_name: state.raw_state_name ?? null,
-        },
+        params: { phase: state.phase, raw_state_name: state.raw_state_name ?? null },
       });
       break;
     }
   }
-
   return ensureNoop(uniqActions(actions), state.phase);
 }
 
@@ -383,13 +245,26 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
 
-/** Choice criteria must use stable string labels; sanitize if needed. */
-export function toChoiceCriteria(
-  actions: LegalAction[],
-): Record<string, string> {
+export function toChoiceCriteria(actions: LegalAction[]): Record<string, string> {
   const criteria: Record<string, string> = {};
   for (const a of actions) {
-    criteria[a.id] = a.label;
+    const handType = a.params?.hand_type;
+    const made = a.params?.made;
+    if (a.kind === "play_hand" && typeof handType === "string") {
+      const tier =
+        made === true
+          ? "MADE poker hand — prefer over draws and high card"
+          : handType.includes("draw")
+            ? "DRAW — only if no made hand is available"
+            : "WEAK — last resort high card / filler";
+      const idxs = (a.params?.card_indices as number[] | undefined)?.join(",") ?? "";
+      criteria[a.id] = `${a.label}. ${tier}. Plays cards at indices [${idxs}].`;
+    } else if (a.kind === "discard" && typeof handType === "string") {
+      const idxs = (a.params?.card_indices as number[] | undefined)?.join(",") ?? "";
+      criteria[a.id] = `${a.label}. DISCARD dead/off-suit cards to chase a better hand. Prefer dumping lowest dead cards while keeping pairs/flush/straight potential. Indices [${idxs}].`;
+    } else {
+      criteria[a.id] = a.label;
+    }
   }
   return criteria;
 }

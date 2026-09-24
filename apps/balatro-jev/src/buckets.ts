@@ -1,7 +1,7 @@
 import type { JsonValue } from "@typesafe-ai/sdk";
 import type { BalatroState, CardRef, LegalAction } from "./types.js";
+import { cardToken, enumeratePlayCombos, rankValue } from "./poker-hands.js";
 
-/** Bucket chip progress into coarse labels Jev can compare without raw floats. */
 export function chipPressure(state: BalatroState): string {
   const need = state.chips_needed;
   const scored = state.chips_scored ?? 0;
@@ -30,22 +30,39 @@ export function resourceBucket(n: number | undefined, label: string): string {
   return `many_${label}`;
 }
 
-function compactCard(c: CardRef): string {
-  const bits = [`${c.rank}${c.suit[0]?.toUpperCase() ?? "?"}`];
-  if (c.enhancement) bits.push(c.enhancement);
-  if (c.edition) bits.push(c.edition);
-  if (c.seal) bits.push(c.seal);
-  return bits.join("+");
+function compactCard(c: CardRef): { [key: string]: JsonValue } {
+  const out: { [key: string]: JsonValue } = {
+    i: c.index, card: cardToken(c), rank: c.rank, suit: c.suit, rank_value: rankValue(c.rank),
+  };
+  if (c.enhancement) out.enhancement = c.enhancement;
+  if (c.edition) out.edition = c.edition;
+  if (c.seal) out.seal = c.seal;
+  return out;
 }
 
-/**
- * Compact named JSON for System One. Buckets/labels beat raw floats when useful.
- * Keep legal action ids in criteria; put summaries here for judgment context.
- */
+function handSummary(state: BalatroState): { [key: string]: JsonValue } {
+  const hand = state.hand ?? [];
+  const combos = enumeratePlayCombos(hand);
+  return {
+    size: hand.length,
+    cards: hand.map(compactCard),
+    best_made: combos.filter((c) => c.made).slice(0, 5).map((c) => `${c.handType}:${c.cardsKey}`),
+    draws: combos
+      .filter((c) => c.handType === "flush_draw" || c.handType === "straight_draw")
+      .slice(0, 3)
+      .map((c) => `${c.handType}:${c.cardsKey}`),
+    ranks: hand.map((c) => c.rank),
+    suits: hand.map((c) => c.suit),
+  };
+}
+
 export function toSemanticState(
   state: BalatroState,
   legalActions: LegalAction[],
 ): { [key: string]: JsonValue } {
+  const chipsNeeded = state.chips_needed ?? null;
+  const chipsScored = state.chips_scored ?? 0;
+  const chipsRemaining = chipsNeeded != null ? Math.max(0, chipsNeeded - chipsScored) : null;
   return {
     game: "balatro",
     phase: state.phase,
@@ -54,21 +71,27 @@ export function toSemanticState(
     money: moneyBucket(state.money),
     money_exact: state.money,
     chip_pressure: chipPressure(state),
-    chips_needed: state.chips_needed ?? null,
-    chips_scored: state.chips_scored ?? null,
+    chips_needed: chipsNeeded,
+    chips_scored: chipsScored,
+    chips_remaining: chipsRemaining,
+    hands_left: state.hands_left ?? null,
+    discards_left: state.discards_left ?? null,
     hands: resourceBucket(state.hands_left, "hands"),
     discards: resourceBucket(state.discards_left, "discards"),
-    hand: (state.hand ?? []).map(compactCard),
+    hand: handSummary(state),
     selected: state.selected ?? [],
-    jokers: (state.jokers ?? []).map((j) => j.name || j.id),
+    jokers: (state.jokers ?? []).map((j) => ({ name: j.name || j.id, index: j.index })),
     shop: (state.shop ?? []).map((s) => `${s.name}@$${s.cost}`),
     pack: (state.pack ?? []).map((p) => p.name || p.id),
     blinds: (state.blinds ?? []).map((b) => b.name || b.id),
     blind_on_deck: state.blind_on_deck ?? null,
     consumables: (state.consumables ?? []).map((c) => c.name || c.id),
     legal_action_ids: legalActions.map((a) => a.id),
+    play_options: legalActions.filter((a) => a.kind === "play_hand").map((a) => `${a.id} (${a.label})`),
+    discard_options: legalActions.filter((a) => a.kind === "discard").map((a) => `${a.id} (${a.label})`),
     notes: state.notes ?? null,
     objective:
-      "Pick the single best currently legal action to progress a strong Balatro run. Prefer clearing blinds efficiently; in shop buy strong jokers then leave; in packs take the best card; respect hands/discards left and money.",
+      "In hand phase: prefer MADE poker hands (pair, two pair, three, straight, flush, full house, four) over draws; prefer strong draws over garbage high-card plays; discard should dump dead/off-suit cards toward a flush or straight. Elsewhere: clear blinds, buy strong jokers then leave shop, take best pack card.",
+    preference_order: "made_hand > flush_or_straight_draw_via_discard > weak_high_card",
   };
 }

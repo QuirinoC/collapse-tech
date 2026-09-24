@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "phase": "hand",
+  "ante": 1,
+  "round": 1,
+  "money": 4,
+  "chips_needed": 300,
+  "chips_scored": 0,
+  "hands_left": 4,
+  "discards_left": 3,
+  "hand_size": 8,
+  "hand": [
+    { "index": 0, "rank": "A", "suit": "Hearts" },
+    { "index": 1, "rank": "A", "suit": "Diamonds" },
+    { "index": 2, "rank": "K", "suit": "Hearts" },
+    { "index": 3, "rank": "Q", "suit": "Hearts" },
+    { "index": 4, "rank": "J", "suit": "Hearts" },
+    { "index": 5, "rank": "9", "suit": "Hearts" },
+    { "index": 6, "rank": "2", "suit": "Clubs" },
+    { "index": 7, "rank": "3", "suit": "Spades" }
+  ],
+  "selected": [],
+  "jokers": [],
+  "notes": "Fixture: pocket Aces + 5-heart flush available. Expect play_flush or play_pair_AH_AD."
+}
