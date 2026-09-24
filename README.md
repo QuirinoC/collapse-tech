@@ -134,11 +134,11 @@ Each application owns its environment variables; do not share the challenge or D
 
 ### Render (backends)
 
-Render services live in project **collapse-tech**; `apps/render.yaml` documents the blueprint (Pixelboard + Trust API; CoachGG is managed directly in the Render dashboard). Backends are Docker builds from their app directories and auto-deploy on push to `main`:
+Render services live in project **collapse-tech**; `apps/render.yaml` documents the Pixelboard blueprint (CoachGG is managed directly in the Render dashboard). Trust API is **not** in this blueprint anymore — it deploys from [QuirinoC/trust](https://github.com/QuirinoC/trust). Backends are Docker builds from their app directories and auto-deploy on push to `main`:
 
 - **Pixelboard** — root dir `apps/infinite-pixelboard`, env: `ASPNETCORE_ENVIRONMENT=Production`, `REDISCONNECTIONSTRING` (Render KV internal URL), `Firebase__Enabled=true`, `Firebase__ProjectId`, `Postgres__Enabled=true`, `Postgres__ConnectionString` (restricted `pixelboard_runtime` role), `FORWARDEDHEADERS__TRUSTPLATFORMPROXY=true`. Firebase Admin credentials are never deployed to Render; provision the sole moderator through the offline [Admin SDK runbook](apps/infinite-pixelboard/README.md#provisioning-the-moderator-claim).
 - **CoachGG** — root dir `apps/coach-gg`, env: `STARTGG_APIKEY`, `ASPNETCORE_ENVIRONMENT=Production`, `FORWARDEDHEADERS__TRUSTPLATFORMPROXY=true`.
-- **Trust API** — root dir `apps/trust-api`, env: `ASPNETCORE_ENVIRONMENT=Production`, `ConnectionStrings__Postgres` (Render Postgres `trust-postgres`), `Auth__SigningKey` (generated), `Auth__AllowDevelopmentSignIn=false`, StoreKit + Apple bundle IDs. Keep `Apns__PrivateKey` and Twilio credentials as Render secrets only. Custom domain `trust.collapsetechnologies.com` after first deploy.
+- **Trust API** — [QuirinoC/trust](https://github.com/QuirinoC/trust) `apps/trust-api`, Render service `srv-daabv1lg1s2s73co5gm0`, custom domain `trust.collapsetechnologies.com`. Secrets stay on Render; do not re-add this service to `apps/render.yaml`.
 
 Custom domains (`pixelboard.collapsetechnologies.com`, `coach.collapsetechnologies.com`, `trust.collapsetechnologies.com`) are attached to the Render services.
 
