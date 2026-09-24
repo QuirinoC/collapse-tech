@@ -13,8 +13,8 @@ The workspace behind [collapsetechnologies.com](https://collapsetechnologies.com
 | CoachGG | `apps/coach-gg` | Super Smash Bros. Ultimate player analysis with live SignalR updates |
 | Infinite Pixelboard | `apps/infinite-pixelboard` | Collaborative, infinite canvas built with ASP.NET Core SignalR |
 | iPhone Rover | `apps/iphone-rover-ios` + `apps/iphone-rover-firmware` | iPhone-powered indoor rover prototype with ESP32 motion control |
-| Trust Circle iOS | `apps/trust-ios` | Adult-peer location escrow: MapKit home, hidden until they look, quiet receipts, Circle sponsor |
-| Trust API | `apps/trust-api` | ASP.NET Core + Postgres for Trust Circle (auth, escrow, looks, Circle) |
+| Trust Circle iOS | [QuirinoC/trust](https://github.com/QuirinoC/trust) `apps/trust-ios` | Adult-peer location escrow — **moved** to dedicated repo |
+| Trust API | [QuirinoC/trust](https://github.com/QuirinoC/trust) `apps/trust-api` | ASP.NET Core + Postgres — **moved** to dedicated repo |
 | The Fly | `apps/the-fly` | One cartoon fly per browser — client sim + localStorage, feed after a first-party rewarded clip |
 | AirPlay AA Bridge | `apps/airplay-aa-bridge` | Raspberry Pi AirPlay2 receiver → wired Android Auto (USB) video bridge |
 
@@ -56,15 +56,7 @@ npm run restore:pixelboard
 npm run dev:pixelboard
 ```
 
-Trust Circle (MapKit iOS + this API):
-
-```bash
-cd apps/trust-api
-docker compose up postgres -d
-dotnet run --launch-profile TrustApi
-```
-
-Then `cd apps/trust-ios && xcodegen generate` and run the Trust scheme. Simulator Debug talks to `http://127.0.0.1:5088`. A physical iPhone in Debug remaps loopback to production (or use `TRUST_BASE_URL=http://<mac-lan-ip>:5088`). Release uses `https://trust.collapsetechnologies.com`. Home Screen name is **Trust Circle**.
+Trust Circle lives in [QuirinoC/trust](https://github.com/QuirinoC/trust) (`apps/trust-ios`, `apps/trust-api`, `apps/jointrust-web`). Legal/marketing: [jointrust.app](https://jointrust.app). Production API remains `https://trust.collapsetechnologies.com`.
 
 ```bash
 npm --prefix apps/the-fly install
@@ -96,8 +88,8 @@ Influence.Market was shut down in August 2026 (Worker + D1 deleted; hostname no 
 | CoachGG | `apps/coach-gg` | Render web service (`srv-da56cr2jobas73dmulv0`) | `coachgg-api.onrender.com`, custom domain `coach.collapsetechnologies.com` ✅ live |
 | Infinite Pixelboard | `apps/infinite-pixelboard` | Render web service (`srv-da55t78u01pc73e3rlu0`) + Render Key Value (Redis) | `infinite-pixelboard.onrender.com`, custom domain `pixelboard.collapsetechnologies.com` ✅ live |
 | Infinite Pixelboard iOS | `apps/infinite-pixelboard-ios` | Native SwiftUI app (TestFlight/App Store) — no server deploys; talks to the pixelboard API + Firebase Auth | n/a |
-| Trust API | `apps/trust-api` | Render (`trust-api` in `apps/render.yaml`) + custom domain | `trust.collapsetechnologies.com` (provision) |
-| Trust Circle iOS | `apps/trust-ios` | Native SwiftUI + MapKit — Release talks to Trust API; StoreKit Circle | App Store |
+| Trust API | [QuirinoC/trust](https://github.com/QuirinoC/trust) | Render `srv-daabv1lg1s2s73co5gm0` (repo QuirinoC/trust) + custom domain | `trust.collapsetechnologies.com` |
+| Trust Circle iOS | [QuirinoC/trust](https://github.com/QuirinoC/trust) `apps/trust-ios` | Native SwiftUI + MapKit — Release talks to Trust API; StoreKit Circle | App Store |
 | The Fly | `apps/the-fly` | Cloudflare Worker + SQLite Durable Object + Vite/Three client | `fly.collapsetechnologies.com` |
 
 ### Cloudflare Pages / Workers

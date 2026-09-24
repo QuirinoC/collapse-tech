@@ -1,0 +1,11 @@
+/trust                 https://jointrust.app/                301
+/trust/                https://jointrust.app/                301
+/trust/privacy         https://jointrust.app/privacy         301
+/trust/privacy/        https://jointrust.app/privacy         301
+/trust/terms           https://jointrust.app/terms           301
+/trust/terms/          https://jointrust.app/terms           301
+/trust/support         https://jointrust.app/support         301
+/trust/support/        https://jointrust.app/support         301
+/trust/sms             https://jointrust.app/sms             301
+/trust/sms/            https://jointrust.app/sms             301
+/trust/sms-opt-in.png  https://jointrust.app/sms-opt-in.png  301
