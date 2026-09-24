@@ -9,7 +9,7 @@
     "start": "tsx --env-file-if-exists=.env src/index.ts --once --fixture fixtures/hand-state.json",
     "mock": "BALATRO_JEV_MODE=mock tsx --env-file-if-exists=.env src/index.ts --once --fixture fixtures/hand-state.json",
     "watch": "tsx --env-file-if-exists=.env src/index.ts --watch",
-    "launch:macos": "bash scripts/macos-launch-lovely.sh",
+    "launch:macos": "echo 'BLOCKED: Balatro launch disabled (agents were fighting). Remove apps/balatro-jev/.DO_NOT_LAUNCH only when Juan asks.' >&2; exit 1",
     "simulate": "BALATRO_JEV_MODE=${BALATRO_JEV_MODE:-mock} tsx --env-file-if-exists=.env scripts/simulate.ts",
     "smoke:lua": "tsx --env-file-if-exists=.env scripts/smoke-lua-apply.ts",
     "smoke:live": "tsx --env-file-if-exists=.env scripts/smoke-jev-live.mts",
