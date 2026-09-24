@@ -37,11 +37,29 @@ local function shop_kind(card)
   return "unknown"
 end
 
+local function raw_state_name()
+  if not (G and G.STATE and G.STATES) then
+    return nil
+  end
+  for name, val in pairs(G.STATES) do
+    if val == G.STATE then
+      return name
+    end
+  end
+  return tostring(G.STATE)
+end
+
 local function map_phase()
   if not (G and G.STATE and G.STATES) then
     return "unknown"
   end
   local st = G.STATE
+
+  -- UI presence is the strongest signal for blind select (enum can lag during transitions).
+  if G.blind_select then
+    return "blind_select"
+  end
+
   if st == G.STATES.BLIND_SELECT then
     return "blind_select"
   elseif st == G.STATES.SELECTING_HAND
@@ -58,8 +76,22 @@ local function map_phase()
     or st == G.STATES.PLANET_PACK
     or st == G.STATES.SPECTRAL_PACK
     or st == G.STATES.STANDARD_PACK
-    or st == G.STATES.BUFFOON_PACK then
+    or st == G.STATES.BUFFOON_PACK
+    or (G.STATES.SMODS_BOOSTER_OPENED and st == G.STATES.SMODS_BOOSTER_OPENED) then
     return "pack_open"
+  elseif st == G.STATES.MENU
+    or st == G.STATES.SPLASH
+    or st == G.STATES.DEMO_CTA then
+    return "menu"
+  elseif st == G.STATES.NEW_ROUND then
+    -- Transition into blind select UI; still not actionable until G.blind_select exists,
+    -- but report blind_select when round_resets already shows a Select blind.
+    local rr = G.GAME and G.GAME.round_resets
+    local states = rr and rr.blind_states
+    if states and (states.Small == "Select" or states.Big == "Select" or states.Boss == "Select") then
+      return "blind_select"
+    end
+    return "unknown"
   end
   return "unknown"
 end
@@ -213,6 +245,16 @@ function M.dump()
   shop = dump_shop()
   pack = dump_pack()
 
+  -- Infer blind_select from blinds if enum/UI lagged but a Select blind is present mid-run.
+  if phase == "unknown" and blinds then
+    for _, b in ipairs(blinds) do
+      if b.status == "Select" or b.status == "Current" then
+        phase = "blind_select"
+        break
+      end
+    end
+  end
+
   return {
     version = 1,
     phase = phase,
@@ -234,7 +276,10 @@ function M.dump()
     reroll_cost = reroll_cost,
     pack = pack,
     pack_choices_left = pack_choices_left,
-    notes = "balatro_jev dump v2",
+    raw_state = G and G.STATE or nil,
+    raw_state_name = raw_state_name(),
+    has_blind_select_ui = G and G.blind_select ~= nil or false,
+    notes = "balatro_jev dump v3",
   }
 end
 

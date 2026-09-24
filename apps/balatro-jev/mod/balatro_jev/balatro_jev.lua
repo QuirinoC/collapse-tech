@@ -6,18 +6,23 @@
 --- PRIORITY: 0
 --- BADGE_COLOUR: E85D04
 --- PREFIX: bjev
---- VERSION: 0.2.0
+--- VERSION: 0.2.1
 ----------------------------------------------
 ------------ MOD CODE ------------------------
 
 -- IPC under Love2D save dir: balatro_jev/{state,action}.json
 -- Point BALATRO_JEV_IPC_DIR at that folder for the TS bridge.
+--
+-- CRITICAL: do NOT rely solely on wrapping love.update at load time.
+-- Steamodded / main.lua replace love.update and Game.update after mods load.
+-- We re-hook Game.update so dump/apply keep running for the whole session.
 
 local IPC_DIR = "balatro_jev"
 local STATE_FILE = IPC_DIR .. "/state.json"
 local ACTION_FILE = IPC_DIR .. "/action.json"
 local ACTION_APPLIED_FILE = IPC_DIR .. "/action.applied"
 local ACTION_RESULT_FILE = IPC_DIR .. "/action_result.json"
+local HEARTBEAT_FILE = IPC_DIR .. "/heartbeat.txt"
 
 local function load_mod_file(name)
   if SMODS and SMODS.load_file then
@@ -37,8 +42,21 @@ local function load_mod_file(name)
   return nil
 end
 
+-- Reloaded on each dump/apply so state.lua / actions.lua edits take effect
+-- without a full Balatro restart (SMODS.load_file re-executes the chunk).
 local state_mod = load_mod_file("state.lua")
 local actions_mod = load_mod_file("actions.lua")
+
+local function refresh_mods()
+  local s = load_mod_file("state.lua")
+  if s then
+    state_mod = s
+  end
+  local a = load_mod_file("actions.lua")
+  if a then
+    actions_mod = a
+  end
+end
 
 local function ensure_dir()
   if love and love.filesystem and love.filesystem.createDirectory then
@@ -98,12 +116,12 @@ end
 local function write_file(path, contents)
   ensure_dir()
   if love and love.filesystem and love.filesystem.write then
-    love.filesystem.write(path, contents)
-    return true
+    local ok, err = love.filesystem.write(path, contents)
+    return ok and true or false, err
   end
   local f = io.open(path, "w")
   if not f then
-    return false
+    return false, "io.open failed"
   end
   f:write(contents)
   f:close()
@@ -146,7 +164,6 @@ local function match_num_array(json, key)
   return out
 end
 
---- Peek action.json from the TS bridge into { id, kind, params }.
 local function parse_action(json)
   if not json then
     return nil
@@ -176,6 +193,7 @@ local function parse_action(json)
 end
 
 local function dump_state()
+  refresh_mods()
   if state_mod and state_mod.dump then
     return state_mod.dump()
   end
@@ -190,6 +208,7 @@ local function dump_state()
 end
 
 local function apply_action(action)
+  refresh_mods()
   if actions_mod and actions_mod.apply then
     return actions_mod.apply(action)
   end
@@ -197,26 +216,14 @@ local function apply_action(action)
 end
 
 local last_dump = 0
-local DUMP_INTERVAL = 0.75 -- seconds
+local DUMP_INTERVAL = 0.5
 local last_phase = nil
+local tick_count = 0
+local last_heartbeat = 0
+local hooked_game_update = nil
+local hook_attempts = 0
 
-local function tick(dt)
-  last_dump = last_dump + (dt or 0)
-  if last_dump >= DUMP_INTERVAL then
-    last_dump = 0
-    local ok, err = pcall(function()
-      local state = dump_state()
-      write_file(STATE_FILE, to_json(state))
-      if state.phase ~= last_phase then
-        print("[balatro_jev] phase=" .. tostring(state.phase))
-        last_phase = state.phase
-      end
-    end)
-    if not ok then
-      print("[balatro_jev] dump failed: " .. tostring(err))
-    end
-  end
-
+local function try_apply()
   local raw = read_file(ACTION_FILE)
   if not raw then
     return
@@ -227,47 +234,181 @@ local function tick(dt)
   end
 
   local action = parse_action(raw)
-  local ok, msg = apply_action(action)
   print(
-    "[balatro_jev] apply "
+    "[balatro_jev] APPLY request kind="
       .. tostring(action and action.kind)
-      .. " => "
-      .. tostring(ok)
-      .. " "
-      .. tostring(msg)
+      .. " id="
+      .. tostring(action and action.id)
+      .. " blind_id="
+      .. tostring(action and action.params and action.params.blind_id)
+      .. " native_key="
+      .. tostring(action and action.params and action.params.native_key)
+  )
+
+  local applied_ok, detail = false, "no action"
+  local ok, a, b = pcall(function()
+    return apply_action(action)
+  end)
+  if not ok then
+    applied_ok, detail = false, "apply threw: " .. tostring(a)
+  else
+    applied_ok, detail = a, b
+  end
+
+  print(
+    "[balatro_jev] APPLY result kind="
+      .. tostring(action and action.kind)
+      .. " ok="
+      .. tostring(applied_ok)
+      .. " detail="
+      .. tostring(detail)
   )
   write_file(
     ACTION_RESULT_FILE,
     to_json({
-      ok = ok and true or false,
+      ok = applied_ok and true or false,
       kind = action and action.kind or nil,
-      detail = tostring(msg),
+      id = action and action.id or nil,
+      detail = tostring(detail),
       at = os.time(),
+      raw_state = G and G.STATE or nil,
+      has_blind_select = G and G.blind_select ~= nil or false,
     })
   )
-  -- Always stamp applied so a bad action cannot spin forever.
-  -- Bridge watch-loop re-engages on stuck identical state.
   write_file(ACTION_APPLIED_FILE, raw)
 end
 
--- Love2D update hook
-local _update = love and love.update
-if love then
-  function love.update(dt)
-    if _update then
-      _update(dt)
+local function tick_main(dt)
+  tick_count = tick_count + 1
+  last_dump = last_dump + (dt or 0)
+  last_heartbeat = last_heartbeat + (dt or 0)
+
+  if last_heartbeat >= 2.0 then
+    last_heartbeat = 0
+    local phase = "?"
+    local raw = "?"
+    pcall(function()
+      if G and G.STATE and G.STATES then
+        raw = tostring(G.STATE)
+        for name, val in pairs(G.STATES) do
+          if val == G.STATE then
+            phase = name
+            break
+          end
+        end
+      end
+    end)
+    write_file(
+      HEARTBEAT_FILE,
+      string.format(
+        "t=%s ticks=%d raw_state=%s state_name=%s blind_select=%s\n",
+        tostring(os.time()),
+        tick_count,
+        raw,
+        phase,
+        tostring(G and G.blind_select ~= nil)
+      )
+    )
+  end
+
+  if last_dump >= DUMP_INTERVAL then
+    last_dump = 0
+    local ok, err = pcall(function()
+      local state = dump_state()
+      local wok, werr = write_file(STATE_FILE, to_json(state))
+      if not wok then
+        print("[balatro_jev] write_state FAILED: " .. tostring(werr))
+      end
+      if state.phase ~= last_phase then
+        print(
+          "[balatro_jev] phase="
+            .. tostring(state.phase)
+            .. " raw="
+            .. tostring(state.raw_state)
+            .. " blinds="
+            .. tostring(state.blinds and #state.blinds or 0)
+            .. " blind_select_ui="
+            .. tostring(G and G.blind_select ~= nil)
+        )
+        last_phase = state.phase
+      end
+    end)
+    if not ok then
+      print("[balatro_jev] dump failed: " .. tostring(err))
     end
-    tick(dt)
+  end
+
+  try_apply()
+end
+
+local function install_game_update_hook()
+  if not Game or type(Game.update) ~= "function" then
+    return false
+  end
+  if hooked_game_update == Game.update then
+    return true
+  end
+  local prev = Game.update
+  function Game:update(dt)
+    prev(self, dt)
+    local ok, err = pcall(tick_main, dt)
+    if not ok then
+      print("[balatro_jev] tick error: " .. tostring(err))
+    end
+  end
+  hooked_game_update = Game.update
+  print("[balatro_jev] hooked Game:update")
+  return true
+end
+
+local function ensure_hooks(dt)
+  hook_attempts = hook_attempts + 1
+  if install_game_update_hook() then
+    return
+  end
+  local ok, err = pcall(tick_main, dt or 0)
+  if not ok then
+    print("[balatro_jev] tick error: " .. tostring(err))
+  end
+  if hook_attempts == 1 or hook_attempts % 120 == 0 then
+    print("[balatro_jev] waiting to hook Game:update (attempt " .. tostring(hook_attempts) .. ")")
   end
 end
+
+local function wrap_love_update()
+  if not love then
+    return
+  end
+  local current = love.update
+  if current and current.__balatro_jev then
+    return
+  end
+  local prev = current
+  local wrapper
+  wrapper = function(dt)
+    if prev then
+      prev(dt)
+    end
+    if love.update ~= wrapper then
+      wrap_love_update()
+    end
+    ensure_hooks(dt)
+  end
+  wrapper.__balatro_jev = true
+  love.update = wrapper
+  print("[balatro_jev] wrapped love.update")
+end
+
+wrap_love_update()
 
 _G.BalatroJev = {
   dump = dump_state,
   apply = apply_action,
-  tick = tick,
+  tick = tick_main,
+  ensure_hooks = ensure_hooks,
 }
 
-print("[balatro_jev] loaded — writing " .. STATE_FILE)
+print("[balatro_jev] loaded — writing " .. STATE_FILE .. " (v0.2.1 Game:update hook)")
 
 ----------------------------------------------
 ------------ MOD CODE END --------------------

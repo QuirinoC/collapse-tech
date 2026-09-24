@@ -12,8 +12,29 @@ const PHASES = new Set<Phase>([
   "pack_open",
   "round_eval",
   "game_over",
+  "menu",
   "unknown",
 ]);
+
+/** If Lua lags on phase, infer actionable phase from payload shape. */
+export function normalizePhase(state: BalatroState): Phase {
+  if (state.phase !== "unknown" && PHASES.has(state.phase)) {
+    return state.phase;
+  }
+  if (state.has_blind_select_ui) return "blind_select";
+  if (state.blinds?.some((b) => {
+    const s = (b.status ?? "").toLowerCase();
+    return s === "select" || s === "current";
+  })) {
+    return "blind_select";
+  }
+  if (state.hand && state.hand.length > 0) return "hand";
+  if (state.shop && state.shop.length > 0) return "shop";
+  if (state.pack && state.pack.length > 0) return "pack_open";
+  const raw = (state.raw_state_name ?? "").toUpperCase();
+  if (raw === "MENU" || raw === "SPLASH" || raw === "DEMO_CTA") return "menu";
+  return state.phase;
+}
 
 export function parseState(raw: unknown): BalatroState {
   if (!raw || typeof raw !== "object") {
@@ -25,7 +46,7 @@ export function parseState(raw: unknown): BalatroState {
   }
   if (!s.phase) throw new Error("state.phase required");
   const phase = (PHASES.has(s.phase as Phase) ? s.phase : "unknown") as Phase;
-  return {
+  const state: BalatroState = {
     version: 1,
     phase,
     ante: Number(s.ante ?? 1),
@@ -47,8 +68,13 @@ export function parseState(raw: unknown): BalatroState {
     pack: s.pack,
     pack_choices_left: s.pack_choices_left,
     legal_actions: s.legal_actions,
+    raw_state: s.raw_state,
+    raw_state_name: s.raw_state_name,
+    has_blind_select_ui: s.has_blind_select_ui,
     notes: s.notes,
   };
+  state.phase = normalizePhase(state);
+  return state;
 }
 
 export async function decideFromState(

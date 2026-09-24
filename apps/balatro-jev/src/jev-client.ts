@@ -14,7 +14,8 @@ const PHASE_PREFER: Record<string, LegalAction["kind"][]> = {
   pack_open: ["pack_select", "pack_skip"],
   round_eval: ["cash_out"],
   game_over: ["new_run", "go_to_menu"],
-  unknown: ["noop"],
+  menu: ["new_run"],
+  unknown: ["select_blind", "new_run", "noop"],
 };
 
 /** Cheap heuristic when no API key / low confidence / live failure. */
@@ -36,6 +37,8 @@ export function mockChoose(
       prefer(["reroll"]);
   } else if (state.phase === "blind_select") {
     picked = prefer(["select_blind"]) ?? prefer(["skip_blind"]);
+  } else if (state.phase === "menu") {
+    picked = prefer(["new_run"]);
   } else if (state.phase === "hand") {
     picked = prefer(["play_hand"]) ?? prefer(["discard"]);
   } else if (state.phase === "pack_open") {

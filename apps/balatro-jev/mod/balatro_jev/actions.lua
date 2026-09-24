@@ -195,42 +195,54 @@ function M.apply(action)
   end
 
   if kind == "select_blind" then
-    if not (G.STATE == G.STATES.BLIND_SELECT and G.blind_select) then
-      return false, "not in BLIND_SELECT"
+    local in_blind_ui = G and G.blind_select
+    local in_blind_state = G and G.STATES and G.STATE == G.STATES.BLIND_SELECT
+    if not (in_blind_ui or in_blind_state) then
+      return false, "not in BLIND_SELECT (state=" .. tostring(G and G.STATE) .. " ui=" .. tostring(in_blind_ui) .. ")"
     end
     local native = normalize_blind_key(params.native_key or params.blind_id)
       or (G.GAME and G.GAME.blind_on_deck)
-    -- Prefer real UI button so ref_table is correct
+    -- Prefer real UI button so ref_table + UIBox/tag_container are correct
     local btn = find_select_blind_button(native)
     if btn and G.FUNCS.select_blind then
       local ok, err = pcall(function() G.FUNCS.select_blind(btn) end)
-      if ok then return true, "select_blind_button" end
+      if ok then return true, "select_blind_button:" .. tostring(native) end
       return false, "select_blind UI error: " .. tostring(err)
     end
-    -- Synthesize e with P_BLINDS config for current/chosen blind
+    -- Synthesize e with P_BLINDS config + UIBox from blind_select_opts
     local choice_key = G.GAME.round_resets
       and G.GAME.round_resets.blind_choices
       and G.GAME.round_resets.blind_choices[native]
     local ref = choice_key and G.P_BLINDS and G.P_BLINDS[choice_key]
     if not ref then
-      return false, "missing blind ref for " .. tostring(native)
+      return false, "missing blind ref for " .. tostring(native) .. " (no select_blind_button either)"
     end
     if G.GAME.blind_on_deck and native and G.GAME.blind_on_deck ~= native then
-      -- Only the on-deck blind is selectable; snap to it if mismatch
       native = G.GAME.blind_on_deck
       choice_key = G.GAME.round_resets.blind_choices[native]
       ref = G.P_BLINDS[choice_key]
     end
+    local opts_key = blind_opts_key(native)
+    local opts = opts_key and G.blind_select_opts and G.blind_select_opts[opts_key]
+    local e = fake_e(ref)
+    e.config.id = native
+    if opts then
+      e.UIBox = opts
+    elseif G.blind_select then
+      e.UIBox = G.blind_select
+    end
     local ok, err = pcall(function()
-      G.FUNCS.select_blind(fake_e(ref))
+      G.FUNCS.select_blind(e)
     end)
-    if ok then return true, "select_blind_synth" end
+    if ok then return true, "select_blind_synth:" .. tostring(native) end
     return false, "select_blind error: " .. tostring(err)
   end
 
   if kind == "skip_blind" then
-    if not (G.STATE == G.STATES.BLIND_SELECT and G.blind_select) then
-      return false, "not in BLIND_SELECT"
+    local in_blind_ui = G and G.blind_select
+    local in_blind_state = G and G.STATES and G.STATE == G.STATES.BLIND_SELECT
+    if not (in_blind_ui or in_blind_state) then
+      return false, "not in BLIND_SELECT (state=" .. tostring(G and G.STATE) .. " ui=" .. tostring(in_blind_ui) .. ")"
     end
     local native = normalize_blind_key(params.native_key or params.blind_id)
       or (G.GAME and G.GAME.blind_on_deck)
@@ -241,13 +253,12 @@ function M.apply(action)
     if not e then
       return false, "blind_select_opts missing for skip " .. tostring(native)
     end
-    -- Ensure tag_container exists
     local tag = e.UIBox:get_UIE_by_ID("tag_container")
     if not tag then
       return false, "tag_container missing (cannot skip)"
     end
     local ok, err = pcall(function() G.FUNCS.skip_blind(e) end)
-    if ok then return true, "skip_blind" end
+    if ok then return true, "skip_blind:" .. tostring(native) end
     return false, "skip_blind error: " .. tostring(err)
   end
 
@@ -379,11 +390,15 @@ function M.apply(action)
     if not (G.FUNCS and G.FUNCS.start_run) then
       return false, "G.FUNCS.start_run missing"
     end
-    -- Restart with default stake; UI e optional
+    -- From menu / game over: start a fresh run at stake 1 (White).
     local ok, err = pcall(function()
-      G.FUNCS.start_run({ config = { id = "restart_button" } }, {})
+      if G.STATE == G.STATES.GAME_OVER then
+        G.FUNCS.start_run({ config = { id = "restart_button" } }, {})
+      else
+        G.FUNCS.start_run(nil, { stake = 1 })
+      end
     end)
-    if ok then return true, nil end
+    if ok then return true, "start_run" end
     return false, "start_run error: " .. tostring(err)
   end
 
