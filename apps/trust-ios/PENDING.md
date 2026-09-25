@@ -1,5 +1,8 @@
 # Trust — still pending
 
+> **Moved:** active Trust iOS work lives in [QuirinoC/trust](https://github.com/QuirinoC/trust).
+> This monorepo copy is a leftover pointer only — do not treat it as the shipping branch.
+
 **Current home IA (locked):** map + draggable People sheet (`CircleView`, build 15 / Round 8 / `debf974` lineage). Product name in UI is **Trust**. Do not ship list-first Circle. Phone verification is required before Home.
 
 These are the items still open after Home geofence, remove + removed Log events, Pause, Look trail windows (Free 24h / Plus 30d), StoreKit expiry at circle/share read + sweep, phone gate, locked-phone location, and the SMS send budget. They need a physical phone, or they were left on purpose.
