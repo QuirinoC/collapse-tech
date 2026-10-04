@@ -144,12 +144,9 @@ while kill -0 "$AA_PID" 2>/dev/null; do
     fi
   fi
 
-  if [[ -n "$INJ_PID" ]] && kill -0 "$INJ_PID" 2>/dev/null; then
-    wait -n "$AA_PID" "$PIPE_PID" "$INJ_PID" 2>/dev/null || true
-  else
-    # Poll for AOAP socket while AirPlay stays up (do not block forever).
-    sleep 1
-  fi
+  # Always poll. wait -n blocks until a child exits, so the socket
+  # symlink never appears while UxPlay and the injector stay up.
+  sleep 1
 done
 
 echo "AAServer supervisor exited" >&2
