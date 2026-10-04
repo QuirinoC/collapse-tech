@@ -23,6 +23,11 @@ export GST_PLUGIN_PATH="${AIRPLAY_AA_PREFIX}/lib/gstreamer-1.0:${GST_PLUGIN_PATH
 unset AIRPLAY_AA_SHM || true
 
 mkdir -p "$AIRPLAY_AA_LOGDIR" "$(dirname "$AIRPLAY_AA_SOCKET")" /var/run/airplay-aa
+# Pre-create H.264 FIFO so the injector can hold the read-end before UxPlay starts.
+if [[ ! -p "$AIRPLAY_AA_H264" ]]; then
+  rm -f "$AIRPLAY_AA_H264"
+  mkfifo "$AIRPLAY_AA_H264"
+fi
 cd "${AIRPLAY_AA_PREFIX}/libexec/aaserver"
 
 # Enlarge Unix socket buffers for 800x480 H.264 bursts.
@@ -92,35 +97,38 @@ start_injector() {
   INJ_PID=$!
 }
 
+# Hold the H.264 FIFO read-end from boot so UxPlay (-vrtp / HLS encode) never
+# blocks on filesink. Injector drains while waiting for car AOAP, then pumps AA.
+# A second injector on channel 1 re-enters openChannel and can block SetupResponse.
+# Match python only — a pgrep -f of this script's own text would match itself.
+mapfile -t STALE_INJ < <(ps -eo pid=,args= | awk '/python3/ && /inject_h264\.py/ && !/awk/ {print $1}')
+if ((${#STALE_INJ[@]})); then
+  echo "stopping leftover H.264 injector(s)" >&2
+  kill "${STALE_INJ[@]}" 2>/dev/null || true
+  sleep 0.3
+fi
 INJ_PID=""
-SOCKET_READY=0
 INJ_BACKOFF=1
+start_injector
 
-echo "airplay-aa-bridge running aa=${AA_PID} pipe=${PIPE_PID}"
+echo "airplay-aa-bridge running aa=${AA_PID} pipe=${PIPE_PID} inj=${INJ_PID}"
 echo "AirPlay name: ${AIRPLAY_AA_NAME} (cast-ready; waiting for car USB AOAP)"
 echo "USB: plug Pi USB-C *data* port into the car (powered hub if car USB is weak)."
 
-# Keep AirPlay up and attach injector once AAServer's socket appears.
-# Injector waits forever for connect — do not restart-loop before AOAP.
+# Keep AirPlay + FIFO holder up. Symlink AAServer socket when AOAP appears.
 # Only exit when the AAServer supervisor dies (systemd Restart=always).
+SOCKET_READY=0
 while kill -0 "$AA_PID" 2>/dev/null; do
-  if [[ ! -S ./socket ]]; then
-    if ((SOCKET_READY)); then
-      echo "AAServer socket gone (USB unplug?); injector will reattach" >&2
-      SOCKET_READY=0
-      INJ_BACKOFF=1
-      rm -f "$AIRPLAY_AA_SOCKET"
-      if [[ -n "$INJ_PID" ]] && kill -0 "$INJ_PID" 2>/dev/null; then
-        kill "$INJ_PID" 2>/dev/null || true
-      fi
-      INJ_PID=""
+  if [[ -S ./socket ]]; then
+    if (( ! SOCKET_READY )); then
+      ln -sfn "$(pwd)/socket" "$AIRPLAY_AA_SOCKET"
+      SOCKET_READY=1
+      echo "AAServer socket present (AOAP up)" >&2
     fi
-  elif (( ! SOCKET_READY )); then
-    ln -sfn "$(pwd)/socket" "$AIRPLAY_AA_SOCKET"
-    SOCKET_READY=1
-    INJ_BACKOFF=1
-    echo "AAServer socket present (AOAP up); starting injector" >&2
-    start_injector
+  elif ((SOCKET_READY)); then
+    echo "AAServer socket gone (USB unplug?)" >&2
+    SOCKET_READY=0
+    rm -f "$AIRPLAY_AA_SOCKET"
   fi
 
   if ! kill -0 "$PIPE_PID" 2>/dev/null; then
@@ -129,12 +137,13 @@ while kill -0 "$AA_PID" 2>/dev/null; do
     PIPE_PID=$!
   fi
 
-  # Restart injector only while socket still exists; backoff to stop thrash.
-  if ((SOCKET_READY)) && { [[ -z "$INJ_PID" ]] || ! kill -0 "$INJ_PID" 2>/dev/null; }; then
-    if [[ ! -S ./socket ]]; then
-      echo "injector exited and socket gone; waiting for next AOAP" >&2
-      SOCKET_READY=0
-      INJ_PID=""
+  if [[ -z "$INJ_PID" ]] || ! kill -0 "$INJ_PID" 2>/dev/null; then
+    # Another injector may already hold the lock (duplicate start). Adopt it
+    # instead of launching a second process that would also take channel 1.
+    other="$(ps -eo pid=,args= | awk '/python3/ && /inject_h264\.py/ && !/awk/ {print $1; exit}')"
+    if [[ -n "$other" ]]; then
+      echo "injector already running pid=${other}; not starting a second" >&2
+      INJ_PID=$other
       INJ_BACKOFF=1
     else
       echo "injector exited; restarting in ${INJ_BACKOFF}s..." >&2
@@ -142,12 +151,13 @@ while kill -0 "$AA_PID" 2>/dev/null; do
       INJ_BACKOFF=$(( INJ_BACKOFF < 30 ? INJ_BACKOFF * 2 : 30 ))
       start_injector
     fi
+  else
+    INJ_BACKOFF=1
   fi
 
   if [[ -n "$INJ_PID" ]] && kill -0 "$INJ_PID" 2>/dev/null; then
     wait -n "$AA_PID" "$PIPE_PID" "$INJ_PID" 2>/dev/null || true
   else
-    # Poll for AOAP socket while AirPlay stays up (do not block forever).
     sleep 1
   fi
 done

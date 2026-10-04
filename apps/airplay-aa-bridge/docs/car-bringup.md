@@ -21,10 +21,12 @@ Unplug power. Take the Pi to the car.
 4. **AirPlay** — On iPhone: Screen Mirroring → **Pi AirPlay AA**. Same wifi as the Pi, or share iPhone hotspot and join the Pi to that hotspot.
 5. **Confirm AA** — Car should negotiate wired Android Auto (AOAP). Video follows the AirPlay mirror (or idle black until you cast).
 
-## If you can SSH from the phone
+## If you can SSH
+
+On home eth: `ssh quirino@10.0.0.112` (alias `amber-pi-eth`).  
+Off-LAN / phone hotspot: Tailscale — see [`remote-access.md`](remote-access.md) (`ssh quirino@amber-pi` or `amber-pi-ts`).
 
 ```bash
-ssh quirino@10.0.0.112   # or .113 on wifi
 sudo journalctl -u airplay-aa-bridge -f
 # also:
 tail -f /var/log/airplay-aa/aaserver.log /var/log/airplay-aa/uxplay.log /var/log/airplay-aa/inject.log

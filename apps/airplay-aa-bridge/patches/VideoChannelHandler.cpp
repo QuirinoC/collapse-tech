@@ -11,9 +11,10 @@
 #include <gst/gstmemory.h>
 #include <gst/gstpad.h>
 #include <gst/gstutils.h>
+#include <chrono>
 #include <iostream>
-
 #include <linux/types.h>
+#include <mutex>
 
 using namespace std;
 
@@ -154,9 +155,33 @@ VideoChannelHandler::~VideoChannelHandler() {
 }
 
 void VideoChannelHandler::openChannel() {
-  channelOpened = true;
-  ChannelHandler::openChannel();
-  gotSetupResponse = false;
+  // One opener. A second socket client must not send another ChannelOpen
+  // or clear gotSetupResponse while the first wait is in progress.
+  static std::mutex open_mu;
+  std::lock_guard<std::mutex> gate(open_mu);
+  {
+    std::lock_guard<std::mutex> lk(m);
+    if (channelOpened && gotSetupResponse) {
+      return;
+    }
+    // True before the waits so VideoFocusIndication is handled (StartIndication)
+    // instead of being forwarded to the injector. Media is still held until
+    // SetupResponse; a timeout leaves gotSetupResponse false so the next AU retries.
+    channelOpened = true;
+  }
+  std::cout << "VideoChannelHandler: openChannel channel "
+            << static_cast<int>(channelId)
+            << " (waiting up to 5s for ChannelOpenResponse, then SetupResponse)"
+            << std::endl;
+  if (!openChannelWithTimeout(5000)) {
+    std::cout << "VideoChannelHandler: ChannelOpenResponse timed out on channel "
+              << static_cast<int>(channelId) << "; will retry" << std::endl;
+    return;
+  }
+  {
+    std::lock_guard<std::mutex> lk(m);
+    gotSetupResponse = false;
+  }
   sendSetupRequest();
   expectSetupResponse();
 }
@@ -174,7 +199,18 @@ void VideoChannelHandler::sendSetupRequest() {
 
 void VideoChannelHandler::expectSetupResponse() {
   std::unique_lock<std::mutex> lk(m);
-  cv.wait(lk, [=] { return gotSetupResponse; });
+  constexpr int timeout_ms = 5000;
+  const bool ok = cv.wait_for(lk, std::chrono::milliseconds(timeout_ms),
+                              [=] { return gotSetupResponse; });
+  if (ok) {
+    std::cout << "VideoChannelHandler: SetupResponse on channel "
+              << static_cast<int>(channelId) << std::endl;
+  } else {
+    std::cout << "VideoChannelHandler: timed out after " << timeout_ms
+              << "ms waiting for SetupResponse on channel "
+              << static_cast<int>(channelId)
+              << "; will retry (video held until setup)" << std::endl;
+  }
 }
 
 void VideoChannelHandler::sendStartIndication() {
@@ -225,8 +261,18 @@ bool VideoChannelHandler::handleMessageFromClient(int clientId,
   if (data.empty()) {
     return false;
   }
-  if (!channelOpened) {
+  bool setupDone = false;
+  {
+    std::lock_guard<std::mutex> lk(m);
+    setupDone = channelOpened && gotSetupResponse;
+  }
+  if (!setupDone) {
     openChannel();
+    std::lock_guard<std::mutex> lk(m);
+    setupDone = channelOpened && gotSetupResponse;
+  }
+  if (!setupDone) {
+    return true;
   }
   // Client supplies a complete AA media message (BE type + optional ts + AU).
   uint8_t flags = EncryptionType::Encrypted | FrameType::Bulk;

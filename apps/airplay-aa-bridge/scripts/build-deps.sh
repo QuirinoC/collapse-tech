@@ -47,6 +47,8 @@ echo "==> UxPlay (AirPlay2 receiver)"
 if [[ ! -d "$SRC/UxPlay" ]]; then
   git clone --depth 1 https://github.com/FDH2/UxPlay.git "$SRC/UxPlay"
 fi
+# HLS (YouTube) → H.264 FIFO via AIRPLAY_AA_HLS_SINK (playbin video-sink bin).
+python3 "$ROOT/patches/apply_uxplay_hls_sink.py" "$SRC/UxPlay/renderers/video_renderer.c"
 (
   cd "$SRC/UxPlay"
   mkdir -p build && cd build
@@ -60,8 +62,14 @@ if [[ ! -d "$SRC/AACS" ]]; then
   git clone --recurse-submodules --depth 1 https://github.com/tomasz-grobelny/AACS.git "$SRC/AACS"
 fi
 # Apply AirPlay-AA video handler (no Snowmix; socket H.264 inject).
+# Channel open / SetupResponse waits are bounded so a silent car cannot
+# block the socket client thread forever.
 cp "$ROOT/patches/VideoChannelHandler.cpp" \
   "$SRC/AACS/AAServer/src/VideoChannelHandler.cpp"
+cp "$ROOT/patches/ChannelHandler.cpp" \
+  "$SRC/AACS/AAServer/src/ChannelHandler.cpp"
+cp "$ROOT/patches/ChannelHandler.h" \
+  "$SRC/AACS/AAServer/include/ChannelHandler.h"
 # CD-ROM mass-storage LUN must be ro=1 on modern kernels (else Invalid parameter).
 cp "$ROOT/patches/MassStorageFunction.cpp" \
   "$SRC/AACS/AAServer/src/MassStorageFunction.cpp"
