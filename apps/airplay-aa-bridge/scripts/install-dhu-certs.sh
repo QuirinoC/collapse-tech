@@ -1,23 +1,24 @@
 #!/usr/bin/env bash
-# Extract non-expired GAL engineering cert/key from Google DHU and install them
-# into AAServer on the Pi. Required because stock AACS android_auto.crt
-# (CarService OU=53) expired 2022-08-24 and DHU aborts with:
-#   Verify returned: certificate has expired
-#
-# The DHU binary embeds obfuscated PEM blobs (XOR 0x27). The "client" identity
-# is the public Android-Auto-Internal engineering cert (valid through 2048),
-# which DHU accepts during TLS verify.
-#
-# Usage:
-#   ./scripts/install-dhu-certs.sh              # extract only → .local/dhu-certs/
-#   ./scripts/install-dhu-certs.sh quirino@10.0.0.112
+# Extract DHU HEAD-UNIT credentials for inspection only.
+# These cannot authenticate phone-side AAServer. Remote installation is refused.
+# Usage: ./scripts/install-dhu-certs.sh (extract only → .local/dhu-headunit/).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DHU_DIR="${AIRPLAY_AA_DHU_DIR:-$ROOT/.local/dhu}"
 DHU_BIN="$DHU_DIR/desktop-head-unit"
-OUT="$ROOT/.local/dhu-certs"
+OUT="$ROOT/.local/dhu-headunit"
 PI_HOST="${1:-}"
+if [[ "$PI_HOST" == --help || "$PI_HOST" == -h ]]; then
+  echo "Usage: $0 (extract HEAD-UNIT material locally only)"
+  echo "DHU's Android-Auto-Internal identity cannot replace the PHONE-side CarService identity."
+  exit 0
+fi
+if [[ -n "$PI_HOST" || $# -gt 0 ]]; then
+  echo "ERROR: remote Pi installation is refused: DHU contains a HEAD-UNIT identity, not a PHONE identity." >&2
+  echo "Use a current CarService certificate/key with AIRPLAY_AA_CERT_DIR and install-certs.sh." >&2
+  exit 1
+fi
 
 if [[ ! -x "$DHU_BIN" ]]; then
   echo "DHU not found; run scripts/run-mac-dhu.sh once to download it." >&2
@@ -56,33 +57,13 @@ crt = load(PTR_CLIENT, LEN_CLIENT)
 key = load(PTR_KEY, LEN_KEY)
 if b"BEGIN CERTIFICATE" not in crt or b"BEGIN PRIVATE" not in key:
     raise SystemExit("failed to decode DHU embedded cert/key (binary layout changed?)")
-(out / "android_auto.crt").write_bytes(crt + (b"" if crt.endswith(b"\n") else b"\n"))
-(out / "android_auto.key").write_bytes(key + (b"" if key.endswith(b"\n") else b"\n"))
-print(f"wrote {out}/android_auto.crt and android_auto.key")
+(out / "headunit.crt").write_bytes(crt + (b"" if crt.endswith(b"\n") else b"\n"))
+(out / "headunit.key").write_bytes(key + (b"" if key.endswith(b"\n") else b"\n"))
+(out / "headunit.key").chmod(0o600)
+print(f"wrote {out}/headunit.crt and headunit.key (HEAD UNIT ONLY)")
 PY
 
-openssl x509 -in "$OUT/android_auto.crt" -noout -subject -issuer -dates
-openssl rsa -in "$OUT/android_auto.key" -check -noout
-
-if [[ -z "$PI_HOST" ]]; then
-  echo "Extracted only. To install on the Pi:"
-  echo "  $0 quirino@10.0.0.112"
-  exit 0
-fi
-
-scp "$OUT/android_auto.crt" "$OUT/android_auto.key" "$PI_HOST:/tmp/"
-ssh "$PI_HOST" 'bash -s' <<'EOF'
-set -euo pipefail
-sudo cp /tmp/android_auto.crt /tmp/android_auto.key /opt/airplay-aa/libexec/aaserver/
-sudo cp /tmp/android_auto.crt /tmp/android_auto.key /opt/airplay-aa/third_party/AACS/AAServer/ssl/
-# Keep build tree in sync if present.
-if [[ -d /opt/airplay-aa/third_party/AACS/build/AAServer ]]; then
-  sudo cp /tmp/android_auto.crt /tmp/android_auto.key /opt/airplay-aa/third_party/AACS/build/AAServer/
-fi
-sudo systemctl restart airplay-aa-bridge
-sleep 2
-systemctl is-active airplay-aa-bridge
-openssl x509 -in /opt/airplay-aa/libexec/aaserver/android_auto.crt -noout -dates
-EOF
-
-echo "Installed on $PI_HOST. Re-launch: ./scripts/run-mac-dhu.sh"
+OPENSSL="${AIRPLAY_AA_OPENSSL_BIN:-openssl}"
+"$OPENSSL" x509 -in "$OUT/headunit.crt" -noout -subject -issuer -dates
+"$OPENSSL" rsa -in "$OUT/headunit.key" -check -noout
+echo "Extracted locally for inspection. This HEAD-UNIT identity cannot fix PHONE-side AAServer authentication."

@@ -49,12 +49,16 @@ class FramingTests(unittest.TestCase):
         self.assertEqual(pkt[3:], media)
 
     def test_split_annex_b(self):
-        au1 = b"\x00\x00\x00\x01\x67\x42\x00"
-        au2 = b"\x00\x00\x00\x01\x65\x88\x00"
-        partial = b"\x00\x00\x00\x01\x41"
-        stream = au1 + au2 + partial
+        # SPS/PPS and both slices belong to one picture; an AUD begins the next.
+        au = (b"\x00\x00\x00\x01\x09\xf0"
+              b"\x00\x00\x00\x01\x67\x42\x00"
+              b"\x00\x00\x00\x01\x68\xce\x06"
+              b"\x00\x00\x00\x01\x65\x88\x00"
+              b"\x00\x00\x01\x65\x40\x00")
+        partial = b"\x00\x00\x00\x01\x09\xf0\x00\x00"
+        stream = au + partial
         aus, rem = split_annex_b(stream)
-        self.assertEqual(aus, [au1, au2])
+        self.assertEqual(aus, [au])
         self.assertEqual(rem, partial)
 
     def test_is_idr_au(self):

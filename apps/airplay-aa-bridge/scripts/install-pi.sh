@@ -11,6 +11,12 @@ fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PREFIX=/opt/airplay-aa
 
+# Reject wrong-role, expired, or mismatched credentials before boot/service edits.
+# The legacy bundled DHU identity belongs to a head unit, not this phone endpoint.
+CERT_SRC="${AIRPLAY_AA_CERT_DIR:-$ROOT/certs}"
+CERT_SRC="$(cd "$CERT_SRC" && pwd)"
+bash "$ROOT/scripts/check-phone-certs.sh" "$CERT_SRC"
+
 echo "==> Enabling USB peripheral / gadget (dwc2 + libcomposite)"
 BOOT_CFG=""
 for candidate in /boot/firmware/config.txt /boot/config.txt; do
@@ -43,36 +49,62 @@ if bad:
     print("WARNING: otg_mode outside [cm4] in", path, "→", "; ".join(bad), file=sys.stderr)
 PY
 
-if ! grep -q 'dtoverlay=dwc2' "$BOOT_CFG"; then
-  # Ensure peripheral overlay lands under [all] (not only a board section).
-  if grep -q '^\[all\]' "$BOOT_CFG"; then
-    awk '
-      BEGIN { done=0 }
-      /^\[all\]/ { print; if (!done) {
-        print "# AirPlay-AA bridge: USB-C gadget (phone-side Android Auto over AOAP)"
-        print "dtoverlay=dwc2,dr_mode=peripheral"
-        done=1; next
-      }}
-      { print }
-      END { if (!done) {
-        print ""
-        print "[all]"
-        print "# AirPlay-AA bridge: USB-C gadget (phone-side Android Auto over AOAP)"
-        print "dtoverlay=dwc2,dr_mode=peripheral"
-      }}
-    ' "$BOOT_CFG" >"${BOOT_CFG}.tmp" && mv "${BOOT_CFG}.tmp" "$BOOT_CFG"
-  else
-    {
-      echo ""
-      echo "[all]"
-      echo "# AirPlay-AA bridge: USB-C gadget (phone-side Android Auto over AOAP)"
-      echo "dtoverlay=dwc2,dr_mode=peripheral"
-    } >>"$BOOT_CFG"
-  fi
-  echo "Added dwc2 overlay under [all] in $BOOT_CFG (reboot required)."
-else
-  echo "dwc2 overlay already present in $BOOT_CFG"
-fi
+# Current Pi OS images already contain dtoverlay=dwc2,dr_mode=host under
+# [cm5]. That makes the USB-C port a host, so a data cable never enumerates.
+# Rewrite every dwc2 overlay to peripheral, and ensure [all] has one too.
+python3 - "$BOOT_CFG" <<'PY'
+import re, sys
+path = sys.argv[1]
+lines = open(path).read().splitlines()
+section = "all"
+out = []
+changed = False
+seen_all_peripheral = False
+overlay_re = re.compile(r"^(\s*)dtoverlay=dwc2\b")
+for line in lines:
+    header = re.match(r"\[(.+)\]", line.strip())
+    if header:
+        section = header.group(1).strip().lower()
+        out.append(line)
+        continue
+    if overlay_re.match(line) and not line.strip().startswith("#"):
+        if "dr_mode=peripheral" not in line:
+            indent = overlay_re.match(line).group(1)
+            line = f"{indent}dtoverlay=dwc2,dr_mode=peripheral"
+            changed = True
+            print(f"rewrote dwc2 overlay under [{section}] -> peripheral", file=sys.stderr)
+        if section == "all":
+            seen_all_peripheral = True
+    out.append(line)
+
+if not seen_all_peripheral:
+    inserted = False
+    new = []
+    for line in out:
+        new.append(line)
+        if not inserted and line.strip().lower() == "[all]":
+            new.append("# AirPlay-AA bridge: USB-C gadget (phone-side Android Auto over AOAP)")
+            new.append("dtoverlay=dwc2,dr_mode=peripheral")
+            inserted = True
+            changed = True
+    if not inserted:
+        new.extend([
+            "",
+            "[all]",
+            "# AirPlay-AA bridge: USB-C gadget (phone-side Android Auto over AOAP)",
+            "dtoverlay=dwc2,dr_mode=peripheral",
+        ])
+        changed = True
+    out = new
+    print("added dtoverlay=dwc2,dr_mode=peripheral under [all]", file=sys.stderr)
+
+if changed:
+    open(path, "w").write("\n".join(out) + "\n")
+    print("CHANGED")
+else:
+    print("UNCHANGED")
+PY
+echo "USB gadget overlay in $BOOT_CFG (reboot required if it changed)."
 
 install -d /etc/modules-load.d
 cat >/etc/modules-load.d/usb-gadget.conf <<'EOF'
@@ -108,27 +140,29 @@ modprobe -r g_ether 2>/dev/null || true
 echo "==> Installing project files to $PREFIX"
 install -d "$PREFIX"/{scripts,bridge,config,patches,docs,systemd}
 install -d /etc/airplay-aa /var/run/airplay-aa /var/log/airplay-aa
-# Copy tree without third_party build cache
+# Copy project files without dependency cache or ignored bench/research artifacts.
 shopt -s dotglob nullglob
 for item in "$ROOT"/*; do
   base="$(basename "$item")"
-  [[ "$base" == "third_party" ]] && continue
+  [[ "$base" == "third_party" || "$base" == ".local" || "$base" == ".git" || "$base" == "certs" ]] && continue
   cp -a "$item" "$PREFIX/"
 done
+install -d "$PREFIX/certs"
+if [[ "$CERT_SRC" != "$PREFIX/certs" ]]; then
+  install -m 644 "$CERT_SRC/android_auto.crt" "$PREFIX/certs/android_auto.crt"
+  install -m 600 "$CERT_SRC/android_auto.key" "$PREFIX/certs/android_auto.key"
+fi
 install -m 644 "$ROOT/config/bridge.env" /etc/airplay-aa/bridge.env
 chmod +x "$PREFIX"/scripts/*.sh "$PREFIX"/bridge/*.py
 
 echo "==> Building UxPlay + AAServer"
 export AIRPLAY_AA_PREFIX="$PREFIX"
+export AIRPLAY_AA_CERT_DIR="$PREFIX/certs"
 bash "$PREFIX/scripts/build-deps.sh"
 
-# Prefer non-expired GAL engineering certs. Stock AACS CarService cert expired
-# 2022-08-24; cars/DHU then fail TLS → "device is not responding" / cert expired.
-# Install into every AAServer ssl location (runtime + source + build trees).
-if [[ -f "$PREFIX/certs/android_auto.crt" && -f "$PREFIX/certs/android_auto.key" ]]; then
-  echo "==> Installing non-expired AA TLS identity (all AAServer locations)"
-  AIRPLAY_AA_PREFIX="$PREFIX" bash "$PREFIX/scripts/install-certs.sh"
-fi
+# Install the validated PHONE identity into runtime, source, and build locations.
+echo "==> Installing current CarService PHONE identity (all AAServer locations)"
+AIRPLAY_AA_PREFIX="$PREFIX" AIRPLAY_AA_CERT_DIR="$PREFIX/certs" bash "$PREFIX/scripts/install-certs.sh"
 
 echo "==> Generating idle black H.264"
 python3 "$PREFIX/bridge/gen_idle_h264.py" \

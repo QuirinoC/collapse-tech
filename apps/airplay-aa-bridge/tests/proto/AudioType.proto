@@ -1,0 +1,6 @@
+// AACS schema dependency, distributed under its GPLv3 LICENSE.
+syntax="proto2";
+package tag.aas;
+message AudioType {
+  enum Enum { None = 0; Speech = 1; System = 2; Media = 3; Alarm = 4; }
+}

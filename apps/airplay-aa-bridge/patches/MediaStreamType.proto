@@ -1,0 +1,20 @@
+// Distributed under GPLv3 only as specified in AACS repository LICENSE.
+// Wire codec values: https://github.com/mrmees/open-android-auto/blob/main/oaa/av/MediaCodecTypeEnum.proto
+syntax="proto2";
+
+package tag.aas;
+
+message MediaStreamType
+{
+    enum Enum
+    {
+        None = 0;
+        Audio = 1;
+        AudioAac = 2;
+        Video = 3; // H.264 baseline; this is a codec value, not a channel ID.
+        AudioAacAdts = 4;
+        VideoVp9 = 5;
+        VideoAv1 = 6;
+        VideoH265 = 7;
+    }
+}

@@ -1,0 +1,63 @@
+--- lib/httpd.c	2026-10-04 08:43:03.126233674 -0700
++++ lib/httpd.c	2026-10-04 10:43:12.510194142 -0700
+@@ -46,6 +46,10 @@
+     int pending_remove;
+     char staging[8];
+     int staging_len;
++    /* After the PTTH handshake, inbound bytes are HTTP responses to our
++       FCUP requests. Parsing them as requests destroys the socket and
++       the next YouTube playlist fetch fails with send error 88. */
++    int ptth_established;
+     time_t last_active;
+ };
+ typedef struct http_connection_s http_connection_t;
+@@ -184,6 +188,7 @@
+         httpd->connections[i].pending_remove = 0;
+         httpd->connections[i].staging_len = 0;
+         httpd->connections[i].staging[0] = '\0';
++        httpd->connections[i].ptth_established = 0;
+         httpd->connections[i].last_active = time(NULL);
+     }
+ 
+@@ -251,6 +256,7 @@
+     connection->type = CONNECTION_TYPE_UNKNOWN;
+     connection->staging_len = 0;
+     connection->staging[0] = '\0';
++    connection->ptth_established = 0;
+ }
+ 
+ static int
+@@ -556,6 +562,21 @@
+                 }
+             }
+ 
++            /* YouTube answers FCUP on this socket with "HTTP/1.1 ...".
++               Once the reverse handshake is done, drop those bytes. */
++            if (connection->ptth_established) {
++                logger_log(httpd->logger, LOGGER_DEBUG,
++                           "discarding %d bytes on established PTTH socket %d",
++                           recv_datalen, connection->socket_fd);
++                if (connection->request) {
++                    http_request_destroy(connection->request);
++                    connection->request = NULL;
++                }
++                connection->staging_len = 0;
++                connection->staging[0] = '\0';
++                continue;
++            }
++
+             if (http_request_is_reverse(connection->request)) {
+                 /* this is a response from the client to a
+                  * GET /event reverse HTTP request from the server */
+@@ -599,6 +620,11 @@
+                 httpd->callbacks.conn_request(connection->user_data, connection->request, &response);
+                 http_request_destroy(connection->request);
+                 connection->request = NULL;
++                if (connection->type == CONNECTION_TYPE_PTTH) {
++                    connection->ptth_established = 1;
++                }
++                connection->staging_len = 0;
++                connection->staging[0] = '\0';
+ 
+                 if (response) {
+                     const char *data;

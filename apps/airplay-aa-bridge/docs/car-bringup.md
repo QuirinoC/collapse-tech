@@ -1,73 +1,127 @@
-# CAR BRING-UP
+# Pi 5 car bring-up
 
-> **Car path only.** No UTM / Ubuntu VMs / OpenAuto / DHU. Pi may be offline — see `CAR_PATH_ONLY.md`.
+The Pi receives AirPlay as **Pi AirPlay AA** and sends video to the head unit
+over wired Android Auto USB. Prove the complete path on the Mac bench before
+moving the data cable to the car. Compatibility with this user's actual car
+head unit remains **unverified**; a passing Mac DHU session does not establish
+that every car will accept AAServer. See [current evidence](STATUS.md).
 
-Pi boots into `airplay-aa-bridge`: AirPlay name **Pi AirPlay AA**, USB-C gadget waiting for the car’s Android Auto host.
+## Keep the established power wiring
 
-## Power off at the bench
+| Connection | Established arrangement |
+| --- | --- |
+| Pi power | Official 27 W brick → PD trigger set to **5 V** → GPIO physical pins **2/4** |
+| Ground | GPIO physical pin **6** |
+| Pi USB-C | **Data only** → Mac USB for the bench, then car Android Auto USB |
+
+Keep GPIO power connected throughout testing and use a known data cable on
+USB-C. This Pi has one USB-C connector; there is no separate USB-C power port.
+Do not connect a PSU to that connector or change the established GPIO circuit.
+No EEPROM change, reboot, or manual UDC/gadget unbind is part of this bring-up.
+The existing service manages the USB gadget.
+
+## Check the phone identity before testing
+
+AAServer acts as the phone. Its certificate must have **O=CarService**, be
+currently valid, match its key, and authenticate to the head unit. The old
+2048 **O=Android-Auto-Internal** identity belongs to the head unit; installing
+it on AAServer caused the DHU's `Invalid peer certificate name` rejection.
+The stock AACS CarService certificate expired in 2022.
+
+The current verified candidate expires **December 9, 2026 at 18:39:03 UTC**.
+Replace it with a current signed phone identity before that date. See
+[certificate provenance and renewal](../certs/README.md); changing dates or
+generating a self-signed replacement does not supply a trusted identity.
+
+From this directory on the Mac, validate a directory containing
+`android_auto.crt` and `android_auto.key`:
 
 ```bash
-ssh amber-pi-eth 'sudo poweroff'
+./scripts/check-phone-certs.sh /path/to/current-phone-identity
 ```
 
-Unplug power. Take the Pi to the car.
-
-## In the car (physical sequence)
-
-1. **Power the Pi** — USB-C PSU or car 5V supply on the Pi **power** USB-C (or GPIO). Ethernet/wifi optional (for SSH only).
-2. **Wait ~30–45s** for boot — service auto-starts; UxPlay advertises **Pi AirPlay AA**.
-3. **Data cable** — Pi USB-C **data** port → car Android Auto USB.  
-   If the same USB-C must do power+data and the car port is weak, use a **powered USB hub** (Pi powered from hub/PSU; hub upstream to car AA USB). Charge-only cables will not work.
-4. **AirPlay** — On iPhone: Screen Mirroring → **Pi AirPlay AA**. Same wifi as the Pi, or share iPhone hotspot and join the Pi to that hotspot.
-5. **Confirm AA** — Car should negotiate wired Android Auto (AOAP). Video follows the AirPlay mirror (or idle black until you cast).
-
-## If you can SSH from the phone
+Check the identity actually used by the Pi, using its reachable address:
 
 ```bash
-ssh quirino@10.0.0.112   # or .113 on wifi
-sudo journalctl -u airplay-aa-bridge -f
-# also:
-tail -f /var/log/airplay-aa/aaserver.log /var/log/airplay-aa/uxplay.log /var/log/airplay-aa/inject.log
+ssh quirino@10.0.0.113 \
+  'sudo /opt/airplay-aa/scripts/check-phone-certs.sh /opt/airplay-aa/libexec/aaserver'
+ssh quirino@10.0.0.113 \
+  'openssl x509 -in /opt/airplay-aa/libexec/aaserver/android_auto.crt -noout -subject -issuer -dates -fingerprint -sha256'
 ```
 
-Healthy idle (no car yet): AAServer stuck in ModeSwitcher / “waiting for car USB”; UxPlay running; UDC present under `/sys/class/udc/`.
+These commands display certificate metadata and check the matching key without
+printing it. The guard checks role, dates and key match; the real DHU/car
+session establishes whether the peer accepts the identity. To install a
+replacement, follow the guarded [certificate installer](../certs/README.md).
+`install-dhu-certs.sh` extracts head-unit material for local inspection only.
 
-After plug: injector log shows video channel; aaserver advances past ModeSwitcher.
+## Finish the real Mac bench test first
 
-## Boot checklist (already done on amber-pi)
+Keep GPIO power connected and connect the Pi USB-C data cable to the Mac. Pi
+and Mac/iPhone must share a network for AirPlay. The Android Auto transport
+itself uses USB.
 
-| Item | Expect |
-|------|--------|
-| `systemctl is-enabled airplay-aa-bridge` | `enabled` |
-| `/etc/modules-load.d/usb-gadget.conf` | `dwc2`, `libcomposite`, … (non-empty) |
-| `/boot/firmware/config.txt` `[all]` | `dtoverlay=dwc2,dr_mode=peripheral` |
-| `otg_mode` | not under `[all]` / `[pi5]` (OK under `[cm4]` only) |
-| AAServer + certs + `dhparam.pem` | `/opt/airplay-aa/libexec/aaserver/` |
-| UxPlay + `idle.h264` | `/opt/airplay-aa/bin/uxplay`, `/var/run/airplay-aa/idle.h264` |
-| Logs | `/var/log/airplay-aa/` |
-| Conflicts off | `g_ether`, `rpi-usb-gadget-ics`, shairport, `pi-airplay-receiver` |
-| TLS cert `notAfter` | **2048** (not 2022) — see `certs/` + `scripts/install-certs.sh` |
+First select `AIRPLAY_AA_SOURCE=test-pattern` in
+`/etc/airplay-aa/bridge.env` on the Pi and apply that source change with the
+service restart described in [Mac testing](mac-testing.md). From this directory
+on the Mac:
 
-## "Device is not responding" (car)
+```bash
+./scripts/test-e2e.sh --pi-host quirino@10.0.0.113 --expect-smpte
+```
 
-Classic HU fail. Ranked causes for **this** project:
+Inspect the saved `.local/bench/<timestamp>/summary.json` and decoded images.
+A pass requires USB accessory mode, an authenticated video session, and moving
+decoded SMPTE bars. AOAP enumeration, an established TLS cipher, or a black
+window alone does not establish a working video path.
 
-1. **Expired AA TLS cert on the Pi** (most likely)  
-   Stock AACS identity expired **2022-08-24**. Mac DHU already proved: AOAP OK → TLS abort. Cars often surface that as "device is not responding".  
-   **Fix (bench, before next car trip):**
-   ```bash
-   # From Mac with Pi on LAN:
-   ./scripts/install-certs.sh quirino@10.0.0.112
-   # Must show notAfter=...2048
-   ```
+Then select `AIRPLAY_AA_SOURCE=airplay`, apply the source change, and mirror a
+visibly moving video or clock to **Pi AirPlay AA** through macOS screen/window
+mirroring. Run the AirPlay acceptance test:
 
-2. **Not enough power** — Pi 5 brown-out when powered only from weak car USB.  
-   **Fix:** PSU or powered hub for the Pi; data cable to the car AA port.
+```bash
+./scripts/test-e2e.sh --expect-airplay --pi-host quirino@10.0.0.113
+```
 
-3. **Charge-only cable / wrong USB port** — use a known-data cable into the car’s Android Auto USB.
+This second pass additionally exercises UxPlay and AirPlay. Leave the source
+set to `airplay` for the car. Full source selection and failure-stage details
+are in [Mac testing](mac-testing.md).
 
-4. **Plugged too early** — wait ~45s after power before connecting data.
+## Move the data cable to the parked car
 
-5. **AAServer crash** — on next SSH: `journalctl -u airplay-aa-bridge -n 100` and `aaserver.log`.
+1. Keep the established 5 V GPIO power arrangement connected and allow the
+   service to start. Confirm the receiver appears as **Pi AirPlay AA**.
+2. Move the Pi USB-C **data** cable from the Mac to the car's **Android Auto**
+   USB port.
+3. Keep the phone and Pi on the same network. On iPhone select Screen Mirroring
+   → **Pi AirPlay AA**, then play visibly moving content.
+4. Confirm the car accepts the Android Auto session and displays that content.
+   Record the actual car/head-unit model and result; this is the compatibility
+   test still outstanding.
 
-Full honesty / blockers: [`STATUS.md`](STATUS.md).
+Use the operating system's **Screen Mirroring** control. A video app's direct
+AirPlay playback control can select a different input mode; the Mac QuickTime
+test stalled at zero progress and supplied no mirrored video in that mode.
+See [Mac testing](mac-testing.md#then-prove-airplay-too) for the tested workflow.
+
+## Diagnose the failed stage
+
+Use the actual reachable Pi address to collect evidence:
+
+```bash
+ssh quirino@10.0.0.113
+systemctl is-active airplay-aa-bridge
+journalctl -u airplay-aa-bridge -n 100 --no-pager
+tail -80 /var/log/airplay-aa/aaserver.log /var/log/airplay-aa/inject.log /var/log/airplay-aa/uxplay.log
+```
+
+Before a USB head unit connects, AAServer waiting in ModeSwitcher is expected.
+After connection, check the sequence: protocol negotiation, successful
+authentication, service discovery, `video channel id=N` (neither 0 nor 255),
+and `sent first live AU`. The final evidence is decoded moving video on the
+head-unit display.
+
+For `device is not responding`, retain the logs around the failure. Check the
+actual runtime certificate, the data cable and Android Auto port, the existing
+GPIO power supply, and AAServer errors. Use the first failed stage to choose
+the next fix instead of repeatedly restarting or rebinding the gadget.

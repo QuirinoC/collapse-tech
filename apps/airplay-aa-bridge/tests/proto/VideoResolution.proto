@@ -1,0 +1,6 @@
+// AACS schema dependency, distributed under its GPLv3 LICENSE.
+syntax="proto2";
+package tag.aas;
+message VideoResolution {
+  enum Enum { None = 0; H480 = 1; H720 = 2; H1080 = 3; }
+}
