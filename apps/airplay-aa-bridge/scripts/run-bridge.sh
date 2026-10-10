@@ -6,6 +6,7 @@
 #   - UxPlay advertises immediately (AirPlay cast ready without USB).
 #   - AAServer waits in ModeSwitcher for the car's USB host / AOAP.
 #   - Injector attaches once AAServer's Unix socket appears after AOAP.
+# AIRPLAY_AA_USB_ONLY=1 is a temporary diagnostic mode without AirPlay/injector.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -17,24 +18,35 @@ else
   source "${ROOT}/config/bridge.env"
 fi
 
+AIRPLAY_AA_USB_ONLY="${AIRPLAY_AA_USB_ONLY-0}"
+case "$AIRPLAY_AA_USB_ONLY" in
+  0|1) ;;
+  *) echo "AIRPLAY_AA_USB_ONLY must be 0 or 1" >&2; exit 78 ;;
+esac
+
 export PATH="${AIRPLAY_AA_PREFIX}/bin:${PATH}"
 export GST_PLUGIN_PATH="${AIRPLAY_AA_PREFIX}/lib/gstreamer-1.0:${GST_PLUGIN_PATH:-}"
 # Refuse damaged deployments before a supervisor can appear healthy while
 # repeatedly executing an empty binary or pipeline script.
-for required in "${AIRPLAY_AA_PREFIX}/libexec/aaserver/AAServer" \
-                "${ROOT}/scripts/run-airplay-pipeline.sh"; do
+REQUIRED_RUNTIME=("${AIRPLAY_AA_PREFIX}/libexec/aaserver/AAServer")
+if [[ "$AIRPLAY_AA_USB_ONLY" == 0 ]]; then
+  REQUIRED_RUNTIME+=("${ROOT}/scripts/run-airplay-pipeline.sh")
+fi
+for required in "${REQUIRED_RUNTIME[@]}"; do
   if [[ ! -s "$required" || ! -x "$required" ]]; then
     echo "Bridge runtime is missing, empty, or not executable: $required" >&2
     exit 78
   fi
 done
-bash -n "${ROOT}/scripts/run-airplay-pipeline.sh"
+if [[ "$AIRPLAY_AA_USB_ONLY" == 0 ]]; then
+  bash -n "${ROOT}/scripts/run-airplay-pipeline.sh"
+fi
 # Socket H.264 inject mode (no Snowmix).
 unset AIRPLAY_AA_SHM || true
 
 mkdir -p "$AIRPLAY_AA_LOGDIR" "$(dirname "$AIRPLAY_AA_SOCKET")" /var/run/airplay-aa
 # Pre-create H.264 FIFO so the injector can hold the read-end before UxPlay starts.
-if [[ ! -p "$AIRPLAY_AA_H264" ]]; then
+if [[ "$AIRPLAY_AA_USB_ONLY" == 0 && ! -p "$AIRPLAY_AA_H264" ]]; then
   rm -f "$AIRPLAY_AA_H264"
   mkfifo "$AIRPLAY_AA_H264"
 fi
@@ -98,35 +110,39 @@ rm -f ./socket "$AIRPLAY_AA_SOCKET"
 ) >"$AIRPLAY_AA_LOGDIR/aaserver.log" 2>&1 &
 AA_PID=$!
 
-# AirPlay must be cast-ready on boot — do not wait for the car USB socket.
-"${ROOT}/scripts/run-airplay-pipeline.sh" &
-PIPE_PID=$!
+if [[ "$AIRPLAY_AA_USB_ONLY" == 0 ]]; then
+  # AirPlay must be cast-ready on boot — do not wait for the car USB socket.
+  "${ROOT}/scripts/run-airplay-pipeline.sh" &
+  PIPE_PID=$!
 
-start_injector() {
-  PYTHONPATH="${ROOT}/bridge${PYTHONPATH:+:$PYTHONPATH}" \
-    python3 "${ROOT}/bridge/inject_h264.py" \
-      --aa-socket "$AIRPLAY_AA_SOCKET" \
-      --h264-source "$AIRPLAY_AA_H264" \
-      >>"$AIRPLAY_AA_LOGDIR/inject.log" 2>&1 &
-  INJ_PID=$!
-}
+  start_injector() {
+    PYTHONPATH="${ROOT}/bridge${PYTHONPATH:+:$PYTHONPATH}" \
+      python3 "${ROOT}/bridge/inject_h264.py" \
+        --aa-socket "$AIRPLAY_AA_SOCKET" \
+        --h264-source "$AIRPLAY_AA_H264" \
+        >>"$AIRPLAY_AA_LOGDIR/inject.log" 2>&1 &
+    INJ_PID=$!
+  }
 
-# Hold the H.264 FIFO read-end from boot so UxPlay (-vrtp / HLS encode) never
-# blocks on filesink. Injector drains while waiting for car AOAP, then pumps AA.
-# A second injector on channel 1 re-enters openChannel and can block SetupResponse.
-# Match python only — a pgrep -f of this script's own text would match itself.
-mapfile -t STALE_INJ < <(ps -eo pid=,args= | awk '/python3/ && /inject_h264\.py/ && !/awk/ {print $1}')
-if ((${#STALE_INJ[@]})); then
-  echo "stopping leftover H.264 injector(s)" >&2
-  kill "${STALE_INJ[@]}" 2>/dev/null || true
-  sleep 0.3
+  # Hold the H.264 FIFO read-end from boot so UxPlay (-vrtp / HLS encode) never
+  # blocks on filesink. Injector drains while waiting for car AOAP, then pumps AA.
+  # A second injector on channel 1 re-enters openChannel and can block SetupResponse.
+  # Match python only — a pgrep -f of this script's own text would match itself.
+  mapfile -t STALE_INJ < <(ps -eo pid=,args= | awk '/python3/ && /inject_h264\.py/ && !/awk/ {print $1}')
+  if ((${#STALE_INJ[@]})); then
+    echo "stopping leftover H.264 injector(s)" >&2
+    kill "${STALE_INJ[@]}" 2>/dev/null || true
+    sleep 0.3
+  fi
+  INJ_PID=""
+  INJ_BACKOFF=1
+  start_injector
+
+  echo "airplay-aa-bridge running aa=${AA_PID} pipe=${PIPE_PID} inj=${INJ_PID}"
+  echo "AirPlay name: ${AIRPLAY_AA_NAME} (cast-ready; waiting for car USB AOAP)"
+else
+  echo "airplay-aa-bridge USB-only diagnostic running aa=${AA_PID}; AirPlay pipeline and injector disabled"
 fi
-INJ_PID=""
-INJ_BACKOFF=1
-start_injector
-
-echo "airplay-aa-bridge running aa=${AA_PID} pipe=${PIPE_PID} inj=${INJ_PID}"
-echo "AirPlay name: ${AIRPLAY_AA_NAME} (cast-ready; waiting for car USB AOAP)"
 echo "USB-C carries host data and, with no separate supply, also powers the Pi."
 
 # Keep AirPlay + FIFO holder up. Symlink AAServer socket when AOAP appears.
@@ -145,28 +161,30 @@ while kill -0 "$AA_PID" 2>/dev/null; do
     rm -f "$AIRPLAY_AA_SOCKET"
   fi
 
-  if ! kill -0 "$PIPE_PID" 2>/dev/null; then
-    echo "AirPlay pipeline exited; restarting..." >&2
-    "${ROOT}/scripts/run-airplay-pipeline.sh" &
-    PIPE_PID=$!
-  fi
-
-  if [[ -z "$INJ_PID" ]] || ! kill -0 "$INJ_PID" 2>/dev/null; then
-    # Another injector may already hold the lock (duplicate start). Adopt it
-    # instead of launching a second process that would also take channel 1.
-    other="$(ps -eo pid=,args= | awk '/python3/ && /inject_h264\.py/ && !/awk/ {print $1; exit}')"
-    if [[ -n "$other" ]]; then
-      echo "injector already running pid=${other}; not starting a second" >&2
-      INJ_PID=$other
-      INJ_BACKOFF=1
-    else
-      echo "injector exited; restarting in ${INJ_BACKOFF}s..." >&2
-      sleep "$INJ_BACKOFF"
-      INJ_BACKOFF=$(( INJ_BACKOFF < 30 ? INJ_BACKOFF * 2 : 30 ))
-      start_injector
+  if [[ "$AIRPLAY_AA_USB_ONLY" == 0 ]]; then
+    if ! kill -0 "$PIPE_PID" 2>/dev/null; then
+      echo "AirPlay pipeline exited; restarting..." >&2
+      "${ROOT}/scripts/run-airplay-pipeline.sh" &
+      PIPE_PID=$!
     fi
-  else
-    INJ_BACKOFF=1
+
+    if [[ -z "$INJ_PID" ]] || ! kill -0 "$INJ_PID" 2>/dev/null; then
+      # Another injector may already hold the lock (duplicate start). Adopt it
+      # instead of launching a second process that would also take channel 1.
+      other="$(ps -eo pid=,args= | awk '/python3/ && /inject_h264\.py/ && !/awk/ {print $1; exit}')"
+      if [[ -n "$other" ]]; then
+        echo "injector already running pid=${other}; not starting a second" >&2
+        INJ_PID=$other
+        INJ_BACKOFF=1
+      else
+        echo "injector exited; restarting in ${INJ_BACKOFF}s..." >&2
+        sleep "$INJ_BACKOFF"
+        INJ_BACKOFF=$(( INJ_BACKOFF < 30 ? INJ_BACKOFF * 2 : 30 ))
+        start_injector
+      fi
+    else
+      INJ_BACKOFF=1
+    fi
   fi
 
   # Always poll. wait -n blocks until a child exits, so the AOAP

@@ -116,9 +116,14 @@ grep -q '^[[:space:]]*../proto/InputBinding.proto' "$SRC/AACS/proto/CMakeLists.t
   echo "Cannot register InputBinding.proto in AACS proto/CMakeLists.txt" >&2
   exit 1
 }
-# CD-ROM mass-storage LUN must be ro=1 on modern kernels (else Invalid parameter).
-cp "$ROOT/patches/MassStorageFunction.cpp" \
-  "$SRC/AACS/AAServer/src/MassStorageFunction.cpp"
+# Initial attachment is vendor-only FunctionFS. Complete AOA 51/52/53 control
+# transfers before switching; no empty CD-ROM image or mass-storage LUN.
+cp "$ROOT/patches/ModeSwitcher.h" "$ROOT/patches/AoaControl.h" \
+  "$SRC/AACS/AAServer/include/"
+cp "$ROOT/patches/ModeSwitcher.cpp" "$SRC/AACS/AAServer/src/ModeSwitcher.cpp"
+
+# Full-speed bulk endpoints use 64-byte packets; high-speed stays at 512.
+cp "$ROOT/patches/descriptors.cpp" "$SRC/AACS/AAServer/src/descriptors.cpp"
 
 # Register input controls with strict open/binding responses and bounded waits.
 cp "$ROOT/patches/InputChannelHandler.h" \
@@ -142,7 +147,10 @@ export LD_LIBRARY_PATH="$PREFIX/lib:${LD_LIBRARY_PATH:-}"
   # Fresh configure after CMakeLists edit (stale cache may still require XTest).
   rm -rf build
   mkdir -p build && cd build
-  cmake .. -DCMAKE_PREFIX_PATH="$PREFIX"
+  # This build artifact is copied directly into libexec. Embed the prefix's
+  # library path so it can load libusbgx without a shell environment override.
+  cmake .. -DCMAKE_PREFIX_PATH="$PREFIX" \
+    -DCMAKE_BUILD_RPATH="$PREFIX/lib" -DCMAKE_INSTALL_RPATH="$PREFIX/lib"
   # Only need AAServer for the phone-side USB path.
   cmake --build . --target AAServer -j"$JOBS"
   run_root python3 "$ROOT/scripts/atomic_install.py" AAServer/AAServer "$PREFIX/libexec/aaserver/AAServer" --mode 755 --owner 0 --group 0

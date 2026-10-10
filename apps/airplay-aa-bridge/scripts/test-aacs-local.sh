@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test actual USB startup/video/input handlers and production discovery schemas.
+# Test actual USB startup/AOA/video/input handlers and production discovery schemas.
 # No Pi, USB device, AACS checkout, credentials, or service changes are needed.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -39,6 +39,27 @@ fi
 "$CXX" -std=c++14 "${strict[@]}" -I"$ROOT/patches" \
   "$ROOT/tests/usb_endpoint_startup_test.cpp" -o "$OUT/usb-startup-test"
 "$OUT/usb-startup-test"
+
+# Compile the production initial USB control dispatcher and descriptor builder.
+# Scripted ep0 completions plus a real blocking pipe cover switch authorization
+# and transfer deadlines; these tests never enumerate or modify a USB gadget.
+"$CXX" -std=c++14 "${strict[@]}" -I"$ROOT/patches" \
+  "$ROOT/tests/aoa_control_test.cpp" -o "$OUT/aoa-control-test"
+"$OUT/aoa-control-test"
+"$CXX" -std=c++14 "${strict[@]}" -I"$ROOT/tests/support/aoa" \
+  -I"$ROOT/patches" "$ROOT/tests/mode_switcher_test.cpp" -o "$OUT/mode-switcher-test"
+"$OUT/mode-switcher-test"
+
+# Parse the actual accessory descriptor writer's bytes after a real pipe. Use
+# the platform's Linux UAPI when available; non-Linux hosts get ABI-only stubs.
+# C++20 accepts upstream's designated initializers under the strict test flags.
+descriptor_cflags=(-I"$ROOT/tests/support/descriptors")
+if [[ "$(uname -s)" != Linux ]]; then
+  descriptor_cflags+=(-I"$ROOT/tests/support/descriptors/nonlinux")
+fi
+"$CXX" -std=c++20 "${strict[@]}" "${descriptor_cflags[@]}" \
+  "$ROOT/tests/accessory_descriptors_test.cpp" -o "$OUT/accessory-descriptors-test"
+"$OUT/accessory-descriptors-test"
 
 # New Homebrew protobuf requires C++17; the USB helper remains C++14-tested.
 protobuf_standard=c++14

@@ -1,17 +1,22 @@
 # Bench status — October 10, 2026
 
-**Actual Mazda activation: STILL FAILING with the installed input build.**
-After the user's power cycle, the Pi authenticated, completed real input binding
-and accepted video setup, but the Mazda again supplied no projected focus grant
-or stream start. The user subsequently reported repeated **USB1 not responding**
-messages, and the Pi became unreachable over SSH. Further hardware probes are
-on hold. The successful automatic Mac AirPlay → Pi → USB → Mac DHU tests
-remain separate evidence; they do not establish car compatibility. Prior Pi
-undervoltage remains unexplained, although the new car boot's sampled flags are
-clear. Audio is disabled; the evidence covers video only.
+**Actual Mazda activation: STILL UNRESOLVED. This is not car-ready.**
+The corrected USB build is installed on the Pi and passed an actual automatic
+Mac USB/DHU moving-pattern test at **15:55:57–15:56:11 PDT**. The full AirPlay
+source test on this exact build is pending macOS Screen Mirroring selection.
+The previous USB candidate still failed in the Mazda before its first Android
+Auto bulk bytes, with repeated USB resets. An older build reached accepted input
+binding and video setup there but received no projection grant or stream start.
+Those are separate observations, not successful car acceptance.
+
+The Pi is now connected to the Mac, with normal AirPlay mode restored and the
+service enabled and running. Current Mac power samples still show active
+undervoltage; warnings also occurred with the user's power splitter. The
+successful historical Mac AirPlay loops do not establish this build's AirPlay
+acceptance or Mazda compatibility. Audio is disabled; the evidence covers video only.
 See [mac-testing.md](mac-testing.md) for the repeatable Mac hardware test.
 
-## Current Mazda retest
+## Mazda observations before the final USB build
 
 The session observed at **14:37 PDT** used the installed AAServer hash
 `dba09b6d0826b12a6e325304cd7ea55a4217118d67c1fea48914ca7358e623a1`
@@ -19,7 +24,7 @@ after the user's power cycle. At approximately 14:38, uptime was about two
 minutes. Early process log times read 14:30 before clock synchronization; they
 must not be treated as definite wall-clock startup times.
 
-The current session confirms:
+That session confirmed:
 
 - USB was configured; protocol negotiation, authentication and discovery
   succeeded.
@@ -58,7 +63,55 @@ IPv4 and IPv6 SSH attempts timed out. The restart and USB failure causes remain
 unknown. The full private Bluetooth/HFP orchestrator has **not been executed**;
 genuine pairing, a persisted bond and HFP readiness remain unverified.
 
+After adding a power splitter, the user explicitly reported a manual restart.
+On boot `dea2e649…`, eight samples over 16.19 seconds showed continuously
+advancing uptime and an unchanged boot ID. AAServer instead repeatedly failed
+on a **pre-session FUNCTIONFS_SUSPEND** event, and its launcher reattached USB
+every few seconds. This trace proves a service reconnect loop, not repeated Pi
+reboots. The bridge was stopped; a later check at uptime 355–361 seconds found
+no AAServer, AirPlay or encoder processes and USB `not attached`. The service
+remained enabled for boot but was stopped with a failed result at that point.
+
+The USB candidate retains a real pre-session USB configuration across
+suspend/resume, without allowing RESUME to replace a missing ENABLE. It also
+removes the initial empty CD-ROM LUN and accepts accessory mode only after the
+exact AOA request 53 completes. Production-handler and event-loop tests cover
+these changes. It was installed and tested in the Mazda at approximately
+**15:15 PDT**, using binary hash `754f3554…`. Real requests 51, six identifier
+requests 52 and a completed request 53 switched the device into accessory mode.
+The car then repeatedly reset/configured/suspended USB without delivering the
+first AA bulk bytes. The same boot ID and increasing uptime distinguish this
+from Pi rebooting; AAServer restarted only after its ten-second startup deadline.
+The probe stopped the service after that restart.
+
+All two-second flag samples were historical `0x50000`, but the full kernel
+journal recorded a fresh undervoltage warning during that probe. The samples
+therefore do not establish clean power. The warning's sticky-bit polling delay
+also prevents a reliable claim that resets preceded or followed the voltage dip.
+FIFO flush errors occurred during teardown and are not evidence of the initial
+failure. The final full-speed descriptor correction described below has not
+been tested in the Mazda.
+Private observations are in `.local/car-runtime/20261010-1459-splitter/`.
+
 ## Current automatic hardware evidence
+
+The final installed binary `d195d47…` passed
+`--headless --expect-auto-start --expect-smpte --duration 35` at
+**15:55:57–15:56:11 PDT**. Evidence is
+`.local/bench/20261010-155557/summary.json` (run `ea8e16ad`). It proves the real
+initial device → `18d1:2d00` accessory switch, protocol 1.5, DHU certificate
+verification, actual input channel 3 open/binding status 0, video channel 2 setup
+status 2, a Pi PROJECTED request, head-unit mode-1 grant and StartIndication.
+No TLS bypass or console focus override was used. Two actual decoded 800×480
+SMPTE frames 5.10 seconds apart changed by mean absolute RGB difference
+**0.9485**, with **4.27%** changed pixels. Visual inspection confirmed the bars
+and changing noise region. This run did not test AirPlay.
+
+The full AirPlay source test on this exact binary is pending selection of
+**Screen Mirroring → Pi AirPlay AA** on the Mac. QuickTime's direct AirPlay
+playback button is not the tested mirroring path.
+
+### Earlier input/focus build
 
 The moving-SMPTE test at **12:23:49–12:24:03 PDT** passed
 `--expect-auto-start --expect-smpte`. Private evidence is in
@@ -99,14 +152,31 @@ override. It is historical transport evidence, not automatic-start acceptance.
 The installed AAServer at `/opt/airplay-aa/libexec/aaserver/AAServer` has SHA-256:
 
 ```text
-dba09b6d0826b12a6e325304cd7ea55a4217118d67c1fea48914ca7358e623a1
+d195d4798ae4359db3ed7c9cc898b424387dddb7d959a40ac71c46eac4128c84
 ```
 
-It was last verified as 4,921,584 bytes with mode 755. The service was enabled
-and active at the 14:37 observation, relaunches AAServer after DHU exits, and is
-configured with `AIRPLAY_AA_SOURCE=airplay`. Its state after the later restart
-and SSH timeouts is unverified. The durable deployment backup includes
-`/var/backups/airplay-aa-input-l397h7e6/rollback.py`.
+This target-matching Debian 13 ARM64 build was installed with hash and dependency
+verification, durable backup and atomic replacement. The service is enabled,
+relaunches AAServer after DHU exits, and is restored to
+`AIRPLAY_AA_SOURCE=airplay`. The latest durable rollback is
+`/var/backups/airplay-aa-usb-81dj33n3/rollback.py`; it restores the preceding USB
+candidate and leaves the bridge stopped. That candidate's rollback at
+`/var/backups/airplay-aa-usb-nx0au2rk/rollback.py` restores the older input build.
+
+The final build additionally corrects the actual accessory full-speed bulk
+descriptors from 512 to **64 bytes**, while retaining high-speed **512 bytes**.
+An actual serialized-descriptor test covers both speeds and endpoint addresses;
+the original 512-byte full-speed source fails that test. This corrects a real USB
+standards defect, but has not established the cause or resolution of Mazda resets.
+The production descriptor test, complete C++ suite and focused ASan/UBSan checks
+passed, and every compiled patch hash matched the source deployed to the Pi.
+The ELF RUNPATH includes `/opt/airplay-aa/lib` for the installed libusbgx.
+
+`AIRPLAY_AA_USB_ONLY=1` is a temporary launcher diagnostic: it runs AAServer and
+the USB lifecycle without the AirPlay pipeline or injector. It is disabled by
+default. An isolated actual-launcher test verified normal worker recovery,
+USB-only startup and invalid-value rejection. It has not been car-tested and
+does not supply application video or prove projection acceptance.
 
 The build includes bounded FunctionFS startup, compatibility with omitted video
 `media_type`, strict setup-response parsing, phone-requested focus and automatic
@@ -176,14 +246,31 @@ resolve this failure.
 
 ## Power observations
 
+On the current Mac boot `337ce712…`, a 30-second read-only window at
+**15:46:55–15:47:25 PDT** sampled active `0x50005` in **8 of 16** observations,
+with EXT5V **4.788–4.890 V** and unchanged boot ID. Kernel undervoltage warnings
+continued later in the same boot. These are current power failures even though
+the USB/DHU tests passed; their cause and relationship to Mazda resets remain
+unproven. Evidence is `.local/mac-power-20261010-validate/`.
+
+A fresh final-build observation at **15:56:24.785–15:57:09.780 PDT** captured
+24 samples over 45.022 seconds, with the same boot and continuously advancing
+uptime. Two new kernel undervoltage warnings occurred, while only **3 of 24**
+flag samples caught active `0x50005`. EXT5V ranged **4.78380–4.88296 V**.
+AAServer, UxPlay, injector and encoder PIDs stayed unchanged, USB stayed
+configured and SSH/Wi-Fi stayed connected with no interface error/drop deltas.
+This establishes continuity during that short post-test window, not clean power.
+Evidence is `.local/mac-power-20261010-validate/fs64-window-summary.json`.
+
 The user explicitly corrected the wiring account: this Pi is powered **only
 through its USB-C connection to the Mazda**, which also carries Android Auto
 data. The earlier GPIO/PD-trigger/27 W supply account was false and must not be
 used for instructions or conclusions. Unplugging that cable removes power.
 The previous advice to disconnect data while retaining separate power was
 therefore incorrect. When reachable, shut the Pi down before moving or removing
-its sole power/data cable. No alternative power arrangement has been installed
-or verified.
+its sole power/data cable. The user subsequently added a power splitter. Its
+exact model, external supply rating and power isolation have not been supplied
+or independently verified.
 
 The boot beginning around **12:13 PDT** recorded repeated kernel
 `Undervoltage detected` / `Voltage normalised` warnings from **12:19 through
@@ -201,6 +288,17 @@ found no mmc/ext4 errors. Private evidence is in
 passed despite the warnings; power stability still needs resolution before car
 readiness. The later car boot sampled `0x0`; this clears the current observation
 but does not explain or disprove the earlier undervoltage.
+
+The splitter boot `dea2e649…` also logged undervoltage at approximately **5.48,
+142.56 and 152.64 seconds** of uptime, most recently normalizing at **154.66
+seconds**. The initial eight samples measured EXT5V **4.835–4.920 V**, with
+historical flags `0x50000`; those samples do not negate the kernel warnings.
+After stopping the bridge, four samples at uptime 355–361 seconds measured
+**4.848–4.911 V**, with the same historical flags and no later voltage warning
+in the captured journal. Power under the full running bridge remains unproven.
+The user tested the same cable with an iPhone and reported immediate operation;
+that establishes an iPhone connection, not Pi power adequacy or Android Auto
+compatibility.
 
 ## Startup persistence and recovery
 
@@ -245,9 +343,10 @@ read-only state check when the Pi is reachable.
 1. Establish reliable power for the actual USB-C power/data arrangement and
    investigate the unexplained restart and repeated USB1 errors. Prior
    undervoltage is real evidence, but its relationship to this failure is unknown.
-2. Resolve Mazda activation: real input binding and setup now pass, but the
-   focus grant and moving video are still missing. Resolve the enablement/focus
-   failure from actual responses rather than inventing consent or motion state.
+2. Test the final descriptor/startup build in the Mazda only after a stable
+   supply is established. The preceding USB candidate failed before AA protocol
+   negotiation; the older input build reached setup without a projection grant.
+   Resolve the first failed stage from actual responses.
 3. Verify sustained playback, corrected HLS pacing, USB reconnect and cold boot
    on the installed build.
 
