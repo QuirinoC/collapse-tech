@@ -27,7 +27,7 @@ import uuid
 
 
 ROOT = Path(__file__).resolve().parents[1]
-STAGES = ("preflight", "usb", "aoap", "protocol", "tls", "video", "render", "motion", "pattern", "airplay", "pi_collection")
+STAGES = ("preflight", "usb", "aoap", "protocol", "tls", "input", "automatic_focus", "video", "render", "motion", "pattern", "airplay", "pi_collection")
 PATTERNS = {
     "aoap": re.compile(r"Found device .*in accessory mode \(vid=18d1, pid=2d0[01]\)", re.I),
     "protocol": re.compile(r"Phone reported protocol version\s+\d+\.\d+", re.I),
@@ -85,6 +85,82 @@ print(json.dumps(snapshot))
 PY
 """
 
+# Emit only known startup markers, never arbitrary device identifiers, URLs,
+# process arguments, or raw logs. Offsets and inode baselines prevent historic
+# success markers from satisfying a new physical session.
+SSH_STARTUP_READ_ONLY = r"""python3 - <<'PY'
+import json, os, re, time
+from pathlib import Path
+snapshot = {'captured_at_epoch': time.time(), 'logs': {}, 'errors': []}
+patterns = [
+ ('session_auth', re.compile(rb'^auth complete$'), ()),
+ ('video_open', re.compile(rb'VideoChannelHandler: openChannel channel (\d+)'), ('channel',)),
+ ('video_setup', re.compile(rb'VideoChannelHandler: setup status=(-?\d+) max_unacked=(-?\d+) config0=([01]) accepted=([01])'), ('status', 'max_unacked', 'config0', 'accepted')),
+ ('video_request', re.compile(rb'VideoChannelHandler: requesting PROJECTED focus on channel (\d+)'), ('channel',)),
+ ('video_grant', re.compile(rb'VideoChannelHandler: VideoFocusIndication mode=(\d+) unrequested=([01])'), ('mode', 'unrequested')),
+ ('video_start', re.compile(rb'VideoChannelHandler: StartIndication on channel (\d+)'), ('channel',)),
+ ('input_open', re.compile(rb'InputChannelHandler: channel (\d+) ChannelOpenResponse parsed=([01]) status=(-?\d+) accepted=([01])'), ('channel', 'parsed', 'status', 'accepted')),
+ ('input_bind', re.compile(rb'InputChannelHandler: channel (\d+) InputBindingResponse parsed=([01]) status=(-?\d+) accepted=([01])'), ('channel', 'parsed', 'status', 'accepted')),
+ ('input_request', re.compile(rb'automatically binding input channel id=(\d+)'), ('channel',)),
+ ('input_accepted', re.compile(rb'input binding accepted on channel (\d+)'), ('channel',)),
+ ('input_failure', re.compile(rb'InputChannelHandler: channel (\d+) (?:open|binding) timed out'), ('channel',)),
+ ('input_failure', re.compile(rb'input (?:channel unavailable|binding rejected or malformed|binding did not complete)'), ()),
+ ('video_failure', re.compile(rb'VideoChannelHandler: malformed VideoFocusIndication ignored'), ()),
+]
+for name in ('aaserver', 'inject'):
+    try:
+        path = Path('/var/log/airplay-aa/' + name + '.log')
+        with path.open('rb') as stream:
+            metadata = os.fstat(stream.fileno())
+            start = max(0, metadata.st_size - 262144)
+            stream.seek(start)
+            data = stream.read(metadata.st_size - start)
+        records, position, video_channel = [], start, None
+        for line in data.splitlines(keepends=True):
+            if position != start or start == 0:
+                for kind, pattern, attributes in patterns:
+                    match = pattern.search(line.rstrip(b'\r\n'))
+                    if not match:
+                        continue
+                    record = {'offset': position, 'kind': kind,
+                              'marker': match.group(0).decode('ascii')[:320]}
+                    record.update({key: int(value) for key, value in zip(attributes, match.groups())})
+                    if kind == 'session_auth':
+                        video_channel = None
+                    elif kind == 'video_open':
+                        video_channel = record['channel']
+                    elif kind in ('video_setup', 'video_grant', 'video_failure'):
+                        # These production markers omit channel; require the
+                        # preceding opener, and reject ambiguous multi-channel
+                        # sessions in the host evaluator.
+                        record['channel'] = video_channel
+                        record['channel_from_open'] = True
+                    records.append(record)
+                    break
+            position += len(line)
+        snapshot['logs'][name] = {'path': str(path), 'device': metadata.st_dev,
+                                  'inode': metadata.st_ino, 'size': metadata.st_size,
+                                  'tail_bytes_read': len(data), 'records': records[-128:]}
+    except OSError as error:
+        snapshot['errors'].append('Cannot read ' + name + ' startup evidence: ' + str(error))
+snapshot['captured_at_epoch'] = time.time()
+print(json.dumps(snapshot))
+PY
+"""
+
+
+def structured_collection_command(*, airplay: bool, startup: bool) -> str:
+    if not (airplay and startup):
+        return SSH_AIRPLAY_READ_ONLY if airplay else SSH_STARTUP_READ_ONLY
+    # Both collectors remain directly executable/testable. Combining their
+    # fixed Python bodies keeps a snapshot to one bounded SSH connection.
+    def body(command: str) -> str:
+        return command.split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    airplay_body = body(SSH_AIRPLAY_READ_ONLY).replace("print(json.dumps(snapshot))", "airplay_snapshot = snapshot")
+    startup_body = body(SSH_STARTUP_READ_ONLY).replace("print(json.dumps(snapshot))", "startup_snapshot = snapshot")
+    return ("python3 - <<'PY'\n" + airplay_body + "\n" + startup_body +
+            "\nprint(json.dumps({'airplay': airplay_snapshot, 'startup': startup_snapshot}))\nPY\n")
+
 
 def utc_now() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat()
@@ -123,22 +199,27 @@ def compatible_usb(text: str) -> list[dict]:
     return matches
 
 
-def collect_pi(host: str, out: Path, label: str, *, airplay: bool = False) -> dict:
+def collect_pi(host: str, out: Path, label: str, *, airplay: bool = False, startup: bool = False) -> dict:
     result = command_result(
         ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "ConnectionAttempts=1",
-         host, "bash -s"], 12, input_text=SSH_AIRPLAY_READ_ONLY if airplay else SSH_READ_ONLY
+         host, "bash -s"], 12, input_text=structured_collection_command(airplay=airplay, startup=startup)
+         if airplay or startup else SSH_READ_ONLY
     )
     path = out / f"pi-{label}.log"
     path.write_text(result["stdout"] + result["stderr"])
     evidence = {"log": str(path), "returncode": result["returncode"],
                 "collected": result["returncode"] == 0, "read_only": True}
-    if airplay and evidence["collected"]:
+    if (airplay or startup) and evidence["collected"]:
         try:
-            evidence["airplay"] = json.loads(result["stdout"])
-            if not isinstance(evidence["airplay"], dict):
+            snapshot = json.loads(result["stdout"])
+            if not isinstance(snapshot, dict):
                 raise ValueError("snapshot was not an object")
-        except (ValueError, json.JSONDecodeError) as error:
-            evidence.update(collected=False, error="Cannot parse Pi AirPlay snapshot: " + str(error))
+            if airplay:
+                evidence["airplay"] = snapshot["airplay"] if startup else snapshot
+            if startup:
+                evidence["startup"] = snapshot["startup"] if airplay else snapshot
+        except (ValueError, KeyError, json.JSONDecodeError) as error:
+            evidence.update(collected=False, error="Cannot parse structured Pi snapshot: " + str(error))
     elif not evidence["collected"]:
         evidence["error"] = result["stderr"][-1000:] or "Read-only SSH collection failed."
     return evidence
@@ -222,6 +303,148 @@ def evaluate_airplay(before: dict | None, after: dict | None) -> dict:
             return result
     result.update(status="PASSED", detail="Pi selects airplay and received newly appended mirrored H.264 packets with advancing timestamps during this run. Screenshot source identity requires visual comparison.")
     return result
+
+
+def startup_snapshot_problem(evidence: dict | None) -> str | None:
+    if not evidence or not evidence.get("collected") or not evidence.get("log"):
+        return "Read-only Pi startup collection is unavailable or failed."
+    snapshot = evidence.get("startup")
+    if not isinstance(snapshot, dict):
+        return "Structured Pi startup evidence is missing."
+    if snapshot.get("errors"):
+        return " ".join(str(error) for error in snapshot["errors"])
+    captured = snapshot.get("captured_at_epoch")
+    if not isinstance(captured, (int, float)) or not math.isfinite(captured):
+        return "Pi startup collection timestamp is invalid."
+    logs = snapshot.get("logs")
+    if not isinstance(logs, dict):
+        return "Startup log baselines are missing."
+    for name in ("aaserver", "inject"):
+        log = logs.get(name)
+        if (not isinstance(log, dict) or not isinstance(log.get("records"), list)
+                or any(not isinstance(log.get(field), int) or log[field] < 0
+                       for field in ("device", "inode", "size"))):
+            return f"{name} log identity, byte baseline, or records are invalid."
+    return None
+
+
+def evaluate_auto_start(before: dict | None, after: dict | None, session: dict | None) -> dict:
+    """Prove initialization from fresh production replies; never infer from pixels."""
+    results = {name: {"status": "FAILED", "detail": "Automatic startup was not demonstrated."}
+               for name in ("input", "automatic_focus")}
+
+    def fail(detail: str) -> dict:
+        for result in results.values():
+            result["detail"] = detail
+        return results
+
+    for label, evidence in (("before", before), ("after", after)):
+        problem = startup_snapshot_problem(evidence)
+        if problem:
+            return fail(f"{label.capitalize()} startup evidence failed: {problem}")
+    if (not isinstance(session, dict) or session.get("console_video_focus_override") is not False
+            or not isinstance(session.get("console_commands"), list)):
+        return fail("No trustworthy record excluding a console video-focus override.")
+    for command in session["console_commands"]:
+        if (not isinstance(command, dict) or not isinstance(command.get("command"), str)
+                or any(line.split() and line.split()[0].lower() == "focus"
+                       for line in command["command"].splitlines())):
+            return fail("A console focus override or malformed console record invalidates automatic-start acceptance.")
+    assert before is not None and after is not None
+    first, last = before["startup"], after["startup"]
+    if last["captured_at_epoch"] <= first["captured_at_epoch"]:
+        return fail("Pi startup collection clock did not advance.")
+    fresh = {}
+    for name in ("aaserver", "inject"):
+        old, new = first["logs"][name], last["logs"][name]
+        if (old["device"], old["inode"]) != (new["device"], new["inode"]) or new["size"] < old["size"]:
+            return fail(f"{name} log rotated or truncated; a fresh startup cannot be proved. Rerun the bench.")
+        fresh[name] = sorted((record for record in new["records"]
+                              if isinstance(record, dict) and isinstance(record.get("offset"), int)
+                              and old["size"] <= record["offset"] < new["size"]),
+                             key=lambda record: record["offset"])
+        for result in results.values():
+            result.update(before_log=before["log"], after_log=after["log"])
+    auth = [record for record in fresh["aaserver"] if record.get("kind") == "session_auth"]
+    if not auth:
+        return fail("No fresh authenticated AA session marker; historic or cached initialization cannot pass.")
+    if len(auth) != 1:
+        return fail("Multiple fresh AA sessions make cross-log input attribution ambiguous. Rerun one clean session.")
+    # Do not combine success from one USB connection with focus from another.
+    server = [record for record in fresh["aaserver"] if record["offset"] > auth[-1]["offset"]]
+    injection = fresh["inject"]
+
+    def valid_channel(value) -> bool:
+        return isinstance(value, int) and not isinstance(value, bool) and 0 < value < 255
+
+    def input_ok(record: dict) -> bool:
+        return record.get("parsed") == 1 and record.get("status") == 0 and record.get("accepted") == 1
+
+    requests = [record for record in injection if record.get("kind") == "input_request"
+                and valid_channel(record.get("channel"))]
+    if not requests:
+        results["input"]["detail"] = "No fresh automatic input-registration request from the injector."
+    else:
+        request = requests[-1]
+        channel = request["channel"]
+        opened = [record for record in server if record.get("kind") == "input_open" and record.get("channel") == channel]
+        bound = [record for record in server if record.get("kind") == "input_bind" and record.get("channel") == channel]
+        accepted = [record for record in injection if record.get("kind") == "input_accepted"
+                    and record.get("channel") == channel and record["offset"] > request["offset"]]
+        failed = [record for record in server + injection if record.get("kind") == "input_failure"
+                  and record.get("channel") in (None, channel)]
+        if failed or any(not input_ok(record) for record in opened + bound):
+            results["input"].update(detail="Input initialization timed out or the real HU response was rejected/malformed.",
+                                    channel=channel, failures=failed + [record for record in opened + bound if not input_ok(record)])
+        elif opened and bound and accepted and opened[0]["offset"] < bound[0]["offset"]:
+            results["input"].update(status="PASSED", channel=channel,
+                                    detail="Fresh automatic input registration received real channel-open and binding status 0, then injector acceptance.",
+                                    server_records=[opened[0], bound[0]], injector_records=[request, accepted[-1]])
+        else:
+            results["input"].update(channel=channel,
+                                    detail="Fresh, ordered input channel-open/binding status 0 and injector acceptance were not all observed.")
+
+    video = [record for record in server if str(record.get("kind", "")).startswith("video_")]
+    openers = [record for record in video if record.get("kind") == "video_open"]
+    channels = {record.get("channel") for record in openers}
+    if len(openers) != 1 or len(channels) != 1 or not all(valid_channel(channel) for channel in channels):
+        results["automatic_focus"]["detail"] = "Missing or ambiguous fresh video-channel opener; channel-less setup/focus logs cannot be associated safely."
+        return results
+    channel = next(iter(channels))
+    results["automatic_focus"]["channel"] = channel
+    if results["input"]["status"] == "PASSED" and results["input"]["server_records"][1]["offset"] >= openers[0]["offset"]:
+        results["input"].update(status="FAILED", detail="Real input binding occurred after video opening; the intended automatic input-first startup was not demonstrated.")
+    related = [record for record in video if record.get("channel") == channel]
+    rejected = [record for record in related if record.get("kind") == "video_failure"
+                or (record.get("kind") == "video_setup" and
+                    (record.get("status") != 2 or record.get("accepted") != 1
+                     or record.get("config0") != 1 or record.get("max_unacked", 0) <= 0))]
+    if rejected:
+        results["automatic_focus"].update(detail="Video setup/focus included a rejected or malformed real HU response.", failures=rejected)
+        return results
+    expected = ("video_open", "video_setup", "video_request", "video_grant", "video_start")
+    proof, index = [], 0
+    for record in related:
+        kind = record.get("kind")
+        if kind == "video_grant" and index == 4:
+            if record.get("mode") not in (1, 4):
+                results["automatic_focus"].update(detail="HU revoked projected focus before StartIndication.", failures=[record])
+                return results
+            proof[-1] = record  # The latest grant preceding Start must project.
+            continue
+        if kind != expected[index]:
+            continue
+        if kind == "video_grant" and record.get("mode") not in (1, 4):
+            results["automatic_focus"].update(detail="HU granted native/unsupported focus instead of projection.", failures=[record])
+            return results
+        proof.append(record)
+        index += 1
+        if index == len(expected):
+            results["automatic_focus"].update(status="PASSED", records=proof,
+                                               detail="Fresh accepted setup → Pi PROJECTED request → HU projected grant → StartIndication on one video channel, with no console override.")
+            return results
+    results["automatic_focus"]["detail"] = "The fresh ordered setup → Pi focus request → HU projected grant → Start sequence is incomplete."
+    return results
 
 
 def decode_image(path: Path, ffmpeg: str) -> tuple[dict, bytes | None]:
@@ -465,10 +688,13 @@ def main(argv: list[str] | None = None) -> int:
     source_expectation = parser.add_mutually_exclusive_group()
     source_expectation.add_argument("--expect-smpte", action="store_true", help="Also require SMPTE bar identity in both decoded frames (for the Pi test-pattern source).")
     source_expectation.add_argument("--expect-airplay", action="store_true", help="Require airplay source and fresh advancing mirrored H.264 receive evidence on the Pi; requires --pi-host. Visually compare source content separately.")
+    parser.add_argument("--expect-auto-start", action="store_true", help="Require fresh real input binding and ordered phone-requested projection without a DHU focus override; requires --pi-host.")
     parser.add_argument("--pi-host", help="User@host for bounded read-only Pi evidence; required with --expect-airplay. No restarts or gadget reads.")
     args = parser.parse_args(argv)
     if args.expect_airplay and not args.pi_host:
         parser.error("--expect-airplay requires --pi-host for current source and fresh receive evidence")
+    if args.expect_auto_start and not args.pi_host:
+        parser.error("--expect-auto-start requires --pi-host for fresh input/focus response evidence")
     if not 15 <= args.duration <= 300:
         parser.error("--duration must be between 15 and 300 seconds")
     if args.screenshot_interval < 3 or args.screenshot_interval > args.duration / 2:
@@ -481,10 +707,15 @@ def main(argv: list[str] | None = None) -> int:
     args.config = (args.config or args.dhu_dir / "config" / "aa_bridge.ini").expanduser().resolve()
     out = args.output_dir.expanduser().resolve()
     out.mkdir(parents=True, exist_ok=True)
-    summary = {"schema_version": 2, "run_id": uuid.uuid4().hex[:8], "started_at": utc_now(),
+    summary = {"schema_version": 3, "run_id": uuid.uuid4().hex[:8], "started_at": utc_now(),
                "overall": {"status": "UNKNOWN", "outcome": "BLOCKED"},
                "scope": "Real Pi USB AOAP + AA protocol + DHU TLS + decoded head-unit video; source content must be supplied separately.",
+               "expect_auto_start": args.expect_auto_start,
                "stages": {name: {"status": "UNKNOWN", "detail": "Not exercised."} for name in STAGES}}
+    for name in ("input", "automatic_focus"):
+        set_stage(summary, name, "UNKNOWN" if args.expect_auto_start else "NOT_TESTED",
+                  "Fresh actual input/focus responses are required." if args.expect_auto_start
+                  else "Automatic initialization acceptance was not requested; use --expect-auto-start --pi-host user@host.")
     set_stage(summary, "airplay", "UNKNOWN" if args.expect_airplay else "NOT_TESTED",
               "AirPlay source and fresh receive evidence are required." if args.expect_airplay
               else "AirPlay acceptance was not requested; use --expect-airplay --pi-host user@host.")
@@ -515,7 +746,7 @@ def main(argv: list[str] | None = None) -> int:
     if not devices:
         problems.append("Connect Pi USB-C data to this Mac while keeping the established GPIO power supply.")
     if args.pi_host:
-        pi = collect_pi(args.pi_host, out, "before", airplay=args.expect_airplay)
+        pi = collect_pi(args.pi_host, out, "before", airplay=args.expect_airplay, startup=args.expect_auto_start)
         summary["pi"] = {"host": args.pi_host, "before": pi}
         set_stage(summary, "pi_collection", "PASSED" if pi["collected"] else "UNKNOWN",
                   "Read-only Pi evidence collected." if pi["collected"] else "Pi evidence unavailable; DHU can still test the physical path.",
@@ -526,10 +757,18 @@ def main(argv: list[str] | None = None) -> int:
                 set_stage(summary, "airplay", "FAILED", "Before AirPlay evidence failed: " + problem, before=pi)
                 set_stage(summary, "pi_collection", "FAILED", "Required AirPlay Pi evidence is unavailable or invalid.", before=pi)
                 problems.append("AirPlay acceptance preflight failed: " + problem)
+        if args.expect_auto_start:
+            problem = startup_snapshot_problem(pi)
+            if problem:
+                for name in ("input", "automatic_focus"):
+                    set_stage(summary, name, "FAILED", "Before startup evidence failed: " + problem, before=pi)
+                set_stage(summary, "pi_collection", "FAILED", "Required startup Pi evidence is unavailable or invalid.", before=pi)
+                problems.append("Automatic-start acceptance preflight failed: " + problem)
     if problems:
         set_stage(summary, "preflight", "FAILED", "DHU was not launched; the physical test remains unexercised.", problems=problems)
         summary["overall"]["reason"] = " ".join(problems)
-        if args.expect_airplay and summary["stages"]["airplay"]["status"] == "FAILED":
+        if ((args.expect_airplay and summary["stages"]["airplay"]["status"] == "FAILED")
+                or (args.expect_auto_start and summary["stages"]["input"]["status"] == "FAILED")):
             summary["overall"].update(status="FAILED", outcome="FAILED")
         write_summary(summary, out)
         print(f"{summary['overall']['outcome']}: {summary['overall']['reason']}\nEvidence: {out / 'summary.json'}")
@@ -549,23 +788,29 @@ def main(argv: list[str] | None = None) -> int:
         set_stage(summary, "video", "FAILED", "DHU session could not complete.", error=str(exc))
     finally:
         if args.pi_host:
-            pi = collect_pi(args.pi_host, out, "after", airplay=args.expect_airplay)
+            pi = collect_pi(args.pi_host, out, "after", airplay=args.expect_airplay, startup=args.expect_auto_start)
             summary["pi"]["after"] = pi
             both_collected = pi["collected"] and summary["pi"]["before"]["collected"]
-            set_stage(summary, "pi_collection", "PASSED" if both_collected else "FAILED" if args.expect_airplay else "UNKNOWN",
+            required_pi = args.expect_airplay or args.expect_auto_start
+            set_stage(summary, "pi_collection", "PASSED" if both_collected else "FAILED" if required_pi else "UNKNOWN",
                       "Read-only Pi evidence collected before and after the session." if both_collected
-                      else "Before/after Pi collection failed; AirPlay acceptance requires both snapshots.",
+                      else "Before/after Pi collection failed; requested source/startup acceptance requires both snapshots.",
                       before=summary["pi"]["before"], after=pi)
             if args.expect_airplay:
                 summary["stages"]["airplay"] = evaluate_airplay(summary["pi"]["before"], pi)
+            if args.expect_auto_start:
+                summary["stages"].update(evaluate_auto_start(summary["pi"]["before"], pi, summary.get("session")))
         if session_completed:
-            required = [name for name in STAGES if (name != "pi_collection" or args.expect_airplay)
+            required = [name for name in STAGES if (name != "pi_collection" or args.expect_airplay or args.expect_auto_start)
+                        and (name not in ("input", "automatic_focus") or args.expect_auto_start)
                         and (name != "pattern" or args.expect_smpte) and (name != "airplay" or args.expect_airplay)]
             passed = all(summary["stages"][name]["status"] == "PASSED" for name in required)
             reason = "Actual authenticated USB session rendered changing nonblank video."
             if args.expect_airplay and passed:
                 reason = "Fresh mirrored H.264 receive activity on the Pi accompanied authenticated USB and changing DHU video. Visually compare Mac source content separately."
-            elif not passed:
+            if args.expect_auto_start and passed:
+                reason += " Fresh real input binding and phone-requested projection completed without a console focus override."
+            if not passed:
                 failed = [name for name in required if summary["stages"][name]["status"] != "PASSED"]
                 reason = "Required bench stages failed: " + ", ".join(failed) + "."
                 if args.expect_airplay and summary["stages"]["airplay"]["status"] != "PASSED":

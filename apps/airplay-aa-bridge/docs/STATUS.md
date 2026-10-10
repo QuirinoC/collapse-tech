@@ -1,186 +1,182 @@
 # Bench status — October 10, 2026
 
-Video transport bench status: **PASSED for Mac AirPlay → Pi UxPlay → encode/inject →
-USB Android Auto → Mac DHU**, with normal TLS verification and visually
-confirmed moving Mac content. Those historical runs used the DHU console's
-`focus video on`, so they do **not** establish automatic activation. The runner
-no longer supplies that override. A fresh hardware pass with automatic focus
-is pending. **The actual Mazda test is currently failing at video focus.**
-Audio is disabled; the evidence covers video only.
-See [mac-testing.md](mac-testing.md) for the repeatable local hardware test.
+**Automatic Mac AirPlay → Pi UxPlay → encode/inject → USB Android Auto → Mac
+DHU: PASSED.** The installed build completed fresh input binding, requested
+projected video focus, received the head unit's grant and started moving decoded
+video. The strict hardware runs used normal TLS verification and no DHU console
+focus override. **The new build has not yet been tested against the Mazda.**
+Its earlier build authenticated and accepted video setup but received no focus
+grant; car activation remains unresolved. Audio is disabled; these passes cover
+video only. See [mac-testing.md](mac-testing.md) for the repeatable hardware test.
+**Repeated Pi undervoltage is a current power blocker for car readiness.**
 
-## Current Mazda session
+## Current automatic hardware evidence
+
+The moving-SMPTE test at **12:23:49–12:24:03 PDT** passed
+`--expect-auto-start --expect-smpte`. Private evidence is in
+`.local/bench/20261010-122349/`.
+
+Two native headless full-loop runs passed
+`--headless --expect-auto-start --expect-airplay`:
+
+| Run, PDT | Decoded motion | Visual source confirmation |
+| --- | --- | --- |
+| 12:27:51–12:28:07 | 800×480; frames 5.03 s apart; mean absolute RGB difference 5.492; 5.74% changed pixels | QuickTime clip clock 6.8 → 16.9 s, with desktop surroundings |
+| 12:30:37–12:30:52 | 800×480; frames 5.01 s apart; mean absolute RGB difference 21.3029; 22.66% changed pixels | Fullscreen QuickTime clip clock 15.433 → 17.933 s, with macOS disk-notice overlays |
+
+Both runs collected **16 fresh mirrored H.264 receive records** with advancing
+timestamps while the Pi selected `AIRPLAY_AA_SOURCE=airplay`. Each proved real
+input channel 3 open and binding status **0**, followed by video channel 2 setup
+status **2**, a Pi **PROJECTED** request, a head-unit projected grant (mode **1**)
+and StartIndication on that same video channel. Input binding preceded video
+channel opening. DHU negotiated protocol 1.5 and reported `Verify returned: ok`;
+no TLS bypass or console `focus video on` was used. DHU quit cleanly.
+
+Evidence is in `.local/bench/20261010-122751/` and
+`.local/bench/20261010-123037/`: `summary.json`, DHU logs, bounded Pi startup
+evidence and actual decoded frames. These are valid automatic full-loop passes.
+Their desktop and notification overlays limit presentation; they do not establish
+unobscured fullscreen playback. Sustained operation and car compatibility remain
+unverified. The Mac test ended with QuickTime paused and AirPlay disconnected.
+The two fresh DHU sessions establish repeated session startup; physical USB
+cable reconnect and cold boot of this build have not been tested.
+
+The earlier clean fullscreen run at `.local/bench/20261010-110729/` proved moving
+Mac content through the same AirPlay/USB path, but supplied a DHU console focus
+override. It is historical transport evidence, not automatic-start acceptance.
+
+## Installed build and validation
+
+The installed AAServer at `/opt/airplay-aa/libexec/aaserver/AAServer` has SHA-256:
+
+```text
+dba09b6d0826b12a6e325304cd7ea55a4217118d67c1fea48914ca7358e623a1
+```
+
+It is 4,921,584 bytes with mode 755. The service is enabled and active, relaunches
+AAServer after DHU exits, and is left in `AIRPLAY_AA_SOURCE=airplay`. No captures
+are active. The durable deployment backup includes
+`/var/backups/airplay-aa-input-l397h7e6/rollback.py`.
+
+The build includes bounded FunctionFS startup, compatibility with omitted video
+`media_type`, strict setup-response parsing, phone-requested focus and automatic
+input registration. Previously the injector opened only video, so AACS never
+opened or bound controls automatically. The Mazda advertises 15 numeric keycodes;
+the revised handler preserves all 15, including three discarded by the legacy
+enum. It requires actual successful channel-open and binding responses. Each
+C++ input handshake phase has a two-second deadline; the receive thread remains
+available for other channels. The Python wait drains the FIFO and input events,
+and proceeds with video when input is absent or rejected. The strict acceptance
+mode additionally requires successful binding before video opens.
+
+**66 Python tests passed**, including real Linux FIFO/sequence-packet transport,
+FFmpeg video decoding, input deadlines/rejection/disconnect, durable installation
+and 18 new strict hardware-evidence fixtures. The compiled production C++ input,
+video, USB startup and discovery harnesses passed strict compilation; focused
+ASan/UBSan checks and independent review also passed. Container annotations were
+disabled only for Homebrew's prebuilt protobuf in the sanitizer run; address and
+undefined-behavior checks remained enabled. These checks are separate from the
+actual hardware passes above.
+
+The current signed phone identity and matching key verify against the
+independently extracted DHU Google Automotive Link root. The certificate expires
+**December 9, 2026, 18:39:03 UTC**; renewal is required before then. See
+[certificate provenance and installation](../certs/README.md). The old backup
+`/var/backups/airplay-aa-bench-20261010T172906Z.pkeUkV/` predates this identity and
+must not restore the rejected head-unit certificate into service.
+
+H.264 framing and idle/live recovery fixes are installed. HLS playback uses
+`shmsink sync=true` to pace decoded frames to their timestamps; mirroring retains
+`sync=false` for its live input. The earlier HLS path produced roughly 150–190
+access units per second instead of 30. The production pacing regression passed,
+but actual car playback at the corrected rate still needs a focus grant and a
+fresh cast.
+
+## Last Mazda evidence, before the input build
 
 At approximately 11:46 PDT, the actual head unit identified itself as Visteon
 Connectivity Master Unit, `MAZ_CMU-150`, firmware `70.00.367`, year 2017.
-The Pi was connected to home Wi-Fi at `10.0.0.113`; AirPlay was advertised.
-USB/AOAP, authentication, service discovery and video channel 1 setup succeeded.
-The decrypted wire capture contains:
+The Pi joined home Wi-Fi at `10.0.0.113` and advertised AirPlay. USB/AOAP,
+authentication, service discovery and video channel 1 setup succeeded:
 
 | Direction | Message | Result |
 | --- | --- | --- |
 | Pi → car | Setup `80 00 08 03`, flags `0x0b` | H.264 setup requested |
 | Car → Pi | SetupResponse `80 03 08 02 10 04 18 00` | OK, max_unacked 4, config 0 |
 | Pi → car | FocusRequest `80 07 10 01 18 04`, flags `0x0b` | PROJECTED requested |
-| Car → Pi | Pings | Session remains responsive |
+| Car → Pi | Pings | Session remained responsive |
 
-No focus indication or stream start followed in the captured session. The car
-showed greyed Android Auto and later an **Enable Android Auto** prompt. The Pi
-holds video until a projected focus grant; no setup fallback is justified
-because this car explicitly accepted setup 3. Device enablement and the
-first-connection parking-brake condition still need a user observation.
-Mazda documents those conditions in its
+No focus indication or stream start followed. The car showed greyed Android
+Auto and an **Enable Android Auto** prompt. Media correctly waited for projected
+focus. A setup fallback was not justified because the car explicitly accepted
+setup 3. A temporary comparison omitted the optional focus reason
+(`80 07 10 01`); it also received accepted setup without a focus grant. Reason 4
+was restored. Neither comparison established a Mazda remedy.
+
+Private evidence is in `.local/car-runtime/20261010-1143/`,
+`20261010-1147/` and `20261010-1155/`. The packet summary excludes personal device
+identifiers and media URLs. No verified generic phone-side consent-accept
+message is known. Prepared sensor and Bluetooth diagnostic helpers have not sent
+requests to the car. Device enablement and the first-connection parking-brake
+condition still need observation; Mazda documents them in its
 [Type A Android Auto guide](https://connect.mazda.com/en/smartphone-integration/android-auto/type-a/index.html).
+The new input build's Mac pass does not prove it resolves this car failure.
 
-Private evidence is under `.local/car-runtime/20261010-1143/` and
-`.local/car-runtime/20261010-1147/`. The latter contains the decrypted packet
-capture and a summary excluding personal device identifiers and media URLs.
+## Current power blocker
 
-A temporary compatibility comparison omitted the optional focus reason
-(`80 07 10 01`), which is valid in both legacy and current schemas. It also
-received accepted setup and no focus grant. The tested reason-4 build was
-restored; this experiment did not establish a Mazda remedy. Evidence is at
-`.local/car-runtime/20261010-1155/`.
+The boot beginning around **12:13 PDT** recorded repeated kernel
+`Undervoltage detected` / `Voltage normalised` warnings from **12:19 through
+12:33**. Read-only checks alternated between historical `get_throttled=0x50000`
+and active undervoltage/throttling `0x50005`. Active flags were still observed
+around 12:33 after QuickTime was paused and Mac AirPlay disconnected; temperature
+was about 45 °C and load 0.23. The cause has not been established and no wiring
+changes were made.
 
-At 11:39 PDT, after an unclean restart, the installed AAServer and pipeline
-script were zero bytes. The shutdown cause is unknown: FAT reported an unclean
-unmount, but no preceding boot journal survives and the current boot reports
-`get_throttled=0x0`. Both files were restored using file fsync, atomic rename
-and parent-directory fsync. The latest focus candidate was built on the Pi,
-installed the same way, and verified with real AAServer, UxPlay, encoder and
-injector processes. Service `active` alone did not establish that health.
-The final installer/startup protections were then deployed as 31 verified
-script/patch files with a durable backup at
-`/var/backups/airplay-aa-car-durable-bz3bnf8y/`; its `rollback.py` preserves the
-current valid phone identity and restores the validated focus binary.
+Eight subsequent samples at **12:33:36–12:33:50 PDT** measured EXT5V around
+**4.78–4.89 V** and reported only historical `0x50000` during that short window.
+That does not negate the preceding active flags and kernel warnings. This query
+found no mmc/ext4 errors. Private evidence is in
+`.local/power-check-20261010/{kernel,samples}.log`. Both strict AirPlay loops
+passed despite the warnings; power stability still needs resolution before car
+readiness.
 
-## Observed on the actual Pi and Mac
+## Startup persistence and recovery
 
-- Pi Wi-Fi SSH is reachable at `quirino@10.0.0.113`.
-- The Mac sees AAServer / TAGAAS. USB and AOAP accessory mode passed:
-  `12d1:107e` → `18d1:2d00`.
-- DHU negotiated Android Auto protocol 1.5 and TLS 1.2, reporting
-  `Verify returned: ok`. Certificate verification was not bypassed.
-- Two actual headless DHU screenshots decoded at **800×480**, **5.18 seconds** apart.
-  Visual inspection confirmed the mirrored Mac test clip, whose clock advanced
-  from **16.133 to 21.367 seconds**. Motion passed with mean absolute RGB
-  difference **10.2043** and **12.17%** changed pixels, above the required 0.75
-  and 1% thresholds.
-- The Pi selected `AIRPLAY_AA_SOURCE=airplay`; **16 newly appended H.264 receive
-  records** had advancing receive and packet timestamps during this run.
-- Every required `--expect-airplay` stage passed: USB, AOAP, protocol, TLS,
-  video, render, motion, AirPlay receive freshness, and Pi evidence collection.
-  The runner requested a clean DHU quit; there was no unexpected process exit.
+At 11:39 PDT, after an unclean restart, the installed AAServer and pipeline script
+were zero bytes. The shutdown cause is unknown: FAT reported an unclean unmount,
+no preceding boot journal survived and that boot reported `get_throttled=0x0`.
+Both files were restored with file fsync, atomic rename and parent-directory
+fsync. The installed durability protections have a backup at
+`/var/backups/airplay-aa-car-durable-bz3bnf8y/`. Service `active` alone is not
+evidence that the actual bridge processes are healthy.
 
-Clean full-loop evidence: `.local/bench/20261010-110729/summary.json`, `dhu.log`,
-`frame-1-735395b1.png`, `frame-2-735395b1.png`, and the Pi snapshots from that
-run. The session ran October 10, 2026, **18:07:29.617–18:07:43.424 UTC**
-(11:07:29–11:07:43 PDT), with native DHU `--headless`. Both captures show the
-full moving Mac clip without recursive DHU display feedback. Sustained
-operation and the actual car are still unverified.
+The Pi restarted at approximately **12:02 PDT** and recovered the earlier focus
+binary and pipeline intact, with real bridge processes running. This confirms
+that repair survived that restart. **The newly installed input build has not
+been rebooted.** Its cold-boot and reconnect acceptance remain pending.
 
-The first moving AirPlay pass is also recorded at
-`.local/bench/20261010-110453/` (**18:04:53–18:05:09 UTC**). It contained the
-same Mac test clip plus recursive feedback from the visible DHU window; the
-headless pass above provides clean confirmation.
+The boot audit found the bridge enabled in systemd, persistent dwc2 peripheral
+configuration and module loading, and the competing gadget service masked. The
+bridge recreates runtime directories/FIFO and missing idle video. It binds the
+initial gadget and waits for the host, so either power/cable order is intended to
+work. The earlier version started after the move and power cycle in the car,
+although automatic activation failed. Durable atomic replacement preserves each
+old or new file across an interrupted write; it is not a transaction across an
+entire deployment.
 
-The earlier Pi moving-SMPTE source passed independently at **17:42 UTC**:
-`.local/bench/20261010-104205/`. Both 800×480 frames contained SMPTE bars;
-motion measured **0.9999** mean absolute RGB difference and **4.43%** changed
-pixels. This separately established the Pi encoder-to-head-unit path.
+Keep the established GPIO power wiring: physical pins **2/4** and **GND 6**,
+supplied at **5 V** by the PD trigger from the official **27 W** brick. Pi USB-C
+is data to the Mac or car. Do not change EEPROM, reboot or manually unbind the
+gadget as a diagnostic step. Read UDC state at `/sys/class/udc/*/state`; prior
+configfs `UDC` access hung.
 
-## Installed corrections and current mode
+## Remaining acceptance
 
-A current signed phone identity and matching key have been validated locally
-and on the Pi. Its certificate verifies against the independently extracted DHU
-Google Automotive Link root, and expires **December 9, 2026, 18:39:03 UTC**.
-See [certificate provenance and installation](../certs/README.md).
-The pair and Python/pipeline fixes were installed on the Pi at 17:29 UTC. The
-old script/config/certificate backup is
-`/var/backups/airplay-aa-bench-20261010T172906Z.pkeUkV/`; it predates the correct
-phone identity and must not restore the rejected certificate into service.
+1. Resolve the observed undervoltage and verify stable power.
+2. Test the installed input build in the parked Mazda, recording real input
+   binding, setup, focus grant and moving video. Resolve the enablement/focus
+   failure from actual responses rather than inventing consent or motion state.
+3. Verify sustained playback, corrected HLS pacing, USB reconnect and cold boot
+   on the installed build.
 
-The installed AAServer includes bounded FunctionFS startup, compatibility with
-the DHU's omitted video `media_type`, strict setup-response parsing and phone
-focus negotiation. Its SHA-256 is
-`8dad2825e924fd6765fdc8536f66ea5b0b9e568082b206da34e3f75cb6561c70`.
-The previous video-transport binary is backed up at
-`/var/backups/airplay-aa-binary-0MKZjbkR/`; it lacks the new focus behavior.
-
-Earlier runs recorded a rejected head-unit identity (`20261010-101612`),
-startup `ESHUTDOWN` (`20261010-102910` and `20261010-102933`), then successful
-authentication with failed service discovery (`20261010-103155`). Those failures
-are superseded by the authenticated moving-video pass above.
-
-Earlier AirPlay runs captured the Mac's static privacy shield
-(`20261010-105317`) or had no fresh mirrored H.264 input (`20261010-105730`).
-The runner rejected those attempts for missing nonblank/moving video or fresh
-input. The later moving-clip and headless runs meet those checks.
-
-The source preserves the deployed HLS/shared-memory pipeline, adds a moving
-SMPTE bench source, repairs H.264 access-unit framing and idle recovery, and
-includes a DHU runner that requires decoded nonblank moving frames.
-**39 video/bench/pacing/installation software tests passed**, including actual Linux
-FIFO/SEQPACKET transport and FFmpeg decoding. A compiled harness using the
-production focus handler passed strict compilation, ASan/UBSan and independent
-review. It verifies accepted/rejected setup, focus-before-start ordering,
-native-focus pause, duplicates and concurrent media. USB startup and discovery
-compatibility tests also passed. These are separate from hardware evidence.
-
-HLS playback now uses `shmsink sync=true`, pacing file/network-decoded frames to
-their timestamps. Mirroring retains `sync=false` because it is already a live
-input. The previous HLS path produced roughly 150–190 access units per second
-on the car instead of 30. The production sink-bin pacing regression passed;
-live car playback at the new rate still awaits focus and a fresh cast.
-
-The Pi was restored to `AIRPLAY_AA_SOURCE=airplay` at approximately **10:42:50
-PDT**. UxPlay's **Pi AirPlay AA** advertisement was confirmed through Bonjour.
-The moving full-loop run above subsequently confirmed that mirrored Mac video
-reached the DHU over USB.
-
-## Acceptance plan
-
-1. **Completed:** deploy the USB startup and service-discovery corrections,
-   with a binary rollback.
-2. **Completed:** real Pi → USB → DHU pass with `--expect-smpte`, including
-   authentication, nonblank SMPTE bars, and changing decoded frames.
-3. **Completed:** cast moving Mac test content to **Pi AirPlay AA**, pass
-   `--expect-airplay --pi-host quirino@10.0.0.113`, and visually confirm that the
-   clip returns through USB.
-4. **Completed:** leave the bridge in AirPlay mode and record both hardware
-   passes, installed corrections, rollback, and remaining car verification.
-5. **Completed:** repeat with native headless DHU and visually confirm the full
-   moving Mac clip without recursive display feedback.
-6. **Completed:** identify the Mac acceptance gap and remove its console focus
-   override; implement and test phone-driven focus and paced HLS playback.
-7. **Pending:** repeat the hardware Mac loop with automatic focus.
-8. **In progress:** resolve Mazda activation, then confirm decoded moving video,
-   live HLS pacing, reconnect and boot behavior in the parked car.
-
-The complete local loop is Mac AirPlay → Pi UxPlay → H.264 encoder/FIFO/injector
-→ USB Android Auto → Mac DHU. AirPlay is the input transport; the car-facing
-transport in this project is Android Auto.
-
-## Wiring and recovery constraints
-
-The final boot audit found the bridge enabled in systemd, persistent dwc2
-peripheral configuration and module loading, and the competing USB gadget
-service masked. The bridge recreates its runtime directories/FIFO; the injector
-regenerates a missing idle video. No required startup installation is missing.
-The software binds its initial gadget and waits for the host, so powering before
-connecting USB is not a protocol requirement. Either order is intended to work.
-The earlier deployed service did start after the move to the car and a power
-cycle. Startup persistence is established for that version, but automatic
-activation failed. Cold boot/reconnect acceptance with the new focus build
-remains pending. Managed file updates now use durable atomic replacement;
-this preserves each old or new file across an interrupted write, not a
-transaction across an entire deployment.
-
-Keep the established GPIO power wiring: physical pins 2/4 and GND 6, supplied
-at 5 V by the PD trigger from the official 27 W brick. Pi USB-C is data to the
-Mac or car. Do not change EEPROM, reboot, or manually unbind the gadget as a
-diagnostic step. Read UDC state at `/sys/class/udc/*/state`; prior configfs `UDC`
-access hung.
-
-September's recommendation to install the long-lived DHU certificate on the
-phone was incorrect and is superseded by the phone-role validation above.
+AirPlay supplies the input video; Android Auto carries the car-facing video.

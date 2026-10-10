@@ -1,0 +1,14 @@
+// Distributed under GPLv3 only as specified in repository's root LICENSE file
+// Preserve all numeric keycodes advertised by current head units, including
+// codes absent from AACS's old ButtonCode enum. The wire field stays unchanged.
+syntax = "proto2";
+package tag.aas;
+import "TouchConfig.proto";
+
+message InputChannel {
+  repeated int32 available_buttons = 1;
+  optional TouchConfig screen_config = 2;
+}
+message InputChannelHandshakeRequest {
+  repeated int32 available_buttons = 1;
+}

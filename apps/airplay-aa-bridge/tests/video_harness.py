@@ -94,9 +94,13 @@ class MediaPacket:
 class VideoHarness:
     """One real injector process connected to a fake, packet-oriented AA server."""
 
-    def __init__(self, idle: bytes, *, pre_ready_video: bytes = b""):
+    def __init__(self, idle: bytes, *, pre_ready_video: bytes = b"",
+                 input_channel: int = 2, input_status: int = 0):
         self.idle = idle
         self.pre_ready_video = pre_ready_video
+        self.input_channel = input_channel
+        self.input_status = input_status
+        self.input_registered = False
         self.temp = tempfile.TemporaryDirectory(prefix="aa-video-")
         self.path = Path(self.temp.name)
         self.socket_path = self.path / "aa.sock"
@@ -167,6 +171,14 @@ class VideoHarness:
             if producer_errors:
                 raise producer_errors[0]
         self.peer.send(bytes([3]))
+        if self.peer.recv(16) != bytes([0, 1, 0]):
+            raise AssertionError("injector did not discover input before starting video")
+        self.peer.send(bytes([self.input_channel]))
+        if self.input_channel not in (0, 255):
+            if self.peer.recv(16) != bytes([1, self.input_channel, 0, 0]):
+                raise AssertionError("injector did not register input before starting video")
+            self.input_registered = True
+            self.peer.send(bytes([self.input_channel, 0, 0x80, 3, 8, self.input_status]))
         self.peer.settimeout(0.1)
         self.reader = threading.Thread(target=self._capture, daemon=True)
         self.reader.start()

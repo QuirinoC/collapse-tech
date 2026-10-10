@@ -52,6 +52,64 @@ def get_video_channel_request() -> bytes:
     return AAPacket(PacketType.GET_CHANNEL_BY_TYPE, ChannelType.VIDEO, 0, b"").to_bytes()
 
 
+def get_input_channel_request() -> bytes:
+    return AAPacket(PacketType.GET_CHANNEL_BY_TYPE, ChannelType.INPUT, 0, b"").to_bytes()
+
+
+def input_registration_packet(channel: int) -> bytes:
+    # AACS registers an input client when it receives RawData on this channel.
+    # The handler then opens/binds the advertised controls; this is not an
+    # unsolicited button press or a forged head-unit reply.
+    return AAPacket(PacketType.RAW_DATA, channel, 0, b"\x00").to_bytes()
+
+
+def input_binding_status(payload: bytes) -> Optional[int]:
+    """Read required varint status1 from a real 0x8003 binding response."""
+    if payload[:2] != b"\x80\x03":
+        return None
+    data, position, status = payload[2:], 0, None
+
+    def varint() -> int:
+        nonlocal position
+        value = 0
+        for shift in range(0, 70, 7):
+            if position >= len(data):
+                raise ValueError("truncated varint")
+            byte = data[position]
+            position += 1
+            if shift == 63 and byte > 1:
+                raise ValueError("oversized varint")
+            value |= (byte & 127) << shift
+            if byte < 128:
+                return value
+        raise ValueError("oversized varint")
+
+    try:
+        while position < len(data):
+            tag = varint()
+            field, wire = tag >> 3, tag & 7
+            if not field:
+                return None
+            if wire == 0:
+                value = varint()
+                if field == 1:
+                    status = value
+            elif field == 1:
+                return None
+            elif wire in (1, 5):
+                position += 8 if wire == 1 else 4
+            elif wire == 2:
+                length = varint()
+                position += length
+            else:
+                return None
+            if position > len(data):
+                return None
+    except ValueError:
+        return None
+    return status
+
+
 def media_indication(h264_au: bytes, *, first: bool = False, pts_us: Optional[int] = None) -> bytes:
     """Build AA media payload (without the outer AAServer packet header)."""
     if first or pts_us is None:

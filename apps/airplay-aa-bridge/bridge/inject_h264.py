@@ -20,11 +20,14 @@ import stat
 import sys
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from aa_framing import (
     annex_b_nals,
+    get_input_channel_request,
     get_video_channel_request,
+    input_binding_status,
+    input_registration_packet,
     is_idr_au,
     media_indication,
     nal_type,
@@ -108,6 +111,54 @@ def resolve_video_channel(sock: socket.socket) -> int:
         raise RuntimeError(f"video channel not ready yet (got {channel})")
     LOG.info("video channel id=%d", channel)
     return channel
+
+
+def initialize_input_channel(
+    sock: socket.socket,
+    drain: Callable[[], object],
+    *,
+    query_timeout: float = 1.0,
+    binding_timeout: float = 4.5,
+) -> bool:
+    """Automatically open/bind HU controls without starving live FIFO input."""
+    def receive(deadline: float) -> Optional[bytes]:
+        while time.monotonic() < deadline:
+            drain()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            readable, _, _ = select.select([sock], [], [], min(0.05, remaining))
+            if readable:
+                packet = sock.recv(64 * 1024)
+                if not packet:
+                    raise RuntimeError("AAServer closed during automatic input setup")
+                return packet
+        return None
+
+    sock.send(get_input_channel_request())
+    deadline = time.monotonic() + query_timeout
+    channel = None
+    while (packet := receive(deadline)) is not None:
+        if len(packet) == 1:
+            channel = packet[0]
+            break
+    if channel in (None, 0, 255):
+        LOG.warning("input channel unavailable (%s); continuing video", channel)
+        return False
+    LOG.info("automatically binding input channel id=%d", channel)
+    sock.send(input_registration_packet(channel))
+    deadline = time.monotonic() + binding_timeout
+    while (packet := receive(deadline)) is not None:
+        if len(packet) < 4 or packet[0] != channel or packet[2:4] != b"\x80\x03":
+            continue  # Drain real input/control events while awaiting binding.
+        status = input_binding_status(packet[2:])
+        if status == 0:
+            LOG.info("input binding accepted on channel %d", channel)
+            return True
+        LOG.warning("input binding rejected or malformed (status=%s); continuing video", status)
+        return False
+    LOG.warning("input binding did not complete within %.1fs; continuing video", binding_timeout)
+    return False
 
 
 def ensure_fifo(path: Path) -> None:
@@ -394,6 +445,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     assert aa_sock is not None and channel is not None
 
     try:
+        try:
+            initialize_input_channel(aa_sock, lambda: drain_fifo(fifo_fd))
+        except (OSError, RuntimeError) as exc:
+            LOG.error("automatic input setup disconnected: %s", exc)
+            os.close(fifo_fd)
+            return 1
         pump(aa_sock, channel, fifo_path, idle_au, fps=args.fps,
              idle_timeout=args.idle_timeout, fifo_fd=fifo_fd)
     finally:

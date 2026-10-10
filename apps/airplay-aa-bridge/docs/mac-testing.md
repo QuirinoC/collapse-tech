@@ -44,18 +44,30 @@ unbounded remedy for a missing USB device. Diagnose the missing device first.
 From this directory on the Mac, run:
 
 ```bash
-./scripts/test-e2e.sh --pi-host quirino@10.0.0.113 --expect-smpte
+./scripts/test-e2e.sh --headless --expect-auto-start --expect-smpte --pi-host quirino@10.0.0.113
 ```
 
-`--pi-host` is optional for the pattern test and required with `--expect-airplay`.
-It collects read-only Pi evidence and does not deploy files or restart the Pi.
-Use the Pi's actual reachable address.
+`--expect-auto-start` requires `--pi-host`. It collects read-only Pi evidence
+and does not deploy files or restart the Pi. Use the actual reachable address.
+Without automatic-start checks, `--pi-host` is optional for a pattern transport
+test; that narrower test cannot establish automatic activation.
 
 The runner writes a timestamped folder under `.local/bench/`, containing the DHU
 log, USB inventory, optional Pi snapshots, decoded screenshots, and `summary.json`.
-It fails early when no Pi USB gadget is visible. A complete pass requires USB/AOAP,
-TLS/video-session evidence and two nonblank decoded screens that change. Merely
-seeing `12d1:107e`, a Unix socket, or a black DHU window is insufficient.
+It fails early when no Pi USB gadget is visible. The strict pass requires
+USB/AOAP, TLS/video-session evidence, real successful input binding before video
+opens, phone-requested projected focus and two nonblank decoded screens that
+change. Merely seeing `12d1:107e`, a Unix socket, or a black DHU window is
+insufficient.
+
+Automatic-start evidence uses bounded before/after log offsets and inode checks.
+It requires one fresh authentication session, actual input open/binding status
+0, and video setup acceptance → Pi PROJECTED request → head-unit projected grant
+(mode 1 or 4) → StartIndication on one video channel. An `unrequested=1` grant
+is valid after the Pi request. Missing, rotated or truncated logs, rejected
+responses and ambiguous multiple sessions fail this proof; rerun with fresh
+evidence rather than accepting old markers. A console focus override also
+invalidates automatic-start acceptance.
 
 The runner removes inherited certificate-bypass injection before launching DHU.
 This exercises the head unit's actual TLS validation. Upstream AAServer's peer
@@ -88,14 +100,15 @@ H.264 packets. Use macOS screen/window mirroring. On iPhone, use **Control Cente
 → Screen Mirroring → Pi AirPlay AA** and then play content that supports mirroring.
 
 ```bash
-./scripts/test-e2e.sh --expect-airplay --pi-host quirino@10.0.0.113
+./scripts/test-e2e.sh --headless --expect-auto-start --expect-airplay --pi-host quirino@10.0.0.113
 ```
 
 This requires the explicit `AIRPLAY_AA_SOURCE=airplay` config line, fresh
 mirrored H.264 receive records appended during the current run, successful USB
 authentication, and changing nonblank decoded DHU frames. Visually compare the
-saved frames with the playing source. A static desktop or macOS's **Choose to
-Mirror or Extend Display** screen cannot pass. The pattern test proves the
+saved frames with the playing source. Motion checks do not identify the content;
+a desktop or macOS's **Choose to Mirror or Extend Display** screen is insufficient
+evidence of the playing clip. The pattern test proves the
 encoder-to-head-unit path; this second test additionally exercises UxPlay and
 the AirPlay transport.
 
@@ -106,9 +119,9 @@ For an interactive emulator window and console:
 ```
 
 The acceptance runner relies on the phone's focus request and does not issue
-`focus video on`. The earlier October 10 transport passes did issue that
-command, which concealed the missing automatic activation in the car. A fresh
-hardware pass without it remains required.
+`focus video on`. Strict automatic-start hardware passes are recorded below.
+Earlier October 10 transport runs supplied that console command and did not
+establish automatic activation. Use console focus commands only for diagnosis.
 
 For a screenshot in an interactive diagnostic session:
 
@@ -125,10 +138,16 @@ screenshot /absolute/path/headunit.png
   and `auth complete`. Treat certificate errors as failures.
 - **Service discovery:** Pi logs `got service discovery response`; injector resolves
   `video channel id=N`, with N neither 0 nor 255.
+- **Input setup:** injector logs `automatically binding input channel` followed
+  by `input binding accepted`; AAServer logs actual channel-open and binding
+  status 0. Missing, rejected or timed-out replies must not count as success.
 - **Setup/focus:** Pi logs accepted setup, PROJECTED focus request, a projected
   focus indication (mode 1 or 4), then StartIndication. Rejected/missing setup
   and native focus must hold media. A console focus override is not acceptance.
 - **Video:** DHU screenshots actually decode nonblank moving content.
+- **Power:** inspect kernel undervoltage warnings and `vcgencmd get_throttled`.
+  The October 10 strict passes succeeded despite repeated undervoltage, which
+  still needs resolution before car readiness; see [STATUS.md](STATUS.md).
 
 Pi logs are `/var/log/airplay-aa/{aaserver,uxplay,inject,test-pattern}.log`.
 Check UDC state only at `/sys/class/udc/*/state`. Earlier remote reads/writes of
@@ -145,36 +164,46 @@ media payloads, and decodes them with FFmpeg. It detects video framing and recov
 regressions. It does not exercise UxPlay, AAServer, USB, AOAP or TLS and cannot
 substitute for the DHU hardware test.
 
+```bash
+./scripts/test-aacs-local.sh
+```
+
+This compiles the production C++ USB-startup, discovery, input and video-handler
+harnesses with strict warnings. It requires Boost headers, a C++14 compiler,
+`protoc` and protobuf available through `pkg-config`; newer protobuf may require
+C++17 for its generated-code tests. These software checks do not establish
+hardware focus, car compatibility or reboot behavior.
+
 ## Current evidence
 
-The October 10, 2026 headless run at **11:07:29–11:07:43 PDT**
-(**18:07:29.617–18:07:43.424 UTC**) **passed the complete Mac AirPlay → Pi
-UxPlay → encode/inject → USB Android Auto → Mac DHU loop**. Every required
-`--expect-airplay` stage passed, including protocol 1.5, TLS 1.2, decoded video,
-motion, and fresh AirPlay input. DHU reported `Verify returned: ok`; no TLS
-bypass was enabled.
+On October 10, 2026, the installed input/focus build passed the strict pattern
+test at **12:23:49–12:24:03 PDT**, followed by two headless full AirPlay loops:
 
-Visual inspection of two actual **800×480** DHU screenshots confirmed the Mac
-test clip with its clock advancing **16.133 → 21.367 seconds**. The frames were
-5.18 seconds apart; mean absolute RGB difference was **10.2043**, with **12.17%**
-changed pixels. Pi evidence confirmed `AIRPLAY_AA_SOURCE=airplay` and **16 fresh
-H.264 receive records** with advancing timestamps. DHU quit cleanly at the
-runner's request. Evidence is in `.local/bench/20261010-110729/`, including
-`summary.json`, `dhu.log`, Pi snapshots, and `frame-{1,2}-735395b1.png`.
+| Evidence directory | Decoded moving frames | Visual source confirmation |
+| --- | --- | --- |
+| `.local/bench/20261010-122751/` | 800×480; 5.03 s separation; RGB difference 5.492; 5.74% changed pixels | QuickTime clock 6.8 → 16.9 s, with desktop surroundings |
+| `.local/bench/20261010-123037/` | 800×480; 5.01 s separation; RGB difference 21.3029; 22.66% changed pixels | Fullscreen QuickTime clock 15.433 → 17.933 s, with macOS disk-notice overlays |
 
-Native DHU `--headless` kept the decoder window out of the mirrored source.
-Both captures show the full moving clip without recursive display feedback.
-The earlier visible-DHU AirPlay pass remains recorded in
-`.local/bench/20261010-110453/`.
+Both full-loop runs passed every required
+`--headless --expect-auto-start --expect-airplay` stage. Each captured fresh real
+input channel 3 open/binding status 0 before video channel 2 opened, accepted
+setup status 2, a Pi PROJECTED request, a head-unit mode-1 grant and
+StartIndication. Each collected 16 fresh mirrored H.264 records with advancing
+timestamps. DHU reported protocol 1.5 and `Verify returned: ok`, with no TLS
+bypass or console focus override, and quit cleanly. Native `--headless` kept
+the DHU decoder window out of the mirrored source.
 
-The Pi moving-SMPTE source also passed at **10:42 PDT / 17:42 UTC**, with two
-800×480 bar-pattern frames, mean absolute RGB difference **0.9999**, and **4.43%**
-changed pixels. That independent source-to-USB evidence is in
-`.local/bench/20261010-104205/`. See [STATUS.md](STATUS.md) for the installed
-binary, certificate expiry, and rollback.
+Visual inspection confirmed the moving source in both runs. Desktop surroundings
+and disk-notice overlays are presentation limits; these captures do not establish
+unobscured fullscreen playback. Logs alone cannot identify the source pixels.
+The earlier unobscured fullscreen evidence at `.local/bench/20261010-110729/`
+used console focus and remains transport-only evidence.
 
-Pi Wi-Fi SSH is reachable at `quirino@10.0.0.113`. The tested fixes are installed.
-The Pi returned to `AIRPLAY_AA_SOURCE=airplay` at about 10:42:50 PDT, and Bonjour
-confirmed **Pi AirPlay AA**. It remains in AirPlay mode. Sustained operation and
-the actual car have not been verified. Audio remains disabled; these passes
-verify video.
+The tested build is installed; the Pi remains enabled and active in AirPlay
+mode. QuickTime was paused and Mac AirPlay disconnected after testing. See
+[STATUS.md](STATUS.md) for the binary hash, durable rollback, certificate expiry
+and observed undervoltage. The new build has not been rebooted or tested in the
+Mazda; earlier Mazda focus failure remains unresolved. Sustained operation also
+remains unverified. Two fresh DHU sessions prove repeated session startup, not
+physical USB cable reconnect or cold boot. Audio is disabled; these passes verify
+video.

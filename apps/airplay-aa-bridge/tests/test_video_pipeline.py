@@ -42,6 +42,7 @@ class VideoPipelineTests(unittest.TestCase):
 
     def test_fragmented_fifo_stream_decodes_every_frame(self):
         with VideoHarness(self.black) as bridge:
+            self.assertTrue(bridge.input_registered)
             bridge.wait_for(lambda packets: any(packet.au == self.black for packet in packets))
             bridge.write(self.blue.data, chunk_size=37)
             bridge.end_source()
@@ -130,6 +131,22 @@ class VideoPipelineTests(unittest.TestCase):
             duplicate = subprocess.run(bridge.command, capture_output=True, timeout=2)
             self.assertEqual(duplicate.returncode, 0)
             self.assertIn(b"another injector holds", duplicate.stderr)
+            bridge.write(self.blue.data)
+            bridge.end_source()
+            bridge.wait_for(lambda _: len(bridge.live) >= len(self.blue.frames))
+            self.assert_blue(bridge.live, len(self.blue.frames))
+
+    def test_missing_input_channel_still_decodes_video(self):
+        with VideoHarness(self.black, input_channel=255) as bridge:
+            self.assertFalse(bridge.input_registered)
+            bridge.write(self.blue.data)
+            bridge.end_source()
+            bridge.wait_for(lambda _: len(bridge.live) >= len(self.blue.frames))
+            self.assert_blue(bridge.live, len(self.blue.frames))
+
+    def test_rejected_input_binding_still_decodes_video(self):
+        with VideoHarness(self.black, input_status=1) as bridge:
+            self.assertTrue(bridge.input_registered)
             bridge.write(self.blue.data)
             bridge.end_source()
             bridge.wait_for(lambda _: len(bridge.live) >= len(self.blue.frames))
