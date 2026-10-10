@@ -100,6 +100,15 @@ transport in this project is Android Auto.
 
 ## Wiring and recovery constraints
 
+The final boot audit found the bridge enabled in systemd, persistent dwc2
+peripheral configuration and module loading, and the competing USB gadget
+service masked. The bridge recreates its runtime directories/FIFO; the injector
+regenerates a missing idle video. No required startup installation is missing.
+The software binds its initial gadget and waits for the host, so powering before
+connecting USB is not a protocol requirement. Either order is intended to work.
+A cold power cycle with the final binary and physical cable unplug/replug have
+not been exercised; include those in the parked-car acceptance trial.
+
 Keep the established GPIO power wiring: physical pins 2/4 and GND 6, supplied
 at 5 V by the PD trigger from the official 27 W brick. Pi USB-C is data to the
 Mac or car. Do not change EEPROM, reboot, or manually unbind the gadget as a

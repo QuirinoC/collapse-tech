@@ -20,6 +20,14 @@ Do not connect a PSU to that connector or change the established GPIO circuit.
 No EEPROM change, reboot, or manual UDC/gadget unbind is part of this bring-up.
 The existing service manages the USB gadget.
 
+The installed service and peripheral boot configuration are persistent. Runtime
+directories, the video FIFO and idle video are recreated after boot. There is no
+software requirement to power the Pi before attaching the USB data cable: the
+bridge waits for the head unit and handles endpoint enable during startup.
+Either order is intended to work, although a cold power cycle and physical
+cable reconnect with the final binary remain untested. Keep stable GPIO power
+and include startup with USB already attached in the parked-car trial.
+
 ## Check the phone identity before testing
 
 AAServer acts as the phone. Its certificate must have **O=CarService**, be
