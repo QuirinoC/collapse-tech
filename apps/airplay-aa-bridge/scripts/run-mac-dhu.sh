@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Launch Google Desktop Head Unit (DHU) against the Pi AAServer USB gadget.
 #
-# Findings (Mac mini arm64, 2026-09):
+# Bench findings (Mac mini arm64, 2026-10):
 # - No OpenAuto macOS/arm64 prebuild; Docker Desktop cannot USB-passthrough.
 # - DHU darwin-x64 (Rosetta) CAN complete AOAP with AAServer (12d1:107e → 18d1:2d00),
-#   version negotiation (phone 1.5), and TLS — then fails if AAServer still ships the
-#   expired CarService phone cert (notAfter 2022-08-24). Install the non-expired GAL
-#   engineering identity via install-dhu-certs.sh first.
+#   and version negotiation (phone 1.5). Authentication also requires a current,
+#   trusted PHONE identity with O=CarService. Validate it with check-phone-certs.sh
+#   and install via AIRPLAY_AA_CERT_DIR + install-certs.sh; the current candidate
+#   expires 2026-12-09 and needs renewal. install-dhu-certs.sh extracts HEAD-UNIT
+#   material only and must not supply AAServer's identity.
 # - Flag form MUST be `--usb TAGAAS` (not `-u=TAGAAS`, which searches for "=TAGAAS").
 set -euo pipefail
 
@@ -53,10 +55,12 @@ fi
 
 if ! ioreg -p IOUSB -w0 2>/dev/null | grep -q AAServer; then
   echo "WARN: no AAServer USB gadget seen yet."
-  echo "  On Pi: sudo systemctl restart airplay-aa-bridge"
-  echo "  Use a USB-C data cable into the Pi gadget port."
+  echo "  Keep GPIO power connected; connect Pi USB-C data to this Mac."
 fi
 
+# The old local setup contains ssl_bypass.dylib. Bench tests must exercise
+# the real head-unit certificate check, even if a shell inherited that shim.
+unset DYLD_INSERT_LIBRARIES DYLD_FORCE_FLAT_NAMESPACE
 export DYLD_LIBRARY_PATH="$DHU_DIR${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
 cd "$DHU_DIR"
 

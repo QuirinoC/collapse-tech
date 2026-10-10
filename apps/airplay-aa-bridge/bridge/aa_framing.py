@@ -15,6 +15,7 @@ For RawData video, payload is an Android Auto media message:
 from __future__ import annotations
 
 import struct
+import re
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import Optional
@@ -62,56 +63,75 @@ def raw_video_packet(channel: int, media_payload: bytes, *, specific: int = 0) -
     return AAPacket(PacketType.RAW_DATA, channel, specific, media_payload).to_bytes()
 
 
-def split_annex_b(buffer: bytes) -> tuple[list[bytes], bytes]:
-    """Split Annex-B bytestream into complete access units; return (aus, remainder).
+_START_CODE = re.compile(rb"\x00\x00(?:\x00)?\x01")
 
-    Uses start-code detection. Incomplete trailing AU stays in remainder.
+
+def annex_b_nals(data: bytes) -> list[bytes]:
+    """Return NAL units, retaining their Annex-B start codes."""
+    starts = list(_START_CODE.finditer(data))
+    return [data[start.start():starts[index + 1].start() if index + 1 < len(starts) else len(data)]
+            for index, start in enumerate(starts)]
+
+
+def nal_type(nal: bytes) -> Optional[int]:
+    start = _START_CODE.match(nal)
+    if start is None or start.end() >= len(nal):
+        return None
+    return nal[start.end()] & 0x1F
+
+
+def _first_mb_in_slice(payload: bytes) -> Optional[int]:
+    """Read the first unsigned Exp-Golomb field, or wait for more bytes."""
+    zeros = 0
+    bits = len(payload) * 8
+    while zeros < bits and not (payload[zeros // 8] & (1 << (7 - zeros % 8))):
+        zeros += 1
+    if zeros == bits or zeros > 31 or 2 * zeros + 1 > bits:
+        return None
+    value = 0
+    for bit in range(zeros + 1, 2 * zeros + 1):
+        value = (value << 1) | ((payload[bit // 8] >> (7 - bit % 8)) & 1)
+    return (1 << zeros) - 1 + value
+
+
+def split_annex_b(buffer: bytes, *, flush: bool = False) -> tuple[list[bytes], bytes]:
+    """Group the pipeline's progressive baseline H.264 into complete pictures.
+
+    AUD marks frame boundaries. For streams without AUD, a first slice with
+    first_mb_in_slice=0 starts a new picture. SPS/PPS/SEI preceding that picture
+    stay with it; multiple slices of one picture stay in the same AA packet.
+    The trailing picture remains buffered until the next boundary or FIFO EOF.
+    This fallback targets this project's x264 stream, not interlaced/FMO H.264.
     """
-    if not buffer:
-        return [], b""
-
-    # Find all start-code offsets
-    starts: list[int] = []
-    i = 0
-    n = len(buffer)
-    while i + 3 < n:
-        if buffer[i] == 0 and buffer[i + 1] == 0:
-            if buffer[i + 2] == 1:
-                starts.append(i)
-                i += 3
-                continue
-            if i + 3 < n and buffer[i + 2] == 0 and buffer[i + 3] == 1:
-                starts.append(i)
-                i += 4
-                continue
-        i += 1
-
+    starts = list(_START_CODE.finditer(buffer))
     if not starts:
-        return [], buffer
-
+        return [], b"" if flush else buffer
     aus: list[bytes] = []
-    for idx, start in enumerate(starts[:-1]):
-        aus.append(buffer[start : starts[idx + 1]])
-    remainder = buffer[starts[-1] :]
-    return aus, remainder
+    unit_start = starts[0].start()
+    have_slice = False
+    for index, start in enumerate(starts):
+        end = starts[index + 1].start() if index + 1 < len(starts) else len(buffer)
+        payload = buffer[start.end():end]
+        if not payload:
+            continue
+        kind = payload[0] & 0x1F
+        slice_start = _first_mb_in_slice(payload[1:]) if kind in (1, 2, 5) else None
+        # H.264 7.4.1.2.3: these prefix NALs belong to the following picture.
+        boundary = have_slice and (kind in (6, 7, 8, 9, 14, 15, 16, 17, 18)
+                                   or slice_start == 0)
+        if boundary:
+            aus.append(buffer[unit_start:start.start()])
+            unit_start = start.start()
+            have_slice = False
+        if kind in (1, 2, 5) and slice_start is not None:
+            have_slice = True
+    if flush:
+        if have_slice:
+            aus.append(buffer[unit_start:])
+        return aus, b""
+    return aus, buffer[unit_start:]
 
 
 def is_idr_au(au: bytes) -> bool:
     """True if Annex-B AU contains an IDR slice NAL (type 5)."""
-    i = 0
-    n = len(au)
-    while i + 4 < n:
-        if au[i : i + 4] == b"\x00\x00\x00\x01":
-            nal_type = au[i + 4] & 0x1F
-            if nal_type == 5:
-                return True
-            i += 5
-            continue
-        if au[i : i + 3] == b"\x00\x00\x01":
-            nal_type = au[i + 3] & 0x1F
-            if nal_type == 5:
-                return True
-            i += 4
-            continue
-        i += 1
-    return False
+    return any(nal_type(nal) == 5 for nal in annex_b_nals(au))

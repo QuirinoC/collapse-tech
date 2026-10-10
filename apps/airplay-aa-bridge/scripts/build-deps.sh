@@ -6,6 +6,12 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PREFIX="${AIRPLAY_AA_PREFIX:-/opt/airplay-aa}"
 SRC="${ROOT}/third_party"
 JOBS="$(nproc)"
+CERT_SRC="${AIRPLAY_AA_CERT_DIR:-$ROOT/certs}"
+
+# AAServer is the PHONE side. DHU's long-lived HEADUNIT certificate is not
+# accepted as a phone identity, even though its expiry is in the future.
+"$ROOT/scripts/check-phone-certs.sh" "$CERT_SRC"
+CERT_SRC="$(cd "$CERT_SRC" && pwd)"
 
 mkdir -p "$SRC" "$PREFIX"/{bin,libexec/aaserver,share}
 
@@ -47,6 +53,16 @@ echo "==> UxPlay (AirPlay2 receiver)"
 if [[ ! -d "$SRC/UxPlay" ]]; then
   git clone --depth 1 https://github.com/FDH2/UxPlay.git "$SRC/UxPlay"
 fi
+# YouTube HLS: keep the reverse (PTTH) socket when the phone answers FCUP
+# with HTTP/1.1. Otherwise the next playlist fetch dies with send error 88.
+if ! grep -q ptth_established "$SRC/UxPlay/lib/httpd.c"; then
+  patch -p0 -d "$SRC/UxPlay" < "$ROOT/patches/uxplay-ptth-keep.patch"
+fi
+# Preserve the deployed mirror/HLS headless sink bins for the shared-memory
+# encoder. Stock UxPlay -vs accepts an element name, not a complete pipeline.
+if ! grep -q AIRPLAY_AA_VIDEO_SINK_BIN "$SRC/UxPlay/renderers/video_renderer.c"; then
+  patch -p1 -d "$SRC/UxPlay" < "$ROOT/patches/uxplay-headless-sinks.patch"
+fi
 (
   cd "$SRC/UxPlay"
   mkdir -p build && cd build
@@ -59,9 +75,23 @@ echo "==> AACS AAServer (phone-side Android Auto over USB)"
 if [[ ! -d "$SRC/AACS" ]]; then
   git clone --recurse-submodules --depth 1 https://github.com/tomasz-grobelny/AACS.git "$SRC/AACS"
 fi
+# Preserve bounded channel-open/setup waits from the deployed video handler.
+cp "$ROOT/patches/AaCommunicator.h" "$ROOT/patches/UsbEndpointState.h" \
+  "$ROOT/patches/VideoChannelDescriptor.h" \
+  "$SRC/AACS/AAServer/include/"
+cp "$ROOT/patches/AaCommunicator.cpp" \
+  "$SRC/AACS/AAServer/src/AaCommunicator.cpp"
+cp "$ROOT/patches/ChannelHandler.h" \
+  "$SRC/AACS/AAServer/include/ChannelHandler.h"
+cp "$ROOT/patches/ChannelHandler.cpp" \
+  "$SRC/AACS/AAServer/src/ChannelHandler.cpp"
 # Apply AirPlay-AA video handler (no Snowmix; socket H.264 inject).
 cp "$ROOT/patches/VideoChannelHandler.cpp" \
   "$SRC/AACS/AAServer/src/VideoChannelHandler.cpp"
+# Current DHU omits the optional codec on its video media descriptor.
+for proto in MediaStreamType MediaChannel VideoConfig; do
+  cp "$ROOT/patches/$proto.proto" "$SRC/AACS/proto/$proto.proto"
+done
 # CD-ROM mass-storage LUN must be ro=1 on modern kernels (else Invalid parameter).
 cp "$ROOT/patches/MassStorageFunction.cpp" \
   "$SRC/AACS/AAServer/src/MassStorageFunction.cpp"
@@ -91,17 +121,11 @@ export LD_LIBRARY_PATH="$PREFIX/lib:${LD_LIBRARY_PATH:-}"
   cmake --build . --target AAServer -j"$JOBS"
   run_root install -d "$PREFIX/libexec/aaserver"
   run_root install -m 755 AAServer/AAServer "$PREFIX/libexec/aaserver/AAServer"
-  # Prefer repo GAL engineering certs (valid through 2048). Stock AACS
-  # android_auto.crt expired 2022-08-24 and breaks HU/DHU TLS.
-  CERT_SRC="$ROOT/certs"
-  if [[ ! -f "$CERT_SRC/android_auto.crt" ]]; then
-    CERT_SRC="AAServer"
-  fi
   run_root install -m 644 "$CERT_SRC/android_auto.crt" "$PREFIX/libexec/aaserver/"
-  run_root install -m 644 "$CERT_SRC/android_auto.key" "$PREFIX/libexec/aaserver/"
+  run_root install -m 600 "$CERT_SRC/android_auto.key" "$PREFIX/libexec/aaserver/"
   if [[ -d ../AAServer/ssl ]]; then
     run_root install -m 644 "$CERT_SRC/android_auto.crt" ../AAServer/ssl/
-    run_root install -m 644 "$CERT_SRC/android_auto.key" ../AAServer/ssl/
+    run_root install -m 600 "$CERT_SRC/android_auto.key" ../AAServer/ssl/
   fi
   if [[ -f AAServer/dhparam.pem ]]; then
     run_root install -m 644 AAServer/dhparam.pem "$PREFIX/libexec/aaserver/"

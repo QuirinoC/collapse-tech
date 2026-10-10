@@ -1,7 +1,8 @@
-# CAR PATH ONLY
+# Test path
 
-**Do not** reinstall UTM, download Ubuntu ISOs, create VMs, or set up OpenAuto / DHU / desktop-head-unit for this project.
+The October 10, 2026 user request explicitly reopens local end-to-end testing.
+Use the existing native Mac DHU with the Pi over USB; see [mac-testing.md](mac-testing.md).
+Prove moving decoded video locally before returning to the car.
 
-Active path: **Pi → car Android Auto USB** (see `car-bringup.md`).
-
-Note: the Pi may be **offline / unreachable** right now — do not invent Mac/VM workarounds; wait for the car bring-up path.
+The earlier car-only instruction is historical and no longer governs this work.
+Do not reinstall UTM or build a VM for the existing Mac DHU path.

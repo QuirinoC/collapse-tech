@@ -1,0 +1,19 @@
+// Distributed under GPLv3 only as specified in AACS repository LICENSE.
+// Field 1 is optional on current DHU: video capabilities identify the stream.
+// https://github.com/mrmees/open-android-auto/blob/main/oaa/av/AVChannelData.proto
+syntax="proto2";
+
+package tag.aas;
+
+import "MediaStreamType.proto";
+import "AudioType.proto";
+import "AudioConfig.proto";
+import "VideoConfig.proto";
+
+message MediaChannel
+{
+    optional MediaStreamType.Enum media_type = 1;
+    optional AudioType.Enum audio_type = 2;
+    repeated AudioConfig audio_configs = 3;
+    repeated VideoConfig video_configs = 4;
+}
