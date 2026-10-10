@@ -293,6 +293,7 @@ def run_dhu(args: argparse.Namespace, summary: dict, out: Path, ffmpeg: str) -> 
         command.append("--headless")
     summary["session"] = {"command": command, "duration_limit_seconds": args.duration,
                           "headless": args.headless,
+                          "console_video_focus_override": False,
                           "tls_bypass_environment_cleared": cleared,
                           "tls_bypass_enabled": False, "screenshots": [], "console_commands": []}
     master, slave = pty.openpty()
@@ -348,7 +349,8 @@ def run_dhu(args: argparse.Namespace, summary: dict, out: Path, ffmpeg: str) -> 
                 if authenticated and ready_at is None:
                     ready_at = time.monotonic()
                     next_capture = ready_at + 3
-                    send("focus video on")
+                    # The phone must request projection itself. Granting focus
+                    # here hid a production stall on passive car head units.
                 now = time.monotonic()
                 if next_capture is not None and now >= next_capture and len(requested) < 4:
                     path = out / f"frame-{len(requested) + 1}-{summary['run_id']}.png"

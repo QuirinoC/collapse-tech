@@ -117,15 +117,18 @@ wait_for_shm() {
 # shmsrc does not carry caps (GStreamer 1.26): its pad is ANY, and a
 # videoconvert/videoscale/videorate immediately after shmsrc returns
 # not-negotiated (-4). That was the 13:50 companion death. HLS and mirror
-# caps are normalized in SINK_BIN (those elements) before the socket.
+# caps are normalized in the sink bins before the socket.
 # The companion only declares this exact raw video, and restarts if it exits.
 # 800x480 I420 is 576000 bytes/frame; the shm area is page-aligned.
 SHM_SIZE=33554432
 RAW_CAPS="video/x-raw,format=I420,width=${AIRPLAY_AA_WIDTH},height=${AIRPLAY_AA_HEIGHT},framerate=${AIRPLAY_AA_FPS}/1"
-SINK_BIN="videoconvert ! videoscale ! videorate skip-to-first=true ! ${RAW_CAPS} ! shmsink socket-path=${SHM_SOCKET} wait-for-connection=false sync=false shm-size=${SHM_SIZE}"
+SINK_BIN="videoconvert ! videoscale ! videorate skip-to-first=true ! ${RAW_CAPS} ! shmsink socket-path=${SHM_SOCKET} wait-for-connection=false shm-size=${SHM_SIZE}"
 # HLS playbin (AIRPLAY_AA_HLS_SINK) and mirror/jpeg (AIRPLAY_AA_VIDEO_SINK_BIN).
-export AIRPLAY_AA_HLS_SINK="${SINK_BIN}"
-export AIRPLAY_AA_VIDEO_SINK_BIN="${SINK_BIN}"
+# Downloaded HLS frames must follow their timestamps; sync=false would decode
+# buffered video as fast as possible and feed the companion far above 30 fps.
+# Mirroring is already paced by the sender and keeps its low-latency sink.
+export AIRPLAY_AA_HLS_SINK="${SINK_BIN} sync=true"
+export AIRPLAY_AA_VIDEO_SINK_BIN="${SINK_BIN} sync=false"
 # -vs element name only keeps autovideosink off. The bins above are the real sink.
 # Do not pass -vs 0 (that disables all video, including HLS).
 VSINK="shmsink"

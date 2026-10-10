@@ -10,6 +10,8 @@ fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PREFIX=/opt/airplay-aa
+ATOMIC_INSTALL="$ROOT/scripts/atomic_install.py"
+[[ -s "$ATOMIC_INSTALL" ]] || { echo "Missing durable installer: $ATOMIC_INSTALL" >&2; exit 1; }
 
 # Reject wrong-role, expired, or mismatched credentials before boot/service edits.
 # The legacy bundled DHU identity belongs to a head unit, not this phone endpoint.
@@ -52,8 +54,11 @@ PY
 # Current Pi OS images already contain dtoverlay=dwc2,dr_mode=host under
 # [cm5]. That makes the USB-C port a host, so a data cable never enumerates.
 # Rewrite every dwc2 overlay to peripheral, and ensure [all] has one too.
-python3 - "$BOOT_CFG" <<'PY'
+python3 - "$BOOT_CFG" "$ROOT/scripts" <<'PY'
 import re, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[2])
+from atomic_install import atomic_write
 path = sys.argv[1]
 lines = open(path).read().splitlines()
 section = "all"
@@ -99,15 +104,14 @@ if not seen_all_peripheral:
     print("added dtoverlay=dwc2,dr_mode=peripheral under [all]", file=sys.stderr)
 
 if changed:
-    open(path, "w").write("\n".join(out) + "\n")
+    atomic_write(Path(path), ("\n".join(out) + "\n").encode())
     print("CHANGED")
 else:
     print("UNCHANGED")
 PY
 echo "USB gadget overlay in $BOOT_CFG (reboot required if it changed)."
 
-install -d /etc/modules-load.d
-cat >/etc/modules-load.d/usb-gadget.conf <<'EOF'
+python3 "$ATOMIC_INSTALL" - /etc/modules-load.d/usb-gadget.conf --mode 644 <<'EOF'
 # AirPlay-AA bridge: USB gadget stack (must not be empty)
 dwc2
 libcomposite
@@ -125,7 +129,14 @@ for candidate in /boot/firmware/cmdline.txt /boot/cmdline.txt; do
 done
 if [[ -n "$CMDLINE" ]] && ! grep -q 'modules-load=dwc2' "$CMDLINE"; then
   # Append modules-load without breaking the single-line cmdline.
-  sed -i 's/$/ modules-load=dwc2/' "$CMDLINE"
+  python3 - "$CMDLINE" "$ROOT/scripts" <<'PY'
+from pathlib import Path
+import sys
+sys.path.insert(0, sys.argv[2])
+from atomic_install import atomic_write
+path = Path(sys.argv[1])
+atomic_write(path, path.read_bytes().rstrip(b"\r\n") + b" modules-load=dwc2\n")
+PY
   echo "Updated $CMDLINE"
 fi
 
@@ -138,22 +149,20 @@ modprobe -r g_ether 2>/dev/null || true
 
 
 echo "==> Installing project files to $PREFIX"
-install -d "$PREFIX"/{scripts,bridge,config,patches,docs,systemd}
-install -d /etc/airplay-aa /var/run/airplay-aa /var/log/airplay-aa
+install -d /var/run/airplay-aa /var/log/airplay-aa
 # Copy project files without dependency cache or ignored bench/research artifacts.
-shopt -s dotglob nullglob
-for item in "$ROOT"/*; do
-  base="$(basename "$item")"
-  [[ "$base" == "third_party" || "$base" == ".local" || "$base" == ".git" || "$base" == "certs" ]] && continue
-  cp -a "$item" "$PREFIX/"
-done
-install -d "$PREFIX/certs"
-if [[ "$CERT_SRC" != "$PREFIX/certs" ]]; then
-  install -m 644 "$CERT_SRC/android_auto.crt" "$PREFIX/certs/android_auto.crt"
-  install -m 600 "$CERT_SRC/android_auto.key" "$PREFIX/certs/android_auto.key"
+if [[ "$ROOT" != "$PREFIX" ]]; then
+  python3 "$ATOMIC_INSTALL" "$ROOT" "$PREFIX" --tree \
+    --exclude third_party --exclude .local --exclude .git --exclude certs \
+    --exclude __pycache__ --exclude .pytest_cache --exclude '*.pyc' \
+    --exclude '*.log' --exclude '*.pcap'
 fi
-install -m 644 "$ROOT/config/bridge.env" /etc/airplay-aa/bridge.env
-chmod +x "$PREFIX"/scripts/*.sh "$PREFIX"/bridge/*.py
+if [[ "$CERT_SRC" != "$PREFIX/certs" ]]; then
+  python3 "$ATOMIC_INSTALL" "$CERT_SRC/android_auto.crt" "$PREFIX/certs/android_auto.crt" --mode 644
+  python3 "$ATOMIC_INSTALL" "$CERT_SRC/android_auto.key" "$PREFIX/certs/android_auto.key" --mode 600
+fi
+python3 "$ATOMIC_INSTALL" "$ROOT/config/bridge.env" /etc/airplay-aa/bridge.env --mode 644
+# Tree installation preserves the executable source modes before each fsync.
 
 echo "==> Building UxPlay + AAServer"
 export AIRPLAY_AA_PREFIX="$PREFIX"
@@ -165,13 +174,17 @@ echo "==> Installing current CarService PHONE identity (all AAServer locations)"
 AIRPLAY_AA_PREFIX="$PREFIX" AIRPLAY_AA_CERT_DIR="$PREFIX/certs" bash "$PREFIX/scripts/install-certs.sh"
 
 echo "==> Generating idle black H.264"
-python3 "$PREFIX/bridge/gen_idle_h264.py" \
+IDLE_STAGE="$(mktemp /var/run/airplay-aa/idle.h264.install.XXXXXX)"
+if python3 "$PREFIX/bridge/gen_idle_h264.py" \
   --width 800 --height 480 --fps 30 \
-  -o /var/run/airplay-aa/idle.h264 || true
+  -o "$IDLE_STAGE"; then
+  python3 "$ATOMIC_INSTALL" "$IDLE_STAGE" /var/run/airplay-aa/idle.h264 --mode 644
+fi
+rm -f "$IDLE_STAGE"
 
 echo "==> Installing systemd unit"
-install -m 644 "$ROOT/systemd/airplay-aa-bridge.service" \
-  /etc/systemd/system/airplay-aa-bridge.service
+python3 "$ATOMIC_INSTALL" "$ROOT/systemd/airplay-aa-bridge.service" \
+  /etc/systemd/system/airplay-aa-bridge.service --mode 644
 systemctl daemon-reload
 systemctl enable airplay-aa-bridge.service
 

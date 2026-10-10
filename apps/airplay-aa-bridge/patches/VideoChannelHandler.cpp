@@ -3,9 +3,12 @@
 
 #include "VideoChannelHandler.h"
 #include "ChannelHandler.h"
+#include "MediaChannelSetupResponse.pb.h"
+#include "VideoFocusIndication.pb.h"
 #include "enums.h"
 #include "utils.h"
 #include <boost/range/algorithm/max_element.hpp>
+#include <algorithm>
 #include <cstdlib>
 #include <gst/gstelement.h>
 #include <gst/gstmemory.h>
@@ -20,7 +23,6 @@ using namespace std;
 
 GstFlowReturn VideoChannelHandler::new_sample(GstElement *sink,
                                               VideoChannelHandler *_this) {
-  static bool firstSample = true;
   GstSample *sample;
   g_signal_emit_by_name(sink, "pull-sample", &sample);
   if (!sample) {
@@ -30,9 +32,6 @@ GstFlowReturn VideoChannelHandler::new_sample(GstElement *sink,
   auto buffer = gst_sample_get_buffer(sample);
 
   vector<uint8_t> msgToHeadunit;
-  if (firstSample) {
-    _this->openChannel();
-  }
   if (buffer->pts == (GstClockTime)-1) {
     pushBackInt16(msgToHeadunit, MediaMessageType::MediaIndication);
   } else {
@@ -44,12 +43,9 @@ GstFlowReturn VideoChannelHandler::new_sample(GstElement *sink,
   gst_buffer_map(buffer, &map, GST_MAP_READ);
   copy(map.data, map.data + map.size, back_inserter(msgToHeadunit));
   gst_buffer_unmap(buffer, &map);
-  _this->sendToHeadunit(_this->channelId,
-                        EncryptionType::Encrypted | FrameType::Bulk,
-                        msgToHeadunit);
+  _this->handleMessageFromClient(-1, _this->channelId, false, msgToHeadunit);
 
   gst_sample_unref(sample);
-  firstSample = false;
   return GST_FLOW_OK;
 }
 
@@ -162,13 +158,17 @@ void VideoChannelHandler::openChannel() {
   std::lock_guard<std::mutex> gate(open_mu);
   {
     std::lock_guard<std::mutex> lk(m);
-    if (channelOpened && gotSetupResponse) {
+    if (channelOpened && setupResponseReceived) {
       return;
     }
     // True before the waits so VideoFocusIndication is handled (StartIndication)
     // instead of being forwarded to the injector. Media is still held until
     // SetupResponse; a timeout leaves gotSetupResponse false so the next AU retries.
     gotSetupResponse = false;
+    setupResponseReceived = false;
+    streamStarted = false;
+    // Focus belongs to the AA session, not a timeout/retry of AV setup.
+    // Preserve an existing HU decision; a new handler resets all focus state.
     channelOpened = true;
   }
   std::cout << "VideoChannelHandler: openChannel channel "
@@ -190,6 +190,9 @@ void VideoChannelHandler::sendSetupRequest() {
   std::vector<uint8_t> plainMsg;
   pushBackInt16(plainMsg, MediaMessageType::SetupRequest);
   plainMsg.push_back(0x08);
+  // Current AV setup schemas use field 1 for H.264 codec value 3. Older
+  // implementations use a configuration index here; do not change the
+  // verified current/DHU request without an explicit legacy fallback.
   plainMsg.push_back(0x03);
   sendToHeadunit(channelId, FrameType::Bulk | EncryptionType::Encrypted,
                  plainMsg);
@@ -199,9 +202,10 @@ void VideoChannelHandler::expectSetupResponse() {
   std::unique_lock<std::mutex> lk(m);
   constexpr int timeout_ms = 5000;
   const bool ok = cv.wait_for(lk, std::chrono::milliseconds(timeout_ms),
-                              [=] { return gotSetupResponse; });
+                              [=] { return setupResponseReceived; });
   if (ok) {
-    std::cout << "VideoChannelHandler: SetupResponse on channel "
+    std::cout << "VideoChannelHandler: SetupResponse "
+              << (gotSetupResponse ? "accepted" : "rejected") << " on channel "
               << static_cast<int>(channelId) << std::endl;
   } else {
     std::cout << "VideoChannelHandler: timed out after " << timeout_ms
@@ -211,6 +215,15 @@ void VideoChannelHandler::expectSetupResponse() {
   }
 }
 
+void VideoChannelHandler::sendFocusRequest() {
+  // VideoFocusRequest 0x8007: field 2 PROJECTED=1, field 3 USER_SELECTION=4.
+  // The AACS enum names are inverted: service-specific means bit 0x04 CLEAR.
+  const std::vector<uint8_t> request{0x80, 0x07, 0x10, 0x01, 0x18, 0x04};
+  std::cout << "VideoChannelHandler: requesting PROJECTED focus on channel "
+            << static_cast<int>(channelId) << std::endl;
+  sendToHeadunit(channelId, FrameType::Bulk | EncryptionType::Encrypted, request);
+}
+
 void VideoChannelHandler::sendStartIndication() {
   std::vector<uint8_t> plainMsg;
   pushBackInt16(plainMsg, MediaMessageType::StartIndication);
@@ -218,12 +231,23 @@ void VideoChannelHandler::sendStartIndication() {
   plainMsg.push_back(0x00);
   plainMsg.push_back(0x10);
   plainMsg.push_back(0x00);
+  std::cout << "VideoChannelHandler: StartIndication on channel "
+            << static_cast<int>(channelId) << std::endl;
   sendToHeadunit(channelId, FrameType::Bulk | EncryptionType::Encrypted,
                  plainMsg);
 }
 
 bool VideoChannelHandler::handleMessageFromHeadunit(const Message &message) {
-  if (!channelOpened) {
+  if (message.content.size() < 2)
+    return false;
+  const auto &msg = message.content;
+  const auto messageType = (uint16_t(msg[0]) << 8) | msg[1];
+  bool opened;
+  {
+    std::lock_guard<std::mutex> lock(m);
+    opened = channelOpened;
+  }
+  if (!opened && messageType != MediaMessageType::VideoFocusIndication) {
     ChannelHandler::sendToClient(-1, message.channel,
                                  message.flags & MessageTypeFlags::Specific,
                                  message.content);
@@ -231,24 +255,80 @@ bool VideoChannelHandler::handleMessageFromHeadunit(const Message &message) {
   }
   if (ChannelHandler::handleMessageFromHeadunit(message))
     return true;
-  bool messageHandled = false;
-  {
-    std::unique_lock<std::mutex> lk(m);
-    auto msg = message.content;
-    const __u16 *shortView = (const __u16 *)(msg.data());
-    auto messageType = be16_to_cpu(shortView[0]);
-    if (messageType == MediaMessageType::SetupResponse) {
-      gotSetupResponse = true;
-      messageHandled = true;
-    } else if (messageType == MediaMessageType::VideoFocusIndication) {
-      sendStartIndication();
-      messageHandled = true;
-    } else if (messageType == MediaMessageType::MediaAckIndication) {
-      messageHandled = true;
+  if (messageType == MediaMessageType::MediaAckIndication)
+    return true;
+  if (messageType == MediaMessageType::SetupResponse) {
+    tag::aas::MediaChannelSetupResponse response;
+    const bool parsed = response.ParseFromArray(msg.data() + 2, msg.size() - 2);
+    const bool configAccepted = std::find(response.configs().begin(),
+        response.configs().end(), 0) != response.configs().end();
+    const bool accepted = parsed && response.media_status() ==
+        tag::aas::MediaChannelSetupResponse::OK && configAccepted;
+    std::lock_guard<std::mutex> sendLock(sendMutex);
+    bool requestFocus = false, start = false;
+    {
+      std::lock_guard<std::mutex> lock(m);
+      if (setupResponseReceived) {
+        std::cout << "VideoChannelHandler: duplicate SetupResponse ignored on channel "
+                  << static_cast<int>(channelId) << std::endl;
+        return true;
+      }
+      setupResponseReceived = true;
+      gotSetupResponse = accepted;
+      if (!accepted) {
+        streamStarted = false;
+      } else {
+        // A HU indication received before setup already states its decision;
+        // do not steal native focus or re-request an existing projected grant.
+        requestFocus = !focusRequested && !focusIndicationReceived;
+        focusRequested = true;
+        start = (focusMode == 1 || focusMode == 4) && !streamStarted;
+        if (start)
+          streamStarted = true;
+      }
     }
+    std::cout << "VideoChannelHandler: setup status="
+              << (response.has_media_status() ? int(response.media_status()) : -1)
+              << " max_unacked="
+              << (response.has_max_unacked() ? int(response.max_unacked()) : -1)
+              << " config0=" << configAccepted << " accepted=" << accepted << std::endl;
+    cv.notify_all();
+    if (requestFocus)
+      sendFocusRequest();
+    if (start)
+      sendStartIndication();
+    return true;
   }
-  cv.notify_all();
-  return messageHandled;
+  if (messageType == MediaMessageType::VideoFocusIndication) {
+    tag::aas::VideoFocusIndication indication;
+    if (!indication.ParseFromArray(msg.data() + 2, msg.size() - 2) ||
+        !indication.has_focus_mode()) {
+      std::cout << "VideoChannelHandler: malformed VideoFocusIndication ignored" << std::endl;
+      return true;
+    }
+    std::lock_guard<std::mutex> sendLock(sendMutex);
+    bool start = false;
+    {
+      std::lock_guard<std::mutex> lock(m);
+      focusMode = indication.focus_mode();
+      focusIndicationReceived = true;
+      if (focusMode == 1 || focusMode == 4) {
+        start = gotSetupResponse && !streamStarted;
+        if (start)
+          streamStarted = true;
+      } else {
+        // Native focus is a HU/user decision. Pause without requesting it back.
+        streamStarted = false;
+      }
+    }
+    std::cout << "VideoChannelHandler: VideoFocusIndication mode="
+              << indication.focus_mode() << " unrequested="
+              << indication.unrequested() << std::endl;
+    if (start)
+      sendStartIndication();
+    return true;
+  }
+  return false;
 }
 
 bool VideoChannelHandler::handleMessageFromClient(int clientId,
@@ -262,15 +342,21 @@ bool VideoChannelHandler::handleMessageFromClient(int clientId,
   bool setupDone = false;
   {
     std::lock_guard<std::mutex> lk(m);
-    setupDone = channelOpened && gotSetupResponse;
+    setupDone = channelOpened && setupResponseReceived;
   }
   if (!setupDone) {
     openChannel();
     std::lock_guard<std::mutex> lk(m);
-    setupDone = channelOpened && gotSetupResponse;
+    setupDone = channelOpened && setupResponseReceived;
   }
   if (!setupDone) {
     return true;
+  }
+  std::lock_guard<std::mutex> sendLock(sendMutex);
+  {
+    std::lock_guard<std::mutex> lock(m);
+    if (!gotSetupResponse || !streamStarted || (focusMode != 1 && focusMode != 4))
+      return true; // No media before accepted setup and projected focus.
   }
   // Client supplies a complete AA media message (BE type + optional ts + AU).
   uint8_t flags = EncryptionType::Encrypted | FrameType::Bulk;

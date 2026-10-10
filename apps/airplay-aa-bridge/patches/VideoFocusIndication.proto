@@ -1,0 +1,8 @@
+// Distributed under GPLv3 only as specified in AACS repository LICENSE.
+// HU -> phone, video service message 0x8008. Wire schema verified by aasdk.
+syntax="proto2";
+package tag.aas;
+message VideoFocusIndication {
+    optional uint32 focus_mode = 1;
+    optional bool unrequested = 2;
+}

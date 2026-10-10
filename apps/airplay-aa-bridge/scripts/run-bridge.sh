@@ -19,6 +19,16 @@ fi
 
 export PATH="${AIRPLAY_AA_PREFIX}/bin:${PATH}"
 export GST_PLUGIN_PATH="${AIRPLAY_AA_PREFIX}/lib/gstreamer-1.0:${GST_PLUGIN_PATH:-}"
+# Refuse damaged deployments before a supervisor can appear healthy while
+# repeatedly executing an empty binary or pipeline script.
+for required in "${AIRPLAY_AA_PREFIX}/libexec/aaserver/AAServer" \
+                "${ROOT}/scripts/run-airplay-pipeline.sh"; do
+  if [[ ! -s "$required" || ! -x "$required" ]]; then
+    echo "Bridge runtime is missing, empty, or not executable: $required" >&2
+    exit 78
+  fi
+done
+bash -n "${ROOT}/scripts/run-airplay-pipeline.sh"
 # Socket H.264 inject mode (no Snowmix).
 unset AIRPLAY_AA_SHM || true
 

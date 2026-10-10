@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test the actual USB startup helper and the production discovery schemas.
+# Test actual USB startup/video handlers and production discovery schemas.
 # No Pi, USB device, AACS checkout, credentials, or service changes are needed.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -26,6 +26,15 @@ for flag in "${package_cflags[@]}"; do
   esac
 done
 strict=(-Wall -Wextra -Werror -pedantic -pthread)
+boost_cflags=()
+if command -v brew >/dev/null && [[ -f "$(brew --prefix)/include/boost/signals2.hpp" ]]; then
+  boost_cflags=(-isystem "$(brew --prefix)/include")
+fi
+if ! printf '#include <boost/signals2.hpp>\n' | \
+  "$CXX" -std=c++14 "${boost_cflags[@]}" -x c++ -fsyntax-only -; then
+  echo "AACS handler tests require the Boost headers (libboost-dev or brew boost)" >&2
+  exit 1
+fi
 
 "$CXX" -std=c++14 "${strict[@]}" -I"$ROOT/patches" \
   "$ROOT/tests/usb_endpoint_startup_test.cpp" -o "$OUT/usb-startup-test"
@@ -42,6 +51,8 @@ fi
 protoc -I"$ROOT/patches" -I"$ROOT/tests/proto" --cpp_out="$OUT" \
   "$ROOT/patches/MediaStreamType.proto" "$ROOT/patches/MediaChannel.proto" \
   "$ROOT/patches/VideoConfig.proto" "$ROOT/tests/proto/AudioType.proto" \
+  "$ROOT/patches/MediaChannelSetupResponse.proto" \
+  "$ROOT/patches/VideoFocusIndication.proto" "$ROOT/tests/proto/ChannelOpenRequest.proto" \
   "$ROOT/tests/proto/AudioConfig.proto" "$ROOT/tests/proto/VideoFps.proto" \
   "$ROOT/tests/proto/VideoResolution.proto" "$ROOT/tests/proto/DiscoveryFixture.proto"
 "$CXX" "-std=$protobuf_standard" "${strict[@]}" "${protobuf_cflags[@]}" \
@@ -53,6 +64,20 @@ for generated in "$OUT"/*.pb.cc; do
   "$CXX" "-std=$protobuf_standard" -Wall -Wextra -Werror -pthread \
     "${protobuf_cflags[@]}" -I"$OUT" -c "$generated" -o "${generated%.cc}.o"
 done
-"$CXX" "-std=$protobuf_standard" -pthread "$OUT"/*.o \
+"$CXX" "-std=$protobuf_standard" -pthread "$OUT/service-discovery-test.o" "$OUT"/*.pb.o \
   "${protobuf_libs[@]}" -o "$OUT/service-discovery-test"
 "$OUT/service-discovery-test" "$ROOT/tests/fixtures/dhu-discovery.hex"
+
+# Compile the real handlers. Narrow local stubs abort if optional SHM is used;
+# no GStreamer install, AACS checkout, USB device, or hardware mocks are needed.
+for source in "$ROOT/patches/VideoChannelHandler.cpp" "$ROOT/patches/ChannelHandler.cpp" \
+    "$ROOT/tests/video_focus_handler_test.cpp"; do
+  "$CXX" "-std=$protobuf_standard" "${strict[@]}" -Wno-unused-parameter \
+    "${protobuf_cflags[@]}" "${boost_cflags[@]}" \
+    -I"$ROOT/tests/support/aacs" -I"$ROOT/patches" -I"$OUT" \
+    -c "$source" -o "$OUT/$(basename "${source%.cpp}").o"
+done
+"$CXX" "-std=$protobuf_standard" -pthread "$OUT/VideoChannelHandler.o" \
+  "$OUT/ChannelHandler.o" "$OUT/video_focus_handler_test.o" "$OUT"/*.pb.o \
+  "${protobuf_libs[@]}" -o "$OUT/video-focus-handler-test"
+"$OUT/video-focus-handler-test"

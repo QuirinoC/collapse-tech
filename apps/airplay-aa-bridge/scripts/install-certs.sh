@@ -9,6 +9,7 @@ CRT="$CERT_DIR/android_auto.crt"
 KEY="$CERT_DIR/android_auto.key"
 PI_HOST="${1:-}"
 CHECKER="$(dirname "$0")/check-phone-certs.sh"
+ATOMIC_INSTALLER="$(dirname "$0")/atomic_install.py"
 SKIP_RESTART="${AIRPLAY_AA_SKIP_RESTART:-0}"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
@@ -26,11 +27,16 @@ bash "$CHECKER" "$CERT_DIR"
 CERT_DIR="$(cd "$CERT_DIR" && pwd)"
 CRT="$CERT_DIR/android_auto.crt"
 KEY="$CERT_DIR/android_auto.key"
+command -v python3 >/dev/null || die "missing python3 for durable installation"
+[[ -s "$ATOMIC_INSTALLER" && ! -L "$ATOMIC_INSTALLER" ]] || die "missing regular atomic installer: $ATOMIC_INSTALLER"
+
+install_file() {
+  python3 "$ATOMIC_INSTALLER" "$1" "$2" --mode "$3" --owner 0 --group 0
+}
 
 install_local() {
   local prefix="${AIRPLAY_AA_PREFIX:-/opt/airplay-aa}"
   [[ -d "$prefix/libexec/aaserver" ]] || die "AAServer runtime is missing under $prefix (build it first)"
-  install -d "$prefix/certs"
   local targets=("$prefix/certs" "$prefix/libexec/aaserver")
   [[ -d "$prefix/third_party/AACS/AAServer/ssl" ]] && targets+=("$prefix/third_party/AACS/AAServer/ssl")
   [[ -d "$prefix/third_party/AACS/build/AAServer" ]] && targets+=("$prefix/third_party/AACS/build/AAServer")
@@ -42,10 +48,10 @@ install_local() {
 
   local t
   for t in "${targets[@]}"; do
-    [[ "$(cd "$t" && pwd)" == "$CERT_DIR" ]] && continue
+    [[ -d "$t" && "$(cd "$t" && pwd)" == "$CERT_DIR" ]] && continue
     echo "→ $t"
-    install -m 644 "$CRT" "$t/android_auto.crt"
-    install -m 600 "$KEY" "$t/android_auto.key"
+    install_file "$CRT" "$t/android_auto.crt" 644
+    install_file "$KEY" "$t/android_auto.key" 600
   done
 
   bash "$CHECKER" "$prefix/libexec/aaserver"
@@ -79,13 +85,13 @@ stage="$1"
 skip_restart="$2"
 trap 'rm -rf "$stage"' EXIT
 bash "$stage/check-phone-certs.sh" "$stage"
-install -d /opt/airplay-aa/certs /opt/airplay-aa/scripts
-install -m 644 "$stage/android_auto.crt" /opt/airplay-aa/certs/
-install -m 600 "$stage/android_auto.key" /opt/airplay-aa/certs/
-install -m 755 "$stage/install-certs.sh" "$stage/check-phone-certs.sh" /opt/airplay-aa/scripts/
+for script in atomic_install.py install-certs.sh check-phone-certs.sh; do
+  python3 "$stage/atomic_install.py" "$stage/$script" \
+    "/opt/airplay-aa/scripts/$script" --mode 755 --owner 0 --group 0
+done
 env AIRPLAY_AA_PREFIX=/opt/airplay-aa AIRPLAY_AA_CERT_DIR="$stage" AIRPLAY_AA_SKIP_RESTART="$skip_restart" /opt/airplay-aa/scripts/install-certs.sh
 EOF
-  scp "$CRT" "$KEY" "$ROOT/scripts/install-certs.sh" "$CHECKER" "$PI_HOST:$remote_dir/"
+  scp "$CRT" "$KEY" "$ROOT/scripts/install-certs.sh" "$CHECKER" "$ATOMIC_INSTALLER" "$PI_HOST:$remote_dir/"
   scp "$wrapper" "$PI_HOST:$remote_dir/apply-phone-certs.sh"
   # User-level validation precedes sudo. A terminal carries only the password
   # prompt; the install script is a staged file, so stdin remains interactive.

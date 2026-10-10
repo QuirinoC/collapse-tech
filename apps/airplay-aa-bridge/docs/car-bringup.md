@@ -3,8 +3,9 @@
 The Pi receives AirPlay as **Pi AirPlay AA** and sends video to the head unit
 over wired Android Auto USB. Prove the complete path on the Mac bench before
 moving the data cable to the car. Compatibility with this user's actual car
-head unit remains **unverified**; a passing Mac DHU session does not establish
-that every car will accept AAServer. See [current evidence](STATUS.md).
+head unit currently **fails activation after accepted video setup**. The earlier
+Mac DHU passes manually granted focus; the acceptance runner now requires the
+Pi to negotiate it. See [current evidence](STATUS.md).
 
 ## Keep the established power wiring
 
@@ -24,8 +25,8 @@ The installed service and peripheral boot configuration are persistent. Runtime
 directories, the video FIFO and idle video are recreated after boot. There is no
 software requirement to power the Pi before attaching the USB data cable: the
 bridge waits for the head unit and handles endpoint enable during startup.
-Either order is intended to work, although a cold power cycle and physical
-cable reconnect with the final binary remain untested. Keep stable GPIO power
+Either order is intended to work. The earlier service did restart in the car,
+but cold boot and cable reconnect with the new focus binary remain untested. Keep stable GPIO power
 and include startup with USB already attached in the parked-car trial.
 
 ## Check the phone identity before testing
@@ -97,13 +98,17 @@ are in [Mac testing](mac-testing.md).
 
 ## Move the data cable to the parked car
 
-1. Keep the established 5 V GPIO power arrangement connected and allow the
+1. Park the vehicle and engage the parking brake. Mazda's
+   [first-connection guide](https://connect.mazda.com/en/smartphone-integration/android-auto/type-a/index.html)
+   requires it; enable the connected device if the car offers Always Enable or
+   Enable Once. The Pi emulates the Android device and has no Android setup UI.
+2. Keep the established 5 V GPIO power arrangement connected and allow the
    service to start. Confirm the receiver appears as **Pi AirPlay AA**.
-2. Move the Pi USB-C **data** cable from the Mac to the car's **Android Auto**
+3. Move the Pi USB-C **data** cable from the Mac to the car's **Android Auto**
    USB port.
-3. Keep the phone and Pi on the same network. On iPhone select Screen Mirroring
+4. Keep the phone and Pi on the same network. On iPhone select Screen Mirroring
    → **Pi AirPlay AA**, then play visibly moving content.
-4. Confirm the car accepts the Android Auto session and displays that content.
+5. Confirm the car accepts the Android Auto session and displays that content.
    Record the actual car/head-unit model and result; this is the compatibility
    test still outstanding.
 
@@ -124,10 +129,18 @@ tail -80 /var/log/airplay-aa/aaserver.log /var/log/airplay-aa/inject.log /var/lo
 ```
 
 Before a USB head unit connects, AAServer waiting in ModeSwitcher is expected.
-After connection, check the sequence: protocol negotiation, successful
-authentication, service discovery, `video channel id=N` (neither 0 nor 255),
-and `sent first live AU`. The final evidence is decoded moving video on the
+After connection, check protocol negotiation, successful authentication,
+service discovery, `video channel id=N` (neither 0 nor 255), accepted setup,
+projected focus indication and StartIndication. `sent first live AU` is an
+injector write and does not establish head-unit acceptance. The final evidence is decoded moving video on the
 head-unit display.
+
+If systemd says active, also check that AAServer, UxPlay and the injector are
+actually running and their executable/script files are nonempty. An unclean
+restart exposed empty installed files during this trial. Installers now use
+`atomic_install.py` to fsync the replacement file, rename it and fsync its
+directory. Keep power stable throughout updates; these are per-file writes,
+not a whole-deployment transaction.
 
 For `device is not responding`, retain the logs around the failure. Check the
 actual runtime certificate, the data cable and Android Auto port, the existing
