@@ -1,0 +1,15 @@
+// Input binding is service-specific 0x8002/0x8003. The status also matches
+// control ChannelOpenResponse: 0 is OK; absent or nonzero status is failure.
+// Wire schema corroborated by aasdk and open-android-auto input messages.
+syntax = "proto2";
+package tag.aas;
+
+message InputBindingRequest {
+  repeated int32 keycodes = 1 [packed = true];
+}
+message InputBindingResponse {
+  required int32 status = 1;
+}
+message InputChannelOpenResponse {
+  required int32 status = 1;
+}

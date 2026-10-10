@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test actual USB startup/video handlers and production discovery schemas.
+# Test actual USB startup/video/input handlers and production discovery schemas.
 # No Pi, USB device, AACS checkout, credentials, or service changes are needed.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -52,6 +52,8 @@ protoc -I"$ROOT/patches" -I"$ROOT/tests/proto" --cpp_out="$OUT" \
   "$ROOT/patches/MediaStreamType.proto" "$ROOT/patches/MediaChannel.proto" \
   "$ROOT/patches/VideoConfig.proto" "$ROOT/tests/proto/AudioType.proto" \
   "$ROOT/patches/MediaChannelSetupResponse.proto" \
+  "$ROOT/patches/InputBinding.proto" "$ROOT/patches/InputChannel.proto" \
+  "$ROOT/tests/proto/TouchConfig.proto" \
   "$ROOT/patches/VideoFocusIndication.proto" "$ROOT/tests/proto/ChannelOpenRequest.proto" \
   "$ROOT/tests/proto/AudioConfig.proto" "$ROOT/tests/proto/VideoFps.proto" \
   "$ROOT/tests/proto/VideoResolution.proto" "$ROOT/tests/proto/DiscoveryFixture.proto"
@@ -81,3 +83,15 @@ done
   "$OUT/ChannelHandler.o" "$OUT/video_focus_handler_test.o" "$OUT"/*.pb.o \
   "${protobuf_libs[@]}" -o "$OUT/video-focus-handler-test"
 "$OUT/video-focus-handler-test"
+
+# Input startup uses the same actual base class and generated production protos.
+for source in "$ROOT/patches/InputChannelHandler.cpp" "$ROOT/tests/input_handler_test.cpp"; do
+  "$CXX" "-std=$protobuf_standard" "${strict[@]}" -Wno-unused-parameter \
+    "${protobuf_cflags[@]}" "${boost_cflags[@]}" \
+    -I"$ROOT/tests/support/aacs" -I"$ROOT/patches" -I"$OUT" \
+    -c "$source" -o "$OUT/$(basename "${source%.cpp}").o"
+done
+"$CXX" "-std=$protobuf_standard" -pthread "$OUT/InputChannelHandler.o" \
+  "$OUT/ChannelHandler.o" "$OUT/input_handler_test.o" "$OUT"/*.pb.o \
+  "${protobuf_libs[@]}" -o "$OUT/input-handler-test"
+"$OUT/input-handler-test"

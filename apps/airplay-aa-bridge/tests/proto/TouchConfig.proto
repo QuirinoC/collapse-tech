@@ -1,0 +1,7 @@
+// Existing AACS touch descriptor, needed to compile production InputChannel.
+syntax = "proto2";
+package tag.aas;
+message TouchConfig {
+  required uint32 width = 1;
+  required uint32 height = 2;
+}

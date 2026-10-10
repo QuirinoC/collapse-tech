@@ -96,7 +96,7 @@ cp "$ROOT/patches/VideoChannelHandler.h" \
 cp "$ROOT/patches/VideoChannelHandler.cpp" \
   "$SRC/AACS/AAServer/src/VideoChannelHandler.cpp"
 # Current DHU omits the optional codec on its video media descriptor.
-for proto in MediaStreamType MediaChannel VideoConfig MediaChannelSetupResponse VideoFocusIndication; do
+for proto in MediaStreamType MediaChannel VideoConfig MediaChannelSetupResponse VideoFocusIndication InputChannel InputBinding; do
   cp "$ROOT/patches/$proto.proto" "$SRC/AACS/proto/$proto.proto"
 done
 # AACS enumerates generated schemas explicitly rather than globbing proto files.
@@ -108,13 +108,23 @@ grep -q '^[[:space:]]*../proto/VideoFocusIndication.proto' "$SRC/AACS/proto/CMak
   echo "Cannot register VideoFocusIndication.proto in AACS proto/CMakeLists.txt" >&2
   exit 1
 }
+if ! grep -q '^[[:space:]]*../proto/InputBinding.proto' "$SRC/AACS/proto/CMakeLists.txt"; then
+  sed -i '/^[[:space:]]*\.\.\/proto\/InputChannel.proto/a\    ../proto/InputBinding.proto' \
+    "$SRC/AACS/proto/CMakeLists.txt"
+fi
+grep -q '^[[:space:]]*../proto/InputBinding.proto' "$SRC/AACS/proto/CMakeLists.txt" || {
+  echo "Cannot register InputBinding.proto in AACS proto/CMakeLists.txt" >&2
+  exit 1
+}
 # CD-ROM mass-storage LUN must be ro=1 on modern kernels (else Invalid parameter).
 cp "$ROOT/patches/MassStorageFunction.cpp" \
   "$SRC/AACS/AAServer/src/MassStorageFunction.cpp"
 
-# Newer libstdc++ no longer transitively pulls <set>; AACS upstream misses it.
+# Register input controls with strict open/binding responses and bounded waits.
 cp "$ROOT/patches/InputChannelHandler.h" \
   "$SRC/AACS/AAServer/include/InputChannelHandler.h"
+cp "$ROOT/patches/InputChannelHandler.cpp" \
+  "$SRC/AACS/AAServer/src/InputChannelHandler.cpp"
 
 # AAClient/GetEvents pull X11/XTest; we only need AAServer for the USB path.
 # Comment them out so cmake configure succeeds without libxtst-dev.

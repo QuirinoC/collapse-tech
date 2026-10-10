@@ -15,6 +15,9 @@ from aa_framing import (  # noqa: E402
     MediaMessageType,
     PacketType,
     get_video_channel_request,
+    get_input_channel_request,
+    input_binding_status,
+    input_registration_packet,
     is_idr_au,
     media_indication,
     raw_video_packet,
@@ -26,6 +29,21 @@ class FramingTests(unittest.TestCase):
     def test_get_video_channel_request(self):
         pkt = get_video_channel_request()
         self.assertEqual(pkt, bytes([PacketType.GET_CHANNEL_BY_TYPE, 0, 0]))
+
+    def test_input_registration_protocol(self):
+        self.assertEqual(get_input_channel_request(), bytes([0, 1, 0]))
+        self.assertEqual(input_registration_packet(2), bytes([1, 2, 0, 0]))
+
+    def test_binding_status_handles_unknown_fields_and_failure(self):
+        self.assertEqual(input_binding_status(bytes.fromhex('80030800')), 0)
+        self.assertEqual(input_binding_status(bytes.fromhex('800310010801')), 1)
+        self.assertEqual(input_binding_status(bytes.fromhex('80031a0278780800')), 0)
+
+    def test_binding_status_rejects_missing_or_truncated_fields(self):
+        for encoded in ('8003', '80031000', '80030880', '80030a00', '800308001a02ff',
+                        '800300', '800308ffffffffffffffffffff00', '80010800'):
+            with self.subTest(encoded=encoded):
+                self.assertIsNone(input_binding_status(bytes.fromhex(encoded)))
 
     def test_media_indication_first(self):
         au = b"\x00\x00\x00\x01\x65\x00"
