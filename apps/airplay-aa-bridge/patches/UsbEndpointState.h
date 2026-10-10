@@ -42,7 +42,8 @@ public:
   void enable() {
     {
       std::lock_guard<std::mutex> lock(mutex);
-      enabled = true;
+      configured = true;
+      suspended = false;
       ++generation;
     }
     changed.notify_all();
@@ -52,17 +53,42 @@ public:
     bool established;
     {
       std::lock_guard<std::mutex> lock(mutex);
-      enabled = false;
+      configured = false;
       established = sessionStarted;
+      if (established)
+        sessionFailure = "USB FunctionFS disabled after session bytes";
     }
     changed.notify_all();
     return established;
   }
 
+  bool suspend() {
+    bool established;
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      suspended = true;
+      established = sessionStarted;
+      if (established)
+        sessionFailure = "USB FunctionFS suspended after session bytes";
+    }
+    changed.notify_all();
+    return established;
+  }
+
+  // RESUME does not establish a configuration or advance the ENABLE generation.
+  // DISABLE/ESHUTDOWN therefore still require an actual subsequent ENABLE.
+  void resume() {
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      suspended = false;
+    }
+    changed.notify_all();
+  }
+
   void unbind() {
     {
       std::lock_guard<std::mutex> lock(mutex);
-      enabled = false;
+      configured = false;
       unbound = true;
     }
     changed.notify_all();
@@ -77,19 +103,26 @@ public:
   }
 
   // Record the first positive bulk OUT read before parsing any of its bytes.
+  // Reject a late or interrupted completion before it reaches protocol parsing.
   void bytesReceived() {
-    {
-      std::lock_guard<std::mutex> lock(mutex);
-      sessionStarted = true;
-    }
+    std::lock_guard<std::mutex> lock(mutex);
+    checkState();
+    sessionStarted = true;
+    // A completed in-flight read can race ep0's suspend/disable event. It
+    // still establishes session bytes and makes that interruption fatal.
+    if (!configured)
+      sessionFailure = "USB FunctionFS disabled after session bytes";
+    else if (suspended)
+      sessionFailure = "USB FunctionFS suspended after session bytes";
     changed.notify_all();
+    checkState();
   }
 
   Generation waitEnabled() {
     std::unique_lock<std::mutex> lock(mutex);
     for (;;) {
       checkState();
-      if (enabled)
+      if (configured && !suspended)
         return generation;
       changed.wait_until(lock, deadline);
     }
@@ -106,15 +139,15 @@ public:
     std::unique_lock<std::mutex> lock(mutex);
     if (sessionStarted)
       throw std::runtime_error("USB ESHUTDOWN after session bytes; disconnect is fatal");
-    // DISABLE may not have reached ep0's consumer yet. An old enabled=true is
+    // DISABLE may not have reached ep0's consumer yet. An old configuration is
     // insufficient: only a newer actual ENABLE can authorize another syscall.
     if (generation == failedGeneration)
-      enabled = false;
+      configured = false;
     for (;;) {
       if (sessionStarted)
         throw std::runtime_error("USB ESHUTDOWN recovery crossed first session bytes; disconnect is fatal");
       checkState();
-      if (enabled && generation > failedGeneration)
+      if (configured && !suspended && generation > failedGeneration)
         return;
       changed.wait_until(lock, deadline);
     }
@@ -133,8 +166,12 @@ private:
       throw std::runtime_error("USB transport stopping");
     if (unbound)
       throw std::runtime_error("USB FunctionFS unbound");
-    if (sessionStarted && !enabled)
+    if (sessionFailure)
+      throw std::runtime_error(sessionFailure);
+    if (sessionStarted && !configured)
       throw std::runtime_error("USB FunctionFS disabled after session bytes");
+    if (sessionStarted && suspended)
+      throw std::runtime_error("USB FunctionFS suspended after session bytes");
     if (!sessionStarted && Clock::now() >= deadline)
       throw std::runtime_error("USB startup deadline expired before session bytes");
   }
@@ -144,8 +181,10 @@ private:
   Clock::duration startupTimeout;
   Clock::time_point deadline;
   Generation generation = 0;
-  bool enabled = false;
+  bool configured = false;
+  bool suspended = false;
   bool sessionStarted = false;
+  const char *sessionFailure = nullptr;
   bool unbound = false;
   bool stopping = false;
 };

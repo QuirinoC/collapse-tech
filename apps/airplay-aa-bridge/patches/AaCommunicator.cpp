@@ -464,9 +464,13 @@ ssize_t AaCommunicator::handleEp0Message(int fd, const void *buf,
     } else if (event->type == FUNCTIONFS_UNBIND) {
       usbEndpoints.unbind();
       throw std::runtime_error("ep0 unbind");
-    }
-    if (event->type == FUNCTIONFS_SUSPEND) {
-      throw std::runtime_error("ep0 suspend");
+    } else if (event->type == FUNCTIONFS_SUSPEND) {
+      if (usbEndpoints.suspend())
+        throw std::runtime_error("ep0 suspend after session bytes");
+      std::cout << "USB startup suspended: retaining configured state until RESUME or newer FUNCTIONFS_ENABLE" << std::endl;
+    } else if (event->type == FUNCTIONFS_RESUME) {
+      usbEndpoints.resume();
+      std::cout << "USB resumed: waiting for actual FUNCTIONFS_ENABLE if configuration was invalidated" << std::endl;
     }
   }
   return nbytes;

@@ -20,9 +20,10 @@ Mac / iPhone  --AirPlay2-->  UxPlay on Pi  --H.264-->  AAServer  --USB-->  Car /
 | Pi 3 A+ | USB-A OTG |
 
 Needs a **data** cable into the car AA USB port or the Mac running DHU. The user
-confirmed this Pi 5 receives **all power and data from the single USB-C cable
-to the Mazda**. There is no separate power connection. Unplugging that cable
-powers it off; shut down the Pi before unplugging when it is reachable.
+confirmed the original Pi 5 wiring received **all power and data from the single
+USB-C cable to the Mazda**; unplugging it powered the Pi off. A power splitter
+has since been added, but its model, supply rating and isolation remain
+unverified. Shut down the Pi before changing a connection that supplies power.
 
 The car port's power capacity is unverified, and earlier Pi undervoltage was
 observed. Check supply stability before further car acceptance testing. Raspberry

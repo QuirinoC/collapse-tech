@@ -4,11 +4,14 @@
 After the user's power cycle, the Pi authenticated, completed real input binding
 and accepted video setup, but the Mazda again supplied no projected focus grant
 or stream start. The user subsequently reported repeated **USB1 not responding**
-messages, and the Pi became unreachable over SSH. Further hardware probes are
-on hold. The successful automatic Mac AirPlay → Pi → USB → Mac DHU tests
+messages, and the Pi became intermittently unreachable over SSH. A later short
+trace proved that AAServer was repeatedly reconnecting USB while the Pi stayed
+on the same boot. The bridge has been stopped to end that loop. A USB startup
+candidate is being validated offline; it is not installed or car-verified.
+The successful automatic Mac AirPlay → Pi → USB → Mac DHU tests
 remain separate evidence; they do not establish car compatibility. Prior Pi
-undervoltage remains unexplained, although the new car boot's sampled flags are
-clear. Audio is disabled; the evidence covers video only.
+undervoltage remains unresolved, including warnings with the user's newly added
+power splitter. Audio is disabled; the evidence covers video only.
 See [mac-testing.md](mac-testing.md) for the repeatable Mac hardware test.
 
 ## Current Mazda retest
@@ -58,6 +61,22 @@ IPv4 and IPv6 SSH attempts timed out. The restart and USB failure causes remain
 unknown. The full private Bluetooth/HFP orchestrator has **not been executed**;
 genuine pairing, a persisted bond and HFP readiness remain unverified.
 
+After adding a power splitter, the user explicitly reported a manual restart.
+On boot `dea2e649…`, eight samples over 16.19 seconds showed continuously
+advancing uptime and an unchanged boot ID. AAServer instead repeatedly failed
+on a **pre-session FUNCTIONFS_SUSPEND** event, and its launcher reattached USB
+every few seconds. This trace proves a service reconnect loop, not repeated Pi
+reboots. The bridge was stopped; a later check at uptime 355–361 seconds found
+no AAServer, AirPlay or encoder processes and USB `not attached`. The service
+remains enabled for boot but is currently stopped with a failed result.
+
+The offline candidate retains a real pre-session USB configuration across
+suspend/resume, without allowing RESUME to replace a missing ENABLE. It also
+removes the initial empty CD-ROM LUN and accepts accessory mode only after the
+exact AOA request 53 completes. Production-handler and event-loop tests cover
+these changes; actual USB enumeration and Mazda activation remain unverified.
+Private observations are in `.local/car-runtime/20261010-1459-splitter/`.
+
 ## Current automatic hardware evidence
 
 The moving-SMPTE test at **12:23:49–12:24:03 PDT** passed
@@ -104,8 +123,9 @@ dba09b6d0826b12a6e325304cd7ea55a4217118d67c1fea48914ca7358e623a1
 
 It was last verified as 4,921,584 bytes with mode 755. The service was enabled
 and active at the 14:37 observation, relaunches AAServer after DHU exits, and is
-configured with `AIRPLAY_AA_SOURCE=airplay`. Its state after the later restart
-and SSH timeouts is unverified. The durable deployment backup includes
+configured with `AIRPLAY_AA_SOURCE=airplay`. It is now stopped as described above;
+the USB startup candidate has not replaced the installed binary. The durable
+deployment backup includes
 `/var/backups/airplay-aa-input-l397h7e6/rollback.py`.
 
 The build includes bounded FunctionFS startup, compatibility with omitted video
@@ -182,8 +202,9 @@ data. The earlier GPIO/PD-trigger/27 W supply account was false and must not be
 used for instructions or conclusions. Unplugging that cable removes power.
 The previous advice to disconnect data while retaining separate power was
 therefore incorrect. When reachable, shut the Pi down before moving or removing
-its sole power/data cable. No alternative power arrangement has been installed
-or verified.
+its sole power/data cable. The user subsequently added a power splitter. Its
+exact model, external supply rating and power isolation have not been supplied
+or independently verified.
 
 The boot beginning around **12:13 PDT** recorded repeated kernel
 `Undervoltage detected` / `Voltage normalised` warnings from **12:19 through
@@ -201,6 +222,17 @@ found no mmc/ext4 errors. Private evidence is in
 passed despite the warnings; power stability still needs resolution before car
 readiness. The later car boot sampled `0x0`; this clears the current observation
 but does not explain or disprove the earlier undervoltage.
+
+The splitter boot `dea2e649…` also logged undervoltage at approximately **5.48,
+142.56 and 152.64 seconds** of uptime, most recently normalizing at **154.66
+seconds**. The initial eight samples measured EXT5V **4.835–4.920 V**, with
+historical flags `0x50000`; those samples do not negate the kernel warnings.
+After stopping the bridge, four samples at uptime 355–361 seconds measured
+**4.848–4.911 V**, with the same historical flags and no later voltage warning
+in the captured journal. Power under the full running bridge remains unproven.
+The user tested the same cable with an iPhone and reported immediate operation;
+that establishes an iPhone connection, not Pi power adequacy or Android Auto
+compatibility.
 
 ## Startup persistence and recovery
 

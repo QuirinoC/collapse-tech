@@ -1,5 +1,6 @@
 // Focused tests of the state gate and pending-byte pump used by AaCommunicator.
 #include "UsbEndpointState.h"
+#include <atomic>
 #include <cassert>
 #include <csignal>
 #include <future>
@@ -25,6 +26,49 @@ int main() {
     state.enable();
     assert(waiting.get() == 1);
   }
+  // A configured startup suspend holds the real pending-byte pump. RESUME
+  // releases those bytes without fabricating a second ENABLE generation.
+  {
+    UsbEndpointState state(500ms);
+    state.enable();
+    assert(!state.suspend());
+    std::atomic<int> calls{0};
+    std::string received;
+    std::promise<void> attempted;
+    auto beforeWrite = attempted.get_future();
+    auto waiting = std::async(std::launch::async, [&] {
+      pumpPendingBytes("abc", 3,
+        [&](const void *data, size_t length) -> ssize_t {
+          ++calls;
+          received.append(static_cast<const char *>(data), length);
+          return static_cast<ssize_t>(length);
+        }, [&] { attempted.set_value(); return state.waitEnabled(); },
+        [&](auto generation) { state.recoverStartup(generation); },
+        [&] { state.pauseTransient(); }, [] { return false; });
+    });
+    assert(beforeWrite.wait_for(100ms) == std::future_status::ready);
+    assert(waiting.wait_for(20ms) == std::future_status::timeout);
+    assert(calls == 0);
+    state.resume();
+    waiting.get();
+    assert(received == "abc" && calls == 1);
+    assert(state.waitEnabled() == 1);
+  }
+  // RESUME cannot configure a device before its first ENABLE, or resurrect a
+  // configuration invalidated by DISABLE while the bus was suspended.
+  for (bool hadConfiguration : {false, true}) {
+    UsbEndpointState state(500ms);
+    if (hadConfiguration)
+      state.enable();
+    assert(!state.suspend());
+    if (hadConfiguration)
+      assert(!state.disable());
+    auto waiting = std::async(std::launch::async, [&] { return state.waitEnabled(); });
+    state.resume();
+    assert(waiting.wait_for(20ms) == std::future_status::timeout);
+    state.enable();
+    assert(waiting.get() == (hadConfiguration ? 2 : 1));
+  }
   // ESHUTDOWN cannot reuse a stale enabled flag; it needs a later ENABLE.
   {
     UsbEndpointState state(500ms);
@@ -49,6 +93,70 @@ int main() {
     assert(state.disable());
     assert(throws([&] { state.waitEnabled(); }));
   }
+  // Startup ESHUTDOWN invalidates its ENABLE generation. A following suspend
+  // and resume must keep both recovery and new bulk operations gated.
+  {
+    UsbEndpointState state(500ms);
+    state.enable();
+    const auto generation = state.waitEnabled();
+    auto recovering = std::async(std::launch::async, [&] { state.recoverStartup(generation); });
+    assert(recovering.wait_for(20ms) == std::future_status::timeout);
+    assert(!state.suspend());
+    state.resume();
+    auto waiting = std::async(std::launch::async, [&] { return state.waitEnabled(); });
+    assert(recovering.wait_for(20ms) == std::future_status::timeout);
+    assert(waiting.wait_for(20ms) == std::future_status::timeout);
+    state.enable();
+    recovering.get();
+    assert(waiting.get() == 2);
+  }
+  // An actual later ENABLE can authorize a new configuration after suspend.
+  {
+    UsbEndpointState state(500ms);
+    state.enable();
+    assert(!state.suspend());
+    state.enable();
+    assert(state.waitEnabled() == 2);
+  }
+  // A newer ENABLE observed before ESHUTDOWN recovery is still insufficient
+  // while suspended; its later RESUME may release that actual generation.
+  {
+    UsbEndpointState state(500ms);
+    state.enable();
+    const auto failedGeneration = state.waitEnabled();
+    assert(!state.disable());
+    state.enable();
+    assert(!state.suspend());
+    auto recovering = std::async(std::launch::async, [&] { state.recoverStartup(failedGeneration); });
+    assert(recovering.wait_for(20ms) == std::future_status::timeout);
+    state.resume();
+    recovering.get();
+    assert(state.waitEnabled() == 2);
+  }
+  // An established session is never recovered after SUSPEND/DISABLE, even if
+  // later events report RESUME or ENABLE before a worker observes the failure.
+  for (bool suspend : {false, true}) {
+    UsbEndpointState state(500ms);
+    state.enable();
+    state.bytesReceived();
+    if (suspend)
+      assert(state.suspend());
+    else
+      assert(state.disable());
+    state.resume();
+    state.enable();
+    assert(throws([&] { state.waitEnabled(); }));
+  }
+  // Positive bytes completing from an in-flight read while startup is
+  // suspended turn that interruption into a fatal established-session event.
+  {
+    UsbEndpointState state(500ms);
+    state.enable();
+    assert(!state.suspend());
+    assert(throws([&] { state.bytesReceived(); }));
+    state.resume();
+    assert(throws([&] { state.waitEnabled(); }));
+  }
   // A reader crossing first session bytes also cancels a writer already waiting
   // for startup recovery; a later ENABLE cannot authorize a replay.
   {
@@ -59,13 +167,13 @@ int main() {
       return throws([&] { state.recoverStartup(generation); });
     });
     assert(waiting.wait_for(20ms) == std::future_status::timeout);
-    state.bytesReceived();
+    assert(throws([&] { state.bytesReceived(); }));
     state.enable();
     assert(waiting.get());
   }
   // All startup retries share one deadline. ENABLE does not extend it.
   {
-    UsbEndpointState state(90ms);
+    UsbEndpointState state(180ms);
     state.enable();
     auto started = UsbEndpointState::Clock::now();
     for (int index = 0; index < 3; ++index) {
@@ -77,7 +185,7 @@ int main() {
     }
     assert(throws([&] { state.recoverStartup(state.waitEnabled()); }));
     auto elapsed = UsbEndpointState::Clock::now() - started;
-    assert(elapsed >= 80ms && elapsed < 300ms);
+    assert(elapsed >= 160ms && elapsed < 1s);
   }
   // Both teardown and UNBIND promptly wake a thread awaiting enable/re-enable.
   for (bool unbind : {false, true}) {
@@ -87,6 +195,20 @@ int main() {
     if (unbind) state.unbind(); else state.stop();
     assert(waiting.wait_for(100ms) == std::future_status::ready);
     assert(waiting.get());
+  }
+  // Startup SUSPEND/RESUME never extends the original absolute deadline.
+  {
+    UsbEndpointState state(90ms);
+    state.enable();
+    assert(!state.suspend());
+    const auto started = UsbEndpointState::Clock::now();
+    assert(throws([&] { state.waitEnabled(); }));
+    state.resume();
+    state.enable();
+    assert(throws([&] { state.waitEnabled(); }));
+    assert(throws([&] { state.bytesReceived(); }));
+    const auto elapsed = UsbEndpointState::Clock::now() - started;
+    assert(elapsed >= 80ms && elapsed < 300ms);
   }
   // ep0's deadline poll stays independent of a bulk worker blocked in a
   // synchronous syscall. Exercise its normal SIGUSR1 teardown mechanism on an

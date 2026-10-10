@@ -106,10 +106,12 @@ are in [Mac testing](mac-testing.md).
    [first-connection guide](https://connect.mazda.com/en/smartphone-integration/android-auto/type-a/index.html)
    requires it; enable the connected device if the car offers Always Enable or
    Enable Once. The Pi emulates the Android device and has no Android setup UI.
-2. Shut the Pi down on the Mac before moving its sole power/data cable, when
-   reachable.
+2. Shut the Pi down before changing any connection that supplies power, when
+   reachable. The splitter's power routing and supply rating remain unverified.
 3. Connect Pi USB-C to the car's **Android Auto** USB port. This supplies both
-   power and data; allow the service to start and confirm **Pi AirPlay AA**.
+   data and, in the original wiring, power; allow the service to start and confirm
+   **Pi AirPlay AA**. Verify the actual power arrangement before accepting this
+   test.
 4. Keep the phone and Pi on the same network. On iPhone select Screen Mirroring
    → **Pi AirPlay AA**, then play visibly moving content.
 5. Confirm the car accepts the Android Auto session and displays that content.

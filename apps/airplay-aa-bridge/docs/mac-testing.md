@@ -10,9 +10,10 @@ Official reference: [Desktop Head Unit](https://developer.android.com/training/c
 ## Wiring
 
 Connect the Pi's USB-C port to the Mac with a cable that carries power and data.
-The user confirms this Pi has no separate power connection; USB-C supplies both.
-Removing the cable powers it off. Shut the Pi down before moving the cable when
-the Pi is reachable. Reliable power from the connected host remains part of the
+In the original wiring USB-C supplied both, and removing it powered the Pi off.
+The user has since added a power splitter whose model and supply are unverified.
+Shut the Pi down before changing any connection that supplies power. Reliable
+power from the actual connected supply remains part of the
 hardware acceptance; the saved undervoltage warnings remain unresolved.
 
 Pi and Mac/iPhone must also share a network when testing AirPlay. Network access
@@ -135,7 +136,9 @@ screenshot /absolute/path/headunit.png
 
 - **USB:** `ioreg -p IOUSB -l -w0` should show AAServer / TAGAAS, normally
   `12d1:107e`, or Google accessory `18d1:2d00` after switching.
-- **AOAP:** DHU discovers the accessory; Pi logs `Got 53, exit`.
+- **AOAP:** DHU discovers the accessory; the vendor-only candidate logs
+  `Initial AOA request 53 completed; switch to accessory mode`. The previous
+  installed build logs `Got 53, exit`.
 - **Protocol/TLS:** DHU reports the phone protocol; Pi logs `version negotiation ok`
   and `auth complete`. Treat certificate errors as failures.
 - **Service discovery:** Pi logs `got service discovery response`; injector resolves
@@ -170,7 +173,8 @@ substitute for the DHU hardware test.
 ./scripts/test-aacs-local.sh
 ```
 
-This compiles the production C++ USB-startup, discovery, input and video-handler
+This compiles the production C++ USB-startup, AOA control/event-loop, discovery,
+input and video-handler
 harnesses with strict warnings. It requires Boost headers, a C++14 compiler,
 `protoc` and protobuf available through `pkg-config`; newer protobuf may require
 C++17 for its generated-code tests. These software checks do not establish
