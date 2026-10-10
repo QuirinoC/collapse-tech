@@ -127,7 +127,7 @@ start_injector
 
 echo "airplay-aa-bridge running aa=${AA_PID} pipe=${PIPE_PID} inj=${INJ_PID}"
 echo "AirPlay name: ${AIRPLAY_AA_NAME} (cast-ready; waiting for car USB AOAP)"
-echo "USB: keep GPIO power connected; Pi USB-C data goes to the car or Mac DHU."
+echo "USB-C carries host data and, with no separate supply, also powers the Pi."
 
 # Keep AirPlay + FIFO holder up. Symlink AAServer socket when AOAP appears.
 # Only exit when the AAServer supervisor dies (systemd Restart=always).

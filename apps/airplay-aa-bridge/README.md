@@ -3,6 +3,10 @@
 Raspberry Pi becomes an **AirPlay 2 receiver** and projects that video to a car
 head unit over **wired Android Auto (USB AOAP)**. Wireless Android Auto is not used.
 
+The automatic Mac bench loop has passed. The actual Mazda still fails to
+activate Android Auto; this project is **not car-ready**. See
+[current evidence](docs/STATUS.md).
+
 ```
 Mac / iPhone  --AirPlay2-->  UxPlay on Pi  --H.264-->  AAServer  --USB-->  Car / Mac DHU
 ```
@@ -11,13 +15,19 @@ Mac / iPhone  --AirPlay2-->  UxPlay on Pi  --H.264-->  AAServer  --USB-->  Car /
 
 | Board | USB gadget port |
 | --- | --- |
-| Pi 4 / Pi 5 | USB-C data (this Pi keeps its established GPIO power) |
+| Pi 4 / Pi 5 | USB-C, shared with power input |
 | Pi Zero 2 W | micro-USB marked **USB** (not PWR) |
 | Pi 3 A+ | USB-A OTG |
 
-Needs a **data** cable into the car AA USB port or the Mac running DHU. This
-Pi 5 is powered at 5 V through GPIO physical pins 2/4 and ground pin 6, from the
-PD trigger fed by the official brick. Keep USB-C available for data.
+Needs a **data** cable into the car AA USB port or the Mac running DHU. The user
+confirmed this Pi 5 receives **all power and data from the single USB-C cable
+to the Mazda**. There is no separate power connection. Unplugging that cable
+powers it off; shut down the Pi before unplugging when it is reachable.
+
+The car port's power capacity is unverified, and earlier Pi undervoltage was
+observed. Check supply stability before further car acceptance testing. Raspberry
+Pi documents [5 V / 3 A operation with limited USB peripherals and recommends
+5 V / 5 A for Pi 5](https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#power-supply).
 
 ## Quick install (on the Pi)
 
@@ -38,14 +48,18 @@ belongs to a head unit and is rejected before installation. See
 
 Then:
 
-1. AirPlay Screen Mirroring from your **Mac** or iPhone → **Pi AirPlay AA**
-2. Plug the Pi gadget port into the car USB (wired AA only)
+1. Connect the Pi gadget port to the USB host with adequate power.
+2. AirPlay Screen Mirroring from your **Mac** or iPhone → **Pi AirPlay AA**.
+
+Android Auto startup does not require AirPlay. A car trial still needs the
+activation and stable-power checks in [car bring-up](docs/car-bringup.md).
 
 Mac simulator steps: [docs/mac-testing.md](docs/mac-testing.md)
 
 ## Local end-to-end test
 
-Keep the Pi's GPIO power connected and connect its USB-C data port to this Mac.
+Connect the Pi's USB-C port to this Mac using a data-capable cable and check
+power stability. In the user's current setup, this cable also powers the Pi.
 Use the existing Google Desktop Head Unit to exercise actual USB accessory mode,
 TLS and decoded video:
 
