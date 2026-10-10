@@ -1,14 +1,62 @@
 # Bench status — October 10, 2026
 
-**Automatic Mac AirPlay → Pi UxPlay → encode/inject → USB Android Auto → Mac
-DHU: PASSED.** The installed build completed fresh input binding, requested
-projected video focus, received the head unit's grant and started moving decoded
-video. The strict hardware runs used normal TLS verification and no DHU console
-focus override. **The new build has not yet been tested against the Mazda.**
-Its earlier build authenticated and accepted video setup but received no focus
-grant; car activation remains unresolved. Audio is disabled; these passes cover
-video only. See [mac-testing.md](mac-testing.md) for the repeatable hardware test.
-**Repeated Pi undervoltage is a current power blocker for car readiness.**
+**Actual Mazda activation: STILL FAILING with the installed input build.**
+After the user's power cycle, the Pi authenticated, completed real input binding
+and accepted video setup, but the Mazda again supplied no projected focus grant
+or stream start. The user subsequently reported repeated **USB1 not responding**
+messages, and the Pi became unreachable over SSH. Further hardware probes are
+on hold. The successful automatic Mac AirPlay → Pi → USB → Mac DHU tests
+remain separate evidence; they do not establish car compatibility. Prior Pi
+undervoltage remains unexplained, although the new car boot's sampled flags are
+clear. Audio is disabled; the evidence covers video only.
+See [mac-testing.md](mac-testing.md) for the repeatable Mac hardware test.
+
+## Current Mazda retest
+
+The session observed at **14:37 PDT** used the installed AAServer hash
+`dba09b6d0826b12a6e325304cd7ea55a4217118d67c1fea48914ca7358e623a1`
+after the user's power cycle. At approximately 14:38, uptime was about two
+minutes. Early process log times read 14:30 before clock synchronization; they
+must not be treated as definite wall-clock startup times.
+
+The current session confirms:
+
+- USB was configured; protocol negotiation, authentication and discovery
+  succeeded.
+- Input channel **2** opened and bound with real parsed status **0**, accepted
+  by the injector; all **15** advertised numeric keycodes were preserved.
+- Video channel **1** accepted setup status **2**, max_unacked **4**, config **0**.
+  The Pi requested **PROJECTED** focus, followed only by head-unit pings; no
+  VideoFocusIndication or StartIndication appeared.
+- The installed runtime hashes were intact and AAServer, UxPlay, encoder and
+  injector were actually running across the power cycle. Service state alone
+  was not used as that proof.
+- Current-boot `get_throttled=0x0` was sampled. This short new-boot observation
+  does not establish sustained power stability or explain the previous warnings.
+
+Private evidence is `.local/car-runtime/20261010-1437/state.txt`. Successful
+automatic input binding did not resolve the Mazda activation failure.
+
+A bounded real sensor probe at **14:40:25 PDT** opened advertised sensor channel
+**7** with status **0**, then subscribed to parking brake **7** and driving status
+**13**. Both subscriptions received status **0**. The car reported
+**parking_brake=true** and **driving_status_raw=0**, with no probe errors.
+No focus grant or StartIndication followed. The brake was therefore engaged at
+the observation time, and sensor subscription alone did not resolve activation.
+Evidence is `.local/car-runtime/20261010-1437/sensors.json` and
+`after-sensors.txt`. Bluetooth readiness still needs a genuine adapter/pairing
+observation; no generic phone-side consent-accept operation is verified.
+
+During an attempt to execute an AA-only Bluetooth preparation probe, its SSH
+connection reset and no
+`result.json` was recovered. Probe completion or success is therefore unproven.
+A later verified-key IPv6 SSH connection observed boot ID `e194a2c7…`, different
+from the preceding `9e53…` boot. Its wall clock was not synchronized and uptime
+was near zero, so the log clock does not establish the actual restart time.
+The user then reported repeated **USB1 not responding** messages. Subsequent
+IPv4 and IPv6 SSH attempts timed out. The restart and USB failure causes remain
+unknown. The full private Bluetooth/HFP orchestrator has **not been executed**;
+genuine pairing, a persisted bond and HFP readiness remain unverified.
 
 ## Current automatic hardware evidence
 
@@ -38,8 +86,9 @@ evidence and actual decoded frames. These are valid automatic full-loop passes.
 Their desktop and notification overlays limit presentation; they do not establish
 unobscured fullscreen playback. Sustained operation and car compatibility remain
 unverified. The Mac test ended with QuickTime paused and AirPlay disconnected.
-The two fresh DHU sessions establish repeated session startup; physical USB
-cable reconnect and cold boot of this build have not been tested.
+The two fresh DHU sessions establish repeated session startup. The subsequent
+car power cycle established runtime startup for this build, but car video and
+sustained reconnect behavior remain unverified.
 
 The earlier clean fullscreen run at `.local/bench/20261010-110729/` proved moving
 Mac content through the same AirPlay/USB path, but supplied a DHU console focus
@@ -53,9 +102,10 @@ The installed AAServer at `/opt/airplay-aa/libexec/aaserver/AAServer` has SHA-25
 dba09b6d0826b12a6e325304cd7ea55a4217118d67c1fea48914ca7358e623a1
 ```
 
-It is 4,921,584 bytes with mode 755. The service is enabled and active, relaunches
-AAServer after DHU exits, and is left in `AIRPLAY_AA_SOURCE=airplay`. No captures
-are active. The durable deployment backup includes
+It was last verified as 4,921,584 bytes with mode 755. The service was enabled
+and active at the 14:37 observation, relaunches AAServer after DHU exits, and is
+configured with `AIRPLAY_AA_SOURCE=airplay`. Its state after the later restart
+and SSH timeouts is unverified. The durable deployment backup includes
 `/var/backups/airplay-aa-input-l397h7e6/rollback.py`.
 
 The build includes bounded FunctionFS startup, compatibility with omitted video
@@ -92,7 +142,7 @@ access units per second instead of 30. The production pacing regression passed,
 but actual car playback at the corrected rate still needs a focus grant and a
 fresh cast.
 
-## Last Mazda evidence, before the input build
+## Earlier Mazda evidence, before the input build
 
 At approximately 11:46 PDT, the actual head unit identified itself as Visteon
 Connectivity Master Unit, `MAZ_CMU-150`, firmware `70.00.367`, year 2017.
@@ -116,13 +166,24 @@ was restored. Neither comparison established a Mazda remedy.
 Private evidence is in `.local/car-runtime/20261010-1143/`,
 `20261010-1147/` and `20261010-1155/`. The packet summary excludes personal device
 identifiers and media URLs. No verified generic phone-side consent-accept
-message is known. Prepared sensor and Bluetooth diagnostic helpers have not sent
-requests to the car. Device enablement and the first-connection parking-brake
-condition still need observation; Mazda documents them in its
+message is known. That earlier session had no sensor or Bluetooth diagnostic
+requests. Device enablement and enabled Bluetooth still need observation. The
+first-connection parking-brake condition is now observed above; Mazda documents
+these conditions in its
 [Type A Android Auto guide](https://connect.mazda.com/en/smartphone-integration/android-auto/type-a/index.html).
-The new input build's Mac pass does not prove it resolves this car failure.
+The new input build's car retest above confirms that input binding alone did not
+resolve this failure.
 
-## Current power blocker
+## Power observations
+
+The user explicitly corrected the wiring account: this Pi is powered **only
+through its USB-C connection to the Mazda**, which also carries Android Auto
+data. The earlier GPIO/PD-trigger/27 W supply account was false and must not be
+used for instructions or conclusions. Unplugging that cable removes power.
+The previous advice to disconnect data while retaining separate power was
+therefore incorrect. When reachable, shut the Pi down before moving or removing
+its sole power/data cable. No alternative power arrangement has been installed
+or verified.
 
 The boot beginning around **12:13 PDT** recorded repeated kernel
 `Undervoltage detected` / `Voltage normalised` warnings from **12:19 through
@@ -138,7 +199,8 @@ That does not negate the preceding active flags and kernel warnings. This query
 found no mmc/ext4 errors. Private evidence is in
 `.local/power-check-20261010/{kernel,samples}.log`. Both strict AirPlay loops
 passed despite the warnings; power stability still needs resolution before car
-readiness.
+readiness. The later car boot sampled `0x0`; this clears the current observation
+but does not explain or disprove the earlier undervoltage.
 
 ## Startup persistence and recovery
 
@@ -151,30 +213,40 @@ fsync. The installed durability protections have a backup at
 evidence that the actual bridge processes are healthy.
 
 The Pi restarted at approximately **12:02 PDT** and recovered the earlier focus
-binary and pipeline intact, with real bridge processes running. This confirms
-that repair survived that restart. **The newly installed input build has not
-been rebooted.** Its cold-boot and reconnect acceptance remain pending.
+binary and pipeline intact. The user's later power cycle also recovered the new
+input build and pipeline with expected hashes and real processes running, as
+observed at **14:37 PDT**. These are observed startup successes; they do not prove
+long-term durability or automatic car video. Sustained boot/reconnect acceptance
+remains pending.
 
 The boot audit found the bridge enabled in systemd, persistent dwc2 peripheral
 configuration and module loading, and the competing gadget service masked. The
 bridge recreates runtime directories/FIFO and missing idle video. It binds the
-initial gadget and waits for the host, so either power/cable order is intended to
-work. The earlier version started after the move and power cycle in the car,
+initial gadget and waits for the host. With the actual wiring, USB-C connection
+supplies power and data together. The earlier version started after the move
+and power cycle in the car,
 although automatic activation failed. Durable atomic replacement preserves each
 old or new file across an interrupted write; it is not a transaction across an
 entire deployment.
 
-Keep the established GPIO power wiring: physical pins **2/4** and **GND 6**,
-supplied at **5 V** by the PD trigger from the official **27 W** brick. Pi USB-C
-is data to the Mac or car. Do not change EEPROM, reboot or manually unbind the
-gadget as a diagnostic step. Read UDC state at `/sys/class/udc/*/state`; prior
-configfs `UDC` access hung.
+The later `e194a2c7…` boot is another observed restart, not a successful
+end-to-end recovery: no probe result was recovered and the user reported USB
+errors. The startup script's configfs cleanup and initial gadget binding have
+no overall timeout; a blocked operation can leave a supervisor alive without
+a working USB session. The FunctionFS endpoint startup gate is bounded at
+10 seconds, and established USB suspend/disable ends the session before the
+supervisor retries. These are code-level failure paths, not a diagnosis of the
+observed restart. Do not reboot or manually unbind the gadget to repeat this
+failure. Prior configfs `UDC` access hung; use `/sys/class/udc/*/state` for a
+read-only state check when the Pi is reachable.
 
 ## Remaining acceptance
 
-1. Resolve the observed undervoltage and verify stable power.
-2. Test the installed input build in the parked Mazda, recording real input
-   binding, setup, focus grant and moving video. Resolve the enablement/focus
+1. Establish reliable power for the actual USB-C power/data arrangement and
+   investigate the unexplained restart and repeated USB1 errors. Prior
+   undervoltage is real evidence, but its relationship to this failure is unknown.
+2. Resolve Mazda activation: real input binding and setup now pass, but the
+   focus grant and moving video are still missing. Resolve the enablement/focus
    failure from actual responses rather than inventing consent or motion state.
 3. Verify sustained playback, corrected HLS pacing, USB reconnect and cold boot
    on the installed build.

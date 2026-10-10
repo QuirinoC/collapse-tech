@@ -9,9 +9,11 @@ Official reference: [Desktop Head Unit](https://developer.android.com/training/c
 
 ## Wiring
 
-Keep the established GPIO power arrangement: PD trigger at 5 V feeding physical
-pins 2/4, ground on pin 6. The official brick feeds the trigger. Connect the Pi's
-USB-C data port to this Mac with a data cable. Keep Pi USB-C available for data.
+Connect the Pi's USB-C port to the Mac with a cable that carries power and data.
+The user confirms this Pi has no separate power connection; USB-C supplies both.
+Removing the cable powers it off. Shut the Pi down before moving the cable when
+the Pi is reachable. Reliable power from the connected host remains part of the
+hardware acceptance; the saved undervoltage warnings remain unresolved.
 
 Pi and Mac/iPhone must also share a network when testing AirPlay. Network access
 is useful for Pi logs, but the actual Android Auto video travels over USB.
@@ -199,11 +201,17 @@ unobscured fullscreen playback. Logs alone cannot identify the source pixels.
 The earlier unobscured fullscreen evidence at `.local/bench/20261010-110729/`
 used console focus and remains transport-only evidence.
 
-The tested build is installed; the Pi remains enabled and active in AirPlay
-mode. QuickTime was paused and Mac AirPlay disconnected after testing. See
+The tested build is installed and configured to start in AirPlay mode. QuickTime
+was paused and Mac AirPlay disconnected after testing. See
 [STATUS.md](STATUS.md) for the binary hash, durable rollback, certificate expiry
-and observed undervoltage. The new build has not been rebooted or tested in the
-Mazda; earlier Mazda focus failure remains unresolved. Sustained operation also
-remains unverified. Two fresh DHU sessions prove repeated session startup, not
-physical USB cable reconnect or cold boot. Audio is disabled; these passes verify
-video.
+and observed undervoltage. A later user power cycle started the installed build
+in the Mazda with intact hashes and real bridge processes. The car accepted
+input binding and video setup, but still supplied no focus grant or moving
+video. Real sensor readings confirmed an engaged parking brake; subscribing to
+sensors did not resolve activation. A subsequent AA-only Bluetooth probe lost
+its SSH connection without a recovered result; a different boot ID was later
+observed, followed by repeated Mazda **USB1 not responding** messages and SSH
+timeouts. No full Bluetooth/HFP pairing attempt has run, and the restart cause
+is unknown. Hardware probes are on hold. These observations do not establish
+long-term durability, stable power or sustained reconnect behavior. Audio is
+disabled; the Mac passes verify video.

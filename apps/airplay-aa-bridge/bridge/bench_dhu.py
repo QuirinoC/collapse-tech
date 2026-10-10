@@ -744,7 +744,7 @@ def main(argv: list[str] | None = None) -> int:
     if inventory["returncode"] != 0:
         problems.append("USB inventory could not be read.")
     if not devices:
-        problems.append("Connect Pi USB-C data to this Mac while keeping the established GPIO power supply.")
+        problems.append("Connect Pi USB-C to this Mac with a data-capable cable and adequate power.")
     if args.pi_host:
         pi = collect_pi(args.pi_host, out, "before", airplay=args.expect_airplay, startup=args.expect_auto_start)
         summary["pi"] = {"host": args.pi_host, "before": pi}

@@ -55,7 +55,7 @@ fi
 
 if ! ioreg -p IOUSB -w0 2>/dev/null | grep -q AAServer; then
   echo "WARN: no AAServer USB gadget seen yet."
-  echo "  Keep GPIO power connected; connect Pi USB-C data to this Mac."
+  echo "  Connect Pi USB-C to this Mac with a data-capable cable and adequate power."
 fi
 
 # The old local setup contains ssl_bypass.dylib. Bench tests must exercise
