@@ -105,10 +105,14 @@ For an interactive emulator window and console:
 ./scripts/run-mac-dhu.sh
 ```
 
-DHU console commands include:
+The acceptance runner relies on the phone's focus request and does not issue
+`focus video on`. The earlier October 10 transport passes did issue that
+command, which concealed the missing automatic activation in the car. A fresh
+hardware pass without it remains required.
+
+For a screenshot in an interactive diagnostic session:
 
 ```text
-focus video on
 screenshot /absolute/path/headunit.png
 ```
 
@@ -121,6 +125,9 @@ screenshot /absolute/path/headunit.png
   and `auth complete`. Treat certificate errors as failures.
 - **Service discovery:** Pi logs `got service discovery response`; injector resolves
   `video channel id=N`, with N neither 0 nor 255.
+- **Setup/focus:** Pi logs accepted setup, PROJECTED focus request, a projected
+  focus indication (mode 1 or 4), then StartIndication. Rejected/missing setup
+  and native focus must hold media. A console focus override is not acceptance.
 - **Video:** DHU screenshots actually decode nonblank moving content.
 
 Pi logs are `/var/log/airplay-aa/{aaserver,uxplay,inject,test-pattern}.log`.

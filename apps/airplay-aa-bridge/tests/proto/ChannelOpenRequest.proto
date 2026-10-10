@@ -1,0 +1,7 @@
+// AACS's existing control-channel schema, required by the actual base handler.
+syntax="proto2";
+package tag.aas;
+message ChannelOpenRequest {
+  required int32 unknown_field = 1;
+  required int32 channel_id = 2;
+}

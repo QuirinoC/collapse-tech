@@ -13,7 +13,7 @@ CERT_SRC="${AIRPLAY_AA_CERT_DIR:-$ROOT/certs}"
 "$ROOT/scripts/check-phone-certs.sh" "$CERT_SRC"
 CERT_SRC="$(cd "$CERT_SRC" && pwd)"
 
-mkdir -p "$SRC" "$PREFIX"/{bin,libexec/aaserver,share}
+mkdir -p "$SRC"
 
 run_root() {
   if [[ "$(id -u)" -eq 0 ]]; then
@@ -68,7 +68,12 @@ fi
   mkdir -p build && cd build
   cmake .. -DCMAKE_INSTALL_PREFIX="$PREFIX"
   make -j"$JOBS"
-  run_root make install
+  # Stage CMake's install output, then replace runtime files durably instead of
+  # allowing an interrupted in-place install to truncate the live executable.
+  uxplay_stage="$(mktemp -d)"
+  trap 'rm -rf "$uxplay_stage"' EXIT
+  DESTDIR="$uxplay_stage" make install
+  run_root python3 "$ROOT/scripts/atomic_install.py" "$uxplay_stage$PREFIX" "$PREFIX" --tree --owner 0 --group 0
 )
 
 echo "==> AACS AAServer (phone-side Android Auto over USB)"
@@ -85,13 +90,24 @@ cp "$ROOT/patches/ChannelHandler.h" \
   "$SRC/AACS/AAServer/include/ChannelHandler.h"
 cp "$ROOT/patches/ChannelHandler.cpp" \
   "$SRC/AACS/AAServer/src/ChannelHandler.cpp"
+cp "$ROOT/patches/VideoChannelHandler.h" \
+  "$SRC/AACS/AAServer/include/VideoChannelHandler.h"
 # Apply AirPlay-AA video handler (no Snowmix; socket H.264 inject).
 cp "$ROOT/patches/VideoChannelHandler.cpp" \
   "$SRC/AACS/AAServer/src/VideoChannelHandler.cpp"
 # Current DHU omits the optional codec on its video media descriptor.
-for proto in MediaStreamType MediaChannel VideoConfig; do
+for proto in MediaStreamType MediaChannel VideoConfig MediaChannelSetupResponse VideoFocusIndication; do
   cp "$ROOT/patches/$proto.proto" "$SRC/AACS/proto/$proto.proto"
 done
+# AACS enumerates generated schemas explicitly rather than globbing proto files.
+if ! grep -q '^[[:space:]]*../proto/VideoFocusIndication.proto' "$SRC/AACS/proto/CMakeLists.txt"; then
+  sed -i '/^[[:space:]]*\.\.\/proto\/MediaChannelSetupResponse.proto/a\    ../proto/VideoFocusIndication.proto' \
+    "$SRC/AACS/proto/CMakeLists.txt"
+fi
+grep -q '^[[:space:]]*../proto/VideoFocusIndication.proto' "$SRC/AACS/proto/CMakeLists.txt" || {
+  echo "Cannot register VideoFocusIndication.proto in AACS proto/CMakeLists.txt" >&2
+  exit 1
+}
 # CD-ROM mass-storage LUN must be ro=1 on modern kernels (else Invalid parameter).
 cp "$ROOT/patches/MassStorageFunction.cpp" \
   "$SRC/AACS/AAServer/src/MassStorageFunction.cpp"
@@ -119,19 +135,18 @@ export LD_LIBRARY_PATH="$PREFIX/lib:${LD_LIBRARY_PATH:-}"
   cmake .. -DCMAKE_PREFIX_PATH="$PREFIX"
   # Only need AAServer for the phone-side USB path.
   cmake --build . --target AAServer -j"$JOBS"
-  run_root install -d "$PREFIX/libexec/aaserver"
-  run_root install -m 755 AAServer/AAServer "$PREFIX/libexec/aaserver/AAServer"
-  run_root install -m 644 "$CERT_SRC/android_auto.crt" "$PREFIX/libexec/aaserver/"
-  run_root install -m 600 "$CERT_SRC/android_auto.key" "$PREFIX/libexec/aaserver/"
+  run_root python3 "$ROOT/scripts/atomic_install.py" AAServer/AAServer "$PREFIX/libexec/aaserver/AAServer" --mode 755 --owner 0 --group 0
+  run_root python3 "$ROOT/scripts/atomic_install.py" "$CERT_SRC/android_auto.crt" "$PREFIX/libexec/aaserver/android_auto.crt" --mode 644 --owner 0 --group 0
+  run_root python3 "$ROOT/scripts/atomic_install.py" "$CERT_SRC/android_auto.key" "$PREFIX/libexec/aaserver/android_auto.key" --mode 600 --owner 0 --group 0
   if [[ -d ../AAServer/ssl ]]; then
-    run_root install -m 644 "$CERT_SRC/android_auto.crt" ../AAServer/ssl/
-    run_root install -m 600 "$CERT_SRC/android_auto.key" ../AAServer/ssl/
+    run_root python3 "$ROOT/scripts/atomic_install.py" "$CERT_SRC/android_auto.crt" ../AAServer/ssl/android_auto.crt --mode 644 --owner 0 --group 0
+    run_root python3 "$ROOT/scripts/atomic_install.py" "$CERT_SRC/android_auto.key" ../AAServer/ssl/android_auto.key --mode 600 --owner 0 --group 0
   fi
   if [[ -f AAServer/dhparam.pem ]]; then
-    run_root install -m 644 AAServer/dhparam.pem "$PREFIX/libexec/aaserver/"
+    run_root python3 "$ROOT/scripts/atomic_install.py" AAServer/dhparam.pem "$PREFIX/libexec/aaserver/dhparam.pem" --mode 644 --owner 0 --group 0
   else
     openssl dhparam -out /tmp/dhparam.pem 2048
-    run_root install -m 644 /tmp/dhparam.pem "$PREFIX/libexec/aaserver/"
+    run_root python3 "$ROOT/scripts/atomic_install.py" /tmp/dhparam.pem "$PREFIX/libexec/aaserver/dhparam.pem" --mode 644 --owner 0 --group 0
   fi
 )
 

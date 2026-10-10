@@ -1,0 +1,10 @@
+// Distributed under GPLv3 only as specified in AACS repository LICENSE.
+// Correct AV setup response schema; configs supports packed/unpacked entries.
+syntax="proto2";
+package tag.aas;
+message MediaChannelSetupResponse {
+    enum Status { NONE = 0; FAIL = 1; OK = 2; }
+    required Status media_status = 1;
+    required uint32 max_unacked = 2;
+    repeated uint32 configs = 3;
+}
