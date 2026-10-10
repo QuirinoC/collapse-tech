@@ -136,9 +136,9 @@ screenshot /absolute/path/headunit.png
 
 - **USB:** `ioreg -p IOUSB -l -w0` should show AAServer / TAGAAS, normally
   `12d1:107e`, or Google accessory `18d1:2d00` after switching.
-- **AOAP:** DHU discovers the accessory; the vendor-only candidate logs
-  `Initial AOA request 53 completed; switch to accessory mode`. The previous
-  installed build logs `Got 53, exit`.
+- **AOAP:** DHU discovers the accessory; the current vendor-only build logs
+  `Initial AOA request 53 completed; switch to accessory mode`. The historical
+  mass-storage build logged `Got 53, exit`.
 - **Protocol/TLS:** DHU reports the phone protocol; Pi logs `version negotiation ok`
   and `auth complete`. Treat certificate errors as failures.
 - **Service discovery:** Pi logs `got service discovery response`; injector resolves
@@ -175,12 +175,32 @@ substitute for the DHU hardware test.
 
 This compiles the production C++ USB-startup, AOA control/event-loop, discovery,
 input and video-handler
-harnesses with strict warnings. It requires Boost headers, a C++14 compiler,
-`protoc` and protobuf available through `pkg-config`; newer protobuf may require
-C++17 for its generated-code tests. These software checks do not establish
+harnesses with strict warnings. It requires Boost headers, a C++20-capable compiler,
+`protoc` and protobuf available through `pkg-config`. The descriptor test uses
+C++20, USB/control helpers remain C++14-tested, and newer protobuf may require
+C++17 for generated-code tests. These software checks do not establish
 hardware focus, car compatibility or reboot behavior.
 
 ## Current evidence
+
+The final installed USB build (`d195d479…`) passed an actual strict headless
+moving-pattern test at **15:55:57–15:56:11 PDT** on October 10, 2026. Evidence is
+`.local/bench/20261010-155557/summary.json`: real accessory switching, DHU
+certificate verification, automatic input binding and Pi-requested projected
+focus followed by two decoded 800×480 SMPTE frames, 5.10 seconds apart. Their
+mean absolute RGB difference was **0.9485** and **4.27%** of pixels changed.
+Both frames were visually inspected. AirPlay was not tested in this run; the
+full source test on this exact binary is pending macOS Screen Mirroring selection.
+The service is now restored to normal AirPlay mode.
+
+This build retains pre-session suspend/resume correctly, uses a vendor-only
+initial AOA attachment and corrects accessory full-speed packets to 64 bytes
+(high-speed remains 512). These fixes have not yet established Mazda acceptance.
+The previous USB candidate switched to accessory mode in the Mazda but repeatedly
+reset before delivering AA bulk bytes. A fresh kernel undervoltage warning
+occurred in that same short car probe despite clear two-second flag samples.
+
+### Historical input/focus build
 
 On October 10, 2026, the installed input/focus build passed the strict pattern
 test at **12:23:49–12:24:03 PDT**, followed by two headless full AirPlay loops:
@@ -205,8 +225,8 @@ unobscured fullscreen playback. Logs alone cannot identify the source pixels.
 The earlier unobscured fullscreen evidence at `.local/bench/20261010-110729/`
 used console focus and remains transport-only evidence.
 
-The tested build is installed and configured to start in AirPlay mode. QuickTime
-was paused and Mac AirPlay disconnected after testing. See
+That older build was configured to start in AirPlay mode. QuickTime
+was paused and Mac AirPlay disconnected after those tests. See
 [STATUS.md](STATUS.md) for the binary hash, durable rollback, certificate expiry
 and observed undervoltage. A later user power cycle started the installed build
 in the Mazda with intact hashes and real bridge processes. The car accepted
@@ -216,6 +236,6 @@ sensors did not resolve activation. A subsequent AA-only Bluetooth probe lost
 its SSH connection without a recovered result; a different boot ID was later
 observed, followed by repeated Mazda **USB1 not responding** messages and SSH
 timeouts. No full Bluetooth/HFP pairing attempt has run, and the restart cause
-is unknown. Hardware probes are on hold. These observations do not establish
+is unknown. These observations do not establish
 long-term durability, stable power or sustained reconnect behavior. Audio is
 disabled; the Mac passes verify video.

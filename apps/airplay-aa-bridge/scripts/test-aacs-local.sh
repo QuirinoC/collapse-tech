@@ -50,6 +50,17 @@ fi
   -I"$ROOT/patches" "$ROOT/tests/mode_switcher_test.cpp" -o "$OUT/mode-switcher-test"
 "$OUT/mode-switcher-test"
 
+# Parse the actual accessory descriptor writer's bytes after a real pipe. Use
+# the platform's Linux UAPI when available; non-Linux hosts get ABI-only stubs.
+# C++20 accepts upstream's designated initializers under the strict test flags.
+descriptor_cflags=(-I"$ROOT/tests/support/descriptors")
+if [[ "$(uname -s)" != Linux ]]; then
+  descriptor_cflags+=(-I"$ROOT/tests/support/descriptors/nonlinux")
+fi
+"$CXX" -std=c++20 "${strict[@]}" "${descriptor_cflags[@]}" \
+  "$ROOT/tests/accessory_descriptors_test.cpp" -o "$OUT/accessory-descriptors-test"
+"$OUT/accessory-descriptors-test"
+
 # New Homebrew protobuf requires C++17; the USB helper remains C++14-tested.
 protobuf_standard=c++14
 if ! printf '#include <google/protobuf/message.h>\n' | \

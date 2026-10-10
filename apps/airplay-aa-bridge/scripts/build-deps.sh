@@ -122,6 +122,9 @@ cp "$ROOT/patches/ModeSwitcher.h" "$ROOT/patches/AoaControl.h" \
   "$SRC/AACS/AAServer/include/"
 cp "$ROOT/patches/ModeSwitcher.cpp" "$SRC/AACS/AAServer/src/ModeSwitcher.cpp"
 
+# Full-speed bulk endpoints use 64-byte packets; high-speed stays at 512.
+cp "$ROOT/patches/descriptors.cpp" "$SRC/AACS/AAServer/src/descriptors.cpp"
+
 # Register input controls with strict open/binding responses and bounded waits.
 cp "$ROOT/patches/InputChannelHandler.h" \
   "$SRC/AACS/AAServer/include/InputChannelHandler.h"

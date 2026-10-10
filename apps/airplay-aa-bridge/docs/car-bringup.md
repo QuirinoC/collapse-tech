@@ -3,24 +3,25 @@
 The Pi receives AirPlay as **Pi AirPlay AA** and sends video to the head unit
 over wired Android Auto USB. Prove the complete path on the Mac bench before
 moving the power/data cable to the car. Compatibility with this user's actual
-car head unit currently **fails activation after accepted input binding and
-video setup**. Two full Mac AirPlay/USB DHU passes proved automatic input and
-focus negotiation without a console override. The latest Mazda attempt still
-failed; subsequent evidence includes an unexplained Pi restart and repeated
-**USB1 not responding** messages. Hardware probes are on hold. See [current evidence](STATUS.md).
+car head unit remains unproven: an older build completed input binding and video
+setup without receiving projection focus; the subsequent USB startup candidate
+failed before its first AA bulk bytes. The final full-speed descriptor correction
+has passed actual Mac USB/DHU moving video but has not been Mazda-tested. Power
+warnings remain unresolved. See [current evidence](STATUS.md).
 
 ## Actual power and USB connection
 
 | Connection | User-confirmed arrangement |
 | --- | --- |
-| Pi USB-C | **Power and data** from the Mazda Android Auto USB port |
-| Separate power connection | None |
+| Original Pi USB-C wiring | **Power and data** from the Mazda Android Auto USB port; no separate power |
+| Later wiring | User added a power splitter; model, supply rating and isolation unverified |
 
 Disconnecting USB-C removes power. When the Pi is reachable, shut it down before
 removing or moving that cable. A Mac bench connection also needs to carry both
-power and data. Reliable host-supplied power has not been established: prior
-kernel undervoltage warnings and the later restart require investigation before
-further car trials. No alternative power arrangement is verified. Do not change
+power and data unless a verified separate supply is present. Reliable power has
+not been established: actual Mac samples and the later splitter/car probe
+recorded undervoltage. The splitter supply and routing require verification before
+further car trials. Do not change
 EEPROM or manually unbind the gadget as a diagnostic step; the existing service
 manages it.
 
@@ -28,7 +29,7 @@ The installed service and peripheral boot configuration are persistent. Runtime
 directories, the video FIFO and idle video are recreated after boot. There is no
 separate power-before-data sequence with the actual wiring: plugging in USB-C
 supplies both. The bridge waits for the head unit and handles endpoint enable
-during startup. A user power cycle started the current input/focus build in the
+during startup. A user power cycle started the older input/focus build in the
 Mazda with intact runtime hashes and real processes, but activation still failed.
 Sustained boot, power stability and cable reconnect remain unverified.
 
@@ -150,7 +151,7 @@ not a whole-deployment transaction.
 
 For `device is not responding`, retain the logs around the failure. Check the
 actual runtime certificate, cable and Android Auto port, supplied USB power,
-and AAServer errors. The latest failure remains undiagnosed and SSH is currently
-unreachable. Preserve evidence and stop additional protocol probes after repeated
+and AAServer errors. The final build is now reachable on the Mac; the latest
+Mazda failure remains undiagnosed. Preserve evidence and stop additional protocol probes after repeated
 USB errors. Use the first failed stage to choose the next fix instead of
 repeatedly restarting or rebinding the gadget.

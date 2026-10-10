@@ -3,8 +3,9 @@
 Raspberry Pi becomes an **AirPlay 2 receiver** and projects that video to a car
 head unit over **wired Android Auto (USB AOAP)**. Wireless Android Auto is not used.
 
-The automatic Mac bench loop has passed. The actual Mazda still fails to
-activate Android Auto; this project is **not car-ready**. See
+The final USB build passes automatic Mac USB/DHU moving-pattern playback. Its
+full AirPlay source test is pending macOS Screen Mirroring selection. The actual
+Mazda still fails to activate Android Auto; this project is **not car-ready**. See
 [current evidence](docs/STATUS.md).
 
 ```
