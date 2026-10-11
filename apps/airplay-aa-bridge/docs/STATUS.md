@@ -1,21 +1,34 @@
 # Bench status — October 10, 2026
 
 **Actual Mazda activation: STILL UNRESOLVED. This is not car-ready.**
-The corrected USB build is installed on the Pi and passed an actual automatic
-Mac USB/DHU moving-pattern test at **15:55:57–15:56:11 PDT**. The full AirPlay
-source test on this exact build is pending macOS Screen Mirroring selection.
-The previous USB candidate still failed in the Mazda before its first Android
-Auto bulk bytes, with repeated USB resets. An older build reached accepted input
+The installed TLS-serialization build `9c35f5bc…` passed the real automatic Mac
+USB/DHU matrix at **17:37:06–17:41:01 PDT**: touch, rotary and hybrid profiles
+each showed over 60 seconds of sampled moving video, with no session errors.
+The earlier `d195d479…` matrix remains **FAILED** because its first hybrid run
+reported framing error **-251** and out of sync; an unchanged-build repeat
+passed. The repair addresses a confirmed shared-TLS-object concurrency defect,
+but these observations do not prove the cause of that intermittent failure.
+The full Mac AirPlay → Pi → USB/DHU loop then **PASSED** at
+**17:51:39–17:52:49 PDT**, with **60.786 seconds** of sampled moving video,
+**13 captures / 12 moving pairs**, fresh mirrored H.264 and normal automatic
+startup. Two preceding full-source attempts remain recorded as failures.
+
+The previous USB candidate failed in the Mazda before its first Android Auto
+bulk bytes, with repeated USB resets. An older build reached accepted input
 binding and video setup there but received no projection grant or stream start.
 Those are separate observations, not successful car acceptance.
 
-The last verified Mac session ended with normal AirPlay mode restored and the
-service enabled and running. At the latest testing-suite preflight, no Pi USB
-device was visible on the Mac and SSH was unreachable; its current runtime
-state is unverified. The last Mac power samples still showed active
-undervoltage; warnings also occurred with the user's power splitter. The
-successful historical Mac AirPlay loops do not establish this build's AirPlay
-acceptance or Mazda compatibility. Audio is disabled; the evidence covers video only.
+The matrix used temporary `AIRPLAY_AA_SOURCE=test-pattern`. The exact original
+AirPlay config was restored at **17:41 PDT** and the service restarted. The
+**17:43:41 PDT** check verified the original config bytes, ownership/mode,
+installed binary and transport overlay hashes, and enabled/active real processes.
+Its private backup is
+`/var/backups/airplay-aa-matrix-20261010-1718/bridge.env`, with original ownership
+and mode recorded in `metadata.json`.
+The user confirmed the Mac supplies power and data solely through USB-C. The
+new power window caught active undervoltage in **40/120** samples; the stable
+boot and successful matrix do not establish reliable power or Mazda compatibility.
+Audio is disabled; the evidence covers video only.
 See [mac-testing.md](mac-testing.md) for the repeatable Mac hardware test.
 
 ## Expanded local acceptance suite
@@ -26,18 +39,82 @@ least 60 seconds of sampled moving video; the default session maximum is 90
 seconds. It records absent hardware as `BLOCKED` and later cases as `NOT_RUN`.
 The new sustained mode rejects late freezes, blanks, missing samples, early
 process exits and session errors. Neither a smoke pass nor a stale report can
-satisfy the matrix. Host discovery ran 90 tests: 76 passed and 14 existing
-Linux/GStreamer integration tests were skipped on macOS. The first actual
-matrix invocation returned `BLOCKED` before DHU launched: USB was absent and
-SSH failed. Rotary and hybrid cases were `NOT_RUN`; hardware acceptance remains
-unexercised. Private evidence:
-`.local/matrix/20261010-165905-f8b3ae7e/summary.json`.
+satisfy the matrix. After the timestamped-observation update, host Python
+discovery ran **91 tests: 77 passed and 14 existing platform-specific tests were
+skipped** in **33.520 seconds**. That green run does not establish reliability
+of every accelerated-clock fixture under concurrent host load. The first
+invocation at 16:59 was `BLOCKED` before DHU launched because USB and SSH were
+unavailable. The corrected `9c35f5bc…` build then exercised all three profiles
+with the moving SMPTE source at **17:37:06–17:41:01 PDT**:
+
+| Profile | Sampled moving-video interval | Captures / moving pairs | Outcome |
+| --- | --- | --- | --- |
+| Touch | 65.202 s | 14 / 13 | PASSED |
+| Rotary | 60.336 s | 13 / 12 | PASSED |
+| Rotary plus touchpad (hybrid) | 60.411 s | 13 / 12 | PASSED |
+
+Each profile demonstrated real USB, DHU TLS verification, input binding and
+phone-requested automatic projection. All session error lists were empty;
+no TLS bypass or console focus override was used. Private evidence is
+`.local/matrix/20261010-173706-26dc6bc5/summary.json` and each profile folder.
+The deployed binary/source identity is recorded separately in the installation
+evidence, rather than embedded in each bench profile report.
+
+### Historical matrix and repeat
+
+The earlier matrix ran **17:18:10–17:21:52 PDT** on `d195d479…`:
+
+| Profile | Sampled moving-video interval | Captures / moving pairs | Outcome |
+| --- | --- | --- | --- |
+| Touch | 60.127 s | 13 / 12 | PASSED |
+| Rotary | 60.399 s | 13 / 12 | PASSED |
+| Hybrid | 60.638 s | 13 / 12 | FAILED: fatal framing -251 / out of sync |
+
+The hybrid session error invalidated video and sustained-video acceptance
+despite moving samples, so this original matrix remains **FAILED**. Evidence is
+`.local/matrix/20261010-171810-954dbd2b/summary.json`. Its DHU log has no read
+timestamps, so it cannot establish whether the fatal error was observed before
+or after console quit, or its cause.
+
+A separate repeat at **17:27:58–17:29:17 PDT** used the unchanged `d195d479…`
+binary and the hybrid profile. It **PASSED** with **60.653 seconds**, **13
+captures / 12 moving pairs**, no session errors and a clean exit. Console quit
+was recorded at elapsed **75.940147 seconds**. Its new `dhu-events.jsonl`
+records timestamped host reads and console commands; these are observation
+times, not device emission times. Evidence is
+`.local/bench/20261010-172758/summary.json`. This establishes an intermittent
+failure, not a clean original matrix or a proven shutdown-only error.
 
 No public certification suite was found for this custom Linux phone stack.
 The public DHU provides useful interoperability evidence, not Google or Mazda
 certification. [Research and exact coverage](testing-and-certification.md)
 also record the missing transport/credit, Bluetooth, audio, power and reconnect
-checks. No production Pi files were changed by this suite update.
+checks. The matrix runner does not deploy files or change the Pi source.
+The installed repair serializes access to the shared OpenSSL `SSL` object and
+memory BIOs, and commits queued plaintext only after complete encryption and
+draining. Actual-production peer regressions cover RX/handshake serialization
+at both encryption and drain, fragmentation and failed-output queue preservation.
+The tracked `./scripts/test-tls-local.sh` built pinned AACS in disposable Debian
+13 ARM64 and passed these tests with temporary self-signed credentials; it uses
+neither a Pi nor USB and does not establish DHU trust validation. The dedicated
+`airplay-aa.yml` workflow configures Debian 13 Python/video and TLS regressions
+for bridge PR/main changes. It exercises software without physical Pi/USB
+hardware and does not supply vehicle or certification acceptance.
+Its first Ubuntu Python run failed with a `shmsink` `gst_poll_wait`/`EBUSY`
+error; the original test reproduced this on Debian 13 too. A separate controlled
+probe observed EOS followed by that error while changing the pipeline to NULL.
+The revised pacing fixture verifies 60 source frames at EOS, rendering of every
+received sink buffer and zero drops, and rejects all observed streaming errors.
+It counts `videorate` closing frames independently, exits its child before NULL,
+then reaps it and cleans only the child's shared-memory objects. This tests
+clocked playback; it does not fix or validate graceful sink shutdown.
+The final Debian 13 container run passed **all 93 Python tests with no skips**;
+the focused pacing and negative probes also passed on Alpine/GStreamer 1.28.3.
+The public OpenSSL [threading guidance](https://docs.openssl.org/3.5/man7/openssl-threads/)
+and [SSL_write contract](https://docs.openssl.org/3.5/man3/SSL_write/) support
+the shared-TLS serialization and complete-write requirements. The new matrix is
+hardware evidence for this
+repair, not proof that concurrency caused the earlier framing error.
 
 ## Mazda observations before the final USB build
 
@@ -116,9 +193,50 @@ failure. The final full-speed descriptor correction described below has not
 been tested in the Mazda.
 Private observations are in `.local/car-runtime/20261010-1459-splitter/`.
 
-## Current automatic hardware evidence
+## Current full AirPlay acceptance
 
-The final installed binary `d195d47…` passed
+The sustained full Mac AirPlay → Pi → USB/DHU loop at
+**17:51:39–17:52:49 PDT** on `9c35f5bc…` **PASSED**, with **60.786 seconds**
+of sampled moving 800×480 video and **13 captures / 12 moving pairs**. Every
+required stage passed: real USB/AOAP, protocol 1.5, DHU `Verify returned: ok`,
+input channel 3 open/binding status 0, and phone-requested automatic projected
+setup/focus/start on video channel 2. The Pi selected `airplay` and collected
+**16 fresh mirrored H.264 receive records** with advancing timestamps. No
+certificate bypass or console focus override was used; error lists were empty,
+quit was recorded at elapsed **69.30208 seconds**, and DHU exited 0 without
+early exit or forced termination. Evidence is
+`.local/bench/20261010-175139/summary.json` and its captures/logs.
+
+Visual inspection confirmed the actual fullscreen Mac test clip, including
+frame 5's clock **30.133 seconds**. Packet logs alone do not identify content.
+This verifies the full video path for this session and complements the three
+SMPTE profile passes; it does not establish audio, cold boot, physical cable
+reconnect, stable power, Mazda acceptance or certification.
+
+Two earlier attempts on the same binary remain failures:
+
+- **17:44:46–17:46:17 PDT**, `.local/bench/20261010-174446/`: authenticated
+  automatic AA startup passed, but zero fresh mirrored H.264 and 16 black
+  captures failed AirPlay/video/motion/sustained acceptance. The missing incoming
+  video's connection root cause was not established.
+- **17:50:03–17:51:18 PDT**, `.local/bench/20261010-175003/`: live AirPlay,
+  authentication, rendering and motion passed, but early captures showed a
+  static shared desktop. Sustained acceptance therefore failed despite 13
+  captures across 60.726 seconds and later moving clip samples. No session
+  errors occurred. The subsequent passing run started with the moving clip
+  already foregrounded.
+
+At **17:53:09 PDT**, the post-test check again verified exact original config
+bytes and **0644 root:root** metadata, source `airplay`, binary and transport
+overlay hashes, and enabled/active service (MainPID **5114**, AAServer **6385**,
+UxPlay **5149**) on the same boot `326757eb…`. Evidence is
+`.local/tls-serialized-deploy/final-runtime.json`. Its single `0x50000` reading
+was historical-only at that instant; it does not clear the preceding **40/120**
+active-undervoltage observations.
+
+## Historical automatic hardware evidence
+
+The earlier USB binary `d195d47…` passed
 `--headless --expect-auto-start --expect-smpte --duration 35` at
 **15:55:57–15:56:11 PDT**. Evidence is
 `.local/bench/20261010-155557/summary.json` (run `ea8e16ad`). It proves the real
@@ -132,9 +250,9 @@ SMPTE frames 5.10 seconds apart changed by mean absolute RGB difference
 **0.9485**, with **4.27%** changed pixels. Visual inspection confirmed the bars
 and changing noise region. This run did not test AirPlay.
 
-The full AirPlay source test on this exact binary is pending selection of
-**Screen Mirroring → Pi AirPlay AA** on the Mac. QuickTime's direct AirPlay
-playback button is not the tested mirroring path.
+That smoke run did not establish a full AirPlay source pass on `d195d479…`.
+The passing full loop above used **Screen Mirroring → Pi AirPlay AA** on the
+Mac. QuickTime's direct AirPlay playback button is not the tested path.
 
 ### Earlier input/focus build
 
@@ -174,21 +292,34 @@ override. It is historical transport evidence, not automatic-start acceptance.
 
 ## Installed build and validation
 
-The installed AAServer at `/opt/airplay-aa/libexec/aaserver/AAServer` has SHA-256:
+The installed AAServer at `/opt/airplay-aa/libexec/aaserver/AAServer`, deployed
+at **17:36–17:37 PDT** and used by the passing matrix, has SHA-256:
 
 ```text
-d195d4798ae4359db3ed7c9cc898b424387dddb7d959a40ac71c46eac4128c84
+9c35f5bc469a35b92009da2024b2f71de218f9902cf4f559eadee8fbd99ec657
 ```
 
-This target-matching Debian 13 ARM64 build was installed with hash and dependency
-verification, durable backup and atomic replacement. The service is enabled,
-relaunches AAServer after DHU exits, and is restored to
-`AIRPLAY_AA_SOURCE=airplay`. The latest durable rollback is
-`/var/backups/airplay-aa-usb-81dj33n3/rollback.py`; it restores the preceding USB
-candidate and leaves the bridge stopped. That candidate's rollback at
-`/var/backups/airplay-aa-usb-nx0au2rk/rollback.py` restores the older input build.
+This target-matching Debian 13 ARM64 binary is fully linked, with RUNPATH
+`/opt/airplay-aa/lib`. All **21 compiled overlays** matched repository source.
+Deployment verified dependencies and hashes before durable atomic replacement.
+The rollback is `/var/backups/airplay-aa-tls-9ix0rbbz/rollback.py`; it restores
+`d195d479…` and its prior transport overlays/helper, leaving the service stopped.
+The exact original AirPlay configuration was restored at **17:41 PDT** with a
+service restart. At **17:43:41 PDT**, its bytes matched the private original
+backup and mode **0644**, uid/gid **0/0** matched the saved metadata. The installed
+binary and transport overlay hashes also matched, the service was enabled and
+active (MainPID **5114**, AAServer **5143**, UxPlay **5149**), and boot
+`326757eb…` was unchanged. Source was `airplay`, and Mac DNS-SD saw **Pi AirPlay AA**.
+Evidence is `.local/tls-serialized-deploy/restored-runtime.json`. This verifies
+restoration and runtime startup. The later full AirPlay pass and post-test
+runtime verification are recorded above.
 
-The final build additionally corrects the actual accessory full-speed bulk
+The earlier matrix/repeat binary was
+`d195d4798ae4359db3ed7c9cc898b424387dddb7d959a40ac71c46eac4128c84`.
+Its rollback `/var/backups/airplay-aa-usb-81dj33n3/rollback.py` restores the
+preceding USB candidate, leaving the bridge stopped.
+
+Both these builds correct the actual accessory full-speed bulk
 descriptors from 512 to **64 bytes**, while retaining high-speed **512 bytes**.
 An actual serialized-descriptor test covers both speeds and endpoint addresses;
 the original 512-byte full-speed source fails that test. This corrects a real USB
@@ -214,7 +345,8 @@ available for other channels. The Python wait drains the FIFO and input events,
 and proceeds with video when input is absent or rejected. The strict acceptance
 mode additionally requires successful binding before video opens.
 
-**66 Python tests passed**, including real Linux FIFO/sequence-packet transport,
+Earlier validation ran **66 passing Python tests**, including real Linux
+FIFO/sequence-packet transport,
 FFmpeg video decoding, input deadlines/rejection/disconnect, durable installation
 and 18 new strict hardware-evidence fixtures. The compiled production C++ input,
 video, USB startup and discovery harnesses passed strict compilation; focused
@@ -271,11 +403,33 @@ resolve this failure.
 
 ## Power observations
 
-On the current Mac boot `337ce712…`, a 30-second read-only window at
+The latest Mac-only USB-C power/data window at **17:37:45–17:41:45 PDT**
+collected **120 samples** over **240.007 seconds**. Active undervoltage and
+throttling `0x50005` appeared in **40/120** samples, EXT5V ranged
+**4.67258–4.89636 V**, and the kernel recorded **one fresh undervoltage warning**.
+Boot `326757eb…` stayed unchanged with strictly increasing uptime; no reboot was
+observed. Earlier AAServer changes correspond to DHU profile boundaries; the
+service MainPID change at 17:41:06 was the deliberate AirPlay configuration
+restoration/restart. Evidence is `.local/power-window-20261010-1738/summary.json`.
+This is not clean-power acceptance or a causal diagnosis of the framing failure.
+
+The earlier Mac-only USB-C power/data window at **17:17:23–17:21:23 PDT**
+collected **120 samples** over **240.009 seconds**. Active undervoltage and
+throttling `0x50005` appeared in **41 of 120** samples, EXT5V ranged
+**4.6833–4.91244 V**, and the kernel recorded **three fresh undervoltage
+warnings**. Boot `326757eb…` stayed unchanged and uptime strictly increased;
+no reboot was observed. Process changes include the deliberate source-mode
+restart and normal DHU session reattachments. Evidence is
+`.local/power-window-20261010-1718/summary.json`. This is a measured power
+failure, but it does not prove the cause of the hybrid framing error or Mazda
+USB resets; sampling and PMIC readings cannot establish that causal link.
+
+On the earlier Mac boot `337ce712…`, a 30-second read-only window at
 **15:46:55–15:47:25 PDT** sampled active `0x50005` in **8 of 16** observations,
 with EXT5V **4.788–4.890 V** and unchanged boot ID. Kernel undervoltage warnings
-continued later in the same boot. These are current power failures even though
-the USB/DHU tests passed; their cause and relationship to Mazda resets remain
+continued later in the same boot. These observations show power failures during
+that window even though the USB/DHU tests passed; their cause and relationship
+to Mazda resets remain
 unproven. Evidence is `.local/mac-power-20261010-validate/`.
 
 A fresh final-build observation at **15:56:24.785–15:57:09.780 PDT** captured
@@ -293,9 +447,11 @@ data. The earlier GPIO/PD-trigger/27 W supply account was false and must not be
 used for instructions or conclusions. Unplugging that cable removes power.
 The previous advice to disconnect data while retaining separate power was
 therefore incorrect. When reachable, shut the Pi down before moving or removing
-its sole power/data cable. The user subsequently added a power splitter. Its
-exact model, external supply rating and power isolation have not been supplied
-or independently verified.
+its sole power/data cable. The user subsequently tested a power splitter in the
+car; its exact model, external supply rating and power isolation were not
+independently verified. For the current Mac matrix, the user confirmed there
+is no splitter or separate supply: the single Mac USB-C connection supplies all
+power and data.
 
 The boot beginning around **12:13 PDT** recorded repeated kernel
 `Undervoltage detected` / `Voltage normalised` warnings from **12:19 through
@@ -311,8 +467,9 @@ That does not negate the preceding active flags and kernel warnings. This query
 found no mmc/ext4 errors. Private evidence is in
 `.local/power-check-20261010/{kernel,samples}.log`. Both strict AirPlay loops
 passed despite the warnings; power stability still needs resolution before car
-readiness. The later car boot sampled `0x0`; this clears the current observation
-but does not explain or disprove the earlier undervoltage.
+readiness. The later car boot sampled `0x0`; that sample showed no active or
+historical flags at that observation time, but does not explain or disprove the
+earlier undervoltage.
 
 The splitter boot `dea2e649…` also logged undervoltage at approximately **5.48,
 142.56 and 152.64 seconds** of uptime, most recently normalizing at **154.66
@@ -372,7 +529,8 @@ read-only state check when the Pi is reachable.
    supply is established. The preceding USB candidate failed before AA protocol
    negotiation; the older input build reached setup without a projection grant.
    Resolve the first failed stage from actual responses.
-3. Verify sustained playback, corrected HLS pacing, USB reconnect and cold boot
-   on the installed build.
+3. Verify sustained Mazda playback and corrected HLS pacing on actual hardware,
+   plus physical USB cable reconnect and cold boot on the installed build. The
+   Mac SMPTE matrix and sustained AirPlay session above already passed.
 
 AirPlay supplies the input video; Android Auto carries the car-facing video.

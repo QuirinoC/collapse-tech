@@ -3,10 +3,13 @@
 Raspberry Pi becomes an **AirPlay 2 receiver** and projects that video to a car
 head unit over **wired Android Auto (USB AOAP)**. Wireless Android Auto is not used.
 
-The final USB build passes automatic Mac USB/DHU moving-pattern playback. Its
-full AirPlay source test is pending macOS Screen Mirroring selection. The actual
-Mazda still fails to activate Android Auto; this project is **not car-ready**. See
-[current evidence](docs/STATUS.md).
+The installed `9c35f5bc…` TLS-serialization build passed automatic Mac USB/DHU
+moving-pattern playback for over 60 seconds in touch, rotary and hybrid profiles.
+The earlier build's failed hybrid matrix remains recorded; the later passes do
+not prove its cause. The full Mac AirPlay → Pi → USB/DHU video loop also passed
+**60.786 seconds** of sampled moving content, with normal automatic startup.
+The actual Mazda has never passed Android Auto activation; this project is
+**not car-ready**. See [current evidence](docs/STATUS.md).
 
 ```
 Mac / iPhone  --AirPlay2-->  UxPlay on Pi  --H.264-->  AAServer  --USB-->  Car / Mac DHU
@@ -22,9 +25,11 @@ Mac / iPhone  --AirPlay2-->  UxPlay on Pi  --H.264-->  AAServer  --USB-->  Car /
 
 Needs a **data** cable into the car AA USB port or the Mac running DHU. The user
 confirmed the original Pi 5 wiring received **all power and data from the single
-USB-C cable to the Mazda**; unplugging it powered the Pi off. A power splitter
-has since been added, but its model, supply rating and isolation remain
-unverified. Shut down the Pi before changing a connection that supplies power.
+USB-C cable to the Mazda**; unplugging it powered the Pi off. An earlier car
+trial used a splitter with unverified model, supply rating and isolation. For
+the current Mac bench, the user confirmed **Mac USB-C alone supplies power and
+data**, with no splitter or separate supply. Shut down the Pi before changing
+a connection that supplies power.
 
 The car port's power capacity is unverified, and earlier Pi undervoltage was
 observed. Check supply stability before further car acceptance testing. Raspberry
@@ -69,7 +74,8 @@ TLS and decoded video:
 ./scripts/test-e2e.sh --pi-host quirino@10.0.0.113
 ```
 
-The runner saves logs, decoded screenshots and a stage-by-stage `summary.json`
+The runner saves logs, timestamped output/console events in `dhu-events.jsonl`,
+decoded screenshots and a stage-by-stage `summary.json`
 under `.local/bench/`. It only passes when it sees an authenticated USB session
 and nonblank moving video. To isolate Android Auto from AirPlay, use the Pi's
 `AIRPLAY_AA_SOURCE=test-pattern` mode and add `--expect-smpte` to the command.
@@ -101,8 +107,18 @@ video each, with the Pi's moving test pattern already selected, run:
 
 Use `--source airplay` when already mirroring moving content. The matrix records
 blocked prerequisites separately from session failures and never changes the
-Pi's source. It is an interoperability check; Google certification and actual
-Mazda acceptance remain unverified. See
+Pi's source. The corrected October 10 matrix passed with touch **65.202 s**
+(**14 captures / 13 moving pairs**), rotary **60.336 s** and hybrid **60.411 s**
+(**13 captures / 12 pairs** each), with no session errors. The earlier matrix's
+hybrid framing failure remains recorded separately. The original AirPlay config
+was restored after the pattern tests. The full AirPlay run then passed
+**60.786 s**, with **13 captures / 12 moving pairs** and **16 fresh mirrored
+H.264 receive records**. Two preceding full-source failures remain recorded:
+no incoming mirrored video, then a static shared desktop before the clip was
+foregrounded.
+The concurrent Mac-only USB-C power window caught active undervoltage in
+**40/120** samples. These passes do not establish stable power, Google
+certification or Mazda acceptance. See
 [testing scope and certification research](docs/testing-and-certification.md).
 
 ## Layout
@@ -132,11 +148,29 @@ cd apps/airplay-aa-bridge
 python3 -m unittest discover -s tests -v
 ./scripts/test-video-local.sh
 ./scripts/test-aacs-local.sh
+./scripts/test-tls-local.sh
 ```
 
 The video command runs decoder-backed FIFO/socket integration on Linux (Docker
 on macOS). The AACS command tests actual USB startup recovery and current service
 discovery using C++ and protobuf. Both are separate from the physical USB/DHU test.
+The TLS command builds pinned AACS with the actual production transport patches
+inside disposable Debian 13, then tests real TLS fragmentation, shared-object
+serialization and failed-encryption queue preservation. It generates temporary
+test-only credentials and never connects to the Pi or USB. Its self-signed peer
+fixture does not establish DHU certificate validation or vehicle certification.
+
+The dedicated `.github/workflows/airplay-aa.yml` workflow runs Python discovery
+in Debian 13 with required video dependencies, then the production TLS regression,
+for bridge PRs and main-branch changes. This software job does not access a Pi or
+USB; the physical DHU test and Mazda acceptance remain separate.
+
+The pacing fixture measures the actual production sink through EOS: 60 source
+frames, every received sink buffer rendered and zero drops. It rejects streaming
+errors and a short source; `videorate` may add an EOS closing frame, which is
+counted independently. The child exits before setting GStreamer to NULL, and its
+parent reaps it and removes only its own shared-memory objects. This checks
+playback pacing and excludes graceful sink shutdown.
 
 ## License
 

@@ -1,0 +1,37 @@
+name: Validate AirPlay AA bridge
+
+"on":
+  pull_request:
+    paths:
+      - apps/airplay-aa-bridge/**
+      - .github/workflows/airplay-aa.yml
+  push:
+    branches: [main]
+    paths:
+      - apps/airplay-aa-bridge/**
+      - .github/workflows/airplay-aa.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bridge:
+    name: Python and production TLS regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/airplay-aa-bridge
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build Debian 13 Python test environment
+        run: |
+          docker build --tag airplay-aa-python-regressions - < tests/python-regressions.Dockerfile
+      - name: Run Python regressions
+        run: |
+          docker run --rm --network none --read-only --tmpfs /tmp:exec \
+            --mount "type=bind,source=$PWD,target=/project,readonly" \
+            airplay-aa-python-regressions
+      - name: Run production TLS peer regression
+        run: ./scripts/test-tls-local.sh

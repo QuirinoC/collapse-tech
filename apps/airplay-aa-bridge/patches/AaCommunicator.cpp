@@ -194,17 +194,18 @@ std::vector<uint8_t> AaCommunicator::getServiceDescriptor() {
 
 std::vector<uint8_t>
 AaCommunicator::decryptMessage(const std::vector<uint8_t> &encryptedMsg) {
+  std::lock_guard<std::mutex> sslLock(sslMutex);
   ERR_clear_error();
 
   auto bytesWritten =
       BIO_write(readBio, encryptedMsg.data(), encryptedMsg.size());
-  if (bytesWritten < 0) {
+  if (bytesWritten != static_cast<int>(encryptedMsg.size())) {
     throw std::runtime_error("BIO_write failed");
   }
   const int plainBufSize = 100 * 1024;
   char plainBuf[plainBufSize];
   auto ret = SSL_read(ssl, plainBuf, plainBufSize);
-  if (ret < 0) {
+  if (ret <= 0) {
     auto err = SSL_get_error(ssl, ret);
     ERR_print_errors_fp(stdout);
     auto message = "SSL_read failed: " + std::to_string(ret);
@@ -269,28 +270,36 @@ void AaCommunicator::handlePingRequest(const void *buf, size_t nbytes) {
 }
 
 void AaCommunicator::handleSslHandshake(const void *buf, size_t nbytes) {
-  initializeSsl();
-  BIO_write(readBio, buf, nbytes);
-
-  auto ret = SSL_accept(ssl);
-  if (ret == -1) {
-    auto error = SSL_get_error(ssl, ret);
-    if (error != SSL_ERROR_WANT_READ)
-      throw runtime_error("SSL_accept failed");
-  }
-
   std::vector<uint8_t> msg;
   pushBackInt16(msg, MessageType::SslHandshake);
-  auto bufferSize = 512;
-  char buffer[bufferSize];
-  int len;
-  while ((len = BIO_read(writeBio, buffer, bufferSize)) != -1) {
-    std::copy(buffer, buffer + len, std::back_inserter(msg));
+  {
+    std::lock_guard<std::mutex> sslLock(sslMutex);
+    initializeSsl();
+    if (BIO_write(readBio, buf, nbytes) != static_cast<int>(nbytes))
+      throw runtime_error("TLS handshake BIO_write failed");
+
+    ERR_clear_error();
+    auto ret = SSL_accept(ssl);
+    if (ret <= 0) {
+      auto error = SSL_get_error(ssl, ret);
+      if (error != SSL_ERROR_WANT_READ)
+        throw runtime_error("SSL_accept failed: " + to_string(error));
+    }
+
+    char buffer[512];
+    while (BIO_ctrl_pending(writeBio) != 0) {
+      auto len = BIO_read(writeBio, buffer, sizeof buffer);
+      if (len <= 0)
+        throw runtime_error("TLS handshake BIO_read failed");
+      std::copy(buffer, buffer + len, std::back_inserter(msg));
+    }
   }
+  // Channel callbacks/enqueueing must not run under sslMutex.
   sendMessage(0, EncryptionType::Plain | FrameType::Bulk, msg);
 }
 
 void AaCommunicator::initializeSsl() {
+  // Caller holds sslMutex; SSL_set_bio transfers ownership of both BIOs.
   if (ssl)
     return;
   ssl = SSL_new(ctx);
@@ -363,92 +372,100 @@ ssize_t AaCommunicator::handleMessage(int fd, const void *buf, size_t nbytes) {
 }
 
 ssize_t AaCommunicator::getMessage(int fd, void *buf, size_t nbytes) {
-  std::unique_lock<std::mutex> lk(sendQueueMutex);
-  if (!sendQueueNotEmpty.wait_for(lk, 1s, [=] { return threadFinished.load() || !sendQueue.empty(); }) ||
-      threadFinished.load()) {
-    errno = EINTR;
-    return 0;
+  std::lock_guard<std::mutex> outboundLock(outboundMutex);
+  Message msg;
+  {
+    std::unique_lock<std::mutex> queueLock(sendQueueMutex);
+    if (!sendQueueNotEmpty.wait_for(queueLock, 1s, [this] {
+          return threadFinished.load() || !sendQueue.empty();
+        }) || threadFinished.load()) {
+      errno = EINTR;
+      return 0;
+    }
+    msg = sendQueue.front();
   }
 
-  // it should work up to about 16k, but we might get some weird hardware issues
-  int maxSize = 2000;
-
-  auto msg = sendQueue.front();
-  uint32_t totalLength = msg.content.size();
-  std::vector<uint8_t> msgBytes;
-  if (msg.flags & EncryptionType::Encrypted) {
-    msgBytes.push_back(msg.channel);
-    auto flags = msg.flags;
-    std::vector<uint8_t>::iterator contentBegin;
-    std::vector<uint8_t>::iterator contentEnd;
-    // full frame
-    if (msg.content.size() - msg.offset <= maxSize &&
-        (flags & FrameType::Bulk)) {
-      contentBegin = msg.content.begin() + msg.offset;
-      contentEnd = msg.content.end();
-      sendQueue.pop_front();
-    }
-    // first frame
-    else if (msg.content.size() - msg.offset > maxSize &&
-             (flags & FrameType::Bulk)) {
-      flags = flags & ~FrameType::Bulk;
-      flags = flags | FrameType::First;
-      contentBegin = msg.content.begin() + msg.offset;
-      contentEnd = msg.content.begin() + msg.offset + maxSize;
-      sendQueue.front().flags = flags & ~FrameType::Bulk;
-      sendQueue.front().offset += maxSize;
-    }
-    // intermediate frame
-    else if (msg.content.size() - msg.offset > maxSize) {
-      contentBegin = msg.content.begin() + msg.offset;
-      contentEnd = msg.content.begin() + msg.offset + maxSize;
-      sendQueue.front().flags = flags & ~FrameType::Bulk;
-      sendQueue.front().offset += maxSize;
-    }
-    // last frame
-    else {
-      contentBegin = msg.content.begin() + msg.offset;
-      contentEnd = msg.content.end();
-      flags = flags | FrameType::Last;
-      sendQueue.pop_front();
-    }
-    msgBytes.push_back(flags);
-    auto ret = SSL_write(ssl, contentBegin.base(), contentEnd - contentBegin);
-    if (ret < 0) {
-      throw std::runtime_error("SSL_write error");
-    }
-    lk.unlock();
-    auto encBuf = (uint8_t *)buf;
-    auto offset = 4;
-    if ((flags & FrameType::Bulk) == FrameType::First) {
-      offset += 4;
-    }
-    auto length = BIO_read(writeBio, encBuf + offset, nbytes - offset);
-    if (length < 0) {
-      throw std::runtime_error("BIO_read error");
-    }
-    encBuf[0] = msg.channel;
-    encBuf[1] = flags;
-    encBuf[2] = (length >> 8);
-    encBuf[3] = (length & 0xff);
-    if ((flags & FrameType::Bulk) == FrameType::First) {
-      encBuf[4] = ((totalLength >> 24) & 0xff);
-      encBuf[5] = ((totalLength >> 16) & 0xff);
-      encBuf[6] = ((totalLength >> 8) & 0xff);
-      encBuf[7] = ((totalLength >> 0) & 0xff);
-    }
-    return length + offset;
-  } else {
+  if (!(msg.flags & EncryptionType::Encrypted)) {
+    const auto length = msg.content.size();
+    if (length > UINT16_MAX || nbytes < length + 4)
+      throw runtime_error("Plain AA frame exceeds output buffer");
+    auto output = static_cast<uint8_t *>(buf);
+    output[0] = msg.channel;
+    output[1] = msg.flags;
+    output[2] = length >> 8;
+    output[3] = length & 0xff;
+    std::copy(msg.content.begin(), msg.content.end(), output + 4);
+    std::lock_guard<std::mutex> queueLock(sendQueueMutex);
     sendQueue.pop_front();
-    msgBytes.push_back(msg.channel);
-    msgBytes.push_back(msg.flags);
-    int length = msg.content.size();
-    pushBackInt16(msgBytes, length);
-    std::copy(msg.content.begin(), msg.content.end(),
-              std::back_inserter(msgBytes));
-    std::copy(msgBytes.begin(), msgBytes.end(), (uint8_t *)buf);
-    return msgBytes.size();
+    return length + 4;
   }
+
+  // Preserve the existing 2000-byte plaintext fragmentation and AA headers.
+  const size_t maxSize = 2000;
+  const auto remaining = msg.content.size() - msg.offset;
+  const auto fragmentLength = std::min(remaining, maxSize);
+  auto flags = msg.flags;
+  const bool finalFragment = remaining <= maxSize;
+  if (!finalFragment && (flags & FrameType::Bulk))
+    flags = (flags & ~FrameType::Bulk) | FrameType::First;
+  else if (finalFragment && !(flags & FrameType::Bulk))
+    flags |= FrameType::Last;
+  const size_t headerLength =
+      (flags & FrameType::Bulk) == FrameType::First ? 8 : 4;
+  if (fragmentLength == 0 || nbytes <= headerLength)
+    throw runtime_error("Invalid encrypted AA frame or output buffer");
+
+  auto output = static_cast<uint8_t *>(buf);
+  size_t encryptedLength;
+  {
+    std::lock_guard<std::mutex> sslLock(sslMutex);
+    if (!ssl || BIO_ctrl_pending(writeBio) != 0)
+      throw runtime_error("TLS is not ready or has undrained output");
+    ERR_clear_error();
+    const auto accepted = SSL_write(ssl, msg.content.data() + msg.offset,
+                                    fragmentLength);
+    if (accepted <= 0) {
+      // SSL_get_error must immediately follow the failed call on this thread.
+      const auto error = SSL_get_error(ssl, accepted);
+      throw runtime_error("SSL_write failed: " + to_string(accepted) +
+                          " " + to_string(error));
+    }
+    if (static_cast<size_t>(accepted) != fragmentLength)
+      throw runtime_error("SSL_write accepted incomplete AA plaintext");
+    encryptedLength = BIO_ctrl_pending(writeBio);
+    if (encryptedLength == 0 || encryptedLength > UINT16_MAX ||
+        encryptedLength > nbytes - headerLength)
+      throw runtime_error("TLS ciphertext exceeds AA output buffer or is empty");
+    const auto drained = BIO_read(writeBio, output + headerLength,
+                                 encryptedLength);
+    if (drained != static_cast<int>(encryptedLength) ||
+        BIO_ctrl_pending(writeBio) != 0)
+      throw runtime_error("TLS ciphertext drain was incomplete");
+  }
+
+  output[0] = msg.channel;
+  output[1] = flags;
+  output[2] = encryptedLength >> 8;
+  output[3] = encryptedLength & 0xff;
+  if (headerLength == 8) {
+    const uint32_t totalLength = msg.content.size();
+    output[4] = totalLength >> 24;
+    output[5] = (totalLength >> 16) & 0xff;
+    output[6] = (totalLength >> 8) & 0xff;
+    output[7] = totalLength & 0xff;
+  }
+  // Neither SSL nor its BIOs are held while changing/enqueueing the queue.
+  // A failed encryption aborts the session without consuming this fragment.
+  {
+    std::lock_guard<std::mutex> queueLock(sendQueueMutex);
+    if (finalFragment)
+      sendQueue.pop_front();
+    else {
+      sendQueue.front().flags = flags & ~FrameType::Bulk;
+      sendQueue.front().offset += fragmentLength;
+    }
+  }
+  return encryptedLength + headerLength;
 }
 
 ssize_t AaCommunicator::handleEp0Message(int fd, const void *buf,
