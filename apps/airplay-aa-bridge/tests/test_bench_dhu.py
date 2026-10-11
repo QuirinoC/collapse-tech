@@ -228,7 +228,7 @@ class SustainedVideoProcessTests(unittest.TestCase):
     executable and FFmpeg decoding are substituted; elapsed time uses a scaled
     monotonic clock. These tests prove acceptance logic, not USB or codec support.
     """
-    def run_session(self, scenario, minimum=9, duration=23):
+    def run_session(self, scenario, minimum=9, duration=23, speed=12):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         directory = Path(temporary.name)
@@ -241,6 +241,8 @@ count = 0
 print("Found device TAGAAS in accessory mode (vid=18d1, pid=2d00)", flush=True)
 print("Phone reported protocol version 1.5", flush=True)
 print("Verify returned: ok", flush=True)
+if scenario == "timed_errors":
+    print("[E]: Unrecoverable error -251", flush=True)
 for line in sys.stdin:
     words = line.strip().split()
     if not words:
@@ -249,6 +251,10 @@ for line in sys.stdin:
         if scenario == "ignores_quit":
             while True:
                 os.write(1, b"continuous output after ignored quit\\n" * 512)
+        if scenario == "timed_errors":
+            os.write(1, b"Ping time")
+            time.sleep(0.03)
+            os.write(1, b"out\\n")
         sys.exit(0)
     if words[0] != "screenshot":
         sys.exit(5)
@@ -280,7 +286,7 @@ for line in sys.stdin:
         summary = {"run_id": "fixture", "stages": {
             name: {"status": "UNKNOWN"} for name in bench.STAGES}}
         real_clock, real_select, real_popen = time.monotonic, bench.select.select, subprocess.Popen
-        base, speed = real_clock(), 12
+        base = real_clock()
         children = []
         watchdog_fired = threading.Event()
 
@@ -301,7 +307,7 @@ for line in sys.stdin:
             return {"path": str(path), "decoded": decoded,
                     "nonblank": decoded and any(value > 16 for value in pixels)}, pixels if decoded else None
 
-        guard = threading.Timer(4, watchdog)
+        guard = threading.Timer(max(4, duration / speed + 2), watchdog)
         guard.daemon = True
         guard.start()
         returncode_after_run = None
@@ -362,6 +368,42 @@ for line in sys.stdin:
         summary = self.run_session("late_error")
         self.assertTrue(summary["session"]["errors"])
         self.assertEqual(summary["stages"]["sustained_video"]["status"], "FAILED")
+
+    def test_output_observations_distinguish_prequit_and_postquit_fatal_patterns(self):
+        # A lower clock multiplier leaves read/JSON I/O headroom while other
+        # local video work is running; production timing is never substituted.
+        summary = self.run_session("timed_errors", minimum=0, speed=4)
+        session = summary["session"]
+        events = [json.loads(line) for line in Path(session["events_log"]).read_text().splitlines()]
+        output = [event for event in events if event["event"] == "output"]
+        quit_event = next(event for event in events if event.get("command") == "quit")
+        # The sidecar preserves the raw log's read chunks and byte positions;
+        # it adds observation timestamps without editing its readable content.
+        self.assertEqual("".join(event["text"] for event in output), Path(session["log"]).read_bytes().decode())
+        offset = 0
+        for event in output:
+            self.assertEqual(event["log_byte_offset"], offset)
+            offset += event["byte_length"]
+            self.assertIsNotNone(bench.dt.datetime.fromisoformat(event["recorded_at"]).tzinfo)
+        self.assertEqual([event["sequence"] for event in events], list(range(1, len(events) + 1)))
+        self.assertEqual([event["elapsed_seconds"] for event in events], sorted(event["elapsed_seconds"] for event in events))
+        self.assertEqual(quit_event["elapsed_seconds"], session["console_quit_elapsed_seconds"])
+        before, after = session["error_events"]
+        self.assertEqual(before["marker"], "Unrecoverable error")
+        self.assertIn("-251", before["line"])
+        self.assertEqual(before["observation_phase"], "BEFORE_CONSOLE_QUIT")
+        self.assertLess(before["observed_relative_to_quit_seconds"], 0)
+        self.assertLess(before["output_sequence"], quit_event["sequence"])
+        self.assertEqual(after["marker"], "Ping timeout")
+        self.assertEqual(after["observation_phase"], "AFTER_CONSOLE_QUIT")
+        self.assertGreater(after["observed_relative_to_quit_seconds"], 0)
+        self.assertGreater(after["output_sequence"], quit_event["sequence"])
+        # A pattern split across two real PTY reads is timed at completion.
+        ping_start = next(event for event in output if event["text"] == "Ping time")
+        self.assertLess(ping_start["sequence"], after["output_sequence"])
+        self.assertIn("not DHU emission", session["output_timing_basis"])
+        self.assertEqual(session["errors"], ["Unrecoverable error", "Ping timeout"])
+        self.assertEqual(summary["stages"]["video"]["status"], "FAILED")
 
     def test_continuous_logging_after_ignored_quit_is_bounded_and_child_is_cleaned_up(self):
         summary = self.run_session("ignores_quit")

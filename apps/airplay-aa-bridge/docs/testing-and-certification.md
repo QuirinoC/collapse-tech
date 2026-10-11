@@ -77,10 +77,82 @@ Production-code review also found missing protocol acceptance coverage:
 `ChannelHandler.cpp` accepts a video-channel-open response without parsing its
 status; `VideoChannelHandler.cpp` discards media acknowledgements and does not
 enforce the negotiated outstanding-video limit. These need production-handler
-regressions and a peer harness for framing/TLS/backpressure. Passing the DHU
-matrix alone cannot establish those behaviors. Neither is a proven cause of
+regressions and broader transport/credit/backpressure coverage. The added TLS
+peer regression covers shared-object serialization and failed-output handling;
+passing it or the DHU matrix cannot establish the outstanding-video limit. Neither is a proven cause of
 the observed Mazda USB resets.
 
-The first matrix invocation was `BLOCKED` before launching DHU: no Pi USB device
-was visible and SSH failed. Neither later profile ran. Hardware acceptance
-remains unexercised until fresh evidence exists; see [STATUS.md](STATUS.md).
+## Actual October 10 matrices
+
+The installed TLS-serialization build `9c35f5bc…` passed the real matrix at
+**17:37:06–17:41:01 PDT** using the moving SMPTE source:
+
+| Profile | Sampled moving-video interval | Captures / moving pairs | Result |
+| --- | --- | --- | --- |
+| Touch | 65.202 s | 14 / 13 | PASSED |
+| Rotary | 60.336 s | 13 / 12 | PASSED |
+| Hybrid | 60.411 s | 13 / 12 | PASSED |
+
+Evidence is `.local/matrix/20261010-173706-26dc6bc5/`. Every profile demonstrated
+DHU TLS verification, fresh input binding and automatic projection without
+console focus or certificate bypass, and had no session errors. Deployed
+binary/source identity is recorded separately. The shared-TLS/memory-BIO repair
+also has real production peer regressions for serialization and failed-output
+queue preservation. These passes do not establish the cause of the earlier
+intermittent framing error, complete transport conformance or certification.
+
+The accompanying Mac-only USB-C power window recorded active `0x50005` in
+**40/120** samples, EXT5V **4.67258–4.89636 V**, and one fresh kernel warning
+with stable boot ID. Reliable power remains unresolved. The exact original
+AirPlay config was restored at 17:41 PDT and exact config/hash/process state
+was verified at 17:43:41 PDT.
+
+The full Mac AirPlay → Pi → USB/DHU loop **PASSED** at
+**17:51:39–17:52:49 PDT**, with **60.786 seconds** of sampled moving video,
+**13 captures / 12 moving pairs** and **16 fresh mirrored H.264 receive records**.
+Actual source pixels were visually confirmed. All required stages passed with
+normal DHU TLS verification, fresh automatic input binding and phone-requested
+projection, no session errors and clean shutdown. Evidence is
+`.local/bench/20261010-175139/`. Two prior full-source attempts remain failures:
+`174446` had no incoming mirrored H.264/black captures; `175003` failed sustained
+motion because initial samples were a static shared desktop. The successful
+retry started with the moving clip already foregrounded.
+
+The 17:53:09 PDT check verified exact original `airplay` config, runtime hashes
+and enabled/active real processes on the same boot. No car, power, audio, cold
+boot, physical reconnect or certification acceptance is inferred from these
+session passes. See [STATUS.md](STATUS.md).
+
+### Historical failed matrix and passing repeat
+
+The first invocation at 16:59 PDT was `BLOCKED` before DHU launched because USB
+and SSH were unavailable. The subsequent real matrix at **17:18:10–17:21:52
+PDT** exercised all three profiles using AAServer `d195d479…`, real USB and the
+moving SMPTE source:
+
+| Profile | Sampled moving-video interval | Captures / moving pairs | Result |
+| --- | --- | --- | --- |
+| Touch | 60.127 s | 13 / 12 | PASSED |
+| Rotary | 60.399 s | 13 / 12 | PASSED |
+| Hybrid | 60.638 s | 13 / 12 | FAILED: fatal framing -251 / out of sync |
+
+All profiles demonstrated authenticated USB, successful input binding and
+automatic projection. The fatal hybrid error invalidated its video/sustained
+acceptance even though each sampled pair moved; the overall matrix is
+**FAILED**. Evidence is `.local/matrix/20261010-171810-954dbd2b/`. Its original
+DHU log has no read timestamps, so before/after-quit timing is unknown.
+
+The unchanged build's timestamped hybrid repeat at **17:27:58–17:29:17 PDT**
+**PASSED** with **60.653 seconds**, **13 captures / 12 moving pairs**, no errors
+and a clean shutdown. Evidence is `.local/bench/20261010-172758/`. This shows
+intermittent behavior; the original failed matrix remains failed. The new
+`dhu-events.jsonl` records host read/command observations and fatal matches
+relative to quit, without suppressing post-quit failures or treating buffered
+read times as device emission times.
+
+The simultaneous Mac-only USB-C power window caught active `0x50005` in
+**41/120** samples, EXT5V **4.6833–4.91244 V** and three fresh kernel warnings
+with a stable boot ID. These measurements do not prove that power caused the
+framing error. Mazda has never passed; neither the individual DHU passes nor
+the matrix provide certification. See [STATUS.md](STATUS.md) for power evidence
+and the restoration of the temporary pattern source.

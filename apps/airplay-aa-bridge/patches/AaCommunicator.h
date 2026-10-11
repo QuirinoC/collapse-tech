@@ -22,12 +22,16 @@
 #pragma once
 
 class AaCommunicator {
+  friend class AaCommunicatorTlsTestAccess;
   const Library &lib;
   std::unique_ptr<Gadget> mainGadget;
   std::unique_ptr<Function> ffs_function;
   int ep0fd = -1, ep1fd = -1, ep2fd = -1;
 
   std::mutex sendQueueMutex;
+  // One consumer snapshots and commits the front message at a time. Never
+  // hold sendQueueMutex or sslMutex while acquiring the other mutex.
+  std::mutex outboundMutex;
   std::deque<Message> sendQueue;
   std::condition_variable sendQueueNotEmpty;
 
@@ -67,6 +71,9 @@ class AaCommunicator {
                    bool bulkRead = false, bool bulkWrite = false);
 
   // SSL related
+  // Covers the SSL object and both memory BIOs, including write + drain.
+  // Release it before channel callbacks or enqueueing outbound messages.
+  std::mutex sslMutex;
   void initializeSsl();
   void initializeSslContext();
   static int verifyCertificate(int preverify_ok, X509_STORE_CTX *x509_ctx);

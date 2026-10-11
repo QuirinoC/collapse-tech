@@ -9,6 +9,7 @@ decoded frames. Missing hardware is reported as a blocked, untested session.
 from __future__ import annotations
 
 import argparse
+from collections import deque
 import datetime as dt
 import json
 import math
@@ -595,6 +596,10 @@ def run_dhu(args: argparse.Namespace, summary: dict, out: Path, ffmpeg: str) -> 
     early_exit = False
     forced_termination = False
     transcript = ""
+    output_chunks = deque()
+    output_character_count = 0
+    event_sequence = 0
+    quit_elapsed = None
     started = time.monotonic()
     deadline = started + args.duration
     ready_at = None
@@ -606,26 +611,58 @@ def run_dhu(args: argparse.Namespace, summary: dict, out: Path, ffmpeg: str) -> 
     observation_started = None
     observation_ended = None
     log_path = out / "dhu.log"
+    events_path = out / "dhu-events.jsonl"
     summary["session"]["log"] = str(log_path)
+    summary["session"]["events_log"] = str(events_path)
+    summary["session"]["output_timing_basis"] = (
+        "Host monotonic output-read observations, not DHU emission times. PTY buffering means a post-quit read does not establish a shutdown-only error."
+    )
+
+    def record_event(kind: str, elapsed: float, **evidence) -> dict:
+        nonlocal event_sequence
+        event_sequence += 1
+        event = {"sequence": event_sequence, "event": kind,
+                 "elapsed_seconds": round(elapsed, 6), "recorded_at": utc_now(), **evidence}
+        event_log.write(json.dumps(event) + "\n")
+        event_log.flush()
+        return event
 
     def send(line: str) -> None:
+        nonlocal quit_elapsed
         assert proc is not None and proc.stdin is not None
         proc.stdin.write((line + "\n").encode())
         proc.stdin.flush()
-        summary["session"]["console_commands"].append({"elapsed_seconds": round(time.monotonic() - started, 2),
+        elapsed = time.monotonic() - started
+        record_event("console_command", elapsed, command=line)
+        if line == "quit":
+            quit_elapsed = elapsed
+            summary["session"]["console_quit_elapsed_seconds"] = round(elapsed, 6)
+        summary["session"]["console_commands"].append({"elapsed_seconds": round(elapsed, 2),
                                                         "command": line})
 
     def read_output(log, wait: float) -> bool:
-        nonlocal transcript
+        nonlocal transcript, output_character_count
         if select.select([master], [], [], wait)[0]:
             try:
                 chunk = os.read(master, 65536)
             except OSError:
                 return False
             if chunk:
+                elapsed = time.monotonic() - started
+                text = chunk.decode(errors="replace")
+                offset = log.tell()
                 log.write(chunk)
                 log.flush()
-                transcript = (transcript + chunk.decode(errors="replace"))[-8_000_000:]
+                event = record_event("output", elapsed, log_byte_offset=offset, byte_length=len(chunk),
+                                     observed_after_console_quit=quit_elapsed is not None, text=text)
+                output_chunks.append({"character_start": output_character_count,
+                                      "character_end": output_character_count + len(text),
+                                      "sequence": event["sequence"], "elapsed": elapsed,
+                                      "recorded_at": event["recorded_at"], "log_byte_offset": offset})
+                output_character_count += len(text)
+                transcript = (transcript + text)[-8_000_000:]
+                while output_chunks and output_chunks[0]["character_end"] <= output_character_count - len(transcript):
+                    output_chunks.popleft()
                 return True
         return False
 
@@ -634,7 +671,7 @@ def run_dhu(args: argparse.Namespace, summary: dict, out: Path, ffmpeg: str) -> 
                                 stdout=slave, stderr=slave, start_new_session=True)
         os.close(slave)
         slave = -1
-        with log_path.open("wb") as log:
+        with log_path.open("wb") as log, events_path.open("w") as event_log:
             while time.monotonic() < deadline:
                 read_output(log, min(0.2, max(0, deadline - time.monotonic())))
                 for name, pattern in PATTERNS.items():
@@ -729,6 +766,31 @@ def run_dhu(args: argparse.Namespace, summary: dict, out: Path, ffmpeg: str) -> 
 
     errors = list(dict.fromkeys(match.group(0) for match in FAILURES.finditer(transcript)))
     summary["session"]["errors"] = errors
+    # Attribute each existing fatal-pattern match to the chunk that completed
+    # it, including matches split across reads. Acceptance still uses the same
+    # unmodified transcript/FAILURES policy regardless of its quit timing.
+    error_events = []
+    transcript_start = output_character_count - len(transcript)
+    chunks = iter(output_chunks)
+    chunk = next(chunks, None)
+    for match in FAILURES.finditer(transcript):
+        last_character = transcript_start + match.end() - 1
+        while chunk is not None and chunk["character_end"] <= last_character:
+            chunk = next(chunks, None)
+        if chunk is None:
+            break
+        line_start = transcript.rfind("\n", 0, match.start()) + 1
+        line_end = transcript.find("\n", match.end())
+        line = transcript[line_start:line_end if line_end >= 0 else len(transcript)].rstrip("\r")
+        error_events.append({"marker": match.group(0), "line": line[:2000],
+                             "observed_elapsed_seconds": round(chunk["elapsed"], 6),
+                             "recorded_at": chunk["recorded_at"], "output_sequence": chunk["sequence"],
+                             "log_byte_offset": chunk["log_byte_offset"],
+                             "observed_relative_to_quit_seconds": round(chunk["elapsed"] - quit_elapsed, 6)
+                             if quit_elapsed is not None else None,
+                             "observation_phase": "NO_CONSOLE_QUIT" if quit_elapsed is None else
+                             "BEFORE_CONSOLE_QUIT" if chunk["elapsed"] < quit_elapsed else "AFTER_CONSOLE_QUIT"})
+    summary["session"]["error_events"] = error_events
     for name in PATTERNS:
         if summary["stages"][name]["status"] != "PASSED":
             set_stage(summary, name, "FAILED", "Required handshake marker was not observed within the bounded session.",
