@@ -33,6 +33,78 @@ during startup. A user power cycle started the older input/focus build in the
 Mazda with intact runtime hashes and real processes, but activation still failed.
 Sustained boot, power stability and cable reconnect remain unverified.
 
+## Preferred phone hotspot
+
+Save the phone hotspot as a persistent, system-wide NetworkManager Wi-Fi profile
+with autoconnect enabled and a higher priority than home Wi-Fi. Keep the home
+profile enabled. [NetworkManager's autoconnect rules](https://www.networkmanager.dev/docs/api/latest/settings-connection.html)
+select the preferred available profile when the device is inactive; priority
+does not replace an already active connection.
+
+The optional `airplay-aa-preferred-hotspot.timer` performs that switch when the
+saved phone network is visible. It checks roughly every 30 seconds after startup,
+so joining also includes scan and DHCP time. After a failed attempt it waits five minutes
+before retrying; home Wi-Fi remains the fallback. Enabling this timer persists
+the behavior across boot.
+
+On iPhone, enable **Personal Hotspot → Allow Others to Join** and keep that
+settings screen open until the Pi connects, as [Apple documents](https://support.apple.com/en-us/111785).
+The Pi uses ordinary Wi-Fi joining rather than Apple Instant Hotspot.
+Store the credential-bearing NetworkManager profile outside the repository,
+owned by root with mode `0600`. Neither the automation's metadata config nor
+repository examples should contain a password.
+
+The helper uses an existing saved profile; it does not create or change that
+profile or read its password. Its private metadata file is
+`/etc/airplay-aa/preferred-hotspot.conf`, using this credential-free format:
+
+```ini
+[preferred-hotspot]
+interface=wlan0
+profile_uuid=00000000-0000-0000-0000-000000000000
+```
+
+Replace the zero UUID with the saved hotspot profile's UUID before enabling the
+timer; the helper rejects the placeholder.
+`nmcli -f NAME,UUID,TYPE connection show` lists identifiers without passwords. Use the actual Wi-Fi
+interface if it differs from `wlan0`.
+
+For the optional standalone setup, run from the project directory on the Pi:
+
+```bash
+sudo apt-get install -y network-manager python3-gi
+sudo python3 scripts/atomic_install.py scripts/preferred_hotspot.py \
+  /opt/airplay-aa/scripts/preferred_hotspot.py --mode 755
+for unit in airplay-aa-preferred-hotspot.service airplay-aa-preferred-hotspot.timer; do
+  sudo python3 scripts/atomic_install.py "systemd/$unit" "/etc/systemd/system/$unit" --mode 644
+done
+if ! sudo test -e /etc/airplay-aa/preferred-hotspot.conf; then
+  sudo python3 scripts/atomic_install.py config/preferred-hotspot.conf.example \
+    /etc/airplay-aa/preferred-hotspot.conf --mode 600
+fi
+sudoedit /etc/airplay-aa/preferred-hotspot.conf
+sudo chown root:root /etc/airplay-aa/preferred-hotspot.conf
+sudo chmod 600 /etc/airplay-aa/preferred-hotspot.conf
+sudo systemctl daemon-reload
+sudo systemctl enable --now airplay-aa-preferred-hotspot.timer
+```
+
+The service runs `/opt/airplay-aa/scripts/preferred_hotspot.py` with that config
+and keeps its transient retry state in `/run/airplay-aa-preferred-hotspot`.
+Check it without displaying credentials:
+
+```bash
+systemctl is-enabled airplay-aa-preferred-hotspot.timer
+systemctl list-timers airplay-aa-preferred-hotspot.timer
+journalctl -u airplay-aa-preferred-hotspot.service -n 30 --no-pager
+```
+
+An actual phone-hotspot join and gateway ping succeeded on **October 10, 2026
+at 18:22:10–18:22:16 PDT**. A daemon-owned 75-second NetworkManager checkpoint
+then restored home Wi-Fi, with the bridge active. This verifies network joining
+and that bounded test's recovery; AirPlay discovery/video on the phone-hosted
+network and Mazda playback are still unverified.
+
 ## Check the phone identity before testing
 
 AAServer acts as the phone. Its certificate must have **O=CarService**, be

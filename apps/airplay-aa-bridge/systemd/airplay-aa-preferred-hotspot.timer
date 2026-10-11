@@ -1,0 +1,11 @@
+[Unit]
+Description=Check for the preferred phone hotspot every 30 seconds
+
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=30
+AccuracySec=1
+Unit=airplay-aa-preferred-hotspot.service
+
+[Install]
+WantedBy=timers.target
