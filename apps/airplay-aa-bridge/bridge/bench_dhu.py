@@ -27,7 +27,8 @@ import uuid
 
 
 ROOT = Path(__file__).resolve().parents[1]
-STAGES = ("preflight", "usb", "aoap", "protocol", "tls", "input", "automatic_focus", "video", "render", "motion", "pattern", "airplay", "pi_collection")
+STAGES = ("preflight", "usb", "aoap", "protocol", "tls", "input", "automatic_focus", "video", "render", "motion", "sustained_video", "pattern", "airplay", "pi_collection")
+CAPTURE_GRACE_SECONDS = 2.0
 PATTERNS = {
     "aoap": re.compile(r"Found device .*in accessory mode \(vid=18d1, pid=2d0[01]\)", re.I),
     "protocol": re.compile(r"Phone reported protocol version\s+\d+\.\d+", re.I),
@@ -447,7 +448,7 @@ def evaluate_auto_start(before: dict | None, after: dict | None, session: dict |
     return results
 
 
-def decode_image(path: Path, ffmpeg: str) -> tuple[dict, bytes | None]:
+def decode_image(path: Path, ffmpeg: str, *, timeout: float = 10) -> tuple[dict, bytes | None]:
     try:
         with path.open("rb") as image:
             header = image.read(24)
@@ -459,7 +460,7 @@ def decode_image(path: Path, ffmpeg: str) -> tuple[dict, bytes | None]:
         result = subprocess.run(
             [ffmpeg, "-v", "error", "-i", str(path), "-vf", "scale=160:96:flags=area,format=rgb24",
              "-frames:v", "1", "-f", "rawvideo", "pipe:1"],
-            capture_output=True, timeout=10
+            capture_output=True, timeout=timeout
         )
         if result.returncode != 0 or len(result.stdout) != 160 * 96 * 3:
             raise ValueError(result.stderr.decode(errors="replace") or "incomplete decoded pixels")
@@ -502,6 +503,74 @@ def smpte_bars(pixels: bytes) -> dict:
             "expected_order": ["white", "yellow", "cyan", "green", "magenta", "red", "blue"]}
 
 
+def sustained_video_evidence(requested: list, frames: dict, ended_at: float,
+                             minimum: float, interval: float, clean_session: bool) -> dict:
+    """Require complete moving samples from first decoded video to a fresh endpoint.
+
+    This is sampled DHU output evidence, not continuous frame delivery or vehicle
+    certification. Initial blank frames before decoded video do not start the clock.
+    """
+    first_index = next((index for index, (path, _) in enumerate(requested)
+                        if path in frames and frames[path][0].get("nonblank")
+                        and frames[path][1] is not None), None)
+    result = {"status": "FAILED", "requested_seconds": minimum, "observed_seconds": 0.0,
+              "capture_interval_seconds": interval, "capture_grace_seconds": CAPTURE_GRACE_SECONDS,
+              "maximum_capture_gap_seconds": interval + CAPTURE_GRACE_SECONDS,
+              "scope": "Periodic decoded DHU screenshots with motion in every consecutive pair; not certification.",
+              "problems": []}
+    if first_index is None:
+        result["problems"].append("No post-authentication nonblank decoded frame started the observation.")
+    else:
+        window = requested[first_index:]
+        started_at = frames[window[0][0]][0]["decoded_elapsed_seconds"]
+        result["first_decoded_elapsed_seconds"] = round(started_at, 3)
+        result["ended_elapsed_seconds"] = round(ended_at, 3)
+        result["requested_capture_count"] = len(window)
+        result["last_capture_elapsed_seconds"] = round(window[-1][1], 3)
+        result["final_capture_age_seconds"] = round(ended_at - window[-1][1], 3)
+        previous = None
+        comparisons = []
+        last_nonblank_at = None
+        for path, at in window:
+            frame = frames.get(path)
+            if frame is None or frame[1] is None or not frame[0].get("nonblank"):
+                result["problems"].append("A requested screenshot was missing, undecodable, or blank: " + path.name)
+                previous = None
+                continue
+            metric, pixels = frame
+            last_nonblank_at = at
+            if metric["decoded_elapsed_seconds"] - at > CAPTURE_GRACE_SECONDS:
+                result["problems"].append("A screenshot was not decoded within capture grace: " + path.name)
+            if previous is not None:
+                prior_path, prior_at, prior_pixels = previous
+                comparison = {"first": str(prior_path), "second": str(path),
+                              "separation_seconds": round(at - prior_at, 3),
+                              **compare_frames(prior_pixels, pixels)}
+                comparisons.append(comparison)
+                if at - prior_at > interval + CAPTURE_GRACE_SECONDS:
+                    result["problems"].append("The screenshot observation contains a capture gap.")
+                if not comparison["motion"]:
+                    result["problems"].append("Consecutive decoded screenshots did not demonstrate motion: " + path.name)
+            previous = (path, at, pixels)
+        result["comparisons"] = comparisons
+        result["moving_pair_count"] = sum(comparison["motion"] for comparison in comparisons)
+        result["observed_seconds"] = round(max(0.0, (last_nonblank_at or started_at) - started_at), 3)
+        if last_nonblank_at is None or last_nonblank_at - started_at < minimum:
+            result["problems"].append("Decoded video did not reach the requested minimum observation duration.")
+        if len(comparisons) < 1 or previous is None or previous[0] != window[-1][0]:
+            result["problems"].append("The observation did not end with consecutive nonblank moving captures.")
+        if ended_at - window[-1][1] > interval + CAPTURE_GRACE_SECONDS:
+            result["problems"].append("The final requested screenshot was stale when observation ended.")
+    if not clean_session:
+        result["problems"].append("Authentication, session errors, or process shutdown invalidated the observation.")
+    result["problems"] = list(dict.fromkeys(result["problems"]))
+    if not result["problems"]:
+        result["status"] = "PASSED"
+    result["detail"] = ("Decoded nonblank video kept moving through the requested sampled observation."
+                        if result["status"] == "PASSED" else "Sustained decoded moving video was not demonstrated.")
+    return result
+
+
 def run_dhu(args: argparse.Namespace, summary: dict, out: Path, ffmpeg: str) -> None:
     env = os.environ.copy()
     cleared = []
@@ -515,6 +584,7 @@ def run_dhu(args: argparse.Namespace, summary: dict, out: Path, ffmpeg: str) -> 
     if args.headless:
         command.append("--headless")
     summary["session"] = {"command": command, "duration_limit_seconds": args.duration,
+                          "minimum_video_seconds": args.min_video_seconds,
                           "headless": args.headless,
                           "console_video_focus_override": False,
                           "tls_bypass_environment_cleared": cleared,
@@ -523,6 +593,7 @@ def run_dhu(args: argparse.Namespace, summary: dict, out: Path, ffmpeg: str) -> 
     proc = None
     requested_quit = False
     early_exit = False
+    forced_termination = False
     transcript = ""
     started = time.monotonic()
     deadline = started + args.duration
@@ -531,6 +602,9 @@ def run_dhu(args: argparse.Namespace, summary: dict, out: Path, ffmpeg: str) -> 
     captures = []
     requested = []
     decoded_paths = set()
+    frames = {}
+    observation_started = None
+    observation_ended = None
     log_path = out / "dhu.log"
     summary["session"]["log"] = str(log_path)
 
@@ -562,7 +636,7 @@ def run_dhu(args: argparse.Namespace, summary: dict, out: Path, ffmpeg: str) -> 
         slave = -1
         with log_path.open("wb") as log:
             while time.monotonic() < deadline:
-                read_output(log, 0.2)
+                read_output(log, min(0.2, max(0, deadline - time.monotonic())))
                 for name, pattern in PATTERNS.items():
                     found = pattern.search(transcript)
                     if found:
@@ -575,36 +649,48 @@ def run_dhu(args: argparse.Namespace, summary: dict, out: Path, ffmpeg: str) -> 
                     # The phone must request projection itself. Granting focus
                     # here hid a production stall on passive car head units.
                 now = time.monotonic()
-                if next_capture is not None and now >= next_capture and len(requested) < 4:
+                capture_limit = math.ceil(args.duration / args.screenshot_interval) + 1 if args.min_video_seconds else 4
+                if next_capture is not None and now >= next_capture and len(requested) < capture_limit:
                     path = out / f"frame-{len(requested) + 1}-{summary['run_id']}.png"
                     send(f"screenshot {path.name}")
                     requested.append((path, now))
                     next_capture = now + args.screenshot_interval
                 for path, at in requested:
+                    if time.monotonic() >= deadline:
+                        break
                     if path not in decoded_paths and path.exists() and now - at >= 0.6:
-                        metric, pixels = decode_image(path, ffmpeg)
+                        metric, pixels = decode_image(path, ffmpeg, timeout=min(10, max(0.1, deadline - time.monotonic())))
                         metric["elapsed_seconds"] = round(at - started, 2)
+                        metric["decoded_elapsed_seconds"] = time.monotonic() - started
                         if pixels is not None and args.expect_smpte:
                             metric["smpte"] = smpte_bars(pixels)
                         summary["session"]["screenshots"].append(metric)
                         decoded_paths.add(path)
+                        frames[path] = (metric, pixels)
                         if pixels is not None and metric["nonblank"]:
                             captures.append((metric, pixels))
+                            if observation_started is None:
+                                observation_started = started + metric["decoded_elapsed_seconds"]
                 if len(captures) >= 2:
                     first, second = captures[-2:]
                     motion = compare_frames(first[1], second[1])
-                    if motion["motion"]:
+                    if motion["motion"] and not args.min_video_seconds:
                         summary["session"]["frame_comparison"] = {
                             "first": first[0]["path"], "second": second[0]["path"],
                             "separation_seconds": round(second[0]["elapsed_seconds"] - first[0]["elapsed_seconds"], 2),
                             **motion
                         }
                         # Keep observing briefly so a connection failure is not hidden by an early frame.
-                        if now >= requested[-1][1] + 2:
+                        if now >= requested[-1][1] + CAPTURE_GRACE_SECONDS:
                             break
+                if (args.min_video_seconds and observation_started is not None and requested
+                        and requested[-1][1] >= observation_started + args.min_video_seconds
+                        and now >= requested[-1][1] + CAPTURE_GRACE_SECONDS):
+                    break
                 if proc.poll() is not None:
                     early_exit = True
                     break
+            observation_ended = time.monotonic() - started
             if proc.poll() is None:
                 send("quit")
                 requested_quit = True
@@ -614,13 +700,18 @@ def run_dhu(args: argparse.Namespace, summary: dict, out: Path, ffmpeg: str) -> 
                         break
             else:
                 early_exit = True
-            while read_output(log, 0):
-                pass
+            # A child that ignores quit and keeps logging must still reach
+            # the owned-process termination in finally.
+            drain_deadline = time.monotonic() + 0.5
+            for _ in range(128):
+                if time.monotonic() >= drain_deadline or not read_output(log, 0):
+                    break
     finally:
         if slave >= 0:
             os.close(slave)
         if proc is not None:
             if proc.poll() is None:
+                forced_termination = True
                 proc.terminate()
                 try:
                     proc.wait(timeout=2)
@@ -630,6 +721,9 @@ def run_dhu(args: argparse.Namespace, summary: dict, out: Path, ffmpeg: str) -> 
             summary["session"]["process_returncode"] = proc.returncode
             summary["session"]["requested_quit"] = requested_quit
             summary["session"]["unexpected_process_exit"] = early_exit
+            summary["session"]["forced_process_termination"] = forced_termination
+            if proc.stdin is not None:
+                proc.stdin.close()
         os.close(master)
         summary["session"]["elapsed_seconds"] = round(time.monotonic() - started, 2)
 
@@ -642,9 +736,10 @@ def run_dhu(args: argparse.Namespace, summary: dict, out: Path, ffmpeg: str) -> 
     if errors:
         set_stage(summary, "tls" if any(re.search(r"certificate|SSL|auth|handshake", error, re.I) for error in errors)
                   else "video", "FAILED", "DHU reported a session error.", errors=errors, log=str(log_path))
-    if early_exit or summary["session"].get("process_returncode") != 0:
+    if early_exit or forced_termination or summary["session"].get("process_returncode") != 0:
         set_stage(summary, "video", "FAILED", "DHU exited unexpectedly or did not shut down cleanly; an exit code of zero alone is insufficient.",
-                  unexpected_exit=early_exit, returncode=summary["session"].get("process_returncode"), log=str(log_path))
+                  unexpected_exit=early_exit, forced_termination=forced_termination,
+                  returncode=summary["session"].get("process_returncode"), log=str(log_path))
     set_stage(summary, "render", "PASSED" if len(captures) >= 2 else "FAILED",
               "At least two actual DHU screenshots decoded to nonblank pixels." if len(captures) >= 2
               else "Fewer than two nonblank DHU screenshots were decoded.",
@@ -658,7 +753,24 @@ def run_dhu(args: argparse.Namespace, summary: dict, out: Path, ffmpeg: str) -> 
     elif summary["stages"]["video"]["status"] != "FAILED":
         set_stage(summary, "video", "FAILED", "No nonblank decoded head-unit video was captured.")
     comparison = summary["session"].get("frame_comparison")
-    if comparison is None and len(captures) >= 2:
+    if args.min_video_seconds:
+        # A previous good pair must not survive blank, missing, or frozen output.
+        final_frames = [frames.get(path) for path, _ in requested[-2:]]
+        comparison = None
+        if len(final_frames) == 2 and all(frame and frame[1] is not None and frame[0]["nonblank"] for frame in final_frames):
+            first, second = final_frames
+            comparison = {"first": first[0]["path"], "second": second[0]["path"],
+                          "separation_seconds": round(second[0]["elapsed_seconds"] - first[0]["elapsed_seconds"], 2),
+                          **compare_frames(first[1], second[1])}
+        summary["session"]["frame_comparison"] = comparison
+        handshake_ok = all(summary["stages"][name]["status"] == "PASSED" for name in PATTERNS)
+        summary["stages"]["sustained_video"] = sustained_video_evidence(
+            [(path, at - started) for path, at in requested], frames, observation_ended,
+            args.min_video_seconds, args.screenshot_interval,
+            handshake_ok and not errors and not early_exit and not forced_termination
+            and summary["session"].get("process_returncode") == 0)
+        summary["session"]["observed_video_seconds"] = summary["stages"]["sustained_video"]["observed_seconds"]
+    elif comparison is None and len(captures) >= 2:
         comparison = {"first": captures[-2][0]["path"], "second": captures[-1][0]["path"],
                       **compare_frames(captures[-2][1], captures[-1][1])}
         summary["session"]["frame_comparison"] = comparison
@@ -679,6 +791,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, default=ROOT / ".local" / "bench" / dt.datetime.now().strftime("%Y%m%d-%H%M%S"))
     parser.add_argument("--duration", type=float, default=45, help="Maximum DHU session seconds (15–300; default 45).")
+    parser.add_argument("--min-video-seconds", type=float, default=0,
+                        help="Opt-in minimum sampled moving-video seconds after the first post-auth decoded nonblank frame; every later sample and final pair must remain moving (default 0: smoke test). Not certification.")
     parser.add_argument("--screenshot-interval", type=float, default=5, help="Seconds between DHU screenshots (at least 3).")
     parser.add_argument("--dhu-dir", type=Path, default=ROOT / ".local" / "dhu")
     parser.add_argument("--config", type=Path, help="DHU .ini configuration; defaults to dhu-dir/config/aa_bridge.ini.")
@@ -697,8 +811,12 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--expect-auto-start requires --pi-host for fresh input/focus response evidence")
     if not 15 <= args.duration <= 300:
         parser.error("--duration must be between 15 and 300 seconds")
-    if args.screenshot_interval < 3 or args.screenshot_interval > args.duration / 2:
+    if not math.isfinite(args.screenshot_interval) or args.screenshot_interval < 3 or args.screenshot_interval > args.duration / 2:
         parser.error("--screenshot-interval must be at least 3 seconds and no greater than half --duration")
+    if not math.isfinite(args.min_video_seconds) or args.min_video_seconds < 0:
+        parser.error("--min-video-seconds must be finite and nonnegative")
+    if args.min_video_seconds and args.min_video_seconds + 3 + args.screenshot_interval + CAPTURE_GRACE_SECONDS >= args.duration:
+        parser.error("--min-video-seconds must leave room within --duration for the initial 3-second capture delay, one screenshot interval, and 2-second capture grace")
     if args.pi_host and (args.pi_host.startswith("-") or not re.fullmatch(r"[A-Za-z0-9_.@:\[\]-]+", args.pi_host)):
         parser.error("--pi-host must be a plain SSH host or user@host")
     if not args.usb_serial or args.usb_serial.startswith("-") or any(character.isspace() for character in args.usb_serial):
@@ -707,11 +825,15 @@ def main(argv: list[str] | None = None) -> int:
     args.config = (args.config or args.dhu_dir / "config" / "aa_bridge.ini").expanduser().resolve()
     out = args.output_dir.expanduser().resolve()
     out.mkdir(parents=True, exist_ok=True)
-    summary = {"schema_version": 3, "run_id": uuid.uuid4().hex[:8], "started_at": utc_now(),
+    summary = {"schema_version": 4, "run_id": uuid.uuid4().hex[:8], "started_at": utc_now(),
                "overall": {"status": "UNKNOWN", "outcome": "BLOCKED"},
-               "scope": "Real Pi USB AOAP + AA protocol + DHU TLS + decoded head-unit video; source content must be supplied separately.",
+               "scope": "Real Pi USB AOAP + AA protocol + DHU TLS + sampled decoded head-unit video; source content must be supplied separately. These checks are not vehicle certification.",
                "expect_auto_start": args.expect_auto_start,
+               "minimum_video_seconds": args.min_video_seconds,
                "stages": {name: {"status": "UNKNOWN", "detail": "Not exercised."} for name in STAGES}}
+    set_stage(summary, "sustained_video", "UNKNOWN" if args.min_video_seconds else "NOT_TESTED",
+              "Sustained sampled moving video is required." if args.min_video_seconds else "Only the default smoke observation was requested.",
+              requested_seconds=args.min_video_seconds)
     for name in ("input", "automatic_focus"):
         set_stage(summary, name, "UNKNOWN" if args.expect_auto_start else "NOT_TESTED",
                   "Fresh actual input/focus responses are required." if args.expect_auto_start
@@ -803,6 +925,7 @@ def main(argv: list[str] | None = None) -> int:
         if session_completed:
             required = [name for name in STAGES if (name != "pi_collection" or args.expect_airplay or args.expect_auto_start)
                         and (name not in ("input", "automatic_focus") or args.expect_auto_start)
+                        and (name != "sustained_video" or args.min_video_seconds)
                         and (name != "pattern" or args.expect_smpte) and (name != "airplay" or args.expect_airplay)]
             passed = all(summary["stages"][name]["status"] == "PASSED" for name in required)
             reason = "Actual authenticated USB session rendered changing nonblank video."
@@ -810,6 +933,8 @@ def main(argv: list[str] | None = None) -> int:
                 reason = "Fresh mirrored H.264 receive activity on the Pi accompanied authenticated USB and changing DHU video. Visually compare Mac source content separately."
             if args.expect_auto_start and passed:
                 reason += " Fresh real input binding and phone-requested projection completed without a console focus override."
+            if args.min_video_seconds and passed:
+                reason += f" Sampled moving video lasted {summary['stages']['sustained_video']['observed_seconds']:g} seconds (requested {args.min_video_seconds:g})."
             if not passed:
                 failed = [name for name in required if summary["stages"][name]["status"] != "PASSED"]
                 reason = "Required bench stages failed: " + ", ".join(failed) + "."

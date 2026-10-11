@@ -72,6 +72,14 @@ responses and ambiguous multiple sessions fail this proof; rerun with fresh
 evidence rather than accepting old markers. A console focus override also
 invalidates automatic-start acceptance.
 
+The command above runs the original short smoke check. `--duration` is a
+maximum; it does not require sustained playback. Add `--min-video-seconds 60
+--duration 90` for a minimum sampled video observation, or use
+`./scripts/test-dhu-matrix.sh --pi-host quirino@10.0.0.113` for all three
+committed profiles with the test pattern already selected. Use `--source airplay`
+for an already active moving mirror. See
+[coverage and certification research](testing-and-certification.md).
+
 The runner removes inherited certificate-bypass injection before launching DHU.
 This exercises the head unit's actual TLS validation. Upstream AAServer's peer
 certificate policy is permissive, so do not describe this as mutual validation.

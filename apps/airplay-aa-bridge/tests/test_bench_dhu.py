@@ -1,4 +1,5 @@
-"""Production-log fixtures test acceptance policy; no successful USB is mocked."""
+"""Acceptance policy with log fixtures and real PTY child processes; no hardware claim."""
+import argparse
 import copy
 import importlib.util
 import json
@@ -6,7 +7,11 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
+import time
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -213,6 +218,191 @@ class AutomaticStartupEvidenceTests(unittest.TestCase):
                                 capture_output=True, text=True, timeout=3)
         self.assertEqual(result.returncode, 2)
         self.assertIn("--expect-auto-start requires --pi-host", result.stderr)
+
+
+class SustainedVideoProcessTests(unittest.TestCase):
+    """Run the actual supervision loop against a scripted process and decoded pixels.
+
+    The child really consumes screenshot/quit commands and can stop producing
+    output, freeze, go blank, emit transport errors, or disconnect. Only the DHU
+    executable and FFmpeg decoding are substituted; elapsed time uses a scaled
+    monotonic clock. These tests prove acceptance logic, not USB or codec support.
+    """
+    def run_session(self, scenario, minimum=9, duration=23):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        directory = Path(temporary.name)
+        fake = directory / "fake_dhu.py"
+        fake.write_text('''import os, pathlib, signal, sys, time
+scenario = sys.argv[1]
+if scenario == "ignores_quit":
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+count = 0
+print("Found device TAGAAS in accessory mode (vid=18d1, pid=2d00)", flush=True)
+print("Phone reported protocol version 1.5", flush=True)
+print("Verify returned: ok", flush=True)
+for line in sys.stdin:
+    words = line.strip().split()
+    if not words:
+        continue
+    if words[0] == "quit":
+        if scenario == "ignores_quit":
+            while True:
+                os.write(1, b"continuous output after ignored quit\\n" * 512)
+        sys.exit(0)
+    if words[0] != "screenshot":
+        sys.exit(5)
+    count += 1
+    if scenario == "disconnect" and count >= 4:
+        sys.exit(0)
+    if scenario == "stopped" and count >= 3:
+        continue
+    if scenario == "slow" and count == 3:
+        time.sleep(0.3)
+    value = 60 if count % 2 else 180
+    if scenario == "frozen" and count >= 3:
+        value = 180
+    if scenario == "blank" and count >= 3 or scenario == "interrupted" and count == 3:
+        value = 0
+    if scenario == "initial_blank" and count == 1:
+        value = 0
+    data = bytes([value]) * (160 * 96 * 3)
+    if scenario == "undecodable" and count == 3:
+        data = b"invalid captured image"
+    pathlib.Path(words[1]).write_bytes(data)
+    if scenario == "late_error" and count >= 3:
+        print("Ping timeout", flush=True)
+''')
+        args = argparse.Namespace(dhu_dir=directory, config=directory / "profile.ini",
+                                  usb_serial="TAGAAS", headless=True, duration=duration,
+                                  screenshot_interval=3, expect_smpte=False,
+                                  min_video_seconds=minimum)
+        summary = {"run_id": "fixture", "stages": {
+            name: {"status": "UNKNOWN"} for name in bench.STAGES}}
+        real_clock, real_select, real_popen = time.monotonic, bench.select.select, subprocess.Popen
+        base, speed = real_clock(), 12
+        children = []
+        watchdog_fired = threading.Event()
+
+        def popen(command, **kwargs):
+            child = real_popen([sys.executable, str(fake), scenario], **kwargs)
+            children.append(child)
+            return child
+
+        def watchdog():
+            watchdog_fired.set()
+            for child in children:
+                if child.poll() is None:
+                    child.kill()
+
+        def decode(path, ffmpeg, **kwargs):
+            pixels = path.read_bytes()
+            decoded = len(pixels) == 160 * 96 * 3
+            return {"path": str(path), "decoded": decoded,
+                    "nonblank": decoded and any(value > 16 for value in pixels)}, pixels if decoded else None
+
+        guard = threading.Timer(4, watchdog)
+        guard.daemon = True
+        guard.start()
+        returncode_after_run = None
+        try:
+            with patch.object(bench, "time", SimpleNamespace(monotonic=lambda: (real_clock() - base) * speed)), \
+                    patch.object(bench, "select", SimpleNamespace(select=lambda r, w, x, timeout: real_select(r, w, x, timeout / speed))), \
+                    patch.object(bench.subprocess, "Popen", side_effect=popen), \
+                    patch.object(bench, "decode_image", side_effect=decode):
+                bench.run_dhu(args, summary, directory, "fixture-decoder")
+                returncode_after_run = children[0].poll()
+        finally:
+            guard.cancel()
+            for child in children:
+                if child.poll() is None:
+                    child.kill()
+                child.wait(timeout=2)
+        self.assertFalse(watchdog_fired.is_set(), "The supervision loop exceeded its real-time test deadline")
+        summary["fixture_child_returncode_after_run"] = returncode_after_run
+        summary["fixture_wall_seconds"] = real_clock() - base
+        return summary
+
+    def test_sustained_motion_passes_and_observes_longer_than_smoke(self):
+        summary = self.run_session("moving", minimum=18, duration=32)
+        evidence = summary["stages"]["sustained_video"]
+        self.assertEqual(evidence["status"], "PASSED", evidence)
+        self.assertGreaterEqual(evidence["observed_seconds"], 18)
+        self.assertGreater(evidence["requested_capture_count"], 4)
+        self.assertEqual(evidence["moving_pair_count"], evidence["requested_capture_count"] - 1)
+        self.assertLessEqual(evidence["final_capture_age_seconds"], evidence["maximum_capture_gap_seconds"])
+        self.assertFalse(summary["session"]["unexpected_process_exit"])
+        self.assertEqual(summary["session"]["minimum_video_seconds"], 18)
+        self.assertEqual(summary["session"]["console_commands"][-1]["command"], "quit")
+        self.assertFalse(any(command["command"].lower().startswith("focus") for command in summary["session"]["console_commands"]))
+
+    def test_early_motion_does_not_mask_later_freeze_or_blank(self):
+        for scenario in ("frozen", "blank", "stopped"):
+            with self.subTest(scenario=scenario):
+                summary = self.run_session(scenario)
+                self.assertEqual(summary["stages"]["sustained_video"]["status"], "FAILED")
+                self.assertEqual(summary["stages"]["motion"]["status"], "FAILED")
+                self.assertTrue(summary["stages"]["sustained_video"]["problems"])
+
+    def test_recovered_motion_does_not_mask_gap_blank_or_decode_failure(self):
+        for scenario in ("interrupted", "undecodable", "slow"):
+            with self.subTest(scenario=scenario):
+                evidence = self.run_session(scenario)["stages"]["sustained_video"]
+                self.assertEqual(evidence["status"], "FAILED")
+                self.assertTrue(evidence["problems"])
+
+    def test_zero_exit_disconnect_after_early_motion_fails(self):
+        summary = self.run_session("disconnect")
+        self.assertEqual(summary["session"]["process_returncode"], 0)
+        self.assertTrue(summary["session"]["unexpected_process_exit"])
+        self.assertEqual(summary["stages"]["video"]["status"], "FAILED")
+        self.assertEqual(summary["stages"]["sustained_video"]["status"], "FAILED")
+
+    def test_late_transport_error_invalidates_moving_output(self):
+        summary = self.run_session("late_error")
+        self.assertTrue(summary["session"]["errors"])
+        self.assertEqual(summary["stages"]["sustained_video"]["status"], "FAILED")
+
+    def test_continuous_logging_after_ignored_quit_is_bounded_and_child_is_cleaned_up(self):
+        summary = self.run_session("ignores_quit")
+        self.assertLess(summary["fixture_wall_seconds"], 4)
+        self.assertIsNotNone(summary["fixture_child_returncode_after_run"])
+        self.assertEqual(summary["session"]["process_returncode"], 0)
+        self.assertTrue(summary["session"]["forced_process_termination"])
+        self.assertTrue(summary["session"]["requested_quit"])
+        self.assertEqual(summary["stages"]["video"]["status"], "FAILED")
+        self.assertEqual(summary["stages"]["sustained_video"]["status"], "FAILED")
+
+    def test_initial_blank_does_not_start_observation_clock(self):
+        evidence = self.run_session("initial_blank")["stages"]["sustained_video"]
+        self.assertEqual(evidence["status"], "PASSED", evidence)
+        self.assertGreater(evidence["first_decoded_elapsed_seconds"], 6)
+        self.assertGreaterEqual(evidence["observed_seconds"], 9)
+
+    def test_deadline_before_minimum_video_fails(self):
+        summary = self.run_session("moving", minimum=30, duration=16)
+        evidence = summary["stages"]["sustained_video"]
+        self.assertEqual(evidence["status"], "FAILED")
+        self.assertLess(evidence["observed_seconds"], evidence["requested_seconds"])
+        self.assertTrue(summary["session"]["requested_quit"])
+
+    def test_default_smoke_still_finishes_early(self):
+        summary = self.run_session("moving", minimum=0)
+        commands = summary["session"]["console_commands"]
+        self.assertEqual(sum(command["command"].startswith("screenshot") for command in commands), 2)
+        self.assertEqual(summary["stages"]["motion"]["status"], "PASSED")
+        self.assertLess(summary["session"]["elapsed_seconds"], 12)
+
+    def test_cli_rejects_unbounded_or_too_short_observation_budget(self):
+        for arguments in (("--min-video-seconds", "nan"), ("--min-video-seconds", "inf"),
+                          ("--min-video-seconds", "-1"), ("--min-video-seconds", "60", "--duration", "65"),
+                          ("--screenshot-interval", "nan")):
+            with self.subTest(arguments=arguments):
+                result = subprocess.run([sys.executable, str(ROOT / "bridge" / "bench_dhu.py"), *arguments],
+                                        capture_output=True, text=True, timeout=3)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("error:", result.stderr)
+                self.assertNotIn("Evidence:", result.stdout)
 
 
 if __name__ == "__main__":
