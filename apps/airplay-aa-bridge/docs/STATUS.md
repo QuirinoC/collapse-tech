@@ -2,6 +2,20 @@
 
 **Actual Mazda activation: STILL UNRESOLVED. This is not car-ready.**
 
+## Complete offline regression sweep — October 11, 03:00 PDT
+
+The first Linux-container run exposed a test-image mismatch: Alpine BusyBox
+`ps` lacks the process-list options used by four cleanup regressions. The test
+image now installs `procps-ng`; after that correction,
+`./scripts/test-video-local.sh` passed **all 106 tests, with no skips**. This
+includes the Linux-only video pipeline, HLS pacing, input binding, and child
+process cleanup cases. `./scripts/test-aacs-local.sh` also passed production
+USB/AOA startup, descriptors, service discovery, and real video-focus/input
+handler tests. `./scripts/test-tls-local.sh` passed the actual patched AACS TLS
+transport regression for failed handshakes, wire fragments, and serialized
+writes. These local suites verify software behavior only; they cannot verify
+the Pi's supply rail or Mazda USB interoperability.
+
 ## Recheck and power-source review — October 11, 02:55 PDT
 
 The local `npm test` suite completed with **106 tests run, 90 passed and 16
