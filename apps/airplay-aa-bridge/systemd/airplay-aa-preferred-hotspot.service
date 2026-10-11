@@ -1,0 +1,20 @@
+[Unit]
+Description=Prefer an available saved phone hotspot with NetworkManager rollback
+After=NetworkManager.service
+Requires=NetworkManager.service
+ConditionPathExists=/etc/airplay-aa/preferred-hotspot.conf
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/airplay-aa/scripts/preferred_hotspot.py
+TimeoutStartSec=55
+RuntimeDirectory=airplay-aa-preferred-hotspot
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/run/airplay-aa-preferred-hotspot
+RestrictAddressFamilies=AF_UNIX

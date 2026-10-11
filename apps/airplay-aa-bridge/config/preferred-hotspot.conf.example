@@ -1,0 +1,6 @@
+# Copy to /etc/airplay-aa/preferred-hotspot.conf, owned by root with mode 0600.
+# Use the UUID of an existing saved NetworkManager client Wi-Fi profile.
+# Credentials stay in that profile. The all-zero placeholder is rejected.
+[preferred-hotspot]
+interface=wlan0
+profile_uuid=00000000-0000-0000-0000-000000000000

@@ -63,6 +63,23 @@ activation and stable-power checks in [car bring-up](docs/car-bringup.md).
 
 Mac simulator steps: [docs/mac-testing.md](docs/mac-testing.md)
 
+## Preferred phone hotspot
+
+The optional `airplay-aa-preferred-hotspot.timer` checks for the saved phone
+network roughly every 30 seconds and joins it when available, including while
+home Wi-Fi is active. NetworkManager priority alone does not switch an active connection;
+the timer performs that switch. Failed attempts have a five-minute cooldown,
+and the saved home network remains available as fallback.
+
+Keep Wi-Fi credentials only in a private root-owned NetworkManager profile with
+mode `0600`; do not put passwords in repository config or command examples.
+The separate `/etc/airplay-aa/preferred-hotspot.conf` selects its saved profile
+UUID and Wi-Fi interface without containing credentials. Enable the timer for
+startup behavior; see
+[hotspot setup and checks](docs/car-bringup.md#preferred-phone-hotspot).
+The actual phone Wi-Fi join and return to home were verified; phone-hosted
+AirPlay and Mazda playback remain unverified.
+
 ## Local end-to-end test
 
 Connect the Pi's USB-C port to this Mac using a data-capable cable and check
@@ -128,11 +145,13 @@ certification or Mazda acceptance. See
 | `scripts/install-pi.sh` | Boot overlays, build deps, systemd |
 | `scripts/build-deps.sh` | Build UxPlay + patched AAServer |
 | `scripts/run-bridge.sh` | Orchestrator |
+| `scripts/preferred_hotspot.py` | Optional saved-hotspot selection |
 | `bridge/inject_h264.py` | H.264 → AAServer socket |
 | `bridge/aa_framing.py` | Packet framing |
 | `patches/VideoChannelHandler.cpp` | AAServer without Snowmix |
 | `config/bridge.env` | Name, resolution, paths |
 | `systemd/airplay-aa-bridge.service` | Autostart |
+| `systemd/airplay-aa-preferred-hotspot.timer` | Optional preferred Wi-Fi checks |
 
 ## Configuration
 
