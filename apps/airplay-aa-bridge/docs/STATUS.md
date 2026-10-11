@@ -4,9 +4,8 @@
 
 ## Fresh local USB/DHU matrix — October 11, 02:14–02:18 PDT
 
-With the Mac connected directly to the Pi over USB-C and the Pi temporarily
-using its local SMPTE test pattern, the real USB/DHU matrix passed all three
-startup profiles:
+With the Pi attached to the Mac over USB-C and temporarily using its local
+SMPTE test pattern, the real USB/DHU matrix passed all three startup profiles:
 
 | Profile | Sampled moving video | Captures | Outcome |
 | --- | ---: | ---: | --- |
@@ -31,6 +30,21 @@ was restored and checked: SHA-256
 `airplay`, mode `644 root:root`, service active/enabled, USB gadget configured.
 The Pi remained on the Mac's USB-C power; no alternate supply was available to
 test.
+
+The Mac-side USB path was not direct: `ioreg` showed the Pi's `TAGAAS` AAServer
+device at 480 Mbps behind a VIA Labs USB 2.0 hub (VID:PID `2109:2817`) under an
+Apple USB 2.0 hub. The Apple hub reports a 1,500 mA port budget. This is a
+possible power constraint; a direct-port comparison has not been run. A second
+idle sample caught active undervoltage in 1 of 15 polls (`EXT5V_V` 4.78782–
+4.89502V), with fresh kernel undervoltage warnings at 02:22:17, 02:22:48, and
+02:23:18 PDT and no observed reboot. The matrix's passes therefore do not clear
+the power fault.
+
+The saved `iPhone Juan` Wi-Fi profile is present, and its 30-second preference
+timer is active; the hotspot was not visible during the 02:23 checks, so an
+automatic switch was not demonstrated. At 02:20 the Mac was locked, preventing
+a fresh Screen Mirroring session. The receiver remained discoverable over
+Bonjour, but no new AirPlay stream was observed.
 
 The fresh AirPlay-source attempt at `.local/bench/20261011-020019/summary.json`
 did not receive mirrored H.264 during the run. A new AirPlay end-to-end pass is
