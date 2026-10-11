@@ -161,9 +161,16 @@ test-only credentials and never connects to the Pi or USB. Its self-signed peer
 fixture does not establish DHU certificate validation or vehicle certification.
 
 The dedicated `.github/workflows/airplay-aa.yml` workflow runs Python discovery
-with Linux video dependencies and the production TLS regression for bridge PRs
-and main-branch changes. This software job does not access a Pi or USB; the
-physical DHU test and Mazda acceptance remain separate.
+in Debian 13 with required video dependencies, then the production TLS regression,
+for bridge PRs and main-branch changes. This software job does not access a Pi or
+USB; the physical DHU test and Mazda acceptance remain separate.
+
+The pacing fixture measures the actual production sink through EOS: 60 source
+frames, every received sink buffer rendered and zero drops. It rejects streaming
+errors and a short source; `videorate` may add an EOS closing frame, which is
+counted independently. The child exits before setting GStreamer to NULL, and its
+parent reaps it and removes only its own shared-memory objects. This checks
+playback pacing and excludes graceful sink shutdown.
 
 ## License
 

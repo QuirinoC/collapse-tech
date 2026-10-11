@@ -25,13 +25,13 @@ jobs:
         working-directory: apps/airplay-aa-bridge
     steps:
       - uses: actions/checkout@v5
-      - name: Install video test dependencies
+      - name: Build Debian 13 Python test environment
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-bad
+          docker build --tag airplay-aa-python-regressions - < tests/python-regressions.Dockerfile
       - name: Run Python regressions
-        env:
-          AIRPLAY_AA_REQUIRE_VIDEO_TESTS: "1"
-        run: python3 -m unittest discover -s tests -v
+        run: |
+          docker run --rm --network none --read-only --tmpfs /tmp:exec \
+            --mount "type=bind,source=$PWD,target=/project,readonly" \
+            airplay-aa-python-regressions
       - name: Run production TLS peer regression
         run: ./scripts/test-tls-local.sh

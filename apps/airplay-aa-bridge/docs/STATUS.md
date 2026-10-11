@@ -97,12 +97,23 @@ at both encryption and drain, fragmentation and failed-output queue preservation
 The tracked `./scripts/test-tls-local.sh` built pinned AACS in disposable Debian
 13 ARM64 and passed these tests with temporary self-signed credentials; it uses
 neither a Pi nor USB and does not establish DHU trust validation. The dedicated
-`airplay-aa.yml` workflow now configures Linux Python/video and TLS regressions
+`airplay-aa.yml` workflow configures Debian 13 Python/video and TLS regressions
 for bridge PR/main changes. It exercises software without physical Pi/USB
 hardware and does not supply vehicle or certification acceptance.
+Its first Ubuntu Python run failed with a `shmsink` `gst_poll_wait`/`EBUSY`
+error; the original test reproduced this on Debian 13 too. A separate controlled
+probe observed EOS followed by that error while changing the pipeline to NULL.
+The revised pacing fixture verifies 60 source frames at EOS, rendering of every
+received sink buffer and zero drops, and rejects all observed streaming errors.
+It counts `videorate` closing frames independently, exits its child before NULL,
+then reaps it and cleans only the child's shared-memory objects. This tests
+clocked playback; it does not fix or validate graceful sink shutdown.
+The final Debian 13 container run passed **all 93 Python tests with no skips**;
+the focused pacing and negative probes also passed on Alpine/GStreamer 1.28.3.
 The public OpenSSL [threading guidance](https://docs.openssl.org/3.5/man7/openssl-threads/)
 and [SSL_write contract](https://docs.openssl.org/3.5/man3/SSL_write/) support
-these requirements. The successful new matrix is hardware evidence for this
+the shared-TLS serialization and complete-write requirements. The new matrix is
+hardware evidence for this
 repair, not proof that concurrency caused the earlier framing error.
 
 ## Mazda observations before the final USB build
