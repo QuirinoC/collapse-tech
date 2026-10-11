@@ -2,6 +2,20 @@
 
 **Actual Mazda activation: STILL UNRESOLVED. This is not car-ready.**
 
+## Recheck and power-source review — October 11, 02:55 PDT
+
+The local `npm test` suite completed with **106 tests run, 90 passed and 16
+skipped**. Skips require Linux-only SOCK_SEQPACKET/GStreamer/FFmpeg dependencies
+not available on this Mac. This does not replace the physical USB/DHU test below.
+
+At this check, no Raspberry Pi USB device appeared in the Mac USB registry, and
+SSH to the last Pi address (`10.0.0.113`) timed out. The Pi's current power or
+location is therefore unknown; no new live handshake, power comparison, or
+Mazda test was possible. The latest verified live matrix remains the three
+passing profiles below.
+
+Amazon candidate reviewed: Geekworm **X1205** (`B0F2FKZ2YY`, [Amazon listing](https://www.amazon.com/dp/B0F2FKZ2YY)). Its manufacturer specifies Pi 5 support, 9–18V input, 5.1V/6A output, auto-power-on, and underside pogo-pin power delivery; it uses two 21700 cells (not included) and leaves the Pi USB-C connector available for data. The [manufacturer warns](https://wiki.geekworm.com/X1205) that its input must have overvoltage and surge protection. No automotive transient qualification was found, so direct connection to vehicle 12V is **not validated**. Amazon stock was not verifiable. Raspberry Pi's [OTG guide](https://pip-assets.raspberrypi.com/categories/685-app-notes-guides-whitepapers/documents/RP-009276-WP/Using-OTG-mode-on-Raspberry-Pi-SBCs) explicitly supports 5V/GND GPIO power while connecting USB-C to a host. On Pi 5, GPIO power defaults to an assumed 3A; a real, tested 5A source requires EEPROM `PSU_MAX_CURRENT=5000` to declare its capability and unlock the full USB current budget, per the [Pi 5 power-delivery guide](https://pip-assets.raspberrypi.com/categories/685-app-notes-guides-whitepapers/documents/RP-009856-WP-1-USB%20Power%20delivery%20on%20Raspberry%20Pi%205.pdf). This board has not been acquired or bench-tested.
+
 ## Fresh local USB/DHU rerun — October 11, 02:29–02:34 PDT
 
 The Pi was connected to the Mac over USB-C. After saving the exact AirPlay
