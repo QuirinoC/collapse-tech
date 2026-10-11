@@ -1,6 +1,41 @@
-# Bench status — October 10, 2026
+# Bench status — October 11, 2026
 
 **Actual Mazda activation: STILL UNRESOLVED. This is not car-ready.**
+
+## Fresh local USB/DHU matrix — October 11, 02:14–02:18 PDT
+
+With the Mac connected directly to the Pi over USB-C and the Pi temporarily
+using its local SMPTE test pattern, the real USB/DHU matrix passed all three
+startup profiles:
+
+| Profile | Sampled moving video | Captures | Outcome |
+| --- | ---: | ---: | --- |
+| Touch | 60.471 s | 13 | PASSED |
+| Rotary | 60.240 s | 13 | PASSED |
+| Hybrid | 60.051 s | 13 | PASSED |
+
+Each run completed USB/AOAP, authenticated protocol/TLS, fresh input binding,
+phone-requested projection, and moving video with no session errors or console
+focus override. This confirms the local USB handshake and video path still work;
+the matrix did not exercise AirPlay, Bluetooth, the Mazda head unit, or audio.
+Evidence: `.local/matrix/20261011-021432-d44c87c2/summary.json` and its profile
+folders.
+
+The Mac remained the Pi's only power source. During the matrix, active undervoltage
+(`get_throttled=0x50005`) appeared in 5 of 10 live polls while `EXT5V_V` ranged
+from 4.82802V to 4.89368V. All three profiles nevertheless passed without a
+reboot. This verifies a real power fault, but does not show that it alone caused
+the Mazda's USB resets. After the test, the exact original AirPlay configuration
+was restored and checked: SHA-256
+`594159f463b044884c1a9264d4bdb6c8418f09275e495209c3237bb13f4e72bb`, source
+`airplay`, mode `644 root:root`, service active/enabled, USB gadget configured.
+The Pi remained on the Mac's USB-C power; no alternate supply was available to
+test.
+
+The fresh AirPlay-source attempt at `.local/bench/20261011-020019/summary.json`
+did not receive mirrored H.264 during the run. A new AirPlay end-to-end pass is
+still needed; the successful full AirPlay loop recorded below is from October 10.
+
 The installed TLS-serialization build `9c35f5bc…` passed the real automatic Mac
 USB/DHU matrix at **17:37:06–17:41:01 PDT**: touch, rotary and hybrid profiles
 each showed over 60 seconds of sampled moving video, with no session errors.
