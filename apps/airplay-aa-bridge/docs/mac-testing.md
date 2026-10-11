@@ -207,6 +207,16 @@ this never contacts the Pi or USB, and does not prove DHU certificate trust.
 
 ## Current evidence
 
+The latest fresh three-profile rerun was **02:29:51–02:33:38 PDT on October
+11**. Touch, rotary, and hybrid each passed 60 seconds of moving SMPTE video,
+real USB/AOAP, TLS verification, input binding, and phone-requested projection.
+The original AirPlay configuration was restored and verified afterward. The
+same run recorded active undervoltage in 90/221 one-second polls while powered
+from the Mac; separate rail samples ranged from 4.5225V to 4.90842V. See
+[STATUS.md](STATUS.md) for the bounded timing and evidence limitations. This
+does not establish Mazda acceptance or that undervoltage alone caused the
+vehicle resets.
+
 The installed TLS-serialization build `9c35f5bc…` passed the complete real
 matrix at **17:37:06–17:41:01 PDT**, using a temporary moving SMPTE source:
 

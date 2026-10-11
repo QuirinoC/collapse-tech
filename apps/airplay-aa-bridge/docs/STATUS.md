@@ -2,6 +2,53 @@
 
 **Actual Mazda activation: STILL UNRESOLVED. This is not car-ready.**
 
+## Fresh local USB/DHU rerun — October 11, 02:29–02:34 PDT
+
+The Pi was connected to the Mac over USB-C. After saving the exact AirPlay
+configuration, the bridge was switched temporarily to its moving SMPTE source
+and its service restarted. All three strict profile runs passed:
+
+| Profile | Sampled moving video | Captures / moving pairs | Outcome |
+| --- | ---: | ---: | --- |
+| Touch | 60.327 s | 13 / 12 | PASSED |
+| Rotary | 60.366 s | 13 / 12 | PASSED |
+| Hybrid | 60.186 s | 13 / 12 | PASSED |
+
+Each run completed the real USB/AOAP handshake, protocol negotiation, DHU TLS
+verification, successful input binding, phone-requested projection/focus, and
+decoded moving video. Session error lists were empty; TLS bypass and console
+focus override were false; each DHU exited normally. Evidence is
+`.local/matrix/20261011-022951-fresh-full-sweep/summary.json` and its profile
+folders.
+
+The Mac remained the Pi's only power source. In 221 one-second samples spanning
+the matrix run, the current undervoltage bit was set in 90 samples. A second
+180-sample rail window spanning the last profile and post-test idle measured
+EXT5V_V from 4.5225V to 4.90842V, with the current undervoltage bit set in 36
+samples. The lowest rail reading was one sample at 02:35:39 PDT, after the
+matrix had ended. Both logs contain the same Pi boot ID; no Pi reboot occurred.
+The full-matrix current-bit log (`power-throttled-during-matrix.csv`) and rail
+samples (`power-rail-samples.log`) are saved beside the summary.
+This confirms recurring undervoltage on the Mac-powered setup. The matrix still
+passed during the same power condition, so this does not establish that power
+alone caused the Mazda's resets; no independent power source was available for
+a comparison.
+
+Mac ioreg still showed the Pi at 480 Mbps through a VIA Labs USB 2.0 hub under
+an Apple USB 2.0 hub whose port budget is 1,500 mA. No direct-port comparison
+was possible. At 02:33:38 the exact original AirPlay config was restored and
+verified (SHA-256
+`594159f463b044884c1a9264d4bdb6c8418f09275e495209c3237bb13f4e72bb`, source
+`airplay`, mode `644 root:root`); the service is enabled/active and the UDC is
+configured. The Pi kept the same boot ID throughout.
+
+At 02:36 the Mac's Bonjour browser saw the receiver advertised as
+`88A29E59BD1E@Pi AirPlay AA`. The Mac was locked, so no fresh Screen Mirroring
+stream or AirPlay H.264 input was tested. The Pi stayed on the home Wi-Fi; the
+saved iPhone hotspot was not visible during the check. Actual Mazda acceptance,
+AirPlay media, audio, Bluetooth, clean power, and vehicle USB behavior remain
+unverified. This is stronger local USB evidence, not a car-ready result.
+
 ## Fresh local USB/DHU matrix — October 11, 02:14–02:18 PDT
 
 With the Pi attached to the Mac over USB-C and temporarily using its local
