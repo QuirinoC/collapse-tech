@@ -9,12 +9,35 @@ Auto bulk bytes, with repeated USB resets. An older build reached accepted input
 binding and video setup there but received no projection grant or stream start.
 Those are separate observations, not successful car acceptance.
 
-The Pi is now connected to the Mac, with normal AirPlay mode restored and the
-service enabled and running. Current Mac power samples still show active
+The last verified Mac session ended with normal AirPlay mode restored and the
+service enabled and running. At the latest testing-suite preflight, no Pi USB
+device was visible on the Mac and SSH was unreachable; its current runtime
+state is unverified. The last Mac power samples still showed active
 undervoltage; warnings also occurred with the user's power splitter. The
 successful historical Mac AirPlay loops do not establish this build's AirPlay
 acceptance or Mazda compatibility. Audio is disabled; the evidence covers video only.
 See [mac-testing.md](mac-testing.md) for the repeatable Mac hardware test.
+
+## Expanded local acceptance suite
+
+`scripts/test-dhu-matrix.sh` adds touch, rotary and rotary-plus-touchpad profiles
+at 800x480/30. Each requires real USB, authenticated automatic startup and at
+least 60 seconds of sampled moving video; the default session maximum is 90
+seconds. It records absent hardware as `BLOCKED` and later cases as `NOT_RUN`.
+The new sustained mode rejects late freezes, blanks, missing samples, early
+process exits and session errors. Neither a smoke pass nor a stale report can
+satisfy the matrix. Host discovery ran 90 tests: 76 passed and 14 existing
+Linux/GStreamer integration tests were skipped on macOS. The first actual
+matrix invocation returned `BLOCKED` before DHU launched: USB was absent and
+SSH failed. Rotary and hybrid cases were `NOT_RUN`; hardware acceptance remains
+unexercised. Private evidence:
+`.local/matrix/20261010-165905-f8b3ae7e/summary.json`.
+
+No public certification suite was found for this custom Linux phone stack.
+The public DHU provides useful interoperability evidence, not Google or Mazda
+certification. [Research and exact coverage](testing-and-certification.md)
+also record the missing transport/credit, Bluetooth, audio, power and reconnect
+checks. No production Pi files were changed by this suite update.
 
 ## Mazda observations before the final USB build
 
@@ -102,7 +125,9 @@ The final installed binary `d195d47…` passed
 initial device → `18d1:2d00` accessory switch, protocol 1.5, DHU certificate
 verification, actual input channel 3 open/binding status 0, video channel 2 setup
 status 2, a Pi PROJECTED request, head-unit mode-1 grant and StartIndication.
-No TLS bypass or console focus override was used. Two actual decoded 800×480
+The session actually lasted **13.41 seconds**; `--duration 35` was a timeout,
+not a sustained-playback requirement. No TLS bypass or console focus override
+was used. Two actual decoded 800×480
 SMPTE frames 5.10 seconds apart changed by mean absolute RGB difference
 **0.9485**, with **4.27%** changed pixels. Visual inspection confirmed the bars
 and changing noise region. This run did not test AirPlay.

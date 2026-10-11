@@ -91,6 +91,20 @@ timestamps during the session. Compare the saved DHU screenshots with the Mac
 source visually; packet logs establish receive activity, not pixel identity.
 See [local testing](docs/mac-testing.md) for source selection and failure stages.
 
+The default is a short smoke test: `--duration` limits its maximum runtime.
+For three head-unit profiles requiring at least 60 seconds of sampled moving
+video each, with the Pi's moving test pattern already selected, run:
+
+```bash
+./scripts/test-dhu-matrix.sh --pi-host quirino@10.0.0.113
+```
+
+Use `--source airplay` when already mirroring moving content. The matrix records
+blocked prerequisites separately from session failures and never changes the
+Pi's source. It is an interoperability check; Google certification and actual
+Mazda acceptance remain unverified. See
+[testing scope and certification research](docs/testing-and-certification.md).
+
 ## Layout
 
 | Path | Role |
