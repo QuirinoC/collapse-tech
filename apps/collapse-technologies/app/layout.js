@@ -1,22 +1,10 @@
-import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
+import "../../../shared/design/roman.css";
 import "./globals.css";
-
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
-
-const plexMono = IBM_Plex_Mono({
-  variable: "--font-plex-mono",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
 
 export const metadata = {
   title: "Collapse Technologies",
   description:
-    "Independent studio. Infinite Pixelboard, Trust, CoachGG, The Fly, and Asymmetric Challenge.",
+    "An independent technology studio building interactive software, games, and long-lived tools.",
   metadataBase: new URL("https://collapsetechnologies.com"),
   alternates: {
     canonical: "/",
@@ -24,7 +12,7 @@ export const metadata = {
   openGraph: {
     title: "Collapse Technologies",
     description:
-      "Public work from Collapse Technologies: a shared mural, Trust, CoachGG, The Fly, and a 256-bit key challenge.",
+      "An independent technology studio building interactive software, games, and long-lived tools.",
     siteName: "Collapse Technologies",
     type: "website",
     url: "/",
@@ -34,9 +22,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={`${spaceGrotesk.variable} ${plexMono.variable}`}>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

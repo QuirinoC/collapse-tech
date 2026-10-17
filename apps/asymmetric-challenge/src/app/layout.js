@@ -1,30 +1,16 @@
-import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
+import "../../../../shared/design/roman.css";
 import "./globals.css";
 
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
-
-const plexMono = IBM_Plex_Mono({
-  variable: "--font-plex-mono",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
-
 export const metadata = {
-  title: "Asymmetric Challenge",
+  title: "Asymmetric Challenge — Fictional Demo",
   description:
-    "Guess the 256-bit key. Hash commitment published. One winner, $100 prize.",
+    "A fictional interactive demo exploring 256-bit key guesses and a public SHA-256 commitment. No prize is offered.",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={`${spaceGrotesk.variable} ${plexMono.variable}`}>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

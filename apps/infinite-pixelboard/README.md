@@ -2,6 +2,11 @@
 
 Collaborative, infinite shared mural — everyone paints together. Built with ASP.NET Core 9 Razor Pages, SignalR, and Redis.
 
+The web shell uses the shared Collapse Roman brand source at
+`shared/design/roman.css`, synchronized to `wwwroot/design/` by the workspace
+asset-sync script. Pixel and canvas interaction colors remain local to
+Pixelboard.
+
 ## Local development
 
 Start a local Redis instance, then restore and run the application from the workspace root:

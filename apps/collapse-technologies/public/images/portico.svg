@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="850" viewBox="0 0 700 850" fill="none">
+  <defs>
+    <linearGradient id="stone" x1="70" y1="80" x2="655" y2="720" gradientUnits="userSpaceOnUse"><stop stop-color="#e9dfcb"/><stop offset=".52" stop-color="#d6c8af"/><stop offset="1" stop-color="#c2b195"/></linearGradient>
+    <linearGradient id="edge" x1="180" y1="200" x2="570" y2="650" gradientUnits="userSpaceOnUse"><stop stop-color="#fbf5e6"/><stop offset=".5" stop-color="#d7c8aa"/><stop offset="1" stop-color="#a49070"/></linearGradient>
+    <linearGradient id="recess" x1="250" y1="200" x2="500" y2="700" gradientUnits="userSpaceOnUse"><stop stop-color="#5d503e"/><stop offset=".4" stop-color="#9e8c6e"/><stop offset="1" stop-color="#c5b391"/></linearGradient>
+    <linearGradient id="light" x1="460" y1="280" x2="277" y2="715" gradientUnits="userSpaceOnUse"><stop stop-color="#faf3dd"/><stop offset="1" stop-color="#e0ceaa"/></linearGradient>
+    <linearGradient id="floor" x1="350" y1="712" x2="350" y2="805" gradientUnits="userSpaceOnUse"><stop stop-color="#ac9674"/><stop offset="1" stop-color="#e6d9bf"/></linearGradient>
+    <filter id="shadow" x="0" y="0" width="140%" height="140%"><feDropShadow dx="22" dy="25" stdDeviation="18" flood-color="#66583e" flood-opacity=".23"/></filter>
+    <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".62" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope=".09"/></feComponentTransfer><feBlend in="SourceGraphic" mode="multiply"/></filter>
+    <clipPath id="portal"><path d="M222 715V344a128 128 0 0 1 256 0v371Z"/></clipPath>
+  </defs>
+  <g filter="url(#shadow)">
+    <path d="M72 755V328a278 278 0 0 1 556 0v427Z" fill="url(#stone)"/>
+    <path d="M94 755V328a256 256 0 0 1 512 0v427Z" fill="url(#edge)" stroke="#f6efdf" stroke-opacity=".65"/>
+    <path d="M112 755V330a238 238 0 0 1 476 0v425Z" fill="url(#stone)" stroke="#ae9e81"/>
+    <path d="M141 751V334a209 209 0 0 1 418 0v417Z" fill="url(#edge)" stroke="#f8f0de"/>
+    <path d="M158 749V336a192 192 0 0 1 384 0v413Z" fill="url(#stone)" stroke="#b3a183"/>
+    <path d="M188 739V340a162 162 0 0 1 324 0v399Z" fill="url(#edge)" stroke="#f7eedb"/>
+    <path d="M205 735V343a145 145 0 0 1 290 0v392Z" fill="url(#recess)"/>
+    <path d="M222 715V344a128 128 0 0 1 256 0v371Z" fill="url(#recess)"/>
+    <g clip-path="url(#portal)"><path d="m485 166 59 595H260Z" fill="url(#light)"/><path d="m450 180 32 535h-18Z" fill="#fff7e0" opacity=".3"/></g>
+    <path d="M205 715h290l85 51H120Z" fill="url(#floor)"/>
+    <path d="M72 755h556v18H72Z" fill="#e8dbc1"/>
+    <path d="M51 773h598v20H51Z" fill="#c3b293"/>
+    <path d="M35 793h630v12H35Z" fill="#ece0c9"/>
+  </g>
+  <g stroke="#9f8d6f" stroke-opacity=".24"><path d="M72 471h132m292 0h132M72 621h132m292 0h132M81 260l111 22m316 0 111-22M135 150l82 77m266 0 82-77M239 74l43 111m136 0 43-111M350 50v128"/></g>
+  <path d="M72 755V328a278 278 0 0 1 556 0v427Z" fill="transparent" filter="url(#grain)"/>
+</svg>

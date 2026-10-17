@@ -20,28 +20,37 @@ export const metadata = {
 export default function PrivacyPage() {
   return (
     <main className="legal-page">
-      <Link className="wordmark" href="/">Collapse<span>Technologies</span></Link>
+      <Link className="wordmark collapse-wordmark" href="/">
+        <span>Collapse</span>
+        <span>Technologies</span>
+      </Link>
       <p className="eyebrow">Privacy</p>
-      <h1>Keep it<br />simple.</h1>
+      <h1>
+        Keep it
+        <br />
+        simple.
+      </h1>
       <div className="legal-copy">
         <p>
-          Collapse Technologies does not sell personal information. If you contact
-          us, we use the details you send only to respond to you.
+          Collapse Technologies does not sell personal information. If you
+          contact us, we use the details you send only to respond to you.
         </p>
         <p>
-          This site does not use advertising trackers. If that changes, this page
-          will say so plainly.
+          This site does not use advertising trackers. If that changes, this
+          page will say so plainly.
         </p>
         <p>
-          Trust texts a verification code to finish the account. At most 8 texts a day. Message
-          and data rates may apply. Reply HELP for help or STOP to opt out. We do not share,
-          sell, or provide your mobile phone number or messaging consent data to third parties
-          or affiliates for marketing or promotional purposes. Text messaging originator opt-in
-          data and consent will not be shared with any third parties. The Trust policy is at{" "}
-          <Link href="/trust/privacy">/trust/privacy</Link>.
+          Trust is a separate product with its own privacy policy, including its
+          location and verification-text practices. Read the current policy at{" "}
+          <Link href="https://jointrust.app/privacy">
+            jointrust.app/privacy
+          </Link>
+          .
         </p>
       </div>
-      <Link className="text-link" href="/">Back to Collapse <span>↖</span></Link>
+      <Link className="text-link" href="/">
+        Back to Collapse <span>↖</span>
+      </Link>
     </main>
   );
 }

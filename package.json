@@ -40,7 +40,9 @@
     "test:airplay-aa": "npm --prefix apps/airplay-aa-bridge run test",
     "test:coach:e2e": "npm --prefix apps/coach-gg run test:e2e",
     "test:pixelboard:web": "node --test apps/infinite-pixelboard/wwwroot/js/pixelboard/tests/*.test.mjs apps/infinite-pixelboard/tools/*.test.mjs apps/infinite-pixelboard/tools/mural-seed/*.test.mjs",
-    "test:pixelboard": "dotnet test apps/infinite-pixelboard/PixelBoard.sln --no-restore"
+    "test:pixelboard": "dotnet test apps/infinite-pixelboard/PixelBoard.sln --no-restore",
+    "sync:design": "node scripts/sync-design-assets.mjs",
+    "check:design": "node scripts/sync-design-assets.mjs --check"
   },
   "devDependencies": {
     "firebase-admin": "^14.3.0",

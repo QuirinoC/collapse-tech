@@ -13,10 +13,17 @@ The workspace behind [collapsetechnologies.com](https://collapsetechnologies.com
 | CoachGG | `apps/coach-gg` | Super Smash Bros. Ultimate player analysis with live SignalR updates |
 | Infinite Pixelboard | `apps/infinite-pixelboard` | Collaborative, infinite canvas built with ASP.NET Core SignalR |
 | iPhone Rover | `apps/iphone-rover-ios` + `apps/iphone-rover-firmware` | iPhone-powered indoor rover prototype with ESP32 motion control |
-| Trust Circle iOS | [QuirinoC/trust](https://github.com/QuirinoC/trust) `apps/trust-ios` | Adult-peer location escrow — **moved** to dedicated repo |
+| Trust iOS | [QuirinoC/trust](https://github.com/QuirinoC/trust) `apps/trust-ios` | Controlled location sharing for iPhone — **moved** to dedicated repo; public TestFlight access is not open yet |
 | Trust API | [QuirinoC/trust](https://github.com/QuirinoC/trust) `apps/trust-api` | ASP.NET Core + Postgres — **moved** to dedicated repo |
 | The Fly | `apps/the-fly` | One cartoon fly per browser — client sim + localStorage, feed after a first-party rewarded clip |
 | AirPlay AA Bridge | `apps/airplay-aa-bridge` | Raspberry Pi AirPlay2 receiver → wired Android Auto (USB) video bridge |
+
+## Web identity
+
+The current Roman web design lives in [shared/design](shared/design/README.md). It replaces
+the former cream-paper/Space Grotesk studio direction. Studio, Dress Like Me, Health,
+Challenge, and Pixelboard share its materials and publisher identity. Run
+`npm run sync:design` after shared asset changes and `npm run check:design` before release.
 
 ## Local development
 
@@ -56,7 +63,7 @@ npm run restore:pixelboard
 npm run dev:pixelboard
 ```
 
-Trust Circle lives in [QuirinoC/trust](https://github.com/QuirinoC/trust) (`apps/trust-ios`, `apps/trust-api`, `apps/jointrust-web`). Legal/marketing: [jointrust.app](https://jointrust.app). Production API remains `https://trust.collapsetechnologies.com`.
+Trust lives in [QuirinoC/trust](https://github.com/QuirinoC/trust) (`apps/trust-ios`, `apps/trust-api`, `apps/jointrust-web`); the iOS app is not yet open to public TestFlight access. Product information and canonical policies: [jointrust.app](https://jointrust.app), [privacy](https://jointrust.app/privacy), and [terms](https://jointrust.app/terms). Production API remains `https://trust.collapsetechnologies.com`.
 
 ```bash
 npm --prefix apps/the-fly install
@@ -84,12 +91,12 @@ Influence.Market was shut down in August 2026 (Worker + D1 deleted; hostname no 
 | Collapse Technologies | `apps/collapse-technologies` | Cloudflare Pages (static export) | `collapsetechnologies.com` ✅ live |
 | Asymmetric Challenge | `apps/asymmetric-challenge` | Cloudflare Workers via `@opennextjs/cloudflare` + Cloudflare D1 | `challenge.collapsetechnologies.com` ✅ live (`x-opennext: 1`) |
 | Dress Like Me | `apps/dress-like-me` | Cloudflare Workers via `@opennextjs/cloudflare` | `dresslikeme.collapsetechnologies.com` ✅ live (app itself still pre-launch) |
-| Collapse Health | `apps/collapse-health` | Cloudflare Pages (static export) + lead Worker `collapse-health-leads` (KV-backed) | `health.collapsetechnologies.com` ✅ live — WIP/not-operating banner, no prices |
+| Collapse Health | `apps/collapse-health` | Cloudflare Pages (static export); legacy leads Worker remains inactive | `health.collapsetechnologies.com` ✅ live — WIP/not-operating banner, no prices |
 | CoachGG | `apps/coach-gg` | Render web service (`srv-da56cr2jobas73dmulv0`) | `coachgg-api.onrender.com`, custom domain `coach.collapsetechnologies.com` ✅ live |
 | Infinite Pixelboard | `apps/infinite-pixelboard` | Render web service (`srv-da55t78u01pc73e3rlu0`) + Render Key Value (Redis) | `infinite-pixelboard.onrender.com`, custom domain `pixelboard.collapsetechnologies.com` ✅ live |
 | Infinite Pixelboard iOS | `apps/infinite-pixelboard-ios` | Native SwiftUI app (TestFlight/App Store) — no server deploys; talks to the pixelboard API + Firebase Auth | n/a |
 | Trust API | [QuirinoC/trust](https://github.com/QuirinoC/trust) | Render `srv-daabv1lg1s2s73co5gm0` (repo QuirinoC/trust) + custom domain | `trust.collapsetechnologies.com` |
-| Trust Circle iOS | [QuirinoC/trust](https://github.com/QuirinoC/trust) `apps/trust-ios` | Native SwiftUI + MapKit — Release talks to Trust API; StoreKit Circle | App Store |
+| Trust iOS | [QuirinoC/trust](https://github.com/QuirinoC/trust) `apps/trust-ios` | Native SwiftUI + MapKit — Release talks to Trust API; public TestFlight access is not open yet | `jointrust.app` (product, [privacy](https://jointrust.app/privacy), [terms](https://jointrust.app/terms)) |
 | The Fly | `apps/the-fly` | Cloudflare Worker + SQLite Durable Object + Vite/Three client | `fly.collapsetechnologies.com` |
 
 ### Cloudflare Pages / Workers
@@ -104,20 +111,18 @@ npx wrangler pages deploy out --project-name collapse-technologies --branch main
 
 > **Gotcha:** `next.config.mjs` sets `output: "export"`. Deploy `out/` (the static export), not `.next/` or `.next/server/app`. The old `.next/server/app` recipe shipped HTML without any `_next/static` chunks, so every stylesheet/script request fell through to the HTML fallback and the page rendered unstyled and broken.
 
-Collapse Health deploys the same way, plus a lead-capture Worker:
+Collapse Health deploys the static concept preview the same way:
 
 ```bash
 cd apps/collapse-health
-NEXT_PUBLIC_LEAD_ENDPOINT=https://collapse-health-leads.juanquirino-workers.workers.dev \
-  npm run build
+npm run build
 npx wrangler pages deploy out --project-name collapse-health --branch main --commit-dirty=true
-npx wrangler deploy --config worker/wrangler.jsonc
 ```
 
-The lead form posts JSON to that Worker (KV namespace `LEADS`, email-deduped).
-See `apps/collapse-health/README.md` for the Worker's API and architecture.
-`NEXT_PUBLIC_LEAD_ENDPOINT` is baked at build time — always rebuild before
-deploying; without it the form shows a fallback email address.
+Do not set `NEXT_PUBLIC_LEAD_ENDPOINT` or enable the legacy leads Worker for this
+preview. Registration remains unavailable and no contact details are collected.
+See [the Health README](apps/collapse-health/README.md) for the current deployment
+and service status.
 
 The Fly is a thin Worker + static Vite client (no OpenNext). Build the client, then deploy:
 

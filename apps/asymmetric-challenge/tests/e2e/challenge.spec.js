@@ -29,9 +29,9 @@ test("loads the challenge page and shows commitment", async ({ page }) => {
   await stubTelemetry(page);
   await page.goto("/");
 
-  await expect(page.locator(".hero .kicker")).toHaveText("Asymmetric Challenge");
+  await expect(page.locator(".hero .kicker")).toHaveText("Fictional interactive demo / Asymmetric Challenge");
   await expect(
-    page.getByRole("heading", { name: "Guess the 256-bit key. Win $100." })
+    page.getByRole("heading", { name: "Guess a 256-bit key. Explore the odds." })
   ).toBeVisible();
 
   const commitment = page.locator(".hash-block");

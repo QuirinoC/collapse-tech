@@ -1,19 +1,21 @@
 "use client";
 
-import { useState } from "react";
-import CollapseSignal from "./collapse-signal";
+import Image from "next/image";
+import { useEffect, useState } from "react";
 
 const projects = [
   {
     id: "pixelboard",
-    mark: "01",
+    number: "I",
+    category: "A shared canvas",
     name: "Infinite Pixelboard",
-    status: "Web and App Store",
+    status: "Web & iPhone",
+    kind: "mosaic",
     description:
-      "A shared mural. Everyone paints the same canvas, and anyone can paint over a pixel. The board is on the web and on iPhone.",
+      "One canvas, made by everyone. Place a pixel, leave a mark, and see what the next person makes of it.",
     links: [
       {
-        label: "Open the board",
+        label: "Enter the canvas",
         href: "https://pixelboard.collapsetechnologies.com",
       },
       {
@@ -21,364 +23,391 @@ const projects = [
         href: "https://apps.apple.com/app/infinite-pixelboard/id6804066543",
       },
     ],
-    plate: "pixels",
   },
   {
     id: "trust",
-    mark: "02",
+    number: "II",
+    category: "Considered connections",
     name: "Trust",
-    status: "iPhone, not listed yet",
+    status: "In development · iPhone",
+    kind: "seal",
     description:
-      "A circle of people you choose. Location stays sealed until someone looks, and the person being looked at gets a quiet receipt. The public site is up. The App Store listing is not.",
-    links: [
-      { label: "jointrust.app", href: "https://jointrust.app" },
-      { label: "Studio page", href: "/trust" },
-    ],
-    plate: "trust",
+      "Location sharing, on your terms. Choose your people and decide when to share. Public TestFlight access is not open yet.",
+    links: [{ label: "Discover Trust", href: "https://jointrust.app" }],
   },
   {
     id: "coach",
-    mark: "03",
+    number: "III",
+    category: "A clearer view of the game",
     name: "CoachGG",
-    status: "Live",
+    status: "Web",
+    kind: "columns",
     description:
-      "Super Smash Bros. Ultimate scouting. Enter a start.gg tag and watch stage and character win rates stream in as the set history loads.",
+      "Turn a competitive history into a better next move. Super Smash Bros. Ultimate scouting, with stage and character results from start.gg.",
     links: [
-      { label: "Open CoachGG", href: "https://coach.collapsetechnologies.com" },
+      {
+        label: "Explore CoachGG",
+        href: "https://coach.collapsetechnologies.com",
+      },
     ],
-    plate: "coach",
   },
   {
     id: "fly",
-    mark: "04",
+    number: "IV",
+    category: "A small experiment in life",
     name: "The Fly",
-    status: "Live",
+    status: "Browser experiment",
+    kind: "flight",
     description:
-      "One cartoon housefly in the browser. Movement is driven by a published fruit-fly brain map, FlyWire FAFB v783, not a wander script. It is not a conscious fly.",
-    links: [{ label: "Watch the fly", href: "https://fly.collapsetechnologies.com" }],
-    plate: "fly",
+      "A housefly in your browser, with movement driven by the FlyWire fruit-fly brain map. A small experiment at the meeting of biology and software.",
+    links: [
+      { label: "Meet the fly", href: "https://fly.collapsetechnologies.com" },
+    ],
   },
   {
     id: "challenge",
-    mark: "05",
+    number: "V",
+    category: "An exercise in possibility",
     name: "Asymmetric Challenge",
-    status: "Live",
+    status: "Web experiment",
+    kind: "cipher",
     description:
-      "A public SHA-256 commitment to a 256-bit key. Guesses are checked against it. The server keeps attempt totals, not a trail of guesses. The challenge page calls the prize a demo, not a real offering.",
+      "One 256-bit key. A public SHA-256 commitment. An open invitation to try the improbable, in an interactive demonstration with no prize offering.",
     links: [
       {
-        label: "Open the challenge",
+        label: "Try the challenge",
         href: "https://challenge.collapsetechnologies.com",
       },
     ],
-    plate: "key",
   },
 ];
 
-const pixelMap = [
-  "            ",
-  "  kk     r  ",
-  " k  k   rr  ",
-  " k  k  r  r ",
-  " kkk    rr  ",
-  " k  k   r   ",
-  " k  k       ",
-  "        bb  ",
-];
-
-function PixelPlate() {
-  const color = { k: "#11110f", r: "#9a3b24", b: "#243f45" };
+function Arrow({ diagonal = false }) {
   return (
-    <div className="plate plate-pixels" aria-hidden="true">
-      <div className="pixel-grid">
-        {pixelMap.flatMap((row, y) =>
-          [...row].map((cell, x) => (
-            <i
-              key={`${x}-${y}`}
-              style={cell.trim() ? { background: color[cell] } : undefined}
-            />
-          )),
-        )}
-      </div>
-      <p>Same board for everyone.</p>
-    </div>
+    <span className="arrow" aria-hidden="true">
+      {diagonal ? "↗" : "↘"}
+    </span>
   );
 }
 
-function TrustPlate() {
+function ProjectRelief({ kind }) {
   return (
-    <div className="plate plate-trust" aria-hidden="true">
-      <p className="plate-kicker">Until they look</p>
-      <p className="plate-word">Sealed</p>
-      <span className="trust-rule" />
-      <p>A look sends a receipt.</p>
+    <div className={`project-relief relief-${kind}`} aria-hidden="true">
+      {kind === "mosaic" && (
+        <div className="mosaic">
+          {Array.from({ length: 49 }, (_, i) => (
+            <i key={i} />
+          ))}
+        </div>
+      )}
+      {kind === "seal" && (
+        <div className="seal">
+          <i />
+          <i />
+          <span>T</span>
+        </div>
+      )}
+      {kind === "columns" && (
+        <div className="column-study">
+          <i />
+          <i />
+          <i />
+          <i />
+          <i />
+        </div>
+      )}
+      {kind === "flight" && (
+        <svg viewBox="0 0 260 150">
+          <path d="M8 125C70 145 51 24 128 42s-31 104 34 82 55-81 87-96" />
+          <g transform="translate(132 43) rotate(18)">
+            <ellipse rx="4" ry="9" />
+            <ellipse cx="-9" cy="-2" rx="10" ry="5" />
+            <ellipse cx="9" cy="-2" rx="10" ry="5" />
+          </g>
+        </svg>
+      )}
+      {kind === "cipher" && (
+        <div className="cipher">
+          <span>
+            2<sup>256</sup>
+          </span>
+          <i />
+          <small>THE POSSIBLE / THE IMPROBABLE</small>
+        </div>
+      )}
     </div>
-  );
-}
-
-function CoachPlate() {
-  return (
-    <div className="plate plate-coach" aria-hidden="true">
-      <p className="plate-kicker">start.gg</p>
-      <ul>
-        <li>
-          <span>Stages</span>
-          <b />
-        </li>
-        <li>
-          <span>Characters</span>
-          <b />
-        </li>
-        <li>
-          <span>Counterpick</span>
-          <b />
-        </li>
-      </ul>
-      <p>Paste a tag. The live site fills these in.</p>
-    </div>
-  );
-}
-
-function FlyPlate() {
-  return (
-    <div className="plate plate-fly" aria-hidden="true">
-      <svg viewBox="0 0 280 150" role="presentation">
-        <path
-          d="M18 118 C 70 108, 96 46, 150 58 S 230 96, 262 42"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.25"
-        />
-        <circle cx="168" cy="70" r="4.5" fill="currentColor" />
-        <ellipse
-          cx="168"
-          cy="70"
-          rx="22"
-          ry="9"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1"
-          transform="rotate(-18 168 70)"
-        />
-      </svg>
-      <p className="plate-kicker">FlyWire FAFB v783</p>
-      <p>Connectome in. Wander script out.</p>
-    </div>
-  );
-}
-
-function KeyPlate() {
-  return (
-    <div className="plate plate-key" aria-hidden="true">
-      <p className="plate-kicker">Public commitment</p>
-      <p className="key-line">256-bit key</p>
-      <p className="key-line key-dim">SHA-256</p>
-      <p>Attempt totals only.</p>
-    </div>
-  );
-}
-
-const plates = {
-  pixels: PixelPlate,
-  trust: TrustPlate,
-  coach: CoachPlate,
-  fly: FlyPlate,
-  key: KeyPlate,
-};
-
-function ProjectLink({ href, className, children }) {
-  const external = href.startsWith("http");
-  return (
-    <a
-      className={className}
-      href={href}
-      {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
-    >
-      {children}
-      <span aria-hidden="true">{external ? "↗" : "→"}</span>
-    </a>
   );
 }
 
 export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [message, setMessage] = useState("");
 
-  function closeMenu() {
-    setMenuOpen(false);
-  }
+  useEffect(() => {
+    const elements = document.querySelectorAll("[data-reveal]");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.setAttribute("data-visible", "true");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.08 },
+    );
+    elements.forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, []);
 
-  function sendMessage(event) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const name = formData.get("name");
-    const email = formData.get("email");
-    const note = formData.get("message");
-    const subject = encodeURIComponent(`Collapse Technologies / ${name}`);
-    const body = encodeURIComponent(`From: ${name} <${email}>\n\n${note}`);
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onKey(event) {
+      if (event.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
 
-    setMessage("Opening your email client.");
-    window.location.href = `mailto:hello@collapsetechnologies.com?subject=${subject}&body=${body}`;
-  }
+  const closeMenu = () => setMenuOpen(false);
 
   return (
-    <main>
-      <header className="site-header">
-        <a className="wordmark" href="#top" onClick={closeMenu}>
-          Collapse
+    <>
+      <a className="skip-link" href="#main">
+        Skip to content
+      </a>
+      <header className="site-header" id="top">
+        <a
+          className="wordmark collapse-wordmark"
+          href="#top"
+          aria-label="Collapse Technologies home"
+          onClick={closeMenu}
+        >
+          <span>Collapse</span>
           <span>Technologies</span>
         </a>
+        <p className="header-note">
+          Independent in thought.
+          <br />
+          Deliberate in craft.
+        </p>
         <button
           className="menu-toggle"
           type="button"
           aria-expanded={menuOpen}
           aria-controls="site-navigation"
-          onClick={() => setMenuOpen((open) => !open)}
+          onClick={() => setMenuOpen(!menuOpen)}
         >
-          <span>{menuOpen ? "Close" : "Menu"}</span>
-          <i aria-hidden="true" />
+          {menuOpen ? "Close" : "Menu"}
+          <span aria-hidden="true">{menuOpen ? "−" : "+"}</span>
         </button>
         <nav
-          className={menuOpen ? "site-nav open" : "site-nav"}
+          className={`site-nav${menuOpen ? " is-open" : ""}`}
           id="site-navigation"
           aria-label="Primary navigation"
         >
           <a href="#work" onClick={closeMenu}>
-            Work
+            The work <span>01</span>
           </a>
-          <a href="#about" onClick={closeMenu}>
-            About
+          <a href="#studio" onClick={closeMenu}>
+            The studio <span>02</span>
           </a>
           <a href="#contact" onClick={closeMenu}>
-            Contact
+            Get in touch <Arrow diagonal />
           </a>
         </nav>
       </header>
 
-      <div className="frame">
-        <nav className="index-rail" aria-label="Projects">
-          <p>Index</p>
-          <ol>
+      <main id="main">
+        <section className="hero" aria-labelledby="hero-title">
+          <div className="hero-copy">
+            <p className="eyebrow hero-eyebrow">
+              <span />
+              An independent technology studio
+            </p>
+            <h1 id="hero-title">
+              Ideas take
+              <br />
+              <span>lasting form.</span>
+            </h1>
+            <p className="hero-intro">
+              We turn curiosity into software, games, and experiments you can
+              put your hands on.
+            </p>
+            <a className="text-link hero-link" href="#work">
+              Explore the work <Arrow />
+            </a>
+          </div>
+          <figure className="hero-architecture">
+            <div className="architecture-orbit" />
+            <Image
+              src="/images/portico.svg"
+              alt=""
+              width={700}
+              height={850}
+              loading="eager"
+              fetchPriority="high"
+              className="portico"
+            />
+            <figcaption>
+              <span>Form follows curiosity.</span>
+              <span>Study no. 001</span>
+            </figcaption>
+          </figure>
+          <div className="hero-foot">
+            <span>Software · Games · Experiments</span>
+            <span>Built to be used. Made to endure.</span>
+            <a href="#work" aria-label="Scroll to the work">
+              ↓
+            </a>
+          </div>
+        </section>
+
+        <section
+          className="work section-shell"
+          id="work"
+          aria-labelledby="work-title"
+        >
+          <div className="section-heading" data-reveal>
+            <p className="eyebrow">
+              <span className="section-index">01 /</span> The work
+            </p>
+            <h2 id="work-title">
+              A few things
+              <br />
+              we&apos;ve put into the world.
+            </h2>
+            <p className="section-aside">
+              Different questions.
+              <br />
+              The same care in the making.
+            </p>
+          </div>
+          <div className="project-register">
             {projects.map((project) => (
-              <li key={project.id}>
-                <a href={`#${project.id}`}>
-                  <span>{project.mark}</span>
-                  {project.name}
-                </a>
-              </li>
-            ))}
-          </ol>
-        </nav>
-
-        <section className="hero" id="top">
-          <p className="eyebrow">Independent studio / Est. 2026</p>
-          <h1>The public work.</h1>
-          <p className="lede">
-            Collapse Technologies ships its own software and leaves it running.
-            If a project is on this page, there is a real URL. No client roster
-            and no imaginary launches.
-          </p>
-        </section>
-
-        <section className="work" id="work" aria-labelledby="work-heading">
-          <div className="work-heading">
-            <p className="eyebrow">Five projects</p>
-            <h2 id="work-heading">Open one.</h2>
-          </div>
-          <div className="folio-list">
-            {projects.map((project) => {
-              const Plate = plates[project.plate];
-              return (
-                <article className="folio" id={project.id} key={project.id}>
-                  <div className="folio-copy">
-                    <p className="folio-mark">
-                      <span>{project.mark}</span>
-                      {project.status}
-                    </p>
-                    <h3>{project.name}</h3>
-                    <p>{project.description}</p>
-                    <div className="link-row">
-                      {project.links.map((link, index) => (
-                        <ProjectLink
-                          className={index === 0 ? "button" : "button button-ghost"}
-                          href={link.href}
-                          key={link.href}
-                        >
-                          {link.label}
-                        </ProjectLink>
-                      ))}
-                    </div>
+              <article
+                className="project"
+                id={project.id}
+                key={project.id}
+                data-reveal
+              >
+                <span className="project-number" aria-hidden="true">
+                  {project.number}
+                </span>
+                <div className="project-copy">
+                  <p className="eyebrow project-category">{project.category}</p>
+                  <h3>{project.name}</h3>
+                  <p className="project-description">{project.description}</p>
+                  <div className="project-links">
+                    {project.links.map((link) => (
+                      <a
+                        className="text-link"
+                        href={link.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        key={link.href}
+                      >
+                        {link.label}
+                        <Arrow diagonal />
+                      </a>
+                    ))}
                   </div>
-                  <Plate />
-                </article>
-              );
-            })}
+                </div>
+                <div className="project-object">
+                  <span className="project-status">{project.status}</span>
+                  <ProjectRelief kind={project.kind} />
+                </div>
+              </article>
+            ))}
           </div>
         </section>
 
-        <section className="about" id="about">
-          <div className="about-copy">
-            <p className="eyebrow">About</p>
-            <h2>A small studio with the lights on.</h2>
-            <p>
-              We build software, games, and the occasional experiment that is
-              strange enough to keep. The list above is the public one.
-            </p>
-            <p>
-              Prototypes that are not on the internet stay off this page.
-            </p>
+        <section className="studio" id="studio" aria-labelledby="studio-title">
+          <div className="studio-inscription" aria-hidden="true">
+            <span>Curiosity.</span>
+            <span>Craft.</span>
+            <span>Continuity.</span>
           </div>
-          <CollapseSignal />
+          <div className="studio-inner section-shell" data-reveal>
+            <p className="eyebrow">
+              <span className="section-index">02 /</span> The studio
+            </p>
+            <div className="studio-copy">
+              <h2 id="studio-title">
+                Small by design.
+                <br />
+                Open in possibility.
+              </h2>
+              <p>
+                Collapse Technologies is an independent studio building its own
+                software. Some projects are useful. Some are playful. All begin
+                with a question worth following.
+              </p>
+              <p>
+                We care about the way things are made: the details you notice,
+                the decisions you don&apos;t, and what happens long after the
+                first launch.
+              </p>
+              <a
+                className="text-link"
+                href="https://github.com/QuirinoC/collapse-tech"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Look inside the workshop <Arrow diagonal />
+              </a>
+            </div>
+          </div>
+          <div className="studio-frieze" aria-hidden="true">
+            THOUGHT &nbsp; · &nbsp; FORM &nbsp; · &nbsp; FUNCTION
+          </div>
         </section>
 
-        <section className="contact" id="contact">
-          <div className="contact-heading">
-            <p className="eyebrow">Contact</p>
-            <h2>Write to the studio.</h2>
+        <section
+          className="contact section-shell"
+          id="contact"
+          aria-labelledby="contact-title"
+          data-reveal
+        >
+          <p className="eyebrow">
+            <span className="section-index">03 /</span> Correspondence
+          </p>
+          <div className="contact-body">
+            <h2 id="contact-title">
+              Good things begin
+              <br />
+              with a conversation.
+            </h2>
+            <a
+              className="contact-link"
+              href="mailto:hello@collapsetechnologies.com"
+            >
+              Write to the studio <Arrow diagonal />
+            </a>
             <p>
-              The form opens your email client. We do not keep a copy.
-              Direct mail goes to <a href="mailto:hello@collapsetechnologies.com">hello@collapsetechnologies.com</a>.
+              Ideas, questions, or simply a hello.
+              <br />
+              <a href="mailto:hello@collapsetechnologies.com">
+                hello@collapsetechnologies.com
+              </a>
             </p>
           </div>
-          <form className="contact-form" onSubmit={sendMessage}>
-            <label>
-              Name
-              <input name="name" autoComplete="name" required />
-            </label>
-            <label>
-              Email
-              <input name="email" type="email" autoComplete="email" required />
-            </label>
-            <label>
-              Message
-              <textarea name="message" rows="4" required />
-            </label>
-            <button className="button" type="submit">
-              Send message <span aria-hidden="true">↗</span>
-            </button>
-            <p className="form-status" aria-live="polite">
-              {message}
-            </p>
-          </form>
         </section>
-      </div>
+      </main>
 
       <footer className="site-footer">
-        <div className="wordmark">
+        <a className="footer-wordmark" href="#top">
           Collapse<span>Technologies</span>
+        </a>
+        <div className="footer-bottom">
+          <p>© {new Date().getFullYear()} Collapse Technologies</p>
+          <span>Independent thought. Lasting form.</span>
+          <nav aria-label="Legal">
+            <a href="/privacy">Privacy</a>
+            <a href="/terms">Terms</a>
+            <a href="#top">Back to top ↑</a>
+          </nav>
         </div>
-        <p>Independent studio. The work above is the work.</p>
-        <div className="footer-links">
-          {projects.map((project) => (
-            <a href={`#${project.id}`} key={project.id}>
-              {project.name}
-            </a>
-          ))}
-          <a href="/privacy">Privacy</a>
-          <a href="/terms">Terms</a>
-        </div>
-        <p>© 2026 Collapse Technologies.</p>
       </footer>
-    </main>
+    </>
   );
 }

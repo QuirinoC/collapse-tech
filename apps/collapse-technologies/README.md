@@ -7,9 +7,12 @@ an independent technology studio making software, games, and long-term platforms
 
 ## Stack
 
-- Next.js static export (`output: "export"`) — light cream/paper theme,
-  Space Grotesk via CSS variable. This site's palette is the design reference
-  for sibling apps (`collapse-health`, `dress-like-me`).
+- Next.js static export (`output: "export"`). The shared Roman design system
+  lives in [`shared/design/roman.css`](../../shared/design/roman.css) and carries
+  materials into this site, Dress Like Me, Collapse Health, and Asymmetric Challenge.
+- All four sites prefer a locally installed [Michelangelus](https://www.microsoft.com/en-us/download/details.aspx?id=108856). Its download EULA
+  prohibits redistribution, so no Michelangelus files are bundled. Visitors
+  without it receive self-hosted Marcellus under the included SIL OFL.
 - Hosted on Cloudflare Pages (static export, no Worker needed — the site has
   no server-side behavior). DNS zone lives on Cloudflare: apex and `www` are
   proxied CNAMEs to `collapse-technologies.pages.dev`.

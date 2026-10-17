@@ -20,9 +20,16 @@ export const metadata = {
 export default function TermsPage() {
   return (
     <main className="legal-page">
-      <Link className="wordmark" href="/">Collapse<span>Technologies</span></Link>
+      <Link className="wordmark collapse-wordmark" href="/">
+        <span>Collapse</span>
+        <span>Technologies</span>
+      </Link>
       <p className="eyebrow">Terms</p>
-      <h1>Use good<br />judgment.</h1>
+      <h1>
+        Use good
+        <br />
+        judgment.
+      </h1>
       <div className="legal-copy">
         <p>
           The material on this site is provided as-is. Project availability,
@@ -33,16 +40,14 @@ export default function TermsPage() {
           without permission.
         </p>
         <p>
-          A Trust account needs a verification code. You request it by checking a box that
-          starts empty. That box is the consent, separate from these terms. At most 8 texts a
-          day. Message and data rates may apply. Reply HELP for help or STOP to opt out. The
-          full terms are on this site at{" "}
-          <Link href="/trust/terms">/trust/terms</Link>. We do not share, sell, or provide your
-          mobile phone number or messaging consent data to third parties or affiliates for
-          marketing or promotional purposes.
+          Trust is a separate product with its own terms and text-message
+          disclosures. Read the current terms at{" "}
+          <Link href="https://jointrust.app/terms">jointrust.app/terms</Link>.
         </p>
       </div>
-      <Link className="text-link" href="/">Back to Collapse <span>↖</span></Link>
+      <Link className="text-link" href="/">
+        Back to Collapse <span>↖</span>
+      </Link>
     </main>
   );
 }

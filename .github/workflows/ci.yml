@@ -120,6 +120,9 @@ jobs:
         working-directory: apps/infinite-pixelboard
     steps:
       - uses: actions/checkout@v5
+      - name: Check shared design assets
+        run: node scripts/sync-design-assets.mjs --check
+        working-directory: .
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 9.0.x

@@ -1,18 +1,6 @@
-import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 import Link from "next/link";
+import "../../../../shared/design/roman.css";
 import "./globals.css";
-
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
-
-const plexMono = IBM_Plex_Mono({
-  variable: "--font-plex-mono",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
 
 export const metadata = {
   metadataBase: new URL(
@@ -36,21 +24,25 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={`${spaceGrotesk.variable} ${plexMono.variable}`}>
+      <body>
         <div className="wip-banner" role="status">
           <p>Work in progress — post imports are not live yet.</p>
           <Link href="/about">What works today</Link>
         </div>
         <header className="site-header">
           <a
-            className="corporate-wordmark"
+            className="corporate-wordmark collapse-wordmark"
             href="https://collapsetechnologies.com"
             aria-label="Back to Collapse Technologies"
           >
             <span>Collapse</span>
             <span>Technologies</span>
           </a>
-          <Link className="header-edition" href="/" aria-label="Dress Like Me home">
+          <Link
+            className="header-edition"
+            href="/"
+            aria-label="Dress Like Me home"
+          >
             Dress Like Me <span>/ AI outfit finder 001</span>
           </Link>
           <nav aria-label="Primary navigation">

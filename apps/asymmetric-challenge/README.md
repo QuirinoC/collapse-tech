@@ -1,7 +1,9 @@
 # Asymmetric Challenge
 
-256-bit key challenge experiment: guess enough key material to claim a prize.
-Built to explore proof-of-work style commitments with real money at stake.
+An interactive demonstration of guessing a 256-bit secret against a public
+SHA-256 commitment. No prize or real-world award is offered. The visual shell
+uses the shared Roman typography and materials in `shared/design/roman.css`.
+Built to explore the scale of a 2^256 search without offering a real-world prize.
 
 **Live:** https://challenge.collapsetechnologies.com
 

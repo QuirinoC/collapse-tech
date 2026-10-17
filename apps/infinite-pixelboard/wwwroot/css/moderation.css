@@ -7,7 +7,9 @@
     --line: #3b3a34;
     --signal: #e1c94a;
     --danger: #ff6b59;
-    font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    --mono: var(--font-detail);
+    --sans: var(--font-interface);
+    font-family: var(--sans);
 }
 
 * { box-sizing: border-box; }
@@ -47,20 +49,21 @@ button.danger { background: var(--danger); }
 .console-actions { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: end; }
 
 h1, h2, p { margin-top: 0; }
-h1 { margin-bottom: 0; font-size: clamp(2rem, 5vw, 4.5rem); letter-spacing: -.06em; }
-h2 { margin-bottom: 0; font-size: 1.5rem; }
+h1, h2 { font-family: var(--font-inscription); font-weight: 400; }
+h1 { margin-bottom: 0; font-size: clamp(2rem, 5vw, 4.5rem); line-height: 1.05; }
+h2 { margin-bottom: 0; font-size: 1.5rem; line-height: 1.1; }
 
 .eyebrow {
     margin-bottom: .5rem;
     color: var(--signal);
-    font: 600 .72rem ui-monospace, monospace;
+    font: 600 .72rem var(--mono);
     letter-spacing: .12em;
     text-transform: uppercase;
 }
 
 main { padding: 1rem clamp(1rem, 4vw, 4rem) 4rem; }
 .status-shell { padding: 1rem clamp(1rem, 4vw, 4rem) 0; }
-.status { min-height: 1.5rem; color: var(--muted); font: .75rem ui-monospace, monospace; }
+.status { min-height: 1.5rem; color: var(--muted); font: .75rem var(--mono); }
 .status[data-error="true"] { color: var(--danger); }
 
 .safety-panel {
@@ -140,7 +143,7 @@ textarea { min-height: 6rem; resize: vertical; }
 }
 
 .report-title { font-weight: 700; }
-.report-detail { color: var(--muted); font: .72rem ui-monospace, monospace; }
+.report-detail { color: var(--muted); font: .72rem var(--mono); }
 
 .empty, #report-review { padding: 1rem; }
 .empty { color: var(--muted); }

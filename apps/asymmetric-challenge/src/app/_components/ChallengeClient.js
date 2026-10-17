@@ -183,7 +183,7 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
         if (data.status === "already_won") {
           setChallengeEnded(true);
           setAutoEnabled(false);
-          setStatus("Challenge ended. Someone already claimed the prize.");
+          setStatus("Demo challenge ended. A matching key was recorded.");
           return;
         }
 
@@ -301,20 +301,19 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
   return (
     <main className="page">
       <section className="hero reveal">
-        <div className="kicker">Asymmetric Challenge</div>
-        <h1>Guess the 256-bit key. Win $100.</h1>
+        <div className="kicker">Fictional interactive demo / Asymmetric Challenge</div>
+        <h1>Guess a 256-bit key. Explore the odds.</h1>
         <p>
-          A 256-bit secret is locked behind a public SHA-256 commitment. Your
-          device checks guesses on its own, so there’s no lag for each try. The
-          first verified claim ends the challenge. It’s like the lottery, but
-          you can try 100,000 times per second.
+          Explore how difficult a 256-bit key is to guess. Your device checks
+          each attempt against a public SHA-256 commitment. Claims are part of
+          this fictional demo; no prize or real-world award is offered.
         </p>
       </section>
 
       <section className="panel reveal">
         {challengeEnded ? (
           <div className="banner">
-            Challenge ended. The $100 prize has already been claimed.
+            Demo challenge ended. A matching key was recorded.
           </div>
         ) : null}
 
@@ -433,23 +432,22 @@ export default function ChallengeClient({ commitmentHash, challengeId }) {
       </section>
 
       <section className="panel reveal">
-        <div className="kicker">Rules & Eligibility</div>
+        <div className="kicker">Demo notes</div>
         <div className="rules">
           <p>
-            Disclaimer: this site is a fictional demo and not a real prize
-            offering.
+            This is a fictional interactive demo. No prize, cash value, or real-world award is offered.
           </p>
           <p>
-            No purchase required. One verified winner receives the $100 prize and
-            the challenge ends.
+            A matching claim ends the demo challenge. It does not create any payment
+            or real-world award.
           </p>
           <p>
-            Participation is free and for entertainment. Void where prohibited
-            and subject to local laws.
+            This experience is for entertainment and technical illustration only.
           </p>
           <p>
-            A claim requires the exact 256-bit secret. The server verifies
-            claims. The server stores only aggregate attempt totals.
+            A matching claim requires the exact 256-bit secret. The server verifies
+            and records matching claims. Attempt totals are stored as aggregate
+            counts.
           </p>
         </div>
       </section>

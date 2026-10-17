@@ -1,0 +1,65 @@
+/* Shared materials and typography for the Collapse family of websites.
+ * Michelangelus is local-only: its Microsoft download EULA denies distribution.
+ * Marcellus is bundled under the SIL OFL in fonts/OFL-Marcellus.txt.
+ */
+@font-face {
+  font-family: "Marcellus";
+  src: url("./fonts/Marcellus-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+  --roman-stone: #f0e8d8;
+  --roman-paper: #faf6ed;
+  --roman-ink: #211e1a;
+  --roman-muted: #6b6255;
+  --roman-bronze: #8a6544;
+  --roman-red: #a34836;
+  --roman-line: #c9beab;
+  --font-inscription: "Michelangelus", "Marcellus", Georgia, serif;
+  --font-reading: "Michelangelus", Georgia, serif;
+  --font-interface: Arial, Helvetica, sans-serif;
+  --font-detail: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+/* The publisher mark is shared; product names retain their own hierarchy. */
+.collapse-wordmark {
+  --collapse-brand-size: 25px;
+  position: relative;
+  display: inline-grid;
+  width: fit-content;
+  min-height: 38px;
+  align-content: center;
+  gap: 5px;
+  padding-left: 43px;
+  color: var(--roman-ink);
+  font-family: var(--font-inscription);
+  font-size: var(--collapse-brand-size);
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.collapse-wordmark::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 30px;
+  height: 38px;
+  background: url("./mark.svg") center / contain no-repeat;
+  content: "";
+  transform: translateY(-50%);
+}
+
+.collapse-wordmark > span:last-child {
+  font-family: var(--font-interface);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
