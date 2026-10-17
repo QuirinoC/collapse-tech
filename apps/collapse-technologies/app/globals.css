@@ -190,14 +190,23 @@ button {
 }
 .arrow {
   display: inline-block;
-  font-family: var(--font-interface);
-  font-weight: 400;
-  font-size: 19px;
-  line-height: 1;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  vertical-align: middle;
   transition: transform 0.3s ease;
 }
 a:hover .arrow {
   transform: translate(3px, -3px);
+}
+a:hover .arrow[data-direction="down"] {
+  transform: translateY(3px);
+}
+a:hover .arrow[data-direction="up"] {
+  transform: translateY(-3px);
+}
+a:hover .arrow[data-direction="northwest"] {
+  transform: translate(-3px, -3px);
 }
 .hero-link {
   min-width: 174px;
@@ -599,7 +608,8 @@ h2 {
   font-size: clamp(24px, 2.7vw, 38px);
 }
 .contact-link .arrow {
-  font-size: 34px;
+  width: 34px;
+  height: 34px;
 }
 .contact-body > p {
   margin-top: 24px;
@@ -787,8 +797,10 @@ h2 {
     text-transform: uppercase;
     cursor: pointer;
   }
-  .menu-toggle > span {
-    font-size: 21px;
+  .menu-toggle .menu-icon {
+    width: 21px;
+    height: 21px;
+    flex: 0 0 auto;
   }
   .site-nav {
     display: none;
@@ -993,7 +1005,8 @@ h2 {
     font-size: clamp(23px, 5.6vw, 32px);
   }
   .contact-link .arrow {
-    font-size: 27px;
+    width: 27px;
+    height: 27px;
   }
   .contact-body > p {
     font-size: 11px;
@@ -1038,7 +1051,7 @@ h2 {
   }
   .project:hover .project-relief,
   a:hover .arrow {
-    transform: none;
+    transform: none !important;
   }
 }
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LineIcon } from "../_components/LineIcon";
 
 export const metadata = {
   title: "Privacy | Collapse Technologies",
@@ -49,7 +50,8 @@ export default function PrivacyPage() {
         </p>
       </div>
       <Link className="text-link" href="/">
-        Back to Collapse <span>↖</span>
+        Back to Collapse{" "}
+        <LineIcon name="northwest" className="arrow" />
       </Link>
     </main>
   );

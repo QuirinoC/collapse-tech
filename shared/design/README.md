@@ -27,6 +27,9 @@ labels remain readable; avoid extreme negative tracking and synthetic heavy
 serifs. Motion should reveal structure, stop after serving its purpose, and
 respect `prefers-reduced-motion`. Content stays visible when scripts fail.
 
+Use restrained SVG line icons for navigation and controls. Avoid decorative
+emoji and Unicode icon glyphs, whose appearance varies across platforms.
+
 ## Applications
 
 - The studio, Dress Like Me, Collapse Health, and Asymmetric Challenge import

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { LineIcon } from "./_components/LineIcon";
 
 const projects = [
   {
@@ -81,14 +82,6 @@ const projects = [
     ],
   },
 ];
-
-function Arrow({ diagonal = false }) {
-  return (
-    <span className="arrow" aria-hidden="true">
-      {diagonal ? "↗" : "↘"}
-    </span>
-  );
-}
 
 function ProjectRelief({ kind }) {
   return (
@@ -198,7 +191,10 @@ export default function Home() {
           onClick={() => setMenuOpen(!menuOpen)}
         >
           {menuOpen ? "Close" : "Menu"}
-          <span aria-hidden="true">{menuOpen ? "−" : "+"}</span>
+          <LineIcon
+            name={menuOpen ? "close" : "menu"}
+            className="menu-icon"
+          />
         </button>
         <nav
           className={`site-nav${menuOpen ? " is-open" : ""}`}
@@ -212,7 +208,7 @@ export default function Home() {
             The studio <span>02</span>
           </a>
           <a href="#contact" onClick={closeMenu}>
-            Get in touch <Arrow diagonal />
+            Get in touch <LineIcon name="northeast" className="arrow" />
           </a>
         </nav>
       </header>
@@ -234,7 +230,7 @@ export default function Home() {
               put your hands on.
             </p>
             <a className="text-link hero-link" href="#work">
-              Explore the work <Arrow />
+              Explore the work <LineIcon name="southeast" className="arrow" />
             </a>
           </div>
           <figure className="hero-architecture">
@@ -257,7 +253,7 @@ export default function Home() {
             <span>Software · Games · Experiments</span>
             <span>Built to be used. Made to endure.</span>
             <a href="#work" aria-label="Scroll to the work">
-              ↓
+              <LineIcon name="down" className="arrow" />
             </a>
           </div>
         </section>
@@ -307,7 +303,7 @@ export default function Home() {
                         key={link.href}
                       >
                         {link.label}
-                        <Arrow diagonal />
+                        <LineIcon name="northeast" className="arrow" />
                       </a>
                     ))}
                   </div>
@@ -353,7 +349,8 @@ export default function Home() {
                 target="_blank"
                 rel="noreferrer"
               >
-                Look inside the workshop <Arrow diagonal />
+                Look inside the workshop{" "}
+                <LineIcon name="northeast" className="arrow" />
               </a>
             </div>
           </div>
@@ -381,7 +378,7 @@ export default function Home() {
               className="contact-link"
               href="mailto:hello@collapsetechnologies.com"
             >
-              Write to the studio <Arrow diagonal />
+              Write to the studio <LineIcon name="northeast" className="arrow" />
             </a>
             <p>
               Ideas, questions, or simply a hello.
@@ -404,7 +401,9 @@ export default function Home() {
           <nav aria-label="Legal">
             <a href="/privacy">Privacy</a>
             <a href="/terms">Terms</a>
-            <a href="#top">Back to top ↑</a>
+            <a href="#top">
+              Back to top <LineIcon name="up" className="arrow" />
+            </a>
           </nav>
         </div>
       </footer>
