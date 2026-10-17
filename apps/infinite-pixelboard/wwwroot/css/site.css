@@ -198,11 +198,11 @@ a { color: inherit; }
 
 .account-panel h2 {
   margin: 0;
-  font-size: clamp(4.2rem, 10vw, 8rem);
-  font-weight: 500;
-  letter-spacing: -.09em;
-  line-height: .74;
-  text-transform: uppercase;
+  font-family: var(--font-inscription);
+  font-size: clamp(2rem, 7vw, 3.2rem);
+  font-weight: 400;
+  letter-spacing: -.02em;
+  line-height: 1.12;
 }
 
 .palette {
@@ -398,7 +398,6 @@ a { color: inherit; }
 }
 .panel-heading { display: flex; justify-content: space-between; }
 .panel-heading .eyebrow { margin-bottom: 28px; }
-.account-panel h2 { margin: 0; font-size: clamp(2rem, 7vw, 3.2rem); line-height: .95; }
 .settings-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -510,11 +509,11 @@ a { color: inherit; }
 
 .report-dialog::backdrop { background: rgba(23, 23, 20, .38); }
 .report-dialog .panel-heading .eyebrow { margin-bottom: 50px; }
-.report-dialog h2 { margin: 0; font-size: clamp(2.8rem, 8vw, 5rem); font-weight: 500; letter-spacing: -.075em; line-height: .82; text-transform: uppercase; }
+.report-dialog h2 { margin: 0; font-family: var(--font-inscription); font-size: clamp(2.2rem, 7vw, 4rem); font-weight: 400; letter-spacing: -.02em; line-height: 1.12; }
 .report-region { display: block; margin: 0 0 18px; padding: 12px; border: 1px solid var(--line); font: 500 .65rem var(--mono); }
 .report-dimensions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .report-field, .report-dimensions label { display: grid; gap: 7px; margin: 12px 0; color: var(--muted); font: 500 .62rem var(--mono); letter-spacing: .08em; text-transform: uppercase; }
-.report-field span { font-size: .52rem; }
+.report-field span { font-size: .65rem; }
 .report-field select, .report-field textarea, .report-dimensions input { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 0; background: rgba(255, 255, 255, .25); color: var(--ink); resize: vertical; }
 .report-submit { width: 100%; min-height: 48px; border: 1px solid var(--ink); background: var(--ink); color: var(--paper); cursor: pointer; font: 600 .7rem var(--mono); letter-spacing: .1em; text-transform: uppercase; }
 .report-submit:disabled { cursor: wait; opacity: .55; }
@@ -528,7 +527,7 @@ a { color: inherit; }
 }
 .locate-dialog::backdrop { background: rgba(23, 23, 20, .38); }
 .locate-dialog .panel-heading .eyebrow { margin-bottom: 50px; }
-.locate-dialog h2 { margin: 0; font-size: clamp(2.8rem, 8vw, 4.5rem); font-weight: 500; letter-spacing: -.075em; line-height: .82; text-transform: uppercase; }
+.locate-dialog h2 { margin: 0; font-family: var(--font-inscription); font-size: clamp(2.2rem, 7vw, 3.5rem); font-weight: 400; letter-spacing: -.02em; line-height: 1.12; }
 .locate-dialog .panel-copy { margin: 28px 0 18px; }
 .locate-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .locate-fields .report-field { margin: 0 0 18px; }
