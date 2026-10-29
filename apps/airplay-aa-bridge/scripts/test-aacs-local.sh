@@ -40,6 +40,14 @@ fi
   "$ROOT/tests/usb_endpoint_startup_test.cpp" -o "$OUT/usb-startup-test"
 "$OUT/usb-startup-test"
 
+"$CXX" -std=c++14 "${strict[@]}" -I"$ROOT/patches" \
+  "$ROOT/tests/aa_frame_receiver_test.cpp" -o "$OUT/aa-frame-receiver-test"
+"$OUT/aa-frame-receiver-test"
+
+"$CXX" -std=c++14 "${strict[@]}" -I"$ROOT/tests/support/configuration" \
+  "$ROOT/tests/configuration_power_test.cpp" -o "$OUT/configuration-power-test"
+"$OUT/configuration-power-test"
+
 # Compile the production initial USB control dispatcher and descriptor builder.
 # Scripted ep0 completions plus a real blocking pipe cover switch authorization
 # and transfer deadlines; these tests never enumerate or modify a USB gadget.
@@ -73,6 +81,8 @@ protoc -I"$ROOT/patches" -I"$ROOT/tests/proto" --cpp_out="$OUT" \
   "$ROOT/patches/MediaStreamType.proto" "$ROOT/patches/MediaChannel.proto" \
   "$ROOT/patches/VideoConfig.proto" "$ROOT/tests/proto/AudioType.proto" \
   "$ROOT/patches/MediaChannelSetupResponse.proto" \
+  "$ROOT/patches/MediaAckIndication.proto" "$ROOT/patches/MediaStartIndication.proto" \
+  "$ROOT/tests/proto/ChannelOpenResponse.proto" \
   "$ROOT/patches/InputBinding.proto" "$ROOT/patches/InputChannel.proto" \
   "$ROOT/tests/proto/TouchConfig.proto" \
   "$ROOT/patches/VideoFocusIndication.proto" "$ROOT/tests/proto/ChannelOpenRequest.proto" \
@@ -91,13 +101,18 @@ done
   "${protobuf_libs[@]}" -o "$OUT/service-discovery-test"
 "$OUT/service-discovery-test" "$ROOT/tests/fixtures/dhu-discovery.hex"
 
+handler_cflags=(-I"$ROOT/tests/support/aacs")
+if [[ "$(uname -s)" != Linux ]]; then
+  handler_cflags+=(-I"$ROOT/tests/support/aacs/nonlinux")
+fi
+
 # Compile the real handlers. Narrow local stubs abort if optional SHM is used;
 # no GStreamer install, AACS checkout, USB device, or hardware mocks are needed.
 for source in "$ROOT/patches/VideoChannelHandler.cpp" "$ROOT/patches/ChannelHandler.cpp" \
     "$ROOT/tests/video_focus_handler_test.cpp"; do
   "$CXX" "-std=$protobuf_standard" "${strict[@]}" -Wno-unused-parameter \
     "${protobuf_cflags[@]}" "${boost_cflags[@]}" \
-    -I"$ROOT/tests/support/aacs" -I"$ROOT/patches" -I"$OUT" \
+    "${handler_cflags[@]}" -I"$ROOT/patches" -I"$OUT" \
     -c "$source" -o "$OUT/$(basename "${source%.cpp}").o"
 done
 "$CXX" "-std=$protobuf_standard" -pthread "$OUT/VideoChannelHandler.o" \
@@ -109,7 +124,7 @@ done
 for source in "$ROOT/patches/InputChannelHandler.cpp" "$ROOT/tests/input_handler_test.cpp"; do
   "$CXX" "-std=$protobuf_standard" "${strict[@]}" -Wno-unused-parameter \
     "${protobuf_cflags[@]}" "${boost_cflags[@]}" \
-    -I"$ROOT/tests/support/aacs" -I"$ROOT/patches" -I"$OUT" \
+    "${handler_cflags[@]}" -I"$ROOT/patches" -I"$OUT" \
     -c "$source" -o "$OUT/$(basename "${source%.cpp}").o"
 done
 "$CXX" "-std=$protobuf_standard" -pthread "$OUT/InputChannelHandler.o" \

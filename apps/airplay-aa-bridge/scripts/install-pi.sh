@@ -183,10 +183,14 @@ fi
 rm -f "$IDLE_STAGE"
 
 echo "==> Installing systemd unit"
+echo "==> Installing passive persistent car diagnostics"
+bash "$PREFIX/scripts/install-car-diagnostics.sh"
 python3 "$ATOMIC_INSTALL" "$ROOT/systemd/airplay-aa-bridge.service" \
   /etc/systemd/system/airplay-aa-bridge.service --mode 644
 systemctl daemon-reload
 systemctl enable airplay-aa-bridge.service
+echo "==> Installing optional private-car Bluetooth companion"
+bash "$PREFIX/scripts/install-bluetooth-sidecar.sh"
 
 cat <<EOF
 

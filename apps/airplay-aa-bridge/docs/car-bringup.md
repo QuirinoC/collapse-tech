@@ -5,9 +5,15 @@ over wired Android Auto USB. Prove the complete path on the Mac bench before
 moving the power/data cable to the car. Compatibility with this user's actual
 car head unit remains unproven: an older build completed input binding and video
 setup without receiving projection focus; the subsequent USB startup candidate
-failed before its first AA bulk bytes. The final full-speed descriptor correction
-has passed actual Mac USB/DHU moving video but has not been Mazda-tested. Power
-warnings remain unresolved. See [current evidence](STATUS.md).
+failed before its first AA bulk bytes. October 22 repairs address framing,
+video credits, channel-open status, power descriptors and startup without Wi-Fi;
+the final deployed per-channel reassembly candidate passed all three actual
+Mac USB/DHU profiles for over 60 seconds each. These changes have not been
+Mazda-tested. The October 28 follow-up could not reach the Pi: restore its
+temporary test-pattern source to AirPlay and finish reboot checks before moving
+it to the car. The failed Mazda USB candidate negotiated
+high-speed, so the earlier full-speed correction is not a proven Mazda remedy.
+Power warnings remain unresolved. See [current evidence](STATUS.md).
 
 ## Actual power and USB connection
 
@@ -15,6 +21,7 @@ warnings remain unresolved. See [current evidence](STATUS.md).
 | --- | --- |
 | Original Pi USB-C wiring | **Power and data** from the Mazda Android Auto USB port; no separate power |
 | Later wiring | User added a power splitter; model, supply rating and isolation unverified |
+| Current Mac bench | Single Mac USB-C connection supplies power and data |
 
 Disconnecting USB-C removes power. When the Pi is reachable, shut it down before
 removing or moving that cable. A Mac bench connection also needs to carry both
@@ -32,6 +39,21 @@ supplies both. The bridge waits for the head unit and handles endpoint enable
 during startup. A user power cycle started the older input/focus build in the
 Mazda with intact runtime hashes and real processes, but activation still failed.
 Sustained boot, power stability and cable reconnect remain unverified.
+The service no longer waits for `network-online.target`; USB/AOA startup can
+proceed with no saved Wi-Fi network in range. AirPlay still needs network
+connectivity to the sender.
+
+The installed [passive diagnostics recorder](car-diagnostics.md) starts
+independently at boot and retains bounded USB/protocol/power evidence locally.
+Check it before moving the Pi to the car:
+
+```bash
+ssh quirino@10.0.0.113 'systemctl is-active airplay-aa-diagnostics.service'
+```
+
+The [Bluetooth companion](bluetooth.md) provides a restricted pairing path for
+the configured head unit. Its implementation and local tests do not establish
+an actual Mazda bond, HFP readiness or projection acceptance.
 
 ## Preferred phone hotspot
 
@@ -185,9 +207,13 @@ are in [Mac testing](mac-testing.md).
    data and, in the original wiring, power; allow the service to start and confirm
    **Pi AirPlay AA**. Verify the actual power arrangement before accepting this
    test.
-4. Keep the phone and Pi on the same network. On iPhone select Screen Mirroring
-   → **Pi AirPlay AA**, then play visibly moving content.
-5. Confirm the car accepts the Android Auto session and displays that content.
+4. Confirm Android Auto becomes selectable and opens before starting AirPlay.
+   The bridge can initialize and send idle video with no mirrored source;
+   a black idle screen alone does not prove live video playback. The recorder
+   distinguishes setup, requested focus, received focus and stream start.
+5. Keep the phone and Pi on the same network. On iPhone select Screen Mirroring
+   → **Pi AirPlay AA**, then play visibly moving content. Confirm the car displays
+   that content.
    Record the actual car/head-unit model and result; this is the compatibility
    test still outstanding.
 

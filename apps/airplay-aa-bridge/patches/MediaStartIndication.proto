@@ -1,0 +1,8 @@
+// Distributed under GPLv3 only as specified in AACS repository LICENSE.
+// AV 0x8001. The head unit echoes this session in media acknowledgements.
+syntax = "proto2";
+package tag.aas;
+message MediaStartIndication {
+  required int32 session = 1;
+  required uint32 config = 2;
+}

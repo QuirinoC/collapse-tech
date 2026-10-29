@@ -42,13 +42,13 @@ printf '{"auths":{}}\n' > "$DOCKER_CONFIG_DIR/config.json"
 DOCKER=(env -u DOCKER_CONTEXT docker --config "$DOCKER_CONFIG_DIR" --host "$DOCKER_ENDPOINT")
 mkdir -p "$CONTEXT/patches" "$CONTEXT/tests"
 cp "$ROOT/tests/aacs-tls.Dockerfile" "$CONTEXT/tests/"
-for header in AaCommunicator UsbEndpointState VideoChannelDescriptor ChannelHandler VideoChannelHandler InputChannelHandler ModeSwitcher AoaControl; do
+for header in AaCommunicator AaFrameReceiver UsbEndpointState VideoChannelDescriptor ChannelHandler VideoChannelHandler InputChannelHandler ModeSwitcher AoaControl; do
   cp "$ROOT/patches/$header.h" "$CONTEXT/patches/"
 done
-for source in AaCommunicator ChannelHandler VideoChannelHandler InputChannelHandler ModeSwitcher descriptors; do
+for source in AaCommunicator Configuration ChannelHandler VideoChannelHandler InputChannelHandler ModeSwitcher descriptors; do
   cp "$ROOT/patches/$source.cpp" "$CONTEXT/patches/"
 done
-for proto in MediaStreamType MediaChannel VideoConfig MediaChannelSetupResponse VideoFocusIndication InputChannel InputBinding; do
+for proto in MediaStreamType MediaChannel VideoConfig MediaChannelSetupResponse VideoFocusIndication InputChannel InputBinding MediaAckIndication MediaStartIndication; do
   cp "$ROOT/patches/$proto.proto" "$CONTEXT/patches/"
 done
 cp "$ROOT/tests/aacs_tls_transport_test.cpp" "$ROOT/tests/aacs_tls_transport.cmake" "$CONTEXT/tests/"
@@ -58,18 +58,21 @@ cp "$ROOT/tests/aacs_tls_transport_test.cpp" "$ROOT/tests/aacs_tls_transport.cma
 cat > "$CONTEXT/tests/prepare-aacs-tls.sh" <<'PREPARE'
 #!/bin/sh
 set -eu
-for header in AaCommunicator UsbEndpointState VideoChannelDescriptor ChannelHandler VideoChannelHandler InputChannelHandler ModeSwitcher AoaControl; do
+for header in AaCommunicator AaFrameReceiver UsbEndpointState VideoChannelDescriptor ChannelHandler VideoChannelHandler InputChannelHandler ModeSwitcher AoaControl; do
   cp "/project/patches/$header.h" /project/aacs/AAServer/include/
 done
-for source in AaCommunicator ChannelHandler VideoChannelHandler InputChannelHandler ModeSwitcher descriptors; do
+for source in AaCommunicator Configuration ChannelHandler VideoChannelHandler InputChannelHandler ModeSwitcher descriptors; do
   cp "/project/patches/$source.cpp" /project/aacs/AAServer/src/
 done
-for proto in MediaStreamType MediaChannel VideoConfig MediaChannelSetupResponse VideoFocusIndication InputChannel InputBinding; do
+for proto in MediaStreamType MediaChannel VideoConfig MediaChannelSetupResponse VideoFocusIndication InputChannel InputBinding MediaAckIndication MediaStartIndication; do
   cp "/project/patches/$proto.proto" /project/aacs/proto/
 done
 sed -i '/add_subdirectory(AAClient)/d; /add_subdirectory(GetEvents)/d' /project/aacs/CMakeLists.txt
 sed -i '/MediaChannelSetupResponse.proto/a\    ../proto/VideoFocusIndication.proto' /project/aacs/proto/CMakeLists.txt
 sed -i '/InputChannel.proto/a\    ../proto/InputBinding.proto' /project/aacs/proto/CMakeLists.txt
+for proto in ChannelOpenResponse MediaAckIndication MediaStartIndication; do
+  sed -i "/ChannelOpenRequest.proto/a\\    ../proto/$proto.proto" /project/aacs/proto/CMakeLists.txt
+done
 sed -i '/add_custom_command(TARGET AAServer POST_BUILD/,$d' /project/aacs/AAServer/CMakeLists.txt
 printf '\ninclude(/project/tests/aacs_tls_transport.cmake)\n' >> /project/aacs/AAServer/CMakeLists.txt
 PREPARE

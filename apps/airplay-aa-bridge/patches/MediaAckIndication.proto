@@ -1,0 +1,9 @@
+// Distributed under GPLv3 only as specified in AACS repository LICENSE.
+// AV 0x8004. Legacy aasdk uses count; newer receivers may supply timestamps.
+syntax = "proto2";
+package tag.aas;
+message MediaAckIndication {
+  required int32 session = 1;
+  optional uint32 value = 2;
+  repeated uint64 receive_timestamps = 3;
+}

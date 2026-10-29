@@ -1,0 +1,13 @@
+# Copy to /etc/airplay-aa/bluetooth.conf (root:root, mode 0600).
+# Set the address from YOUR head unit's real AA ServiceDiscoveryResponse.
+# An unset/mismatched address causes a clean refusal; there is no autoaccept.
+[bluetooth]
+headunit_address =
+adapter = /org/bluez/hci0
+aa_socket = /var/run/airplay-aa/aaserver.sock
+duration = 60
+scan_seconds = 10
+hfp_wait_seconds = 10
+# Numeric comparison is still required if temporary discoverability is enabled.
+# False avoids making the Pi generally discoverable during pairing.
+discoverable = false

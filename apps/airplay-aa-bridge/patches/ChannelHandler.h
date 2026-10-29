@@ -10,7 +10,9 @@
 #include <vector>
 
 class ChannelHandler {
-  bool gotChannelOpenResponse;
+  bool gotChannelOpenResponse = false;
+  bool channelOpenAccepted = false;
+  bool channelOpenPending = false;
   void sendChannelOpenRequest();
   void expectChannelOpenResponse();
   std::mutex m;
@@ -22,6 +24,7 @@ protected:
   // Same handshake as openChannel(), but returns false if the head unit
   // does not answer within timeout_ms. Logs the timeout once per process.
   bool openChannelWithTimeout(int timeout_ms);
+  bool channelOpenRejected();
 
 public:
   ChannelHandler(uint8_t channelId);

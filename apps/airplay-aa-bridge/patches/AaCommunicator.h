@@ -5,6 +5,7 @@
 #include "Function.h"
 #include "Gadget.h"
 #include "Message.h"
+#include "AaFrameReceiver.h"
 #include "UsbEndpointState.h"
 #include "enums.h"
 #include <boost/signals2.hpp>
@@ -38,6 +39,7 @@ class AaCommunicator {
   std::mutex threadsMutex;
   std::atomic<bool> threadFinished{false};
   UsbEndpointState usbEndpoints;
+  airplay_aa::AaFrameReceiver incomingFrames;
   std::vector<std::thread> threads;
 
   struct ThreadDescriptor {

@@ -84,6 +84,8 @@ void AaCommunicator::sendVersionResponse(__u16 major, __u16 minor) {
 }
 
 void AaCommunicator::handleVersionRequest(const void *buf, size_t nbytes) {
+  if (nbytes < 4)
+    throw std::runtime_error("short AA version request");
   const __u16 *shortView = (const __u16 *)buf;
   auto versionMajor = be16_to_cpu(shortView[0]);
   auto versionMinor = be16_to_cpu(shortView[1]);
@@ -155,6 +157,8 @@ void AaCommunicator::handleChannelMessage(const Message &message) {
   {
     std::unique_lock<std::mutex> lk(m);
     if (message.channel != 0) {
+      if (!this->channelHandlers[message.channel])
+        throw std::runtime_error("AA message on an undiscovered channel");
       auto handled =
           this->channelHandlers[message.channel]->handleMessageFromHeadunit(
               message);
@@ -195,6 +199,8 @@ std::vector<uint8_t> AaCommunicator::getServiceDescriptor() {
 std::vector<uint8_t>
 AaCommunicator::decryptMessage(const std::vector<uint8_t> &encryptedMsg) {
   std::lock_guard<std::mutex> sslLock(sslMutex);
+  if (!ssl || !SSL_is_init_finished(ssl))
+    throw std::runtime_error("Encrypted AA frame arrived before TLS was ready");
   ERR_clear_error();
 
   auto bytesWritten =
@@ -202,24 +208,27 @@ AaCommunicator::decryptMessage(const std::vector<uint8_t> &encryptedMsg) {
   if (bytesWritten != static_cast<int>(encryptedMsg.size())) {
     throw std::runtime_error("BIO_write failed");
   }
-  const int plainBufSize = 100 * 1024;
-  char plainBuf[plainBufSize];
-  auto ret = SSL_read(ssl, plainBuf, plainBufSize);
-  if (ret <= 0) {
-    auto err = SSL_get_error(ssl, ret);
-    ERR_print_errors_fp(stdout);
-    auto message = "SSL_read failed: " + std::to_string(ret);
-    message += " " + std::to_string(err);
-    message += " " + std::to_string(encryptedMsg.size());
-    message += " " + std::to_string(bytesWritten);
-    if (err == SSL_ERROR_SSL)
-      message += " "s + ERR_error_string(ERR_get_error(), NULL);
-    throw std::runtime_error(message);
-  }
-  return std::vector<uint8_t>(plainBuf, plainBuf + ret);
+  std::vector<uint8_t> plain;
+  char buffer[16 * 1024];
+  // One AA frame can contain several TLS records. Drain all of them before
+  // assigning the next AA frame's channel/flags to any decrypted bytes.
+  do {
+    const auto ret = SSL_read(ssl, buffer, sizeof buffer);
+    if (ret <= 0) {
+      const auto err = SSL_get_error(ssl, ret);
+      throw std::runtime_error("SSL_read failed: " + std::to_string(ret) +
+                               " " + std::to_string(err));
+    }
+    plain.insert(plain.end(), buffer, buffer + ret);
+    if (plain.size() > airplay_aa::AaFrameReceiver::MaxMessageSize)
+      throw std::runtime_error("AA TLS plaintext exceeds message limit");
+  } while (SSL_pending(ssl) > 0 || SSL_has_pending(ssl) || BIO_ctrl_pending(readBio) > 0);
+  return plain;
 }
 
 void AaCommunicator::handleMessageContent(const Message &message) {
+  if (message.content.size() < 2)
+    throw std::runtime_error("AA message is missing its type");
   logMessage(message, false);
   auto msg = message.content;
   const __u16 *shortView = (const __u16 *)msg.data();
@@ -352,23 +361,16 @@ int AaCommunicator::verifyCertificate(int preverify_ok,
 }
 
 ssize_t AaCommunicator::handleMessage(int fd, const void *buf, size_t nbytes) {
-  const uint8_t *byteView = (const uint8_t *)buf;
-  int channel = byteView[0];
-  int flags = byteView[1];
-  bool encrypted = flags & 0x8;
-  FrameType frameType = (FrameType)(flags & 0x3);
-  int lengthRaw = *(__u16 *)(byteView + 2);
-  int length = be16_to_cpu(*(__u16 *)(byteView + 2));
-  std::vector<uint8_t> msg;
-  if (nbytes < 4 + length)
-    throw std::runtime_error("nbytes<4+length");
-  std::copy(byteView + 4, byteView + 4 + length, std::back_inserter(msg));
-  Message message;
-  message.channel = channel;
-  message.flags = flags;
-  message.content = encrypted ? decryptMessage(msg) : msg;
-  handleMessageContent(message);
-  return length + 4;
+  incomingFrames.consume(buf, nbytes,
+      [this](const std::vector<uint8_t> &ciphertext) { return decryptMessage(ciphertext); },
+      [this](uint8_t channel, uint8_t flags, const std::vector<uint8_t> &payload) {
+        Message message;
+        message.channel = channel;
+        message.flags = flags;
+        message.content = payload;
+        handleMessageContent(message);
+      });
+  return nbytes;
 }
 
 ssize_t AaCommunicator::getMessage(int fd, void *buf, size_t nbytes) {

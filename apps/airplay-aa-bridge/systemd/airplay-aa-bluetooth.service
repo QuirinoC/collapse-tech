@@ -1,0 +1,27 @@
+[Unit]
+Description=Restricted phone-side Bluetooth pairing for the current Android Auto car
+After=bluetooth.service airplay-aa-bridge.service
+Wants=bluetooth.service
+ConditionPathExists=/etc/airplay-aa/bluetooth.conf
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/airplay-aa
+ExecStart=/usr/bin/python3 -u /opt/airplay-aa/bridge/phone_bluetooth.py --config /etc/airplay-aa/bluetooth.conf
+Restart=on-failure
+RestartSec=5
+RuntimeDirectory=airplay-aa-bluetooth
+RuntimeDirectoryMode=0700
+# Keep the attempt guard if this service crashes/restarts during one AA session.
+RuntimeDirectoryPreserve=yes
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run/airplay-aa-bluetooth
+RestrictAddressFamilies=AF_UNIX
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

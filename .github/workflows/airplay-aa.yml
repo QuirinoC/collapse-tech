@@ -35,3 +35,8 @@ jobs:
             airplay-aa-python-regressions
       - name: Run production TLS peer regression
         run: ./scripts/test-tls-local.sh
+      - name: Run USB descriptors, framing and channel handlers
+        run: |
+          docker run --rm --network none --read-only --tmpfs /tmp:exec \
+            --mount "type=bind,source=$PWD,target=/bridge,readonly" \
+            --entrypoint bash airplay-aa-aacs-tls-test /bridge/scripts/test-aacs-local.sh

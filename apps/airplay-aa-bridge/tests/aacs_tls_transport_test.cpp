@@ -1,6 +1,7 @@
 // Exercises the real AaCommunicator TLS/queue path without gadget setup.
 #include "AaCommunicator.h"
 #include "Library.h"
+#include "DefaultChannelHandler.h"
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <usbg/usbg.h>
@@ -80,6 +81,18 @@ public:
   static std::vector<uint8_t> decrypt(AaCommunicator &a, const std::vector<uint8_t> &data) {
     return a.decryptMessage(data);
   }
+  static void receive(AaCommunicator &a, const uint8_t *data, size_t size) {
+    require(a.handleMessage(-1, data, size) == static_cast<ssize_t>(size),
+            "Receive path did not consume its byte chunk");
+  }
+  static void forwardChannel(AaCommunicator &a, uint8_t channel) {
+    require(a.channelHandlers[channel] == nullptr, "Fixture channel already exists");
+    a.channelHandlers[channel] = new DefaultChannelHandler(channel);
+    a.channelHandlers[channel]->sendToClient.connect(
+        [&a](int client, uint8_t id, bool specific, std::vector<uint8_t> data) {
+          a.gotMessage(client, id, specific, data);
+        });
+  }
   static void enqueue(AaCommunicator &a, const std::vector<uint8_t> &data) {
     a.sendMessage(2, 0x0b, data);
   }
@@ -155,6 +168,72 @@ void sameQueue(const std::vector<Message> &before, AaCommunicator &server) {
   for (size_t i = 0; i < before.size(); ++i)
     require(after[i].offset == before[i].offset && after[i].flags == before[i].flags &&
             after[i].content == before[i].content, "Failed encryption advanced fragment");
+}
+std::vector<uint8_t> receiveFrame(uint8_t flags, const std::vector<uint8_t> &body,
+                                 uint32_t total = 0, uint8_t channel = 0) {
+  require(body.size() <= UINT16_MAX, "Fixture frame too large");
+  std::vector<uint8_t> wire{channel, flags, static_cast<uint8_t>(body.size() >> 8),
+                           static_cast<uint8_t>(body.size())};
+  if ((flags & 3) == 1)
+    for (int shift : {24, 16, 8, 0}) wire.push_back(total >> shift);
+  wire.insert(wire.end(), body.begin(), body.end());
+  return wire;
+}
+void incomingReadBoundariesAndFragments(AaCommunicator &server, Peer &peer) {
+  std::vector<std::vector<uint8_t>> received;
+  std::vector<uint8_t> channels;
+  const auto connection = server.gotMessage.connect(
+      [&](int, uint8_t channel, bool, std::vector<uint8_t> bytes) {
+        channels.push_back(channel); received.push_back(bytes);
+      });
+  // A real handler routes AudioFocusResponse to clients without interpreting
+  // its protobuf body. This lets us assert byte-exact final dispatch after TLS.
+  std::vector<uint8_t> payload(5000);
+  for (size_t i = 0; i < payload.size(); ++i) payload[i] = (i * 31) & 255;
+  payload[0] = static_cast<unsigned>(MessageType::AudioFocusResponse) >> 8;
+  payload[1] = static_cast<unsigned>(MessageType::AudioFocusResponse) & 255;
+  std::vector<uint8_t> wire;
+  for (size_t offset = 0; offset < payload.size(); offset += 2000) {
+    const auto end = std::min(payload.size(), offset + 2000);
+    const std::vector<uint8_t> part(payload.begin() + offset, payload.begin() + end);
+    const uint8_t flags = offset == 0 ? 9 : end == payload.size() ? 10 : 8;
+    const auto frame = receiveFrame(flags, peer.encode(part), payload.size());
+    wire.insert(wire.end(), frame.begin(), frame.end());
+  }
+  // One byte per USB read exercises every header/body boundary, including the
+  // First frame's 32-bit size extension and the TLS record headers themselves.
+  for (size_t i = 0; i < wire.size(); ++i) {
+    Access::receive(server, wire.data() + i, 1);
+    if (i + 1 < wire.size()) require(received.empty(), "Fragment dispatched early");
+  }
+  require(received == std::vector<std::vector<uint8_t>>({payload}),
+          "Fragmented AA receive message was corrupted");
+  // A >16KiB message creates several TLS records inside a single AA frame.
+  // The next coalesced AA frame must not be assigned any leftover plaintext.
+  auto large = payload; large.resize(42000, 0x5a);
+  const auto first = receiveFrame(11, peer.encode(large));
+  const auto second = receiveFrame(15, peer.encode(payload));
+  wire = first; wire.insert(wire.end(), second.begin(), second.end());
+  Access::receive(server, wire.data(), wire.size());
+  require(received == std::vector<std::vector<uint8_t>>({payload, large, payload}),
+          "Coalesced AA frames or multiple TLS records were corrupted");
+  Access::forwardChannel(server, 7);
+  received.clear(); channels.clear(); wire.clear();
+  const std::vector<uint8_t> beginning(payload.begin(), payload.begin() + 2000);
+  const std::vector<uint8_t> ending(payload.begin() + 2000, payload.end());
+  // An independent service's fragmented message surrounds a complete control
+  // message. Encryption follows wire order; delivery follows completion order.
+  for (const auto &frame : {
+      receiveFrame(9, peer.encode(beginning), payload.size(), 7),
+      receiveFrame(11, peer.encode(payload)),
+      receiveFrame(10, peer.encode(ending), 0, 7)}) {
+    wire.insert(wire.end(), frame.begin(), frame.end());
+  }
+  Access::receive(server, wire.data(), wire.size());
+  require(received == std::vector<std::vector<uint8_t>>({payload, payload}) &&
+          channels == std::vector<uint8_t>({0, 7}),
+          "Interleaved control and service fragments were corrupted");
+  connection.disconnect();
 }
 template<class F> void expectFailure(F function) {
   bool failed = false;
@@ -244,6 +323,7 @@ int main() {
     AaCommunicator server(library, ""); Peer peer; peer.connect(server);
     serverSsl = Access::ssl(server); serverOutput = Access::output(server);
     writeFailuresAndFragmentation(server, peer);
+    incomingReadBoundariesAndFragments(server, peer);
     Access::releaseTls(server);
     serverSsl = nullptr; serverOutput = nullptr;
     // Keep the synthetic no-input handshake checks in independent sessions;
@@ -265,7 +345,7 @@ int main() {
       Access::releaseTls(failing);
       serverSsl = nullptr; serverOutput = nullptr;
     }
-    std::cout << "Actual AaCommunicator TLS failures, wire fragments, and serialization passed\n";
+    std::cout << "Actual AaCommunicator TLS failures, receive boundaries/fragments, and serialization passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n'; return 1;
   }

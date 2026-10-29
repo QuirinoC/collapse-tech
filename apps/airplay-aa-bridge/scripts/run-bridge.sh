@@ -19,6 +19,11 @@ else
 fi
 
 AIRPLAY_AA_USB_ONLY="${AIRPLAY_AA_USB_ONLY-0}"
+export AIRPLAY_AA_USB_POWER="${AIRPLAY_AA_USB_POWER-bus}"
+case "$AIRPLAY_AA_USB_POWER" in
+  bus|external) ;;
+  *) echo "AIRPLAY_AA_USB_POWER must be bus or external" >&2; exit 78 ;;
+esac
 case "$AIRPLAY_AA_USB_ONLY" in
   0|1) ;;
   *) echo "AIRPLAY_AA_USB_ONLY must be 0 or 1" >&2; exit 78 ;;
@@ -94,6 +99,13 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 rm -f ./socket "$AIRPLAY_AA_SOCKET"
+
+# Preserve the preceding launch's USB evidence and give the passive recorder an
+# inode change it can follow. Truncating the same file can silently lose events
+# when a quick handshake regrows it beyond the recorder's previous position.
+if [[ -f "$AIRPLAY_AA_LOGDIR/aaserver.log" ]]; then
+  mv -f "$AIRPLAY_AA_LOGDIR/aaserver.log" "$AIRPLAY_AA_LOGDIR/aaserver.previous.log"
+fi
 
 # AAServer creates ./socket only after a USB host completes AOAP.
 (

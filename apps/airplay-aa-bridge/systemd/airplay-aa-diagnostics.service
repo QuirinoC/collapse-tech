@@ -1,0 +1,23 @@
+[Unit]
+Description=Passive USB Android Auto session diagnostics
+After=local-fs.target
+Before=airplay-aa-bridge.service
+
+[Service]
+Type=notify
+TimeoutStartSec=3
+ExecStart=/usr/bin/python3 /opt/airplay-aa/scripts/car_diagnostics.py
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelTunables=true
+ReadWritePaths=/var/log/airplay-aa
+
+[Install]
+WantedBy=multi-user.target

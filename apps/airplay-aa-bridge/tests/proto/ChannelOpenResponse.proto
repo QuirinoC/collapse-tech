@@ -1,0 +1,6 @@
+// Matches the production AACS ChannelOpenResponse schema.
+syntax = "proto2";
+package tag.aas;
+message ChannelOpenResponse {
+  required int32 status = 1;
+}

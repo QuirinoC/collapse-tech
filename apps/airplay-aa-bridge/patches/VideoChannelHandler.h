@@ -14,6 +14,10 @@ class VideoChannelHandler : public ChannelHandler {
   bool focusIndicationReceived = false;
   bool streamStarted = false;
   uint32_t focusMode = 0;
+  uint32_t maxUnacked = 0;
+  uint32_t unacked = 0;
+  int32_t mediaSession = -1;
+  bool needsKeyframe = true;
   std::mutex m;
   std::condition_variable cv;
   // Every outgoing video message is serialized so Start precedes media.
@@ -24,6 +28,8 @@ class VideoChannelHandler : public ChannelHandler {
   void expectSetupResponse();
   void sendFocusRequest();
   void sendStartIndication();
+  void sendStopIndication();
+  void startStream(); // Caller holds m and sendMutex.
   static GstFlowReturn new_sample(GstElement *sink, VideoChannelHandler *self);
   void openChannel();
 

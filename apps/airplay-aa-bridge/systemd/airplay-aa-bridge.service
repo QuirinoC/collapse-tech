@@ -1,7 +1,8 @@
 [Unit]
 Description=AirPlay receiver → wired Android Auto (USB) bridge
-After=network-online.target
-Wants=network-online.target
+# USB/AOA must be available even when no saved Wi-Fi network is in range.
+# The receiver is a server; its supervisor retries if networking is not ready.
+After=network.target
 StartLimitIntervalSec=0
 
 [Service]

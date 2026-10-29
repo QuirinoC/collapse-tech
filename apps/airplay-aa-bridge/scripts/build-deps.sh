@@ -34,7 +34,7 @@ run_root env DEBIAN_FRONTEND=noninteractive apt-get install -y \
   gstreamer1.0-libav gstreamer1.0-tools \
   libboost-all-dev libprotobuf-dev protobuf-compiler libfmt-dev \
   libpcap-dev libconfig-dev libusb-1.0-0-dev \
-  python3 python3-gi
+  python3 python3-gi python3-dbus bluez libspa-0.2-bluetooth pipewire wireplumber
 
 echo "==> libusbgx (USB gadget helpers for AAServer)"
 if [[ ! -d "$SRC/libusbgx" ]]; then
@@ -82,10 +82,12 @@ if [[ ! -d "$SRC/AACS" ]]; then
 fi
 # Preserve bounded channel-open/setup waits from the deployed video handler.
 cp "$ROOT/patches/AaCommunicator.h" "$ROOT/patches/UsbEndpointState.h" \
+  "$ROOT/patches/AaFrameReceiver.h" \
   "$ROOT/patches/VideoChannelDescriptor.h" \
   "$SRC/AACS/AAServer/include/"
 cp "$ROOT/patches/AaCommunicator.cpp" \
   "$SRC/AACS/AAServer/src/AaCommunicator.cpp"
+cp "$ROOT/patches/Configuration.cpp" "$SRC/AACS/AAServer/src/Configuration.cpp"
 cp "$ROOT/patches/ChannelHandler.h" \
   "$SRC/AACS/AAServer/include/ChannelHandler.h"
 cp "$ROOT/patches/ChannelHandler.cpp" \
@@ -96,7 +98,7 @@ cp "$ROOT/patches/VideoChannelHandler.h" \
 cp "$ROOT/patches/VideoChannelHandler.cpp" \
   "$SRC/AACS/AAServer/src/VideoChannelHandler.cpp"
 # Current DHU omits the optional codec on its video media descriptor.
-for proto in MediaStreamType MediaChannel VideoConfig MediaChannelSetupResponse VideoFocusIndication InputChannel InputBinding; do
+for proto in MediaStreamType MediaChannel VideoConfig MediaChannelSetupResponse VideoFocusIndication InputChannel InputBinding MediaAckIndication MediaStartIndication; do
   cp "$ROOT/patches/$proto.proto" "$SRC/AACS/proto/$proto.proto"
 done
 # AACS enumerates generated schemas explicitly rather than globbing proto files.
@@ -116,6 +118,17 @@ grep -q '^[[:space:]]*../proto/InputBinding.proto' "$SRC/AACS/proto/CMakeLists.t
   echo "Cannot register InputBinding.proto in AACS proto/CMakeLists.txt" >&2
   exit 1
 }
+# These upstream schemas were previously unused by the phone implementation.
+for proto in ChannelOpenResponse MediaAckIndication MediaStartIndication; do
+  if ! grep -q "^[[:space:]]*../proto/$proto.proto" "$SRC/AACS/proto/CMakeLists.txt"; then
+    sed -i "/^[[:space:]]*\\.\\.\\/proto\\/ChannelOpenRequest.proto/a\\    ../proto/$proto.proto" \
+      "$SRC/AACS/proto/CMakeLists.txt"
+  fi
+  grep -q "^[[:space:]]*../proto/$proto.proto" "$SRC/AACS/proto/CMakeLists.txt" || {
+    echo "Cannot register $proto.proto in AACS proto/CMakeLists.txt" >&2
+    exit 1
+  }
+done
 # Initial attachment is vendor-only FunctionFS. Complete AOA 51/52/53 control
 # transfers before switching; no empty CD-ROM image or mass-storage LUN.
 cp "$ROOT/patches/ModeSwitcher.h" "$ROOT/patches/AoaControl.h" \

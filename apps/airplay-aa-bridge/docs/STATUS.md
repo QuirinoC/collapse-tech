@@ -1,6 +1,150 @@
-# Bench status — October 11, 2026
+# Bench status — October 28, 2026
 
 **Actual Mazda activation: STILL UNRESOLVED. This is not car-ready.**
+
+## Car-interface repairs and deployment — October 22
+
+The first October 22 candidate, AAServer
+`b8391de67ccdb67e736228cf88a733d0ff7deb08ec13ad27b6195cbd1be980e5`,
+was built from pinned AACS `faa1cf208feb5dfe1cb9535be16daeac4f08da0c`, deployed
+durably, and tested through the Pi's actual USB connection. Its private rollback
+is `/var/backups/airplay-aa-car-interface-jgkwe8jq`. The installed passive
+diagnostics service was observed active alongside the bridge.
+
+The final candidate
+`2503d81f9cdbe913e0dc8500058eeac701643b6382c63ec2acade95233490220`
+adds independent assembly of messages interleaved across AA channels. It was
+built on the Pi, deployed with all 61 runtime/source files and the private
+Bluetooth configuration, and passed its own three-profile hardware matrix.
+All 66 installed targets matched their manifest checksums. Bridge, Bluetooth
+and diagnostics services were enabled and active. Its durable rollback is
+`/var/backups/airplay-aa-car-interface-xsfocx96`.
+
+**October 28 follow-up:** runtime source checksums still match the tested
+October 22 deployment. The Pi is currently absent from this Mac's USB inventory
+and unreachable at its saved IP and hostname. Reboot validation, final evidence
+collection, and restoring the normal AirPlay source remain pending. The last
+confirmed source is `test-pattern`; its exact original configuration is backed
+up in `/var/backups/airplay-aa-car-interface-20261022-final`. Restore it using
+the staged `source-mode-final.py restore` when the Pi is reachable, then verify
+startup and services. No new live-Pi or Mazda pass is claimed on October 28.
+
+The changes address concrete implementation defects and missing startup work:
+
+- Incoming AA transport now handles split headers/payloads, coalesced frames,
+  fragment length fields and independently encrypted fragments. The final
+  candidate reassembles each channel separately so control traffic can arrive
+  between another channel's fragments. Invalid sizes, incomplete fragments and
+  unknown channels fail explicitly. These changes retain the previous shared
+  TLS-object serialization fix.
+- Video channel opening now requires a parsed successful response rather than
+  treating any response as acceptance. Setup must provide a positive credit
+  limit. The sender honors negotiated `max_unacked`, parses acknowledgements by
+  media session and stops adding video when credit is exhausted. It keeps
+  control traffic responsive, resumes at an IDR frame, and sends stop/start
+  transitions with a new session when focus changes.
+- USB configurations now describe the actual bus-powered arrangement and
+  advertise a 500 mA USB 2.0 budget instead of falsely claiming self-power.
+  This changes descriptors, not the supply's physical capability; a Pi 5's
+  greater power needs remain unresolved.
+- The bridge starts after `network.target`, without waiting for a saved Wi-Fi
+  network to come online. AirPlay is not required for AA initialization.
+  Previous AAServer logs are rotated before replacement, and the independent
+  [persistent recorder](car-diagnostics.md) captures boot/uptime, USB speed/state,
+  kernel power/reset events and recognized protocol stages even without Wi-Fi.
+  It retains at most 10 MiB and does not reset USB or the Pi.
+- A [restricted Bluetooth companion](bluetooth.md) has been added for the
+  known head unit's phone-side pairing exchange. It requires the configured
+  head-unit address to match fresh AA discovery and validates numeric
+  confirmation against BlueZ before reporting authentication processing.
+  Actual bonding, HFP and Mazda projection remain separate unverified results;
+  a DHU pass cannot verify them.
+
+The updated production C++ handler/descriptor tests and actual TLS peer tests
+passed. The final Linux Python/video suite passed **160 tests with no skips**
+in **34.276 seconds**, including 40 Bluetooth tests and the new passive
+recorder tests. The recorder's 14 focused tests include a real process readiness
+notification, fresh log replacement/session identification, clean termination,
+private bounded rotation and error classification. Bluetooth tests exercise the
+production controller with a fake head unit that waits for authentication before
+finishing its bond, including both challenge arrival orders and disconnected
+session rejection. Actual production D-Bus agent export/unexport was also verified
+on the Pi without adapter changes or pairing operations.
+
+## Fresh actual USB/DHU evidence — October 22
+
+The unchanged `9c35f5bc…` baseline first passed the hybrid profile with
+**60.283 seconds** of sampled moving SMPTE output. The first updated
+`b8391de6…` candidate then passed all profiles:
+
+| Profile | Sampled moving video | Outcome |
+| --- | ---: | --- |
+| Touch | 61.020 s | PASSED |
+| Rotary | 60.642 s | PASSED |
+| Hybrid | 60.572 s | PASSED |
+
+These runs exercised real USB/AOAP, protocol/TLS verification, successful input
+binding, phone-requested projection and decoded moving video without TLS bypass
+or a console focus override. The source was the Pi's moving test pattern, so
+these tests isolate the car-facing stack from AirPlay. Evidence is
+`.local/car-interface-20261022/baseline-matrix/` and `updated-matrix/`; deployment
+identity, test logs and initial telemetry are in the same parent folder.
+No Mazda session occurred during these Mac runs.
+
+The final installed `2503d81f…` build then passed its own actual USB matrix:
+
+| Profile | Sampled moving video | Outcome |
+| --- | ---: | --- |
+| Touch | 61.137 s | PASSED |
+| Rotary | 60.252 s | PASSED |
+| Hybrid | 60.537 s | PASSED |
+
+Evidence is `.local/car-interface-20261022/final-matrix-retry/`. The initial
+`final-matrix/` attempt was blocked before DHU launched because USB had not yet
+re-enumerated after the service restart; the next run began after the device
+was confirmed present. The Bluetooth service logged clean no-Bluetooth skips
+for the DHU with `bluez_accessed=false`. No real Mazda bond was made. Active
+undervoltage (`0x50005`) recurred during the final matrix despite the video
+passes; these are not clean-power acceptance results.
+
+The earlier October 22 QuickTime direct AirPlay attempt at
+`.local/bench/20261022-104500/` passed USB/protocol/TLS/input/automatic focus but
+failed video/render/motion/AirPlay acceptance: captures were black and no fresh
+mirrored H.264 arrived. QuickTime showed a connection error and stayed at zero
+progress. The October 10 Screen Mirroring pass below remains historical; there
+is no new full AirPlay pass to report here.
+
+## Power comparison and Mazda trace review — October 22
+
+The Mac's single USB-C connection remains the Pi's reported power/data source.
+Initial same-boot kernel evidence contained repeated active undervoltage. In a
+738-second snapshot, 25 preferred-hotspot checks aligned with 25 voltage
+warnings; 24 warnings followed a check by up to 2.165 seconds, and one preceded
+its nearest check by 1.154 seconds. Both short cached-scan checks and longer
+fresh-scan checks aligned, so this is not proof that Wi-Fi scanning caused the
+dips. Exact observations are in
+`.local/car-interface-20261022/power-timer-correlation.json`.
+
+A bounded comparison then observed the hotspot timer stopped for approximately
+120 seconds and active for another 120 seconds. Each phase collected 60 samples,
+all showing historical-only `0x50000`; neither phase caught an active flag.
+Rail readings were **4.62836–4.93388 V** with the timer stopped and
+**4.77710–4.93656 V** with it active. The separate final sample, after those
+phases, again reported **active `0x50005`** at uptime **44044.39 seconds**.
+All observations retained boot ID `76f5d5fb…`. The timer was restored; no power
+cause was established and this comparison does not demonstrate clean power.
+Evidence is `.local/car-interface-20261022/power-compare.json`.
+
+Reinspection of the October 10 Mazda failure confirms two distinct stages:
+the older build reached accepted input/video setup without a focus grant;
+the 15:15 candidate completed AOA but repeatedly reset/configured/suspended
+before its first AA bulk bytes. Crucially, the latter kernel trace reports
+**high-speed** for both initial and accessory configurations. The later
+64-byte full-speed descriptor correction fixes a real compliance defect, but
+is not a demonstrated explanation for this high-speed Mazda failure. Fresh
+undervoltage also occurred during that attempt; its causal role is unresolved.
+The new recorder makes the next car attempt observable without relying on a
+live home-Wi-Fi connection.
 
 ## Complete offline regression sweep — October 11, 03:00 PDT
 

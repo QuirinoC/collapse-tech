@@ -3,13 +3,22 @@
 Raspberry Pi becomes an **AirPlay 2 receiver** and projects that video to a car
 head unit over **wired Android Auto (USB AOAP)**. Wireless Android Auto is not used.
 
-The installed `9c35f5bc…` TLS-serialization build passed automatic Mac USB/DHU
-moving-pattern playback for over 60 seconds in touch, rotary and hybrid profiles.
-The earlier build's failed hybrid matrix remains recorded; the later passes do
-not prove its cause. The full Mac AirPlay → Pi → USB/DHU video loop also passed
-**60.786 seconds** of sampled moving content, with normal automatic startup.
-The actual Mazda has never passed Android Auto activation; this project is
-**not car-ready**. See [current evidence](docs/STATUS.md).
+The deployed October 22 car-interface revision (`2503d81f…`) corrects incoming
+AA framing, channel-open status handling, video acknowledgement limits, USB
+power descriptors and startup without Wi-Fi. It passed real Mac USB/DHU moving
+video: touch **61.137 s**, rotary **60.252 s**, hybrid **60.537 s**. A restricted
+Bluetooth companion for the configured Mazda and persistent diagnostics are
+installed and enabled. Actual Mazda pairing/projection remains unverified.
+
+On October 28 the Pi was unavailable over USB and SSH, so the remaining reboot
+check and restoration from the temporary test pattern to normal AirPlay are
+pending. Reconnect it before the next car trial; see [current evidence](docs/STATUS.md).
+
+The full Mac Screen Mirroring → Pi → USB/DHU pass of **60.786 seconds** is from
+**October 10**. October 22 QuickTime direct AirPlay playback supplied no fresh
+mirrored video and did not pass. The actual Mazda has never passed Android Auto
+activation; this project is **not car-ready**. Power warnings remain unresolved.
+See [current evidence and exact build scope](docs/STATUS.md).
 
 ```
 Mac / iPhone  --AirPlay2-->  UxPlay on Pi  --H.264-->  AAServer  --USB-->  Car / Mac DHU
@@ -60,6 +69,12 @@ Then:
 
 Android Auto startup does not require AirPlay. A car trial still needs the
 activation and stable-power checks in [car bring-up](docs/car-bringup.md).
+The bridge no longer waits for `network-online.target` before exposing USB.
+The independent [car diagnostics recorder](docs/car-diagnostics.md) keeps bounded
+USB/protocol/power evidence on the Pi even when Wi-Fi is unavailable. A restricted
+[Bluetooth companion](docs/bluetooth.md) implements the missing phone-side
+pairing exchange for a configured head unit; real Mazda pairing and HFP remain
+unverified.
 
 Mac simulator steps: [docs/mac-testing.md](docs/mac-testing.md)
 
@@ -146,9 +161,12 @@ certification or Mazda acceptance. See
 | `scripts/build-deps.sh` | Build UxPlay + patched AAServer |
 | `scripts/run-bridge.sh` | Orchestrator |
 | `scripts/preferred_hotspot.py` | Optional saved-hotspot selection |
+| `scripts/car_diagnostics.py` | Persistent bounded USB/protocol/power recorder |
+| `bridge/phone_bluetooth.py` | Restricted phone-side Bluetooth companion |
 | `bridge/inject_h264.py` | H.264 → AAServer socket |
 | `bridge/aa_framing.py` | Packet framing |
 | `patches/VideoChannelHandler.cpp` | AAServer without Snowmix |
+| `patches/AaFrameReceiver.h` | Incoming AA stream framing and per-channel reassembly |
 | `config/bridge.env` | Name, resolution, paths |
 | `systemd/airplay-aa-bridge.service` | Autostart |
 | `systemd/airplay-aa-preferred-hotspot.timer` | Optional preferred Wi-Fi checks |
@@ -159,6 +177,9 @@ Edit `/etc/airplay-aa/bridge.env` after install:
 
 - `AIRPLAY_AA_NAME` — AirPlay picker label
 - `AIRPLAY_AA_WIDTH/HEIGHT/FPS` — default `800x480@30` (common HU mode)
+- `AIRPLAY_AA_USB_POWER` — default `bus`, matching USB-C power; `external` is
+  only for a verified independently powered arrangement. The 500 mA USB 2.0
+  descriptor does not supply or guarantee enough current for a Pi 5.
 
 ## Development tests (no Pi required)
 

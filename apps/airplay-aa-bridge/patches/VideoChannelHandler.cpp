@@ -4,6 +4,8 @@
 #include "VideoChannelHandler.h"
 #include "ChannelHandler.h"
 #include "MediaChannelSetupResponse.pb.h"
+#include "MediaAckIndication.pb.h"
+#include "MediaStartIndication.pb.h"
 #include "VideoFocusIndication.pb.h"
 #include "enums.h"
 #include "utils.h"
@@ -20,6 +22,29 @@
 #include <mutex>
 
 using namespace std;
+
+namespace {
+// The injector supplies Annex-B H.264. If a full credit window makes us drop
+// a picture, its dependent pictures cannot be decoded until the next IDR.
+bool containsIdr(const vector<uint8_t> &data, size_t offset) {
+  for (size_t i = offset; i + 3 < data.size(); ++i) {
+    if (data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 1 &&
+        (data[i + 3] & 0x1f) == 5)
+      return true;
+  }
+  return false;
+}
+
+bool containsPicture(const vector<uint8_t> &data, size_t offset) {
+  for (size_t i = offset; i + 3 < data.size(); ++i) {
+    if (data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 1) {
+      const auto nalType = data[i + 3] & 0x1f;
+      if (nalType >= 1 && nalType <= 5) return true;
+    }
+  }
+  return false;
+}
+}
 
 GstFlowReturn VideoChannelHandler::new_sample(GstElement *sink,
                                               VideoChannelHandler *_this) {
@@ -176,8 +201,15 @@ void VideoChannelHandler::openChannel() {
             << " (waiting up to 5s for ChannelOpenResponse, then SetupResponse)"
             << std::endl;
   if (!openChannelWithTimeout(5000)) {
-    std::cout << "VideoChannelHandler: ChannelOpenResponse timed out on channel "
-              << static_cast<int>(channelId) << "; will retry" << std::endl;
+    const bool rejected = channelOpenRejected();
+    if (rejected) {
+      std::lock_guard<std::mutex> lk(m);
+      setupResponseReceived = true; // Terminal for this AA session, like failed setup.
+    }
+    std::cout << "VideoChannelHandler: ChannelOpenResponse "
+              << (rejected ? "rejected" : "timed out") << " on channel "
+              << static_cast<int>(channelId)
+              << (rejected ? "; video held" : "; will retry") << std::endl;
     return;
   }
   sendSetupRequest();
@@ -225,20 +257,38 @@ void VideoChannelHandler::sendFocusRequest() {
 }
 
 void VideoChannelHandler::sendStartIndication() {
+  tag::aas::MediaStartIndication start;
+  start.set_session(mediaSession);
+  start.set_config(0);
+  const auto bytes = start.SerializeAsString();
   std::vector<uint8_t> plainMsg;
   pushBackInt16(plainMsg, MediaMessageType::StartIndication);
-  plainMsg.push_back(0x08);
-  plainMsg.push_back(0x00);
-  plainMsg.push_back(0x10);
-  plainMsg.push_back(0x00);
+  plainMsg.insert(plainMsg.end(), bytes.begin(), bytes.end());
   std::cout << "VideoChannelHandler: StartIndication on channel "
-            << static_cast<int>(channelId) << std::endl;
+            << static_cast<int>(channelId) << " session=" << mediaSession
+            << " max_unacked=" << maxUnacked << std::endl;
   sendToHeadunit(channelId, FrameType::Bulk | EncryptionType::Encrypted,
                  plainMsg);
 }
 
+void VideoChannelHandler::startStream() {
+  streamStarted = true;
+  mediaSession = (mediaSession + 1) & 0xff;
+  unacked = 0;
+  needsKeyframe = true;
+}
+
+void VideoChannelHandler::sendStopIndication() {
+  // AV stop has no body. As in the phone-side behead implementation, a
+  // focus-driven stop precedes any future StartIndication/new media session.
+  std::cout << "VideoChannelHandler: StopIndication on channel "
+            << static_cast<int>(channelId) << " session=" << mediaSession << std::endl;
+  sendToHeadunit(channelId, FrameType::Bulk | EncryptionType::Encrypted,
+                 {0x80, 0x02});
+}
+
 bool VideoChannelHandler::handleMessageFromHeadunit(const Message &message) {
-  if (message.content.size() < 2)
+  if (message.channel != channelId || message.content.size() < 2)
     return false;
   const auto &msg = message.content;
   const auto messageType = (uint16_t(msg[0]) << 8) | msg[1];
@@ -255,15 +305,30 @@ bool VideoChannelHandler::handleMessageFromHeadunit(const Message &message) {
   }
   if (ChannelHandler::handleMessageFromHeadunit(message))
     return true;
-  if (messageType == MediaMessageType::MediaAckIndication)
+  if (messageType == MediaMessageType::MediaAckIndication) {
+    tag::aas::MediaAckIndication ack;
+    if (!ack.ParseFromArray(msg.data() + 2, msg.size() - 2)) {
+      std::cout << "VideoChannelHandler: malformed media ACK ignored" << std::endl;
+      return true;
+    }
+    // Newer HUs may provide one receive timestamp per acknowledged message.
+    // Neither count is a count of AA transport fragments.
+    const uint32_t count = ack.receive_timestamps_size() != 0
+        ? static_cast<uint32_t>(ack.receive_timestamps_size()) : ack.value();
+    std::lock_guard<std::mutex> lock(m);
+    if (streamStarted && ack.session() == mediaSession && count != 0) {
+      unacked -= std::min(unacked, count); // Never manufacture excess credit.
+    }
     return true;
+  }
   if (messageType == MediaMessageType::SetupResponse) {
     tag::aas::MediaChannelSetupResponse response;
     const bool parsed = response.ParseFromArray(msg.data() + 2, msg.size() - 2);
     const bool configAccepted = std::find(response.configs().begin(),
         response.configs().end(), 0) != response.configs().end();
     const bool accepted = parsed && response.media_status() ==
-        tag::aas::MediaChannelSetupResponse::OK && configAccepted;
+        tag::aas::MediaChannelSetupResponse::OK && configAccepted &&
+        response.max_unacked() > 0;
     std::lock_guard<std::mutex> sendLock(sendMutex);
     bool requestFocus = false, start = false;
     {
@@ -275,6 +340,7 @@ bool VideoChannelHandler::handleMessageFromHeadunit(const Message &message) {
       }
       setupResponseReceived = true;
       gotSetupResponse = accepted;
+      maxUnacked = accepted ? response.max_unacked() : 0;
       if (!accepted) {
         streamStarted = false;
       } else {
@@ -284,7 +350,7 @@ bool VideoChannelHandler::handleMessageFromHeadunit(const Message &message) {
         focusRequested = true;
         start = (focusMode == 1 || focusMode == 4) && !streamStarted;
         if (start)
-          streamStarted = true;
+          startStream();
       }
     }
     std::cout << "VideoChannelHandler: setup status="
@@ -307,7 +373,7 @@ bool VideoChannelHandler::handleMessageFromHeadunit(const Message &message) {
       return true;
     }
     std::lock_guard<std::mutex> sendLock(sendMutex);
-    bool start = false;
+    bool start = false, stop = false;
     {
       std::lock_guard<std::mutex> lock(m);
       focusMode = indication.focus_mode();
@@ -315,10 +381,12 @@ bool VideoChannelHandler::handleMessageFromHeadunit(const Message &message) {
       if (focusMode == 1 || focusMode == 4) {
         start = gotSetupResponse && !streamStarted;
         if (start)
-          streamStarted = true;
+          startStream();
       } else {
         // Native focus is a HU/user decision. Pause without requesting it back.
+        stop = streamStarted;
         streamStarted = false;
+        needsKeyframe = true;
       }
     }
     std::cout << "VideoChannelHandler: VideoFocusIndication mode="
@@ -326,6 +394,8 @@ bool VideoChannelHandler::handleMessageFromHeadunit(const Message &message) {
               << indication.unrequested() << std::endl;
     if (start)
       sendStartIndication();
+    if (stop)
+      sendStopIndication();
     return true;
   }
   return false;
@@ -336,7 +406,7 @@ bool VideoChannelHandler::handleMessageFromClient(int clientId,
                                                   bool specific,
                                                   const vector<uint8_t> &data) {
   (void)clientId;
-  if (data.empty()) {
+  if (channelId != this->channelId || data.size() < 2) {
     return false;
   }
   bool setupDone = false;
@@ -357,6 +427,23 @@ bool VideoChannelHandler::handleMessageFromClient(int clientId,
     std::lock_guard<std::mutex> lock(m);
     if (!gotSetupResponse || !streamStarted || (focusMode != 1 && focusMode != 4))
       return true; // No media before accepted setup and projected focus.
+    const uint16_t type = (uint16_t(data[0]) << 8) | data[1];
+    if (type == MediaMessageType::MediaWithTimestampIndication ||
+        type == MediaMessageType::MediaIndication) {
+      const size_t payload = type == MediaMessageType::MediaWithTimestampIndication ? 10 : 2;
+      if (data.size() <= payload) return false;
+      if (unacked >= maxUnacked) {
+        if (!needsKeyframe)
+          std::cout << "VideoChannelHandler: media credit exhausted on channel "
+                    << int(channelId) << "; holding video until ACK and IDR" << std::endl;
+        needsKeyframe = true;
+        return true; // Keep receive/control traffic live; do not grow a media queue.
+      }
+      const bool idr = containsIdr(data, payload);
+      if (needsKeyframe && !idr && containsPicture(data, payload)) return true;
+      if (idr) needsKeyframe = false;
+      ++unacked; // Reserve before enqueueing; a synchronous ACK can release it.
+    }
   }
   // Client supplies a complete AA media message (BE type + optional ts + AU).
   uint8_t flags = EncryptionType::Encrypted | FrameType::Bulk;
