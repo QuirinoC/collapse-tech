@@ -2,6 +2,25 @@
 
 **Actual Mazda activation: STILL UNRESOLVED. This is not car-ready.**
 
+## Connection follow-up — October 29
+
+The user reported that the Pi’s SD card had been removed and was reinserted.
+Afterward, the Mac did not detect the Pi over USB or at the saved SSH address or
+hostname. A bounded local-network check did not find the recorded Pi Ethernet
+address or its SSH host key. The Mac’s Ethernet interfaces reported no link;
+the cable destination and current Pi LED state were not confirmed. These
+observations do not establish the Pi’s power or boot state. Evidence is in
+`.local/car-interface-20261029/`.
+
+The last confirmed source remains `test-pattern`. When the Pi is reachable,
+inspect its boot ID, uptime, voltage flags, deployed checksums and services;
+validate the saved original configuration and use the guarded restore in
+`.local/car-interface-20261028/restore-source.py`. Then perform the authorized
+controlled reboot with before/after evidence and verify bridge, Bluetooth,
+diagnostics and HFP startup. Run a fresh USB/DHU moving-video check if the Pi
+is connected to the Mac. Fresh full AirPlay, actual Mazda pairing/projection,
+and clean-power validation remain outstanding.
+
 ## Car-interface repairs and deployment — October 22
 
 The first October 22 candidate, AAServer
