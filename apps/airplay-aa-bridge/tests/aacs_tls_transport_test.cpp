@@ -2,6 +2,8 @@
 #include "AaCommunicator.h"
 #include "Library.h"
 #include "DefaultChannelHandler.h"
+#include "ServiceDiscoveryRequest.pb.h"
+#include "ServiceDiscoveryResponse.pb.h"
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <usbg/usbg.h>
@@ -10,6 +12,7 @@
 #include <condition_variable>
 #include <future>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -104,6 +107,13 @@ public:
   static std::vector<Message> queue(AaCommunicator &a) {
     std::lock_guard<std::mutex> lock(a.sendQueueMutex);
     return {a.sendQueue.begin(), a.sendQueue.end()};
+  }
+  static std::vector<ChannelHandler *> handlers(AaCommunicator &a) {
+    return {std::begin(a.channelHandlers), std::end(a.channelHandlers)};
+  }
+  static std::vector<uint8_t> channelTypes(AaCommunicator &a) {
+    return {std::begin(a.channelTypeToChannelNumber),
+            std::end(a.channelTypeToChannelNumber)};
   }
   static void releaseTls(AaCommunicator &a) {
     SSL_free(a.ssl); SSL_CTX_free(a.ctx);
@@ -240,6 +250,131 @@ template<class F> void expectFailure(F function) {
   try { function(); } catch (const std::runtime_error &) { failed = true; }
   require(failed, "Expected encryption failure was accepted");
 }
+
+void receiveControl(AaCommunicator &server, Peer &peer, uint16_t type,
+                    const std::vector<uint8_t> &body, bool encrypted = true) {
+  std::vector<uint8_t> content{static_cast<uint8_t>(type >> 8),
+                              static_cast<uint8_t>(type)};
+  content.insert(content.end(), body.begin(), body.end());
+  const auto wire = receiveFrame(encrypted ? 11 : 3,
+                                 encrypted ? peer.encode(content) : content);
+  Access::receive(server, wire.data(), wire.size());
+}
+
+class CoutCapture {
+  std::ostringstream stream;
+  std::streambuf *original = std::cout.rdbuf(stream.rdbuf());
+public:
+  ~CoutCapture() { std::cout.rdbuf(original); }
+  std::string text() const { return stream.str(); }
+};
+
+void authenticationStatus(Library &library) {
+  const std::vector<std::vector<uint8_t>> rejected{
+      {},                         // Required status absent.
+      {0x08},                     // Truncated status varint.
+      {0x0a, 0x00},               // Status has wrong wire type.
+      {0x08, 0x01},               // Explicit rejection.
+      {0x08, 0x7f},               // Unknown nonzero status.
+      {0x08, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01},
+  };
+  for (const auto &body : rejected) {
+    AaCommunicator server(library, ""); Peer peer; peer.connect(server);
+    Access::enqueue(server, {0x00, 0x0d, 0x08, 0x43});
+    const auto queue = Access::queue(server);
+    const auto handlers = Access::handlers(server);
+    const auto descriptor = server.getServiceDescriptor();
+    {
+      CoutCapture captured;
+      expectFailure([&] { receiveControl(server, peer, 4, body); });
+      require(captured.text().find("auth complete") == std::string::npos,
+              "Rejected authentication was logged as complete");
+    }
+    sameQueue(queue, server);
+    require(Access::handlers(server) == handlers &&
+            server.getServiceDescriptor() == descriptor,
+            "Rejected authentication mutated discovery state");
+    Access::releaseTls(server);
+  }
+  // Preserve both normal unencrypted AuthComplete and encrypted dispatch,
+  // including unknown unrelated protobuf fields for forward compatibility.
+  for (bool encrypted : {false, true}) {
+    AaCommunicator server(library, ""); Peer peer; peer.connect(server);
+    receiveControl(server, peer, 4, {0x08, 0x00, 0x10, 0x2a}, encrypted);
+    const auto queued = Access::queue(server);
+    require(queued.size() == 1 && queued[0].channel == 0 &&
+            queued[0].flags == 0x0b && queued[0].content.size() > 2 &&
+            queued[0].content[0] == 0 && queued[0].content[1] == 5,
+            "Accepted authentication did not enqueue exactly one encrypted discovery request");
+    const auto plain = peer.decode(Access::next(server));
+    tag::aas::ServiceDiscoveryRequest discovery;
+    require(discovery.ParseFromArray(plain.data() + 2, plain.size() - 2),
+            "Post-authentication discovery request did not decode over TLS");
+    require(Access::queue(server).empty(), "Authentication enqueued extra messages");
+    Access::releaseTls(server);
+  }
+}
+
+std::vector<uint8_t> discoveryBytes(const tag::aas::ServiceDiscoveryResponse &response) {
+  const auto bytes = response.SerializeAsString();
+  return {bytes.begin(), bytes.end()};
+}
+
+void addVideo(tag::aas::ServiceDiscoveryResponse &response, uint32_t channel) {
+  auto *entry = response.add_channels();
+  entry->set_channel_id(channel);
+  auto *config = entry->mutable_media_channel()->add_video_configs();
+  config->set_video_resolution(tag::aas::VideoResolution::H480);
+  config->set_video_fps(tag::aas::VideoFps::F30);
+  config->set_margin_width(0);
+  config->set_margin_height(0);
+  config->set_dpi(160);
+  config->set_codec(3);
+}
+
+void discoveryChannelValidation(Library &library) {
+  for (uint32_t invalid : {0u, 256u, UINT32_MAX, 20u}) {
+    AaCommunicator server(library, ""); Peer peer; peer.connect(server);
+    // Keep real prior state so rejection must preserve the published cache and
+    // existing handler, in addition to not installing the first valid entry.
+    tag::aas::ServiceDiscoveryResponse prior;
+    prior.add_channels()->set_channel_id(33);
+    receiveControl(server, peer, 6, discoveryBytes(prior));
+    const auto handlers = Access::handlers(server);
+    const auto types = Access::channelTypes(server);
+    const auto descriptor = server.getServiceDescriptor();
+    const auto queue = Access::queue(server);
+    tag::aas::ServiceDiscoveryResponse response;
+    addVideo(response, 20);
+    response.add_channels()->set_channel_id(invalid);
+    expectFailure([&] { receiveControl(server, peer, 6, discoveryBytes(response)); });
+    require(Access::handlers(server) == handlers &&
+            Access::channelTypes(server) == types &&
+            server.getServiceDescriptor() == descriptor,
+            "Invalid discovery partially changed handlers, channel types, or cached descriptor");
+    sameQueue(queue, server);
+    Access::releaseTls(server);
+  }
+  AaCommunicator server(library, ""); Peer peer; peer.connect(server);
+  tag::aas::ServiceDiscoveryResponse response;
+  for (uint32_t id : {1u, 254u, 255u}) response.add_channels()->set_channel_id(id);
+  addVideo(response, 20);
+  auto *input = response.add_channels();
+  input->set_channel_id(21);
+  input->mutable_input_channel()->add_available_buttons(19);
+  auto body = discoveryBytes(response);
+  body.insert(body.end(), {0x10, 0x2a}); // Unrelated future descriptor field.
+  receiveControl(server, peer, 6, body);
+  const auto handlers = Access::handlers(server);
+  for (uint32_t id : {0u, 1u, 20u, 21u, 254u, 255u})
+    require(handlers[id] != nullptr, "Valid discovery boundary or service channel was rejected");
+  require(server.getChannelNumberByChannelType(ChannelType::Video) == 20 &&
+          server.getChannelNumberByChannelType(ChannelType::Input) == 21 &&
+          server.getServiceDescriptor() == body,
+          "Valid discovery did not publish advertised services and exact descriptor");
+  Access::releaseTls(server);
+}
+
 void writeFailuresAndFragmentation(AaCommunicator &server, Peer &peer) {
   std::vector<uint8_t> payload(5000);
   for (size_t i = 0; i < payload.size(); ++i) payload[i] = (i * 31) & 255;
@@ -320,6 +455,8 @@ void pendingOutput(AaCommunicator &server) {
 int main() {
   try {
     Library library("unused-configfs-path");
+    authenticationStatus(library);
+    discoveryChannelValidation(library);
     AaCommunicator server(library, ""); Peer peer; peer.connect(server);
     serverSsl = Access::ssl(server); serverOutput = Access::output(server);
     writeFailuresAndFragmentation(server, peer);
@@ -345,7 +482,7 @@ int main() {
       Access::releaseTls(failing);
       serverSsl = nullptr; serverOutput = nullptr;
     }
-    std::cout << "Actual AaCommunicator TLS failures, receive boundaries/fragments, and serialization passed\n";
+    std::cout << "Actual AaCommunicator authentication/discovery validation, TLS failures, receive boundaries/fragments, and serialization passed\n";
   } catch (const std::exception &error) {
     std::cerr << error.what() << '\n'; return 1;
   }

@@ -63,6 +63,8 @@ def stage_event(line):
         return {"stage": "usb_startup_eshutdown"}
     if line.startswith("USB startup suspended:"):
         return {"stage": "usb_startup_suspended"}
+    if line.startswith("USB suspended:"):
+        return {"stage": "usb_suspended"}
     if line.startswith("USB resumed:"):
         return {"stage": "usb_resumed"}
     if line == "VideoChannelHandler: malformed media ACK ignored":

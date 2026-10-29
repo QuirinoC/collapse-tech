@@ -1,6 +1,7 @@
 // Distributed under GPLv3 only as specified in repository's root LICENSE file
 
 #include "AaCommunicator.h"
+#include "AuthCompleteIndication.pb.h"
 #include "Channel.pb.h"
 #include "ChannelOpenRequest.pb.h"
 #include "Configuration.h"
@@ -20,6 +21,7 @@
 #include "utils.h"
 #include <boost/filesystem.hpp>
 #include <boost/signals2.hpp>
+#include <array>
 #include <cstdint>
 #include <fcntl.h>
 #include <fmt/core.h>
@@ -108,10 +110,23 @@ void AaCommunicator::sendServiceDiscoveryRequest() {
 
 void AaCommunicator::handleServiceDiscoveryResponse(const void *buf,
                                                     size_t nbytes) {
-  serviceDescriptor = vector<uint8_t>((uint8_t *)buf, (uint8_t *)buf + nbytes);
   class tag::aas::ServiceDiscoveryResponse sdr;
   if (!sdr.ParseFromArray(buf, nbytes))
     throw std::runtime_error("invalid service discovery response");
+  // Validate the entire response before publishing its descriptor or changing
+  // any handler. Protobuf channel IDs are uint32, while the wire and handler
+  // array permit only one-byte IDs; zero belongs to the control channel.
+  std::array<bool, UINT8_MAX + 1> seen{};
+  for (const auto &ch : sdr.channels()) {
+    const auto id = ch.channel_id();
+    if (id == 0 || id > UINT8_MAX)
+      throw std::runtime_error("service discovery channel ID is outside 1..255");
+    if (seen[id])
+      throw std::runtime_error("duplicate service discovery channel ID");
+    seen[id] = true;
+  }
+  serviceDescriptor = vector<uint8_t>((const uint8_t *)buf,
+                                      (const uint8_t *)buf + nbytes);
   std::cout << sdr.DebugString() << std::endl;
   for (auto ch : sdr.channels()) {
     if (ch.has_media_channel() &&
@@ -246,6 +261,13 @@ void AaCommunicator::handleMessageContent(const Message &message) {
   } else if (messageType == MessageType::SslHandshake) {
     handleSslHandshake(shortView + 1, msg.size() - sizeof(__u16));
   } else if (messageType == MessageType::AuthComplete) {
+    tag::aas::AuthCompleteIndication authentication;
+    if (!authentication.ParseFromArray(msg.data() + sizeof(__u16),
+                                       msg.size() - sizeof(__u16)))
+      throw std::runtime_error("invalid authentication completion response");
+    if (authentication.status() != 0)
+      throw std::runtime_error("head unit rejected authentication (status " +
+                               std::to_string(authentication.status()) + ")");
     cout << "auth complete" << endl;
     sendServiceDiscoveryRequest();
   } else if (messageType == MessageType::ServiceDiscoveryResponse) {
@@ -486,7 +508,7 @@ ssize_t AaCommunicator::handleEp0Message(int fd, const void *buf,
     } else if (event->type == FUNCTIONFS_SUSPEND) {
       if (usbEndpoints.suspend())
         throw std::runtime_error("ep0 suspend after session bytes");
-      std::cout << "USB startup suspended: retaining configured state until RESUME or newer FUNCTIONFS_ENABLE" << std::endl;
+      std::cout << "USB suspended: retaining session/configuration until RESUME or newer FUNCTIONFS_ENABLE" << std::endl;
     } else if (event->type == FUNCTIONFS_RESUME) {
       usbEndpoints.resume();
       std::cout << "USB resumed: waiting for actual FUNCTIONFS_ENABLE if configuration was invalidated" << std::endl;

@@ -7,6 +7,25 @@ PREFIX="${AIRPLAY_AA_PREFIX:-/opt/airplay-aa}"
 SRC="${ROOT}/third_party"
 JOBS="$(nproc)"
 CERT_SRC="${AIRPLAY_AA_CERT_DIR:-$ROOT/certs}"
+AACS_REVISION=faa1cf208feb5dfe1cb9535be16daeac4f08da0c
+# Both original files in the saved deployed patch match this snapshot exactly.
+# This does not establish that every deployed UxPlay source file used this commit.
+UXPLAY_REVISION=8ef677617c864756ae930a565edf0ae03e7da134
+# Built and used by the fresh Pi's October 29 USB/DHU hybrid run.
+LIBUSBGX_REVISION=dbedf16f80c5b4e1807ea4f80cc89d1f15d36f0a
+
+# An existing checkout may contain local work. Check it before installing or
+# building anything; never reset it to force the tested revision.
+source "$ROOT/scripts/aacs-source.sh"
+if [[ -e "$SRC/AACS" ]]; then
+  ensure_aacs_source "$SRC/AACS" https://github.com/tomasz-grobelny/AACS.git "$AACS_REVISION"
+fi
+if [[ -e "$SRC/UxPlay" ]]; then
+  ensure_pinned_source "$SRC/UxPlay" https://github.com/FDH2/UxPlay.git "$UXPLAY_REVISION" UxPlay
+fi
+if [[ -e "$SRC/libusbgx" ]]; then
+  ensure_pinned_source "$SRC/libusbgx" https://github.com/libusbgx/libusbgx.git "$LIBUSBGX_REVISION" libusbgx
+fi
 
 # AAServer is the PHONE side. DHU's long-lived HEADUNIT certificate is not
 # accepted as a phone identity, even though its expiry is in the future.
@@ -37,9 +56,7 @@ run_root env DEBIAN_FRONTEND=noninteractive apt-get install -y \
   python3 python3-gi python3-dbus bluez libspa-0.2-bluetooth pipewire wireplumber
 
 echo "==> libusbgx (USB gadget helpers for AAServer)"
-if [[ ! -d "$SRC/libusbgx" ]]; then
-  git clone --depth 1 https://github.com/libusbgx/libusbgx.git "$SRC/libusbgx"
-fi
+ensure_pinned_source "$SRC/libusbgx" https://github.com/libusbgx/libusbgx.git "$LIBUSBGX_REVISION" libusbgx
 (
   cd "$SRC/libusbgx"
   autoreconf -i
@@ -50,9 +67,7 @@ fi
 )
 
 echo "==> UxPlay (AirPlay2 receiver)"
-if [[ ! -d "$SRC/UxPlay" ]]; then
-  git clone --depth 1 https://github.com/FDH2/UxPlay.git "$SRC/UxPlay"
-fi
+ensure_pinned_source "$SRC/UxPlay" https://github.com/FDH2/UxPlay.git "$UXPLAY_REVISION" UxPlay
 # YouTube HLS: keep the reverse (PTTH) socket when the phone answers FCUP
 # with HTTP/1.1. Otherwise the next playlist fetch dies with send error 88.
 if ! grep -q ptth_established "$SRC/UxPlay/lib/httpd.c"; then
@@ -66,7 +81,7 @@ fi
 (
   cd "$SRC/UxPlay"
   mkdir -p build && cd build
-  cmake .. -DCMAKE_INSTALL_PREFIX="$PREFIX"
+  cmake .. -DCMAKE_INSTALL_PREFIX="$PREFIX" -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   make -j"$JOBS"
   # Stage CMake's install output, then replace runtime files durably instead of
   # allowing an interrupted in-place install to truncate the live executable.
@@ -77,9 +92,7 @@ fi
 )
 
 echo "==> AACS AAServer (phone-side Android Auto over USB)"
-if [[ ! -d "$SRC/AACS" ]]; then
-  git clone --recurse-submodules --depth 1 https://github.com/tomasz-grobelny/AACS.git "$SRC/AACS"
-fi
+ensure_aacs_source "$SRC/AACS" https://github.com/tomasz-grobelny/AACS.git "$AACS_REVISION"
 # Preserve bounded channel-open/setup waits from the deployed video handler.
 cp "$ROOT/patches/AaCommunicator.h" "$ROOT/patches/UsbEndpointState.h" \
   "$ROOT/patches/AaFrameReceiver.h" \
@@ -98,7 +111,7 @@ cp "$ROOT/patches/VideoChannelHandler.h" \
 cp "$ROOT/patches/VideoChannelHandler.cpp" \
   "$SRC/AACS/AAServer/src/VideoChannelHandler.cpp"
 # Current DHU omits the optional codec on its video media descriptor.
-for proto in MediaStreamType MediaChannel VideoConfig MediaChannelSetupResponse VideoFocusIndication InputChannel InputBinding MediaAckIndication MediaStartIndication; do
+for proto in MediaStreamType MediaChannel VideoConfig MediaChannelSetupResponse VideoFocusIndication InputChannel InputBinding MediaAckIndication MediaStartIndication AuthCompleteIndication; do
   cp "$ROOT/patches/$proto.proto" "$SRC/AACS/proto/$proto.proto"
 done
 # AACS enumerates generated schemas explicitly rather than globbing proto files.
@@ -119,7 +132,7 @@ grep -q '^[[:space:]]*../proto/InputBinding.proto' "$SRC/AACS/proto/CMakeLists.t
   exit 1
 }
 # These upstream schemas were previously unused by the phone implementation.
-for proto in ChannelOpenResponse MediaAckIndication MediaStartIndication; do
+for proto in ChannelOpenResponse MediaAckIndication MediaStartIndication AuthCompleteIndication; do
   if ! grep -q "^[[:space:]]*../proto/$proto.proto" "$SRC/AACS/proto/CMakeLists.txt"; then
     sed -i "/^[[:space:]]*\\.\\.\\/proto\\/ChannelOpenRequest.proto/a\\    ../proto/$proto.proto" \
       "$SRC/AACS/proto/CMakeLists.txt"
@@ -163,7 +176,8 @@ export LD_LIBRARY_PATH="$PREFIX/lib:${LD_LIBRARY_PATH:-}"
   # This build artifact is copied directly into libexec. Embed the prefix's
   # library path so it can load libusbgx without a shell environment override.
   cmake .. -DCMAKE_PREFIX_PATH="$PREFIX" \
-    -DCMAKE_BUILD_RPATH="$PREFIX/lib" -DCMAKE_INSTALL_RPATH="$PREFIX/lib"
+    -DCMAKE_BUILD_RPATH="$PREFIX/lib" -DCMAKE_INSTALL_RPATH="$PREFIX/lib" \
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   # Only need AAServer for the phone-side USB path.
   cmake --build . --target AAServer -j"$JOBS"
   run_root python3 "$ROOT/scripts/atomic_install.py" AAServer/AAServer "$PREFIX/libexec/aaserver/AAServer" --mode 755 --owner 0 --group 0

@@ -3,16 +3,14 @@
 Raspberry Pi becomes an **AirPlay 2 receiver** and projects that video to a car
 head unit over **wired Android Auto (USB AOAP)**. Wireless Android Auto is not used.
 
-The deployed October 22 car-interface revision (`2503d81f…`) corrects incoming
-AA framing, channel-open status handling, video acknowledgement limits, USB
-power descriptors and startup without Wi-Fi. It passed real Mac USB/DHU moving
-video: touch **61.137 s**, rotary **60.252 s**, hybrid **60.537 s**. A restricted
-Bluetooth companion for the configured Mazda and persistent diagnostics are
-installed and enabled. Actual Mazda pairing/projection remains unverified.
-
-On October 28 the Pi was unavailable over USB and SSH, so the remaining reboot
-check and restoration from the temporary test pattern to normal AirPlay are
-pending. Reconnect it before the next car trial; see [current evidence](docs/STATUS.md).
+After the October 29 reflash, the Pi was rebuilt and verified to boot to the
+command line with the bridge, Bluetooth companion and diagnostics running.
+The current AAServer (`e4014ef7…`) passed real Mac USB/DHU touch, rotary and
+hybrid runs with at least **60 seconds** of moving video each. AirPlay was
+restored afterward. A direct AirPlay video played through the previous rebuilt
+binary, but a fresh screen-mirroring acceptance test remains pending.
+Active undervoltage recurred after reboot. Actual Mazda pairing and projection
+remain unverified; see [current evidence](docs/STATUS.md).
 
 The full Mac Screen Mirroring → Pi → USB/DHU pass of **60.786 seconds** is from
 **October 10**. October 22 QuickTime direct AirPlay playback supplied no fresh
@@ -61,6 +59,18 @@ Provide a currently valid signed `O=CarService` phone certificate and matching
 key as `android_auto.crt` / `android_auto.key`. The bundled legacy DHU identity
 belongs to a head unit and is rejected before installation. See
 [certificate checks and provenance](certs/README.md).
+
+The builder pins AACS to the October 22 tested source commit, libusbgx to
+`dbedf16f80c5b4e1807ea4f80cc89d1f15d36f0a`, and UxPlay to
+`8ef677617c864756ae930a565edf0ae03e7da134`. The libusbgx revision was built
+on the freshly flashed Pi for an October 29 hybrid USB/DHU test that passed
+60.207 seconds of moving video. Both UxPlay files underlying the
+saved deployed patches match this snapshot exactly, and both patches apply and
+compile in a Debian 13 container. That comparison does not establish the
+revision of every file in the earlier deployed UxPlay tree. An existing source
+checkout at another revision is preserved and rejected; inspect it and stage a
+separate checkout rather than resetting it. A new build still needs fresh Pi,
+AirPlay and head-unit validation.
 
 Then:
 

@@ -48,7 +48,7 @@ done
 for source in AaCommunicator Configuration ChannelHandler VideoChannelHandler InputChannelHandler ModeSwitcher descriptors; do
   cp "$ROOT/patches/$source.cpp" "$CONTEXT/patches/"
 done
-for proto in MediaStreamType MediaChannel VideoConfig MediaChannelSetupResponse VideoFocusIndication InputChannel InputBinding MediaAckIndication MediaStartIndication; do
+for proto in MediaStreamType MediaChannel VideoConfig MediaChannelSetupResponse VideoFocusIndication InputChannel InputBinding MediaAckIndication MediaStartIndication AuthCompleteIndication; do
   cp "$ROOT/patches/$proto.proto" "$CONTEXT/patches/"
 done
 cp "$ROOT/tests/aacs_tls_transport_test.cpp" "$ROOT/tests/aacs_tls_transport.cmake" "$CONTEXT/tests/"
@@ -64,13 +64,13 @@ done
 for source in AaCommunicator Configuration ChannelHandler VideoChannelHandler InputChannelHandler ModeSwitcher descriptors; do
   cp "/project/patches/$source.cpp" /project/aacs/AAServer/src/
 done
-for proto in MediaStreamType MediaChannel VideoConfig MediaChannelSetupResponse VideoFocusIndication InputChannel InputBinding MediaAckIndication MediaStartIndication; do
+for proto in MediaStreamType MediaChannel VideoConfig MediaChannelSetupResponse VideoFocusIndication InputChannel InputBinding MediaAckIndication MediaStartIndication AuthCompleteIndication; do
   cp "/project/patches/$proto.proto" /project/aacs/proto/
 done
 sed -i '/add_subdirectory(AAClient)/d; /add_subdirectory(GetEvents)/d' /project/aacs/CMakeLists.txt
 sed -i '/MediaChannelSetupResponse.proto/a\    ../proto/VideoFocusIndication.proto' /project/aacs/proto/CMakeLists.txt
 sed -i '/InputChannel.proto/a\    ../proto/InputBinding.proto' /project/aacs/proto/CMakeLists.txt
-for proto in ChannelOpenResponse MediaAckIndication MediaStartIndication; do
+for proto in ChannelOpenResponse MediaAckIndication MediaStartIndication AuthCompleteIndication; do
   sed -i "/ChannelOpenRequest.proto/a\\    ../proto/$proto.proto" /project/aacs/proto/CMakeLists.txt
 done
 sed -i '/add_custom_command(TARGET AAServer POST_BUILD/,$d' /project/aacs/AAServer/CMakeLists.txt

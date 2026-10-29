@@ -73,14 +73,13 @@ actual touch/key delivery, sensor handling, negotiated USB speed, power stabilit
 physical cable reconnect, higher resolutions or complete transport conformance.
 The current report lists those omissions explicitly.
 
-Production-code review also found missing protocol acceptance coverage:
-`ChannelHandler.cpp` accepts a video-channel-open response without parsing its
-status; `VideoChannelHandler.cpp` discards media acknowledgements and does not
-enforce the negotiated outstanding-video limit. These need production-handler
-regressions and broader transport/credit/backpressure coverage. The added TLS
-peer regression covers shared-object serialization and failed-output handling;
-passing it or the DHU matrix cannot establish the outstanding-video limit. Neither is a proven cause of
-the observed Mazda USB resets.
+The earlier channel-open status and video acknowledgement gaps have been fixed:
+the production handlers validate open status and enforce the negotiated
+outstanding-video limit, with focused regressions. Further transport and
+backpressure conformance, delivery of actual touch/rotary actions, real Bluetooth
+pairing and Mazda acceptance remain unverified. The TLS peer regression covers
+shared-object serialization and failed-output handling; DHU passes are evidence
+of interoperability with that simulator, not complete contract certification.
 
 ## Actual October 10 matrices
 

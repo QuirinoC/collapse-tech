@@ -20,6 +20,17 @@ spec.loader.exec_module(diagnostics)
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_suspend_resume_stages_distinguish_current_and_historical_log_formats(self):
+        self.assertEqual(diagnostics.stage_event(
+            "USB suspended: retaining session/configuration until RESUME or newer FUNCTIONFS_ENABLE"),
+            {"stage": "usb_suspended"})
+        self.assertEqual(diagnostics.stage_event(
+            "USB startup suspended: retaining configured state until RESUME or newer FUNCTIONFS_ENABLE"),
+            {"stage": "usb_startup_suspended"})
+        self.assertEqual(diagnostics.stage_event(
+            "USB resumed: waiting for actual FUNCTIONFS_ENABLE if configuration was invalidated"),
+            {"stage": "usb_resumed"})
+
     def test_actual_mazda_startup_failure_is_distinct_from_projection_wait(self):
         trace = ["Initial AOA request 51 handled",
                  "Initial AOA request 53 completed; switch to accessory mode",

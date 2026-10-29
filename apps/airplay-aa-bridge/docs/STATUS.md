@@ -1,25 +1,118 @@
-# Bench status — October 28, 2026
+# Bench status — October 29, 2026
 
 **Actual Mazda activation: STILL UNRESOLVED. This is not car-ready.**
 
-## Connection follow-up — October 29
+## Reflash and recovery — October 29
 
-The user reported that the Pi’s SD card had been removed and was reinserted.
-Afterward, the Mac did not detect the Pi over USB or at the saved SSH address or
-hostname. A bounded local-network check did not find the recorded Pi Ethernet
-address or its SSH host key. The Mac’s Ethernet interfaces reported no link;
-the cable destination and current Pi LED state were not confirmed. These
-observations do not establish the Pi’s power or boot state. Evidence is in
-`.local/car-interface-20261029/`.
+The user reported reinserting the previously removed SD card and then reflashing
+the Pi. The new image runs Debian 13 (Trixie) on a Pi 5 Rev 1.1 with hostname
+`quirino`. At initial inspection, Ethernet was `10.0.0.112` and Wi-Fi was
+`10.0.0.113`. SSH key authentication was verified to the Ethernet address; the
+new host key was pinned using the recorded Ethernet MAC and was not independently
+verified cryptographically. Evidence is in `.local/car-interface-20261029/`.
 
-The last confirmed source remains `test-pattern`. When the Pi is reachable,
-inspect its boot ID, uptime, voltage flags, deployed checksums and services;
-validate the saved original configuration and use the guarded restore in
-`.local/car-interface-20261028/restore-source.py`. Then perform the authorized
-controlled reboot with before/after evidence and verify bridge, Bluetooth,
-diagnostics and HFP startup. Run a fresh USB/DHU moving-video check if the Pi
-is connected to the Mac. Fresh full AirPlay, actual Mazda pairing/projection,
-and clean-power validation remain outstanding.
+On the fresh image, the prior `/opt/airplay-aa`, `/etc/airplay-aa`, and Pi-only
+backup paths were absent. The original bridge configuration is not known to exist
+locally; its old Pi backup cannot be used without separate recovery. The prepared
+restore for the old installation therefore is not applicable. The previous
+`test-pattern` setting was on that old installation. A protected local PHONE
+identity and private Mazda Bluetooth configuration are available, with references
+and validation limits in the protected credential inventory.
+
+The first fresh installation attempt installed packages, private configuration,
+and some boot/module changes, but failed when current UxPlay upstream rejected
+its PTTH patch. At that point the bridge, Bluetooth and diagnostics units were
+not installed. Original boot configuration and command-line files were backed up
+on the Pi at `/var/backups/airplay-aa-fresh-20261029`; the failure log is
+`.local/car-interface-20261029/fresh-install.log`.
+
+The fresh installation subsequently completed with pinned AACS
+`faa1cf208feb5dfe1cb9535be16daeac4f08da0c`, UxPlay
+`8ef677617c864756ae930a565edf0ae03e7da134`, and libusbgx
+`dbedf16f80c5b4e1807ea4f80cc89d1f15d36f0a`. Its rebuilt AAServer SHA-256 is
+`8baedfc23ea58788c62e7bf03277412e84a8fd75b7f1dece77b847c31d8855fa`.
+The controlled reboot changed the boot ID from
+`f70d409a-000f-4f42-b01b-51da75f386f4` to
+`c244ba43-1276-4e09-8c16-03a462490ec6`; `multi-user.target` was confirmed as the
+default afterward. Bridge, Bluetooth and diagnostics were enabled and active;
+PipeWire sockets and WirePlumber were active, and the HFP Audio Gateway UUID was
+registered. This is startup evidence, not a Mazda pairing or projection pass.
+
+The initial power flag was `0x50005` (active undervoltage), then `0x50000`
+(historical flags only), including a subsequent 30-sample window. After the
+controlled reboot, `0x50005` recurred. Clean power is not established.
+
+The fresh configuration was explicitly set to `airplay`. A temporary
+post-reboot `test-pattern` run passed the strict hybrid USB/DHU test with
+**60.207 seconds** of sampled moving video. The run exercised the real USB/AOA
+and TLS connection, successful input binding, automatic projected focus and
+decoded motion. Evidence is
+`.local/car-interface-20261029/postboot-hybrid/summary.json`. The exact saved
+fresh configuration was then restored and verified with source `airplay` and
+SHA-256 `f5179f4f8303fc77a391f6f17f6f2092a31e10a17bf146b9ca108ad3b7aed832`;
+bridge, Bluetooth and diagnostics services were active. `Pi AirPlay AA` was
+advertised over Bonjour, but no fresh end-to-end AirPlay stream was validated.
+The initial post-reboot voltage flag `0x50005` later read `0x50000`; this does
+not eliminate the active undervoltage observation. Pre/post-reboot and restore
+evidence is saved under `.local/car-interface-20261029/`. Actual Mazda
+pairing/projection and clean-power validation remain outstanding; the Mac DHU
+pass does not establish Mazda readiness.
+
+A later fresh AirPlay attempt passed the USB/DHU TLS, automatic focus and moving
+video stages with **60.619 seconds** of sampled motion. Screenshots show gameplay
+video, and the contemporaneous UxPlay log shows HLS playback, but confirmation
+that the observed clip matches the user's intended video is still pending. The
+strict `--expect-airplay` test **failed overall** because fewer than two fresh
+mirrored H.264 records were observed. This is not a fresh Screen Mirroring pass.
+Active undervoltage `0x50005` was observed during this attempt. Evidence is in
+`.local/car-interface-20261029/fresh-airplay/`.
+
+A later direct AirPlay video stream reached the Mac DHU for **60.619 seconds**
+of changing decoded video, with successful USB/AOA, DHU certificate verification,
+input binding and automatic focus. The user confirmed the captured gameplay was
+their video. The strict screen-mirroring-specific test still **failed** because
+it did not observe fresh mirrored H.264 records; contemporaneous receiver logs
+show HLS playback. This proves the observed direct playback path for that test,
+not a fresh Screen Mirroring pass or Mazda acceptance. After the final contract
+build was installed, the user chose to skip another video retest; the direct
+playback observation therefore applies to the preceding build. Active undervoltage
+`0x50005` recurred during this run. Evidence is in
+`.local/car-interface-20261029/fresh-airplay/` and the protected receiver log.
+
+## Contract validation and final build — October 29
+
+A production-code review identified ignored authentication-completion status and
+unchecked discovery channel IDs. The updated communicator rejects malformed or
+nonzero authentication status before service discovery and validates all channel
+IDs and duplicates before publishing discovery state. Production TLS regressions
+exercise valid and rejected authentication and invalid discovery responses.
+The USB endpoint state now pauses an established session on FunctionFS SUSPEND
+and resumes without replaying bytes; DISABLE, UNBIND and established-session
+ESHUTDOWN remain fatal. Focused tests cover partial writes, racing reads,
+cancellation and idle waiting. Actual hardware suspend/resume remains untested.
+
+The rebuilt candidate AAServer SHA-256 is
+`e4014ef77d8f1b3eb61d8a20bc9ba1bb60f10838bab901bf2a37131473b64fb4`;
+it was installed with rollback at `/var/backups/airplay-aa-contract-20261029`.
+The native USB/AOA, framing, descriptor and handler suite and production TLS
+suite passed after these changes. The actual Pi USB/DHU runs passed **60.470 s**
+touch, **60.839 s** rotary and **60.982 s** hybrid, with normal DHU TLS
+verification, successful input binding, phone-requested projection and moving
+decoded video. Evidence is `.local/car-interface-20261029/contract-matrix/`
+and `contract-hybrid-retry/`. The first hybrid attempt was blocked before DHU
+launch because the USB gadget was absent three seconds after rotary; on a later
+run it reappeared 3.122 seconds after the hybrid test. Hybrid passed on retry.
+This is an observed recovery delay, not proof of physical cable reconnect or
+Mazda interoperability. The fresh AirPlay configuration was restored after each
+test; services were active and the CLI boot target remained selected.
+
+These tests establish interoperability with the Mac DHU for the exercised
+profiles, not the complete Android Auto contract. Real Mazda Bluetooth bonding,
+HFP call/audio behavior, car projection, actual touch/rotary action delivery,
+sensors, device suspend/resume and clean power remain unverified. The Pi accepts
+head-unit TLS certificates without validating their identity; the DHU did verify
+the Pi phone certificate. Active undervoltage was observed in this boot before
+the matrix, so these passes do not establish power stability.
 
 ## Car-interface repairs and deployment — October 22
 
@@ -39,14 +132,15 @@ All 66 installed targets matched their manifest checksums. Bridge, Bluetooth
 and diagnostics services were enabled and active. Its durable rollback is
 `/var/backups/airplay-aa-car-interface-xsfocx96`.
 
-**October 28 follow-up:** runtime source checksums still match the tested
-October 22 deployment. The Pi is currently absent from this Mac's USB inventory
-and unreachable at its saved IP and hostname. Reboot validation, final evidence
-collection, and restoring the normal AirPlay source remain pending. The last
-confirmed source is `test-pattern`; its exact original configuration is backed
-up in `/var/backups/airplay-aa-car-interface-20261022-final`. Restore it using
-the staged `source-mode-final.py restore` when the Pi is reachable, then verify
-startup and services. No new live-Pi or Mazda pass is claimed on October 28.
+**October 28 follow-up:** runtime source checksums still matched the tested
+October 22 deployment. At that time, the Pi was absent from this Mac's USB
+inventory and unreachable at its saved IP and hostname. Reboot validation, final evidence
+collection, and restoration of the normal AirPlay source were still pending at that time. The last
+confirmed source on that installation was `test-pattern`; its exact original
+configuration was backed up on the Pi at
+`/var/backups/airplay-aa-car-interface-20261022-final`. The later reflash and
+recovery status are described above. No new live-Pi or Mazda pass is claimed on
+October 28.
 
 The changes address concrete implementation defects and missing startup work:
 

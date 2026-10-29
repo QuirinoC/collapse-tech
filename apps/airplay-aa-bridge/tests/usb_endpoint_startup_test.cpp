@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cassert>
 #include <csignal>
+#include <ctime>
 #include <future>
 #include <iostream>
 #include <string>
@@ -133,29 +134,81 @@ int main() {
     recovering.get();
     assert(state.waitEnabled() == 2);
   }
-  // An established session is never recovered after SUSPEND/DISABLE, even if
-  // later events report RESUME or ENABLE before a worker observes the failure.
-  for (bool suspend : {false, true}) {
+  // An established session may suspend past the original startup deadline.
+  // RESUME retains its actual ENABLE generation and must not busy-spin while
+  // waiting on a startup deadline that is now in the past.
+  {
+    UsbEndpointState state(30ms);
+    state.enable();
+    state.bytesReceived();
+    assert(!state.suspend());
+    std::promise<void> attempted;
+    auto beforeWait = attempted.get_future();
+    auto waiting = std::async(std::launch::async, [&] {
+#ifdef CLOCK_THREAD_CPUTIME_ID
+      timespec before{}, after{};
+      assert(clock_gettime(CLOCK_THREAD_CPUTIME_ID, &before) == 0);
+#endif
+      attempted.set_value();
+      const auto generation = state.waitEnabled();
+#ifdef CLOCK_THREAD_CPUTIME_ID
+      assert(clock_gettime(CLOCK_THREAD_CPUTIME_ID, &after) == 0);
+      const auto usedNs = (after.tv_sec - before.tv_sec) * 1000000000LL +
+                          after.tv_nsec - before.tv_nsec;
+      assert(usedNs < 30000000LL); // <30ms CPU during >120ms wall-clock pause.
+#endif
+      return generation;
+    });
+    assert(beforeWait.wait_for(100ms) == std::future_status::ready);
+    assert(waiting.wait_for(120ms) == std::future_status::timeout);
+    state.checkStartupDeadline();
+    state.resume();
+    assert(waiting.get() == 1);
+  }
+  // An established DISABLE remains fatal even if it races a suspended worker
+  // and later events report RESUME/ENABLE before that worker sees the failure.
+  for (bool suspended : {false, true}) {
     UsbEndpointState state(500ms);
     state.enable();
     state.bytesReceived();
-    if (suspend)
-      assert(state.suspend());
-    else
-      assert(state.disable());
+    if (suspended)
+      assert(!state.suspend());
+    assert(state.disable());
     state.resume();
     state.enable();
     assert(throws([&] { state.waitEnabled(); }));
   }
-  // Positive bytes completing from an in-flight read while startup is
-  // suspended turn that interruption into a fatal established-session event.
-  {
+  // Positive bytes completing from a read begun before SUSPEND remain valid.
+  // This applies to both the first read and an already-established session.
+  for (bool established : {false, true}) {
     UsbEndpointState state(500ms);
     state.enable();
+    if (established)
+      state.bytesReceived();
     assert(!state.suspend());
-    assert(throws([&] { state.bytesReceived(); }));
+    state.bytesReceived();
+    auto waiting = std::async(std::launch::async, [&] { return state.waitEnabled(); });
+    assert(waiting.wait_for(20ms) == std::future_status::timeout);
     state.resume();
-    assert(throws([&] { state.waitEnabled(); }));
+    assert(waiting.get() == 1);
+  }
+  // A suspended established worker still terminates promptly on stop, UNBIND,
+  // or DISABLE; none may be turned into a session replay by a concurrent resume.
+  for (int ending : {0, 1, 2}) {
+    UsbEndpointState state(500ms);
+    state.enable();
+    state.bytesReceived();
+    assert(!state.suspend());
+    auto waiting = std::async(std::launch::async, [&] {
+      return throws([&] { state.waitEnabled(); });
+    });
+    assert(waiting.wait_for(20ms) == std::future_status::timeout);
+    if (ending == 0) state.stop();
+    else if (ending == 1) state.unbind();
+    else assert(state.disable());
+    state.resume();
+    assert(waiting.wait_for(100ms) == std::future_status::ready);
+    assert(waiting.get());
   }
   // A reader crossing first session bytes also cancels a writer already waiting
   // for startup recovery; a later ENABLE cannot authorize a replay.
@@ -283,5 +336,47 @@ int main() {
     }));
     assert(calls == 1);
   }
-  std::cout << "USB endpoint startup and pending-byte tests passed\n";
+  // A partially completed write may race SUSPEND. Retain the exact pending
+  // bytes until RESUME, without re-encrypting/replaying the already-sent prefix.
+  // If DISABLE arrives while paused, discard the remainder by ending the session.
+  for (bool disable : {false, true}) {
+    UsbEndpointState state(500ms);
+    state.enable();
+    state.bytesReceived();
+    std::string received;
+    std::vector<std::string> requested;
+    std::promise<void> partial;
+    auto firstWrite = partial.get_future();
+    auto pumping = std::async(std::launch::async, [&] {
+      return throws([&] {
+        pumpPendingBytes("abcdef", 6,
+          [&](const void *data, size_t length) -> ssize_t {
+            requested.emplace_back(static_cast<const char *>(data), length);
+            if (requested.size() == 1) {
+              received.append(static_cast<const char *>(data), 2);
+              assert(!state.suspend());
+              partial.set_value();
+              return 2;
+            }
+            received.append(static_cast<const char *>(data), length);
+            return length;
+          }, [&] { return state.waitEnabled(); },
+          [&](auto generation) { state.recoverStartup(generation); },
+          [&] { state.pauseTransient(); }, [] { return false; });
+      });
+    });
+    assert(firstWrite.wait_for(100ms) == std::future_status::ready);
+    assert(pumping.wait_for(20ms) == std::future_status::timeout);
+    if (disable) assert(state.disable());
+    state.resume();
+    assert(pumping.wait_for(100ms) == std::future_status::ready);
+    assert(pumping.get() == disable);
+    assert(received == (disable ? "ab" : "abcdef"));
+    assert(requested.size() == (disable ? 1u : 2u));
+    if (!disable) {
+      assert(requested[1] == "cdef");
+      assert(state.waitEnabled() == 1);
+    }
+  }
+  std::cout << "USB endpoint startup, suspend/resume and pending-byte tests passed\n";
 }

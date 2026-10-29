@@ -1,0 +1,7 @@
+// Distributed under GPLv3 only as specified in AACS repository LICENSE.
+// Control 0x0004, HU -> phone. Zero means authentication succeeded.
+syntax = "proto2";
+package tag.aas;
+message AuthCompleteIndication {
+  required int32 status = 1;
+}

@@ -63,16 +63,15 @@ public:
   }
 
   bool suspend() {
-    bool established;
     {
       std::lock_guard<std::mutex> lock(mutex);
       suspended = true;
-      established = sessionStarted;
-      if (established)
-        sessionFailure = "USB FunctionFS suspended after session bytes";
     }
     changed.notify_all();
-    return established;
+    // SUSPEND pauses traffic without disabling the USB configuration. Preserve
+    // the established AA/TLS state and pending transfer offset until RESUME.
+    // The bool remains the ep0 caller's fatal-event indicator, as for disable().
+    return false;
   }
 
   // RESUME does not establish a configuration or advance the ENABLE generation.
@@ -103,17 +102,16 @@ public:
   }
 
   // Record the first positive bulk OUT read before parsing any of its bytes.
-  // Reject a late or interrupted completion before it reaches protocol parsing.
+  // Reject a late or disabled completion before it reaches protocol parsing.
   void bytesReceived() {
     std::lock_guard<std::mutex> lock(mutex);
     checkState();
     sessionStarted = true;
-    // A completed in-flight read can race ep0's suspend/disable event. It
-    // still establishes session bytes and makes that interruption fatal.
+    // A completed in-flight read can race ep0's SUSPEND event. Its bytes are
+    // valid and may be parsed; subsequent USB operations remain paused. A
+    // DISABLE is different: it invalidates the configuration and is fatal.
     if (!configured)
       sessionFailure = "USB FunctionFS disabled after session bytes";
-    else if (suspended)
-      sessionFailure = "USB FunctionFS suspended after session bytes";
     changed.notify_all();
     checkState();
   }
@@ -124,7 +122,13 @@ public:
       checkState();
       if (configured && !suspended)
         return generation;
-      changed.wait_until(lock, deadline);
+      // The startup deadline no longer applies after the first AA bytes.
+      // Waiting on that expired timestamp would spin throughout a later
+      // suspend. RESUME, DISABLE, UNBIND and stop all notify this waiter.
+      if (sessionStarted)
+        changed.wait(lock);
+      else
+        changed.wait_until(lock, deadline);
     }
   }
 
@@ -170,8 +174,6 @@ private:
       throw std::runtime_error(sessionFailure);
     if (sessionStarted && !configured)
       throw std::runtime_error("USB FunctionFS disabled after session bytes");
-    if (sessionStarted && suspended)
-      throw std::runtime_error("USB FunctionFS suspended after session bytes");
     if (!sessionStarted && Clock::now() >= deadline)
       throw std::runtime_error("USB startup deadline expired before session bytes");
   }
