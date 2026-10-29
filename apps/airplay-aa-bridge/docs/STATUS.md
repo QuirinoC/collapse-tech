@@ -79,6 +79,20 @@ playback observation therefore applies to the preceding build. Active undervolta
 `0x50005` recurred during this run. Evidence is in
 `.local/car-interface-20261029/fresh-airplay/` and the protected receiver log.
 
+## Car-network follow-up — October 29
+
+After the reflash, a read-only check found one saved Wi-Fi profile and no
+`airplay-aa-preferred-hotspot.timer`. The Pi stopped responding before the
+profile could be compared with the previously configured iPhone hotspot, so its
+identity and the Pi's ability to join that hotspot remain unverified. The former
+Pi-only hotspot profile and configuration cannot be assumed to have survived the
+reflash. A matching identifier exists in the Mac's saved network metadata, but
+no usable hotspot password was recovered. Do not overwrite the existing Wi-Fi
+profile or store credentials in project files. Restore the preferred hotspot
+only after verifying a current protected credential and the available connection;
+see [hotspot setup](car-bringup.md#preferred-phone-hotspot). This must be checked
+before relying on AirPlay away from the home network.
+
 ## Contract validation and final build — October 29
 
 A production-code review identified ignored authentication-completion status and

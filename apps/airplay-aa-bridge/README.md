@@ -90,6 +90,11 @@ Mac simulator steps: [docs/mac-testing.md](docs/mac-testing.md)
 
 ## Preferred phone hotspot
 
+**After the October 29 reflash:** the preference timer is not installed, and the
+single saved Wi-Fi profile has not been verified as the phone hotspot. The
+previous hotspot setup below describes the earlier image, not the current Pi.
+See [current status](docs/STATUS.md#car-network-follow-up--october-29).
+
 The optional `airplay-aa-preferred-hotspot.timer` checks for the saved phone
 network roughly every 30 seconds and joins it when available, including while
 home Wi-Fi is active. NetworkManager priority alone does not switch an active connection;
