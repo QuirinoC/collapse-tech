@@ -1,6 +1,6 @@
 # Bench status — October 29, 2026
 
-**Actual Mazda activation: STILL UNRESOLVED. This is not car-ready.**
+**Actual Mazda activation: FAILED in the live October 29 test. This is not car-ready.**
 
 ## Reflash and recovery — October 29
 
@@ -78,6 +78,52 @@ build was installed, the user chose to skip another video retest; the direct
 playback observation therefore applies to the preceding build. Active undervoltage
 `0x50005` recurred during this run. Evidence is in
 `.local/car-interface-20261029/fresh-airplay/` and the protected receiver log.
+
+## Live Mazda test — October 29
+
+The user tested in the car, with a separate supply through a data splitter, and
+reported that Android Auto did not appear. The Pi was reachable over Wi-Fi;
+bridge, Bluetooth and diagnostics were active on boot
+`e5d881aa-c02f-4b68-9ce9-1293ebace57e`. Initial AOA requests 51, 52 and 53
+completed, after which the high-speed accessory repeatedly enabled, disabled and
+suspended without receiving the first Android Auto version request. This is a
+USB initialization failure before protocol/TLS, service discovery and Bluetooth
+pairing; the cause remains unproven. The same boot continued across the observed
+service retries. Private diagnostic evidence is under
+`.local/car-interface-20261029/car-live/`.
+
+The Pi recorded fresh undervoltage warnings in the car despite the separate
+supply; 10 of 15 two-second samples had active undervoltage/throttling, with the
+5 V rail reported between 4.661 and 4.891 V. Supply, cable and splitter
+characteristics were not identified. The measurements do not establish whether
+power caused the USB failure. Do not claim Mazda compatibility or clean power.
+An AOA protocol-version capability mismatch and post-switch control-request
+visibility are under investigation; neither has been shown to cause these resets.
+
+### USB investigation and replug
+
+A bounded private control-request trace showed that the Mazda queries the
+optional Microsoft OS string descriptor; the composite driver rejected it and
+the DWC2 stall handler was invoked. The same rejected request was followed by a
+successful initial AOA exchange, and the Mazda also reset during configured
+intervals without issuing it. This is not proof of an OS-descriptor defect.
+
+An AOA1 capability candidate corrected the existing AOA2 version advertisement
+for features the bridge does not implement. In a 45-second in-car A/B, three
+AOA starts still led to three startup timeouts and zero version requests; all
+15 sampled power flags were `0x50000`, which does not exclude short dips. The
+previous AAServer and source were automatically restored; the AOA1 correction
+remains source-only pending a fresh Mac USB/DHU test. A separate power/data
+splitter stayed connected when the user replugged the Mazda-side data cable;
+the Pi boot ID remained the same, but the splitter's isolation and current flow
+have not been verified.
+
+A private bulk endpoint trace during the live test recorded ten successful OUT
+request queues; each completed with zero bytes and `ESHUTDOWN` before the
+endpoint was disabled. No initial AA version request reached the Pi. This
+establishes the observed stage, not whether the host transmitted anything on the
+wire or why the connection reset. Evidence is under
+`.local/car-interface-20261029/car-live/`.
 
 ## Car-network follow-up — October 29
 

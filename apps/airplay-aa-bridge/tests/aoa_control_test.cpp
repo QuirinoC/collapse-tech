@@ -81,7 +81,7 @@ void requireRejected(const AoaSetup &setup) {
 }
 
 void testValidSequence() {
-  MockEp0 endpoint{{{true, 2, 2, 0, {2, 0}},
+  MockEp0 endpoint{{{true, 2, 2, 0, {1, 0}},
                     {false, 4, 4, 0, {'T', 'A', 'G', 0}},
                     {false, 0, 0, 0, {}}}};
   assert(classifyAoaSetup(protocol()) == AoaAction::Protocol);
@@ -91,6 +91,19 @@ void testValidSequence() {
   assert(classifyAoaSetup(start()) == AoaAction::Start);
   assert(endpoint.handle(start()));
   endpoint.complete();
+}
+
+void testUnimplementedAoa2Capabilities() {
+  // Use actual AOA2 request shapes, including nonzero ID/index/length fields.
+  // Advertising version 2 would promise these features, which we must stall.
+  for (const auto &setup : std::vector<AoaSetup>{
+           {0x40, 54, 1, 63, 0}, // REGISTER_HID, report descriptor length 63.
+           {0x40, 55, 1, 0, 0},  // UNREGISTER_HID.
+           {0x40, 56, 1, 0, 2},  // SET_HID_REPORT_DESC, first two bytes.
+           {0x40, 57, 1, 0, 1},  // SEND_HID_EVENT, one report byte.
+           {0x40, 58, 1, 0, 0},  // SET_AUDIO_MODE, enable USB audio.
+           {0x40, 58, 0, 0, 0}}) // SET_AUDIO_MODE, disable USB audio.
+    requireRejected(setup);
 }
 
 void testExactSetupMatching() {
@@ -177,12 +190,12 @@ void testFailedCompletionNeverSwitches() {
   assert(throws([&] { impossible.handle(start()); }));
   impossible.complete();
   for (ssize_t count : {ssize_t(0), ssize_t(1), ssize_t(3)}) {
-    MockEp0 endpoint{{{true, 2, count, 0, {2, 0}}}};
+    MockEp0 endpoint{{{true, 2, count, 0, {1, 0}}}};
     assert(throws([&] { endpoint.handle(protocol()); }));
     endpoint.complete();
   }
   for (int error : {EINTR, ESHUTDOWN, EIO}) {
-    MockEp0 endpoint{{{true, 2, -1, error, {2, 0}}}};
+    MockEp0 endpoint{{{true, 2, -1, error, {1, 0}}}};
     assert(throws([&] { endpoint.handle(protocol()); }));
     endpoint.complete();
   }
@@ -286,6 +299,7 @@ void testDeadlineWrapper() {
 
 int main() {
   testValidSequence();
+  testUnimplementedAoa2Capabilities();
   testExactSetupMatching();
   testIdentificationPayloads();
   testFailedCompletionNeverSwitches();

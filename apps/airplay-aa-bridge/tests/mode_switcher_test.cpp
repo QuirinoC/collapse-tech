@@ -174,7 +174,7 @@ void testProtocolIdentityStartBeforeEnable() {
   // The actual loop must handle AOA before FUNCTIONFS_ENABLE. No ENABLE event
   // is supplied, matching CONFIG0_SETUP routing before SET_CONFIGURATION.
   addEvent(context, FUNCTIONFS_SETUP, {0xc0, 51, 0, 0, 2});
-  context.operations.push_back({Kind::Write, 2, 2, 0, {2, 0}});
+  context.operations.push_back({Kind::Write, 2, 2, 0, {1, 0}});
   addEvent(context, FUNCTIONFS_SETUP, {0x40, 52, 0, 2, 4});
   context.operations.push_back({Kind::Read, 4, 4, 0, {'a', 'b', 'c', 0}});
   addStart(context);
@@ -195,6 +195,25 @@ void testUnrelatedAndMalformedControls() {
     addStart(context);
     run(context, false);
   }
+}
+
+void testAoa2ProbeDoesNotPreventAoa1Start() {
+  auto context = initialized();
+  addEvent(context, FUNCTIONFS_BIND);
+  addEvent(context, FUNCTIONFS_SETUP, {0xc0, 51, 0, 0, 2});
+  context.operations.push_back({Kind::Write, 2, 2, 0, {1, 0}});
+  // A host probing an unsupported HID capability gets a stall, not a false
+  // success or an early mode switch. A subsequent AOA1 handshake still works.
+  addEvent(context, FUNCTIONFS_SETUP, {0x40, 54, 1, 63, 0});
+  context.operations.push_back({Kind::Write, 0, -1, airplay_aa::AoaStallError, {}});
+  addEvent(context, FUNCTIONFS_SETUP, {0xc0, 51, 0, 0, 2});
+  context.operations.push_back({Kind::Write, 2, 2, 0, {1, 0}});
+  for (uint16_t index = 0; index < 6; ++index) {
+    addEvent(context, FUNCTIONFS_SETUP, {0x40, 52, 0, index, 2});
+    context.operations.push_back({Kind::Read, 2, 2, 0, {'a', 0}});
+  }
+  addStart(context);
+  run(context, false);
 }
 
 void testEventStreamFailures() {
@@ -230,7 +249,7 @@ void testControlAndDescriptorFailures() {
   for (ssize_t result : {ssize_t(0), ssize_t(1), ssize_t(-1)}) {
     auto context = initialized();
     addEvent(context, FUNCTIONFS_SETUP, {0xc0, 51, 0, 0, 2});
-    context.operations.push_back({Kind::Write, 2, result, result < 0 ? EIO : 0, {2, 0}});
+    context.operations.push_back({Kind::Write, 2, result, result < 0 ? EIO : 0, {1, 0}});
     run(context, true);
   }
   for (const auto &bytes : std::vector<std::vector<uint8_t>>{{'a', 'b', 'c', 'd'},
@@ -254,6 +273,7 @@ void testControlAndDescriptorFailures() {
 int main() {
   testProtocolIdentityStartBeforeEnable();
   testUnrelatedAndMalformedControls();
+  testAoa2ProbeDoesNotPreventAoa1Start();
   testEventStreamFailures();
   testControlAndDescriptorFailures();
   std::cout << "Compiled production ModeSwitcher event-loop tests passed" << std::endl;

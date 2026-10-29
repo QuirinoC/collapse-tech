@@ -226,7 +226,10 @@ bool handleAoaSetup(const AoaSetup &setup, Transfer transfer) {
   std::array<uint8_t, 256> data{};
   const bool input = action == AoaAction::Protocol;
   if (input) {
-    data[0] = 2;
+    // Only AOA1 requests 51-53 are implemented; AOA2 HID/audio (54-58) are
+    // rejected. Advertise that capability accurately as little-endian 1:
+    // https://source.android.com/docs/core/interaction/accessories/aoa2#detect-aoav2-support
+    data[0] = 1;
     data[1] = 0;
   }
   errno = 0;
