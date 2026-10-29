@@ -1,0 +1,63 @@
+name: Infinite Pixelboard iOS CI
+
+on:
+  pull_request:
+    paths:
+      - "apps/infinite-pixelboard-ios/**"
+      - ".github/workflows/pixelboard-ios.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/infinite-pixelboard-ios/**"
+      - ".github/workflows/pixelboard-ios.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    name: iOS simulator tests
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "26.6"
+
+      - name: Resolve Swift packages
+        run: >-
+          xcodebuild
+          -resolvePackageDependencies
+          -project apps/infinite-pixelboard-ios/InfinitePixelboard.xcodeproj
+          -scheme InfinitePixelboard
+
+      - name: Provide a compile-only Firebase configuration
+        run: |
+          cat > apps/infinite-pixelboard-ios/GoogleService-Info.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>API_KEY</key><string>ci-placeholder</string>
+            <key>GCM_SENDER_ID</key><string>1234567890</string>
+            <key>GOOGLE_APP_ID</key><string>1:1234567890:ios:0000000000000000</string>
+            <key>PROJECT_ID</key><string>pixelboard-ci-placeholder</string>
+            <key>STORAGE_BUCKET</key><string>pixelboard-ci-placeholder.appspot.com</string>
+          </dict>
+          </plist>
+          PLIST
+
+      - name: Build Infinite Pixelboard for the simulator
+        run: >-
+          xcodebuild
+          -project apps/infinite-pixelboard-ios/InfinitePixelboard.xcodeproj
+          -scheme InfinitePixelboard
+          -destination "platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5"
+          -derivedDataPath "$RUNNER_TEMP/pixelboard-derived-data"
+          CODE_SIGNING_ALLOWED=NO
+          build
+
+      - name: Test PixelboardCore
+        run: swift test --package-path apps/infinite-pixelboard-ios
